@@ -8,33 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
 
 // Example: Import API types from their colocated routes when needed
-// import type { CreateArticleRequest } from '@/app/api/kanban/articles/route';
-// import type { MoveArticleRequest } from '@/app/api/kanban/move-article/route';
+// import type { CreateArticleRequest } from '@/app/api/articles/route';
+// import type { MoveArticleRequest } from '@/app/api/articles/move/route';
+import type { KanbanColumn } from '@/app/api/articles/board/route';
+import type { articles } from "@/server/db/schema";
 
-interface Article {
-  id: number;
-  title: string;
-  description?: string;
-  keywords: string[];
-  targetAudience?: string;
-  status: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
-  scheduledAt?: string;
-  generationScheduledAt?: string;
-  publishedAt?: string;
-  priority: 'low' | 'medium' | 'high';
-  estimatedReadTime?: number;
-  kanbanPosition: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface KanbanColumn {
-  id: string;
-  title: string;
-  status: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
-  articles: Article[];
-  color: string;
-}
+type Article = typeof articles.$inferSelect;
 
 interface KanbanBoardProps {
   className?: string;
@@ -48,7 +27,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
   const fetchKanbanBoard = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/kanban/board');
+      const response = await fetch('/api/articles/board');
       if (!response.ok) {
         throw new Error('Failed to fetch kanban board');
       }
@@ -69,7 +48,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
   const updateArticle = async (articleId: number, updates: Partial<Article>) => {
     try {
-      const response = await fetch(`/api/kanban/articles/${articleId}`, {
+      const response = await fetch(`/api/articles/${articleId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -91,7 +70,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
   const deleteArticle = async (articleId: number) => {
     try {
-      const response = await fetch(`/api/kanban/articles/${articleId}`, {
+      const response = await fetch(`/api/articles/${articleId}`, {
         method: 'DELETE',
       });
 
@@ -108,14 +87,22 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
   };
 
   const generateArticle = async (articleId: number) => {
+    console.log('generateArticle called with ID:', articleId);
     try {
       const response = await fetch(`/api/articles/${articleId}/generate`, {
         method: 'POST',
       });
 
+      console.log('Generate API response status:', response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Generate API error response:', errorText);
         throw new Error('Failed to start article generation');
       }
+
+      const responseData = await response.json() as unknown;
+      console.log('Generate API response data:', responseData);
 
       // Refresh the board to show the generating status
       await fetchKanbanBoard();
@@ -183,7 +170,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
       
       setColumns(updatedColumns);
 
-      const response = await fetch('/api/kanban/move-article', {
+      const response = await fetch('/api/articles/move', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,7 +214,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
   const createNewArticle = async () => {
     try {
-      const response = await fetch('/api/kanban/articles', {
+      const response = await fetch('/api/articles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -401,8 +388,10 @@ function ArticleCard({
   };
 
   const handleGenerate = async () => {
+    console.log('Generate button clicked for article:', article.id);
     try {
       await onGenerate(article.id);
+      console.log('Generate API call completed for article:', article.id);
     } catch (error) {
       console.error('Failed to generate article:', error);
     }
@@ -417,8 +406,9 @@ function ArticleCard({
     }
   };
 
-  const formatScheduledTime = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatScheduledTime = (dateValue: string | Date | null) => {
+    if (!dateValue) return '';
+    const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
     return date.toLocaleString();
   };
 

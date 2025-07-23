@@ -1,27 +1,22 @@
 ---
 mode: agent
 ---
-# Product Overview
 
-## AI SEO Content Machine
+# Project Structure
 
-An automated content creation platform that uses multi-agent AI systems to generate, manage, and publish SEO-optimized articles at scale.
+## Root Directory
+- **Configuration files**: `next.config.js`, `drizzle.config.ts`, `tsconfig.json`, `eslint.config.js`, `prettier.config.js`
+- **Environment**: `.env`, `.env.example` for environment variables
+- **Database**: `drizzle/` folder contains migrations and metadata
 
-### Core Features
+## Source Code Organization (`src/`)
 
-- **Kanban-based Article Management**: Visual workflow with columns for Ideas, To Generate, Generating, Wait for Publish, and Published
-- **Multi-Agent Content Generation**: Coordinated AI agents handle research, writing, fact-checking, SEO optimization, and internal linking
-- **Automated Publishing**: Scheduled article publishing with cron job automation
-- **SEO Optimization**: Built-in keyword research, competitor analysis, and search engine optimization
+### App Router Structure (`src/app/`)
+- **Root layout**: `layout.tsx` - Global app layout and metadata
+- **Home page**: `page.tsx` - Main application entry point
+- **API routes**: `api/` - RESTful endpoints organized by feature
 
-### Target Users
-
-Content marketers, SEO specialists, and businesses looking to scale their content production while maintaining quality and search engine visibility.
-
-### Key Value Proposition
-
-Transform content ideas into published, SEO-optimized articles through automated multi-agent workflows, reducing manual effort while maintaining editorial control through an intuitive kanban interface.
-
+````markdown
 # Project Structure
 
 ## Root Directory
@@ -64,6 +59,26 @@ api/
 - **Feature components**: `kanban/` - Kanban board implementation
 - **Component naming**: kebab-case with `.tsx` extension
 
+### Types (`src/types/`)
+- **types.ts**: Shared domain types and common interfaces (e.g., database entities, UI state)
+- **design-tokens.ts**: UI design token types for consistency
+- **API types**: Each API route defines and exports its own request/response types for colocation
+
+### Database Layer (`src/server/`)
+- **Database connection**: `db/index.ts` - Drizzle database instance
+- **Schema definition**: `db/schema.ts` - All database tables and types
+- **Schema organization**: Uses `contentMachineSchema` namespace for multi-project support
+
+### Utilities (`src/lib/`)
+- **prompts.ts**: AI prompt templates - contains all prompt logic inline
+- **utils.ts**: Only essential shared utilities (no business logic)
+- **sitemap.ts**: SEO sitemap generation - contains all sitemap logic inline
+
+### Components (`src/components/`)
+- **UI components**: `ui/` - Reusable UI components (buttons, cards, badges)
+- **Feature components**: `kanban/` - Kanban board implementation
+- **Component naming**: kebab-case with `.tsx` extension
+
 ### Services Layer (`src/lib/services/`)
 - **article-generation-service.ts**: Orchestrates multi-agent content generation
 - **research-service.ts**: Handles content research phase
@@ -86,9 +101,15 @@ api/
 
 ### File Naming
 - **Components**: kebab-case (e.g., `kanban-board.tsx`)
-- **API routes**: `route.ts` in feature folders
-- **Services**: kebab-case with service suffix
+- **API routes**: `route.ts` in feature folders with colocated types
+- **Types**: Domain types in `src/types/types.ts`, API types colocated with routes
 - **Database**: snake_case for table/column names, camelCase for TypeScript
+
+### Code Organization Principles
+- **No services layer**: All business logic written directly in API route handlers
+- **Inline logic**: Keep related functionality together in the same file
+- **Colocated types**: Each API route defines and exports its own request/response types
+- **Type safety**: Full TypeScript coverage with types colocated near their usage
 
 ### Database Schema
 - **Table prefix**: `content-machine_` for multi-project support
@@ -99,76 +120,14 @@ api/
 ### API Structure
 - **RESTful endpoints**: Standard HTTP methods
 - **Error handling**: Consistent error responses with status codes
-- **Type safety**: Full TypeScript coverage for requests/responses
+- **Type safety**: Each route defines and exports its own types for colocation
+- **Self-contained**: All logic written directly in route handlers
 
 ### Environment Variables
 - **Validation**: T3 Env with Zod schemas
 - **Server vs Client**: Clear separation of server-side and client-side variables
 - **Required variables**: `DATABASE_URL` for database connection
 
-# Technology Stack
-
-## Framework & Runtime
-- **Next.js 15** with App Router architecture
-- **React 19** with TypeScript
-- **Node.js** runtime environment
-
-## Database & ORM
-- **PostgreSQL** database
-- **Drizzle ORM** with schema-based migrations
-- **Drizzle Kit** for database management
-
-## AI & External Services
-- **Vercel AI SDK** for AI model integration
-- **Google Gemini 2.0 Flash** for research and grounding
-- **Claude 3.5 Sonnet** for content writing
-- **Anthropic AI SDK** and **Google AI SDK**
-
-## Styling & UI
-- **Tailwind CSS 4.0** for styling
-- **Lucide React** for icons
-- **DND Kit** and **Hello Pangea DND** for drag-and-drop functionality
-
-## Development Tools
-- **TypeScript** with strict type checking
-- **ESLint** with Next.js config and Drizzle plugin
-- **Prettier** with Tailwind plugin for code formatting
-- **T3 Env** for environment variable validation with Zod
-
-## Common Commands
-
-### Development
-```bash
-npm run dev          # Start development server with Turbo
-npm run build        # Build for production
-npm run start        # Start production server
-npm run preview      # Build and start production server
-```
-
-### Database
-```bash
-npm run db:generate  # Generate Drizzle migrations
-npm run db:migrate   # Run database migrations
-npm run db:push      # Push schema changes to database
-npm run db:studio    # Open Drizzle Studio
-```
-
-### Code Quality
-```bash
-npm run check        # Run linting and type checking
-npm run lint         # Run ESLint
-npm run lint:fix     # Fix ESLint issues
-npm run typecheck    # Run TypeScript type checking
-npm run format:check # Check code formatting
-npm run format:write # Format code with Prettier
-```
-
-### Database Setup
-```bash
-./start-database.sh  # Start local PostgreSQL database
-```
-
-## Build Configuration
-- **ESLint and TypeScript errors ignored during builds** (configured in next.config.js)
-- **Environment validation** can be skipped with `SKIP_ENV_VALIDATION=true`
-- **Turbo mode** enabled for faster development builds
+## Architecture Reference
+See `architecture.md` for detailed guidelines on implementing the no-services architecture pattern.
+````

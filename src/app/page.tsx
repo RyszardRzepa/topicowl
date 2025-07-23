@@ -1,7 +1,6 @@
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { OnboardingChecker } from "@/components/auth/onboarding-checker";
-import { MainNavigation } from "@/components/navigation/main-nav";
 
 export default function HomePage() {
   return (
@@ -33,7 +32,6 @@ export default function HomePage() {
       </SignedOut>
 
       <SignedIn>
-        <MainNavigation />
         <div className="container mx-auto p-8">
           <div className="mb-8">
             <p className="text-gray-600">

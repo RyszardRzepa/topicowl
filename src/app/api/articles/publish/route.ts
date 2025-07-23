@@ -5,6 +5,7 @@ import { articles } from "@/server/db/schema";
 import { eq, and, lte } from "drizzle-orm";
 import type { ApiResponse } from '@/types/types';
 
+// POST /api/articles/publish - Publish scheduled articles
 export async function POST(_req: NextRequest) {
   try {
     // Find articles scheduled for publishing that are due
@@ -51,7 +52,7 @@ export async function POST(_req: NextRequest) {
     } as ApiResponse);
 
   } catch (error) {
-    console.error('Cron job error:', error);
+    console.error('Publish articles error:', error);
     return NextResponse.json(
       { 
         success: false, 

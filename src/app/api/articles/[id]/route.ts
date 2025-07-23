@@ -13,7 +13,40 @@ const updateArticleSchema = z.object({
   generationScheduledAt: z.string().datetime().optional(),
 });
 
-// PUT /api/kanban/articles/[id] - Update article
+// GET /api/articles/[id] - Get single article
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const articleId = parseInt(id);
+    if (isNaN(articleId)) {
+      return NextResponse.json({ error: 'Invalid article ID' }, { status: 400 });
+    }
+
+    const article = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .limit(1);
+
+    if (article.length === 0) {
+      return NextResponse.json({ error: 'Article not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(article[0]);
+
+  } catch (error) {
+    console.error('Get article error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch article' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/articles/[id] - Update article
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -71,9 +104,9 @@ export async function PUT(
   }
 }
 
-// DELETE /api/kanban/articles/[id] - Delete article
+// DELETE /api/articles/[id] - Delete article
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

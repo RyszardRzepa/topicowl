@@ -8,6 +8,8 @@ import {
   SignedOut,
   UserButton,
 } from "@clerk/nextjs";
+import Link from "next/link";
+import { Settings } from "lucide-react";
 
 import { type Metadata } from "next";
 
@@ -32,7 +34,9 @@ export default function RootLayout({
         <body className={`${inter.className} antialiased bg-white text-stone-700 text-15 leading-relaxed`}>
           <header className="border-b border-stone-200 bg-white">
             <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-              <h1 className="text-xl font-semibold text-stone-900">AI SEO Content Machine</h1>
+              <Link href="/" className="text-xl font-semibold text-stone-900 hover:text-stone-700 transition-colors">
+                AI SEO Content Machine
+              </Link>
               <div className="flex items-center gap-4">
                 <SignedOut>
                   <SignInButton mode="modal">
@@ -47,6 +51,13 @@ export default function RootLayout({
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
+                  <Link 
+                    href="/settings"
+                    className="flex items-center space-x-2 px-3 py-2 text-stone-600 hover:text-stone-900 rounded-md hover:bg-stone-100 transition-colors"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
                   <UserButton />
                 </SignedIn>
               </div>

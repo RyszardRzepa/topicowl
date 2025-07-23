@@ -3,6 +3,8 @@ import { db } from "@/server/db";
 import { articles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { updateProgress } from '@/lib/progress-tracker';
+import { generateArticleContent } from '@/lib/article-generation';
 
 // Types colocated with this API route
 export interface MoveArticleRequest {
@@ -17,7 +19,7 @@ const moveArticleSchema = z.object({
   newPosition: z.number().min(0),
 });
 
-// POST /api/kanban/move-article - Move article between columns/statuses
+// POST /api/articles/move - Move article between columns/statuses
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as unknown;
@@ -47,8 +49,21 @@ export async function POST(req: NextRequest) {
       .where(eq(articles.id, articleId))
       .returning();
 
-    // Note: Removed auto-generation when moving to "to_generate"
-    // Articles in "to_generate" now wait for manual generation trigger
+    // If moved to "generating" status, automatically start generation
+    if (newStatus === 'generating') {
+      try {
+        console.log('Auto-starting generation for article:', articleId);
+        // Initialize progress tracking
+        updateProgress(articleId.toString(), 'pending', 0, 'Initializing generation');
+        
+        // Start generation process (runs in background)
+        generateArticleContent(articleId.toString()).catch(error => {
+          console.error('Background auto-generation failed:', error);
+        });
+      } catch (error) {
+        console.error('Error auto-starting generation:', error);
+      }
+    }
 
     return NextResponse.json(updatedArticle);
 

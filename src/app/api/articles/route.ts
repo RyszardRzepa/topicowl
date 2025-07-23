@@ -22,7 +22,7 @@ const createArticleSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
-// POST /api/kanban/articles - Create new article
+// POST /api/articles - Create new article
 export async function POST(req: NextRequest) {
   try {
     const body: unknown = await req.json();
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/kanban/articles - Get all articles
+// GET /api/articles - Get all articles
 export async function GET(_req: NextRequest) {
   try {
     const allArticles = await db

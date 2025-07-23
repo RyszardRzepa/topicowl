@@ -17,7 +17,7 @@ export interface KanbanBoard {
   columns: KanbanColumn[];
 }
 
-// GET /api/kanban/board - Get kanban board with articles organized by status
+// GET /api/articles/board - Get kanban board with articles organized by status
 export async function GET(_req: NextRequest) {
   try {
     // Get all articles
