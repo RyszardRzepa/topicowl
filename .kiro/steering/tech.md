@@ -27,6 +27,12 @@
 - **Prettier** with Tailwind plugin for code formatting
 - **T3 Env** for environment variable validation with Zod
 
+## Architecture Principles
+- **No services layer**: All business logic written directly in API route handlers
+- **Shared types**: Central type definitions in `src/types/types.ts` for API/client type safety
+- **Self-contained endpoints**: Each API route contains all necessary logic inline
+- **Direct database access**: API routes interact with database directly using Drizzle ORM
+
 ## Common Commands
 
 ### Development

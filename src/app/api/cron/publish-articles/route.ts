@@ -1,22 +1,62 @@
-import { NextRequest, NextResponse } from "next/server";
-import { schedulingService } from "@/lib/services/scheduling-service";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { db } from "@/server/db";
+import { articles } from "@/server/db/schema";
+import { eq, and, lte } from "drizzle-orm";
+import type { ApiResponse } from '@/types/types';
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   try {
-    const publishedArticles = await schedulingService.publishScheduledArticles();
+    // Find articles scheduled for publishing that are due
+    const now = new Date();
+    const articlesToPublish = await db
+      .select()
+      .from(articles)
+      .where(
+        and(
+          eq(articles.status, 'wait_for_publish'),
+          lte(articles.publishedAt, now)
+        )
+      );
+
+    const publishedArticles = [];
+
+    // Update each article to published status
+    for (const article of articlesToPublish) {
+      const [updatedArticle] = await db
+        .update(articles)
+        .set({
+          status: 'published',
+          updatedAt: new Date(),
+        })
+        .where(eq(articles.id, article.id))
+        .returning();
+
+      if (updatedArticle) {
+        publishedArticles.push(updatedArticle);
+      }
+    }
     
     console.log(`Published ${publishedArticles.length} articles`);
     
     return NextResponse.json({
       success: true,
-      publishedCount: publishedArticles.length,
-      publishedArticles: publishedArticles.map(a => ({ id: a.id, title: a.title })),
-    });
+      data: {
+        publishedCount: publishedArticles.length,
+        publishedArticles: publishedArticles.map(a => ({ 
+          id: a.id.toString(), 
+          title: a.title 
+        })),
+      },
+    } as ApiResponse);
 
   } catch (error) {
     console.error('Cron job error:', error);
     return NextResponse.json(
-      { error: 'Failed to publish scheduled articles' },
+      { 
+        success: false, 
+        error: 'Failed to publish scheduled articles' 
+      } as ApiResponse,
       { status: 500 }
     );
   }

@@ -1,40 +1,43 @@
-import * as React from "react";
-import { cn } from "@/lib/utils";
+import * as React from "react"
+import { cn } from "@/lib/utils"
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "ghost" | "danger" | "outline"
+  size?: "default" | "sm" | "lg"
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'default', size = 'default', ...props }, ref) => {
+  ({ className, variant = "primary", size = "default", ...props }, ref) => {
+    const baseClasses = "inline-flex items-center justify-center font-inter text-15 font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 rounded-notion"
+    
+    const variantClasses = {
+      primary: "bg-white border border-stone-200 text-stone-700 hover:bg-stone-50",
+      ghost: "bg-transparent text-stone-700 hover:bg-stone-100",
+      danger: "bg-transparent text-red-600 border border-red-200 hover:bg-red-50",
+      outline: "bg-transparent border border-stone-200 text-stone-700 hover:bg-stone-50",
+    }
+    
+    const sizeClasses = {
+      default: "h-10 px-4",
+      sm: "h-8 px-3 text-sm",
+      lg: "h-12 px-6 text-base",
+    }
+    
     return (
       <button
         className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-          {
-            "bg-slate-900 text-slate-50 hover:bg-slate-900/90": variant === 'default',
-            "bg-red-500 text-slate-50 hover:bg-red-500/90": variant === 'destructive',
-            "border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900": variant === 'outline',
-            "bg-slate-100 text-slate-900 hover:bg-slate-100/80": variant === 'secondary',
-            "hover:bg-slate-100 hover:text-slate-900": variant === 'ghost',
-            "text-slate-900 underline-offset-4 hover:underline": variant === 'link',
-          },
-          {
-            "h-10 px-4 py-2": size === 'default',
-            "h-9 rounded-md px-3": size === 'sm',
-            "h-11 rounded-md px-8": size === 'lg',
-            "h-10 w-10": size === 'icon',
-          },
+          baseClasses,
+          variantClasses[variant],
+          sizeClasses[size],
           className
         )}
         ref={ref}
         {...props}
       />
-    );
+    )
   }
-);
-Button.displayName = "Button";
+)
 
-export { Button };
+Button.displayName = "Button"
+
+export { Button }

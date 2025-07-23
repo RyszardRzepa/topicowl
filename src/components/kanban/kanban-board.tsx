@@ -5,8 +5,7 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-p
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Clock, Target, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Plus, Calendar, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
 
 interface Article {
   id: number;
@@ -281,13 +280,13 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
       </div>
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 min-h-0">
           {columns.map((column) => (
-            <div key={column.id} className="flex flex-col">
+            <div key={column.id} className="flex flex-col min-w-0">
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-lg">{column.title}</h3>
-                  <Badge variant="secondary">{column.articles.length}</Badge>
+                  <h3 className="font-semibold text-lg truncate">{column.title}</h3>
+                  <Badge variant="secondary" className="flex-shrink-0">{column.articles.length}</Badge>
                 </div>
                 <div 
                   className="h-1 rounded-full"
@@ -300,7 +299,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`flex-1 min-h-[200px] p-2 rounded-lg transition-colors ${
+                    className={`flex-1 min-h-[200px] p-2 rounded-lg transition-colors overflow-hidden ${
                       snapshot.isDraggingOver ? 'bg-gray-100' : 'bg-gray-50'
                     }`}
                   >
@@ -315,7 +314,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className={`mb-3 ${
+                            className={`mb-3 min-w-0 ${
                               snapshot.isDragging ? 'rotate-2' : ''
                             }`}
                           >
@@ -359,10 +358,6 @@ function ArticleCard({
   const [isScheduling, setIsScheduling] = useState(false);
   const [editData, setEditData] = useState({
     title: article.title,
-    description: article.description ?? '',
-    keywords: article.keywords,
-    targetAudience: article.targetAudience ?? '',
-    priority: article.priority,
   });
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -375,10 +370,6 @@ function ArticleCard({
     try {
       await onUpdate(article.id, {
         title: editData.title.trim(),
-        description: editData.description.trim() || undefined,
-        keywords: editData.keywords,
-        targetAudience: editData.targetAudience.trim() || undefined,
-        priority: editData.priority,
       });
       setIsEditing(false);
     } catch (error) {
@@ -391,10 +382,6 @@ function ArticleCard({
   const handleCancel = () => {
     setEditData({
       title: article.title,
-      description: article.description ?? '',
-      keywords: article.keywords,
-      targetAudience: article.targetAudience ?? '',
-      priority: article.priority,
     });
     setIsEditing(false);
   };
@@ -430,56 +417,35 @@ function ArticleCard({
     const date = new Date(dateString);
     return date.toLocaleString();
   };
-  const getPriorityColor = (priority: Article['priority']) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = () => {
-    switch (article.status) {
-      case 'generating':
-        return <Clock className="h-4 w-4 animate-spin" />;
-      case 'wait_for_publish':
-        return <Calendar className="h-4 w-4" />;
-      case 'published':
-        return <Target className="h-4 w-4" />;
-      default:
-        return null;
-    }
-  };
 
   return (
-    <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
+    <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow w-full overflow-hidden">
+      <CardHeader className="pb-2 p-3">
+        <div className="flex items-start justify-between gap-2 min-w-0">
           {isEditing ? (
             <input
               value={editData.title}
               onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-              className="font-medium text-sm bg-transparent border-none outline-none flex-1 mr-2"
+              className="font-medium text-sm bg-transparent border-none outline-none flex-1 min-w-0"
               placeholder="Article title..."
               disabled={isUpdating}
             />
           ) : (
             <CardTitle 
-              className="font-medium text-sm line-clamp-2 cursor-pointer hover:text-blue-600" 
+              className="font-medium text-sm line-clamp-2 cursor-pointer hover:text-blue-600 flex-1 min-w-0" 
               onClick={() => setIsEditing(true)}
             >
               {article.title}
             </CardTitle>
           )}
           
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {isEditing ? (
               <>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-0"
+                  className="h-6 w-6 p-0 flex-shrink-0"
                   onClick={handleSave}
                   disabled={isUpdating || !editData.title.trim()}
                 >
@@ -488,7 +454,7 @@ function ArticleCard({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-0"
+                  className="h-6 w-6 p-0 flex-shrink-0"
                   onClick={handleCancel}
                   disabled={isUpdating}
                 >
@@ -500,7 +466,7 @@ function ArticleCard({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-0"
+                  className="h-6 w-6 p-0 flex-shrink-0"
                   onClick={() => setIsEditing(true)}
                 >
                   <Edit3 className="h-3 w-3" />
@@ -508,7 +474,7 @@ function ArticleCard({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-6 w-6 p-0"
+                  className="h-6 w-6 p-0 flex-shrink-0"
                   onClick={handleDelete}
                 >
                   <Trash2 className="h-3 w-3 text-red-500" />
@@ -519,14 +485,14 @@ function ArticleCard({
         </div>
       </CardHeader>
       
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 p-3">
         {article.status === 'to_generate' && !isEditing && (
           <div className="mb-3 space-y-2">
             {/* Show scheduled time if exists */}
             {article.generationScheduledAt && (
               <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded flex items-center gap-1">
-                <CalendarClock className="h-3 w-3" />
-                Generation scheduled: {formatScheduledTime(article.generationScheduledAt)}
+                <CalendarClock className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">Generation scheduled: {formatScheduledTime(article.generationScheduledAt)}</span>
               </div>
             )}
             
@@ -548,30 +514,30 @@ function ArticleCard({
                     onClick={() => setIsScheduling(false)}
                     size="sm" 
                     variant="outline"
-                    className="flex-1 text-xs"
+                    className="flex-1 text-xs h-7"
                   >
                     Cancel
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="flex gap-1">
+              <div className="grid grid-cols-2 gap-1">
                 <Button 
                   onClick={handleGenerate}
                   size="sm" 
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs"
+                  className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-2"
                 >
-                  <Play className="mr-1 h-3 w-3" />
-                  Generate Now
+                  <Play className="mr-1 h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">Generate</span>
                 </Button>
                 <Button 
                   onClick={() => setIsScheduling(true)}
                   size="sm" 
                   variant="outline"
-                  className="flex-1 text-xs"
+                  className="text-xs h-7 px-2"
                 >
-                  <CalendarClock className="mr-1 h-3 w-3" />
-                  Schedule
+                  <CalendarClock className="mr-1 h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">Schedule</span>
                 </Button>
               </div>
             )}
@@ -580,92 +546,14 @@ function ArticleCard({
         
         {isEditing ? (
           <div className="space-y-3">
-            <textarea
-              value={editData.description}
-              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-              className="w-full text-xs text-gray-600 bg-transparent border border-gray-200 rounded p-2 resize-none"
-              placeholder="Article description..."
-              rows={2}
-              disabled={isUpdating}
-            />
-            
-            <input
-              value={editData.keywords.join(', ')}
-              onChange={(e) => setEditData({ 
-                ...editData, 
-                keywords: e.target.value.split(',').map(k => k.trim()).filter(k => k) 
-              })}
-              className="w-full text-xs bg-transparent border border-gray-200 rounded p-2"
-              placeholder="Keywords (comma separated)..."
-              disabled={isUpdating}
-            />
-            
-            <input
-              value={editData.targetAudience}
-              onChange={(e) => setEditData({ ...editData, targetAudience: e.target.value })}
-              className="w-full text-xs bg-transparent border border-gray-200 rounded p-2"
-              placeholder="Target audience..."
-              disabled={isUpdating}
-            />
-            
-            <select
-              value={editData.priority}
-              onChange={(e) => setEditData({ ...editData, priority: e.target.value as Article['priority'] })}
-              className="w-full text-xs bg-white border border-gray-200 rounded p-2"
-              disabled={isUpdating}
-            >
-              <option value="low">Low Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="high">High Priority</option>
-            </select>
+            {/* Only keeping title editing, removed description, keywords, and target audience */}
           </div>
         ) : (
           <>
-            {(article.description ?? article.targetAudience) && (
-              <div className="mb-3">
-                {article.description && (
-                  <p className="text-xs text-gray-600 mb-1 line-clamp-2">
-                    {article.description}
-                  </p>
-                )}
-                {article.targetAudience && (
-                  <p className="text-xs text-blue-600">
-                    Target: {article.targetAudience}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-1 mb-3">
-              {article.keywords.slice(0, 3).map((keyword) => (
-                <Badge key={keyword} variant="outline" className="text-xs">
-                  {keyword}
-                </Badge>
-              ))}
-              {article.keywords.length > 3 && (
-                <Badge variant="outline" className="text-xs">
-                  +{article.keywords.length - 3}
-                </Badge>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                {getStatusIcon()}
-                <Badge className={getPriorityColor(article.priority)}>
-                  {article.priority}
-                </Badge>
-              </div>
-              
-              <span className="text-gray-500">
-                {formatDistanceToNow(new Date(article.createdAt), { addSuffix: true })}
-              </span>
-            </div>
-
             {article.scheduledAt && (
-              <div className="mt-2 text-xs text-blue-600 flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                Scheduled: {new Date(article.scheduledAt).toLocaleDateString()}
+              <div className="text-xs text-blue-600 flex items-center gap-1">
+                <Calendar className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">Scheduled: {new Date(article.scheduledAt).toLocaleDateString()}</span>
               </div>
             )}
 
