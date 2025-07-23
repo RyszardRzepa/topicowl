@@ -29,6 +29,8 @@ export class ArticleGenerationService {
 
   async generateArticle(articleId: number): Promise<GeneratedArticle> {
     try {
+      // Clear settings cache to ensure we use latest settings
+      writingService.clearSettingsCache();
       // Get article from database
       const [article] = await db
         .select()

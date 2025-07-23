@@ -33,33 +33,65 @@ export const blogPostSchema = z.object({
 
 export type BlogPost = z.infer<typeof blogPostSchema>;
 
+interface CachedSettings {
+  toneOfVoice: string;
+  articleStructure: string;
+  maxWords: number;
+  timestamp: number;
+}
+
 export class WritingService {
+  private settingsCache: CachedSettings | null = null;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  private async getArticleSettings(): Promise<CachedSettings> {
+    // Check if we have valid cached settings
+    if (this.settingsCache && 
+        Date.now() - this.settingsCache.timestamp < this.CACHE_DURATION) {
+      return this.settingsCache;
+    }
+
+    try {
+      const settings = await db.select().from(articleSettings).limit(1);
+      const settingsData = settings.length > 0 ? {
+        toneOfVoice: settings[0]!.toneOfVoice ?? 'professional',
+        articleStructure: settings[0]!.articleStructure ?? 'introduction-body-conclusion',
+        maxWords: settings[0]!.maxWords ?? 800,
+        timestamp: Date.now(),
+      } : {
+        toneOfVoice: 'professional',
+        articleStructure: 'introduction-body-conclusion',
+        maxWords: 800,
+        timestamp: Date.now(),
+      };
+
+      // Cache the settings
+      this.settingsCache = settingsData;
+      return settingsData;
+    } catch (error) {
+      console.warn('Failed to fetch article settings, using defaults:', error);
+      const defaultSettings = {
+        toneOfVoice: 'professional',
+        articleStructure: 'introduction-body-conclusion',
+        maxWords: 800,
+        timestamp: Date.now(),
+      };
+      
+      this.settingsCache = defaultSettings;
+      return defaultSettings;
+    }
+  }
+
+  clearSettingsCache(): void {
+    this.settingsCache = null;
+  }
   async writeArticle(request: WriteRequest): Promise<BlogPost> {
     if (!request.researchData || !request.title || !request.keywords || request.keywords.length === 0) {
       throw new Error('Research data, title, and keywords are required');
     }
 
-    // Fetch article settings
-    let settingsData;
-    try {
-      const settings = await db.select().from(articleSettings).limit(1);
-      settingsData = settings.length > 0 ? {
-        toneOfVoice: settings[0]!.toneOfVoice ?? '',
-        articleStructure: settings[0]!.articleStructure ?? '',
-        maxWords: settings[0]!.maxWords ?? 800,
-      } : {
-        toneOfVoice: '',
-        articleStructure: '',
-        maxWords: 800,
-      };
-    } catch (error) {
-      console.warn('Using default article settings:', error);
-      settingsData = {
-        toneOfVoice: '',
-        articleStructure: '',
-        maxWords: 800,
-      };
-    }
+    // Fetch article settings with caching
+    const settingsData = await this.getArticleSettings();
 
     // Fetch available blog slugs for related posts
     const availableBlogSlugs = await getBlogSlugs();

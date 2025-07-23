@@ -1,3 +1,15 @@
+interface ScheduleData {
+  title: string;
+  status: string;
+  scheduledAt?: string | null;
+}
+
+interface SettingsData {
+  toneOfVoice: string;
+  articleStructure: string;
+  maxWords: number;
+}
+
 interface ResearchRequest {
   title: string;
   keywords: string[];
@@ -17,6 +29,36 @@ interface Correction {
   correction: string;
   confidence: number;
 }
+
+const getToneInstructions = (tone: string): string => {
+  switch (tone) {
+    case 'casual':
+      return 'Use a relaxed, conversational style with everyday language, contractions, and personal touches. Feel free to use "you" and "your" to connect with readers.';
+    case 'professional':
+      return 'Maintain a polished, business-appropriate tone with clear, authoritative language. Be informative and credible while remaining accessible.';
+    case 'authoritative':
+      return 'Write with expert-level confidence using industry-specific terminology, backed by facts and data. Establish credibility through comprehensive knowledge.';
+    case 'friendly':
+      return 'Adopt a warm, approachable style that feels like advice from a knowledgeable friend. Be encouraging and supportive while providing valuable information.';
+    default:
+      return 'Use a professional and engaging tone that balances authority with accessibility.';
+  }
+};
+
+const getStructureInstructions = (structure: string): string => {
+  switch (structure) {
+    case 'introduction-body-conclusion':
+      return 'Structure: Start with an engaging introduction that hooks the reader, develop the main content in well-organized body sections with clear H2/H3 headings, and conclude with a summary that reinforces key takeaways.';
+    case 'problem-solution':
+      return 'Structure: Begin by clearly identifying and explaining the problem or challenge, then provide detailed, actionable solutions with step-by-step guidance and practical examples.';
+    case 'how-to':
+      return 'Structure: Create a step-by-step guide format with numbered instructions, clear action items, helpful tips, and practical examples that readers can easily follow.';
+    case 'listicle':
+      return 'Structure: Organize content as a numbered or bulleted list with clear, scannable sections. Each point should be substantial and provide specific value.';
+    default:
+      return 'Use a clear structure with introduction, main sections, and conclusion.';
+  }
+};
 
 export const prompts = {
   research: (title: string, keywords: string[]) => `
@@ -40,36 +82,40 @@ export const prompts = {
     Format your response as a comprehensive research document that would enable someone to write an authoritative article on this topic.
   `,
 
-  writing: (request: WriteRequest, settings: any, relatedPosts: string[]) => `
+  writing: (request: WriteRequest, settings: SettingsData, relatedPosts: string[]) => `
     You are an expert SEO content writer specializing in creating high-quality, engaging articles.
     
     **Article Details:**
     - Title: ${request.title}
     - Target Keywords: ${request.keywords.join(', ')}
-    - Author: ${request.author || 'Content Team'}
+    - Author: ${request.author ?? 'Content Team'}
     
     **Research Data:**
     ${request.researchData}
     
+    **Writing Instructions:**
+    ${getToneInstructions(settings.toneOfVoice)}
+    
+    ${getStructureInstructions(settings.articleStructure)}
+    
     **Content Guidelines:**
-    - Tone of Voice: ${settings.toneOfVoice || 'Professional and engaging'}
-    - Article Structure: ${settings.articleStructure || 'Introduction, main sections with H2/H3 headings, conclusion'}
-    - Target Word Count: ${settings.maxWords || 800} words
+    - Target Word Count: ${settings.maxWords} words
+    - Use target keywords naturally throughout the content
+    - Include actionable insights and practical information
+    - Create compelling headings and subheadings
+    - Ensure content serves the reader's search intent
     
     **Available Related Posts:**
     ${relatedPosts.length > 0 ? relatedPosts.join(', ') : 'None available'}
     
-    **Instructions:**
-    1. Create a compelling, SEO-optimized article based on the research data
-    2. Use the target keywords naturally throughout the content
-    3. Structure the article with clear headings and subheadings
-    4. Include actionable insights and practical information
-    5. Write in an engaging tone that matches the specified voice
-    6. Create a meta description that's compelling and under 160 characters
-    7. Generate a URL-friendly slug from the title
-    8. If related posts are available, reference them appropriately
+    **SEO Requirements:**
+    1. Create a meta description that's compelling and under 160 characters
+    2. Generate a URL-friendly slug from the title
+    3. Use target keywords naturally in headings and throughout content
+    4. Structure content for featured snippets when appropriate
+    5. Include related posts references if available
     
-    Focus on creating valuable, original content that serves the reader's intent while being optimized for search engines.
+    Focus on creating valuable, original content that matches the specified tone and structure while being optimized for search engines.
   `,
 
   validation: (article: string) => `
@@ -124,10 +170,10 @@ export const prompts = {
     Return the complete updated article with all necessary corrections applied seamlessly.
   `,
 
-  schedule: (articleData: any) => `
+  schedule: (articleData: ScheduleData) => `
     Scheduling article: ${articleData.title}
     Status: ${articleData.status}
-    Scheduled for: ${articleData.scheduledAt || 'Not scheduled'}
+    Scheduled for: ${articleData.scheduledAt ?? 'Not scheduled'}
   `
 };
 
