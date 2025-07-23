@@ -3,10 +3,11 @@ import { schedulingService } from "@/lib/services/scheduling-service";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const articleId = parseInt(params.id);
+    const { id } = await params;
+    const articleId = parseInt(id);
     const body = await req.json();
     
     if (!articleId || isNaN(articleId)) {
