@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { articles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { articleGenerationService } from "@/lib/services/article-generation-service";
 import { z } from "zod";
 
 const moveArticleSchema = z.object({
@@ -14,7 +13,7 @@ const moveArticleSchema = z.object({
 // POST /api/kanban/move-article - Move article between columns/statuses
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json() as unknown;
     const { articleId, newStatus, newPosition } = moveArticleSchema.parse(body);
 
     // Get current article
@@ -30,8 +29,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const oldStatus = currentArticle.status;
-
     // Update article status and position
     const [updatedArticle] = await db
       .update(articles)
@@ -43,29 +40,8 @@ export async function POST(req: NextRequest) {
       .where(eq(articles.id, articleId))
       .returning();
 
-    // Special handling for moving to "to_generate" column
-    if (newStatus === 'to_generate' && oldStatus !== 'to_generate') {
-      // Immediately update status to "generating" and start generation
-      await db
-        .update(articles)
-        .set({
-          status: 'generating',
-          generationStartedAt: new Date(),
-        })
-        .where(eq(articles.id, articleId));
-
-      // Start article generation process in background
-      const generationPromise = articleGenerationService.generateArticle(articleId);
-      generationPromise.catch(error => {
-        console.error(`Background generation failed for article ${articleId}:`, error);
-      });
-
-      return NextResponse.json({
-        ...updatedArticle,
-        status: 'generating',
-        message: 'Article generation started'
-      });
-    }
+    // Note: Removed auto-generation when moving to "to_generate"
+    // Articles in "to_generate" now wait for manual generation trigger
 
     return NextResponse.json(updatedArticle);
 

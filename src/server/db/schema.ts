@@ -1,6 +1,6 @@
 // Example model schema from the Drizzle docs
 // https://orm.drizzle.team/docs/sql-schema-declaration
-
+import { customAlphabet } from "nanoid";
 import { sql } from "drizzle-orm";
 import { boolean, timestamp, text, integer, varchar, pgEnum, serial } from "drizzle-orm/pg-core";
 import { index, jsonb, pgSchema } from "drizzle-orm/pg-core";
@@ -14,8 +14,13 @@ import { index, jsonb, pgSchema } from "drizzle-orm/pg-core";
 
 export const contentMachineSchema = pgSchema("content-machine");
 
+export const generatePublicId = customAlphabet(
+  "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+  8,
+);
+
 export const users = contentMachineSchema.table("users", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().default(generatePublicId()),
   email: text("email").notNull(),
   firstName: text("first_name"),
   lastName: text("last_name"),
@@ -32,22 +37,6 @@ export const users = contentMachineSchema.table("users", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
 });
-
-export const posts = contentMachineSchema.table(
-  "post",
-  {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    name: varchar("name", { length: 256 }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (t) => [index("name_idx").on(t.name)],
-);
 
 // Article status enum for kanban workflow
 export const articleStatusEnum = pgEnum("article_status", [
@@ -90,6 +79,7 @@ export const articles = contentMachineSchema.table("articles", {
   
   // Generation tracking
   generationTaskId: varchar("generation_task_id"),
+  generationScheduledAt: timestamp("generation_scheduled_at", { withTimezone: true }),
   generationStartedAt: timestamp("generation_started_at", { withTimezone: true }),
   generationCompletedAt: timestamp("generation_completed_at", { withTimezone: true }),
   generationError: text("generation_error"),

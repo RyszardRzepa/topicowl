@@ -20,8 +20,8 @@ export interface GeneratedArticle {
   content: string;
   metaDescription: string;
   draft: string;
-  sources: any[];
-  validationReport: any;
+  sources: unknown[];
+  validationReport: unknown;
 }
 
 export class ArticleGenerationService {
@@ -44,9 +44,12 @@ export class ArticleGenerationService {
       this.updateProgress(articleId, 'researching', 10, 'Starting research phase');
 
       // Step 1: Research
+      const keywords = Array.isArray(article.keywords) 
+        ? (article.keywords as string[]).filter(k => typeof k === 'string')
+        : [];
       const researchResult = await researchService.conductResearch({
         title: article.title,
-        keywords: article.keywords as string[],
+        keywords: keywords,
       });
       this.updateProgress(articleId, 'writing', 30, 'Research completed, starting writing');
 
@@ -54,7 +57,7 @@ export class ArticleGenerationService {
       const blogPost = await writingService.writeArticle({
         researchData: researchResult.researchData,
         title: article.title,
-        keywords: article.keywords as string[],
+        keywords: keywords,
       });
       this.updateProgress(articleId, 'validating', 60, 'Writing completed, validating content');
 
@@ -126,7 +129,7 @@ export class ArticleGenerationService {
     await db
       .update(articles)
       .set({ 
-        status: status as any,
+        status: status as 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published',
         generationStartedAt: status === 'generating' ? new Date() : undefined,
       })
       .where(eq(articles.id, articleId));
@@ -143,7 +146,7 @@ export class ArticleGenerationService {
   }
 
   getGenerationProgress(articleId: number): GenerationProgress | null {
-    return this.progressMap.get(articleId) || null;
+    return this.progressMap.get(articleId) ?? null;
   }
 
   async cancelGeneration(articleId: number): Promise<void> {

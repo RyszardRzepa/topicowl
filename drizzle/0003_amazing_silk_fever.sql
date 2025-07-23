@@ -1,0 +1,2 @@
+ALTER TABLE "content-machine"."users" ALTER COLUMN "id" SET DEFAULT 'MG3TJXRS';--> statement-breakpoint
+ALTER TABLE "content-machine"."articles" ADD COLUMN "generation_scheduled_at" timestamp with time zone;

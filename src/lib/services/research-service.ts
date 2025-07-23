@@ -10,14 +10,19 @@ export interface ResearchRequest {
 
 export interface ResearchResult {
   researchData: string;
-  sources: any[];
+  sources: unknown[];
 }
 
 export class ResearchService {
   async conductResearch(request: ResearchRequest): Promise<ResearchResult> {
-    if (!request.title || !request.keywords || request.keywords.length === 0) {
-      throw new Error('Title and keywords are required');
+    if (!request.title) {
+      throw new Error('Title is required');
     }
+
+    // If no keywords provided, use the title as a basic keyword
+    const keywords = request.keywords && request.keywords.length > 0 
+      ? request.keywords 
+      : [request.title];
 
     const model = google(MODELS.GEMINI_2_5_FLASH, {
       useSearchGrounding: true,
@@ -28,7 +33,7 @@ export class ResearchService {
 
     const { text, sources } = await generateText({
       model,
-      prompt: prompts.research(request.title, request.keywords),
+      prompt: prompts.research(request.title, keywords),
     });
 
     return {

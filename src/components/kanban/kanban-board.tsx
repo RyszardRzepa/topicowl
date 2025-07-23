@@ -5,7 +5,7 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-p
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Clock, Target, MoreHorizontal } from 'lucide-react';
+import { Plus, Calendar, Clock, Target, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Article {
@@ -16,6 +16,7 @@ interface Article {
   targetAudience?: string;
   status: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
   scheduledAt?: string;
+  generationScheduledAt?: string;
   publishedAt?: string;
   priority: 'low' | 'medium' | 'high';
   estimatedReadTime?: number;
@@ -36,7 +37,7 @@ interface KanbanBoardProps {
   className?: string;
 }
 
-export function KanbanBoard({ className }: KanbanBoardProps) {
+export function KanbanBoard({ className: _className }: KanbanBoardProps) {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
       if (!response.ok) {
         throw new Error('Failed to fetch kanban board');
       }
-      const data = await response.json();
+      const data = await response.json() as KanbanColumn[];
       setColumns(data);
       setError(null);
     } catch (error) {
@@ -60,11 +61,125 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
   };
 
   useEffect(() => {
-    fetchKanbanBoard();
+    void fetchKanbanBoard();
   }, []);
+
+  const updateArticle = async (articleId: number, updates: Partial<Article>) => {
+    try {
+      const response = await fetch(`/api/kanban/articles/${articleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update article');
+      }
+
+      // Refresh the board to get updated data
+      await fetchKanbanBoard();
+    } catch (error) {
+      console.error('Failed to update article:', error);
+      setError('Failed to update article');
+    }
+  };
+
+  const deleteArticle = async (articleId: number) => {
+    try {
+      const response = await fetch(`/api/kanban/articles/${articleId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete article');
+      }
+
+      // Refresh the board to get updated data
+      await fetchKanbanBoard();
+    } catch (error) {
+      console.error('Failed to delete article:', error);
+      setError('Failed to delete article');
+    }
+  };
+
+  const generateArticle = async (articleId: number) => {
+    try {
+      const response = await fetch(`/api/articles/${articleId}/generate`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start article generation');
+      }
+
+      // Refresh the board to show the generating status
+      await fetchKanbanBoard();
+    } catch (error) {
+      console.error('Failed to generate article:', error);
+      setError('Failed to generate article');
+    }
+  };
+
+  const scheduleGeneration = async (articleId: number, scheduledAt: string) => {
+    try {
+      const response = await fetch('/api/articles/schedule-generation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          articleId,
+          generationScheduledAt: scheduledAt,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to schedule article generation');
+      }
+
+      // Refresh the board to show the updated schedule
+      await fetchKanbanBoard();
+    } catch (error) {
+      console.error('Failed to schedule generation:', error);
+      setError('Failed to schedule generation');
+    }
+  };
 
   const moveArticle = async (articleId: number, newStatus: string, newPosition: number) => {
     try {
+      // Optimistic update - update UI immediately
+      const updatedColumns = columns.map(column => {
+        // Remove article from source column
+        const filteredArticles = column.articles.filter(article => article.id !== articleId);
+        
+        if (column.status === newStatus) {
+          // Add article to destination column
+          const articleToMove = columns
+            .flatMap(col => col.articles)
+            .find(article => article.id === articleId);
+          
+          if (articleToMove) {
+            const updatedArticle = {
+              ...articleToMove,
+              status: newStatus,
+              kanbanPosition: newPosition
+            };
+            
+            // Insert at correct position
+            filteredArticles.splice(newPosition, 0, updatedArticle);
+          }
+        }
+        
+        return {
+          ...column,
+          articles: filteredArticles
+        };
+      });
+      
+      setColumns(updatedColumns);
+
       const response = await fetch('/api/kanban/move-article', {
         method: 'POST',
         headers: {
@@ -77,11 +192,17 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
         throw new Error('Failed to move article');
       }
 
-      // Refresh the board after successful move
-      await fetchKanbanBoard();
+      // Only refresh if status changed to 'generating' to get real-time updates
+      if (newStatus === 'to_generate') {
+        setTimeout(() => {
+          fetchKanbanBoard().catch(console.error);
+        }, 1000); // Give the backend time to process
+      }
     } catch (error) {
       console.error('Failed to move article:', error);
       setError('Failed to move article');
+      // Revert optimistic update on error
+      await fetchKanbanBoard();
     }
   };
 
@@ -98,7 +219,7 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
     const articleId = parseInt(draggableId);
     const newStatus = destination.droppableId as Article['status'];
     
-    moveArticle(articleId, newStatus, destination.index);
+    void moveArticle(articleId, newStatus, destination.index);
   };
 
   const createNewArticle = async () => {
@@ -111,7 +232,7 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
         body: JSON.stringify({
           title: 'New Article Idea',
           description: 'Click to edit this article idea',
-          keywords: [],
+          keywords: ['article', 'content'], // Provide default keywords
           priority: 'medium',
         }),
       });
@@ -198,7 +319,13 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
                               snapshot.isDragging ? 'rotate-2' : ''
                             }`}
                           >
-                            <ArticleCard article={article} />
+                            <ArticleCard 
+                              article={article} 
+                              onUpdate={updateArticle}
+                              onDelete={deleteArticle}
+                              onGenerate={generateArticle}
+                              onScheduleGeneration={scheduleGeneration}
+                            />
                           </div>
                         )}
                       </Draggable>
@@ -215,7 +342,94 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
   );
 }
 
-function ArticleCard({ article }: { article: Article }) {
+function ArticleCard({ 
+  article, 
+  onUpdate, 
+  onDelete,
+  onGenerate,
+  onScheduleGeneration
+}: { 
+  article: Article;
+  onUpdate: (articleId: number, updates: Partial<Article>) => Promise<void>;
+  onDelete: (articleId: number) => Promise<void>;
+  onGenerate: (articleId: number) => Promise<void>;
+  onScheduleGeneration: (articleId: number, scheduledAt: string) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [editData, setEditData] = useState({
+    title: article.title,
+    description: article.description ?? '',
+    keywords: article.keywords,
+    targetAudience: article.targetAudience ?? '',
+    priority: article.priority,
+  });
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleSave = async () => {
+    if (!editData.title.trim()) {
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      await onUpdate(article.id, {
+        title: editData.title.trim(),
+        description: editData.description.trim() || undefined,
+        keywords: editData.keywords,
+        targetAudience: editData.targetAudience.trim() || undefined,
+        priority: editData.priority,
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update article:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditData({
+      title: article.title,
+      description: article.description ?? '',
+      keywords: article.keywords,
+      targetAudience: article.targetAudience ?? '',
+      priority: article.priority,
+    });
+    setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this article?')) {
+      try {
+        await onDelete(article.id);
+      } catch (error) {
+        console.error('Failed to delete article:', error);
+      }
+    }
+  };
+
+  const handleGenerate = async () => {
+    try {
+      await onGenerate(article.id);
+    } catch (error) {
+      console.error('Failed to generate article:', error);
+    }
+  };
+
+  const handleScheduleGeneration = async (scheduledAt: string) => {
+    try {
+      await onScheduleGeneration(article.id, scheduledAt);
+      setIsScheduling(false);
+    } catch (error) {
+      console.error('Failed to schedule generation:', error);
+    }
+  };
+
+  const formatScheduledTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
   const getPriorityColor = (priority: Article['priority']) => {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-800';
@@ -242,60 +456,228 @@ function ArticleCard({ article }: { article: Article }) {
     <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
-          <CardTitle className="font-medium text-sm line-clamp-2">{article.title}</CardTitle>
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-            <MoreHorizontal className="h-3 w-3" />
-          </Button>
+          {isEditing ? (
+            <input
+              value={editData.title}
+              onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+              className="font-medium text-sm bg-transparent border-none outline-none flex-1 mr-2"
+              placeholder="Article title..."
+              disabled={isUpdating}
+            />
+          ) : (
+            <CardTitle 
+              className="font-medium text-sm line-clamp-2 cursor-pointer hover:text-blue-600" 
+              onClick={() => setIsEditing(true)}
+            >
+              {article.title}
+            </CardTitle>
+          )}
+          
+          <div className="flex items-center gap-1">
+            {isEditing ? (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0"
+                  onClick={handleSave}
+                  disabled={isUpdating || !editData.title.trim()}
+                >
+                  <Check className="h-3 w-3 text-green-600" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0"
+                  onClick={handleCancel}
+                  disabled={isUpdating}
+                >
+                  <X className="h-3 w-3 text-gray-500" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Edit3 className="h-3 w-3" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0"
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="h-3 w-3 text-red-500" />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </CardHeader>
       
       <CardContent className="pt-0">
-        {article.description && (
-          <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-            {article.description}
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-1 mb-3">
-          {article.keywords.slice(0, 3).map((keyword) => (
-            <Badge key={keyword} variant="outline" className="text-xs">
-              {keyword}
-            </Badge>
-          ))}
-          {article.keywords.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{article.keywords.length - 3}
-            </Badge>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            {getStatusIcon()}
-            <Badge className={getPriorityColor(article.priority)}>
-              {article.priority}
-            </Badge>
+        {article.status === 'to_generate' && !isEditing && (
+          <div className="mb-3 space-y-2">
+            {/* Show scheduled time if exists */}
+            {article.generationScheduledAt && (
+              <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded flex items-center gap-1">
+                <CalendarClock className="h-3 w-3" />
+                Generation scheduled: {formatScheduledTime(article.generationScheduledAt)}
+              </div>
+            )}
+            
+            {/* Scheduling UI */}
+            {isScheduling ? (
+              <div className="space-y-2">
+                <input
+                  type="datetime-local"
+                  className="w-full text-xs border border-gray-200 rounded p-2"
+                  min={new Date().toISOString().slice(0, 16)}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      void handleScheduleGeneration(new Date(e.target.value).toISOString());
+                    }
+                  }}
+                />
+                <div className="flex gap-1">
+                  <Button 
+                    onClick={() => setIsScheduling(false)}
+                    size="sm" 
+                    variant="outline"
+                    className="flex-1 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-1">
+                <Button 
+                  onClick={handleGenerate}
+                  size="sm" 
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs"
+                >
+                  <Play className="mr-1 h-3 w-3" />
+                  Generate Now
+                </Button>
+                <Button 
+                  onClick={() => setIsScheduling(true)}
+                  size="sm" 
+                  variant="outline"
+                  className="flex-1 text-xs"
+                >
+                  <CalendarClock className="mr-1 h-3 w-3" />
+                  Schedule
+                </Button>
+              </div>
+            )}
           </div>
-          
-          <span className="text-gray-500">
-            {formatDistanceToNow(new Date(article.createdAt), { addSuffix: true })}
-          </span>
-        </div>
-
-        {article.scheduledAt && (
-          <div className="mt-2 text-xs text-blue-600 flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            Scheduled: {new Date(article.scheduledAt).toLocaleDateString()}
-          </div>
         )}
+        
+        {isEditing ? (
+          <div className="space-y-3">
+            <textarea
+              value={editData.description}
+              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+              className="w-full text-xs text-gray-600 bg-transparent border border-gray-200 rounded p-2 resize-none"
+              placeholder="Article description..."
+              rows={2}
+              disabled={isUpdating}
+            />
+            
+            <input
+              value={editData.keywords.join(', ')}
+              onChange={(e) => setEditData({ 
+                ...editData, 
+                keywords: e.target.value.split(',').map(k => k.trim()).filter(k => k) 
+              })}
+              className="w-full text-xs bg-transparent border border-gray-200 rounded p-2"
+              placeholder="Keywords (comma separated)..."
+              disabled={isUpdating}
+            />
+            
+            <input
+              value={editData.targetAudience}
+              onChange={(e) => setEditData({ ...editData, targetAudience: e.target.value })}
+              className="w-full text-xs bg-transparent border border-gray-200 rounded p-2"
+              placeholder="Target audience..."
+              disabled={isUpdating}
+            />
+            
+            <select
+              value={editData.priority}
+              onChange={(e) => setEditData({ ...editData, priority: e.target.value as Article['priority'] })}
+              className="w-full text-xs bg-white border border-gray-200 rounded p-2"
+              disabled={isUpdating}
+            >
+              <option value="low">Low Priority</option>
+              <option value="medium">Medium Priority</option>
+              <option value="high">High Priority</option>
+            </select>
+          </div>
+        ) : (
+          <>
+            {(article.description ?? article.targetAudience) && (
+              <div className="mb-3">
+                {article.description && (
+                  <p className="text-xs text-gray-600 mb-1 line-clamp-2">
+                    {article.description}
+                  </p>
+                )}
+                {article.targetAudience && (
+                  <p className="text-xs text-blue-600">
+                    Target: {article.targetAudience}
+                  </p>
+                )}
+              </div>
+            )}
 
-        {article.status === 'generating' && (
-          <div className="mt-2">
-            <div className="w-full bg-gray-200 rounded-full h-1">
-              <div className="bg-blue-600 h-1 rounded-full animate-pulse" style={{ width: '60%' }} />
+            <div className="flex flex-wrap gap-1 mb-3">
+              {article.keywords.slice(0, 3).map((keyword) => (
+                <Badge key={keyword} variant="outline" className="text-xs">
+                  {keyword}
+                </Badge>
+              ))}
+              {article.keywords.length > 3 && (
+                <Badge variant="outline" className="text-xs">
+                  +{article.keywords.length - 3}
+                </Badge>
+              )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Generating content...</p>
-          </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                {getStatusIcon()}
+                <Badge className={getPriorityColor(article.priority)}>
+                  {article.priority}
+                </Badge>
+              </div>
+              
+              <span className="text-gray-500">
+                {formatDistanceToNow(new Date(article.createdAt), { addSuffix: true })}
+              </span>
+            </div>
+
+            {article.scheduledAt && (
+              <div className="mt-2 text-xs text-blue-600 flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Scheduled: {new Date(article.scheduledAt).toLocaleDateString()}
+              </div>
+            )}
+
+            {article.status === 'generating' && (
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-1">
+                  <div className="bg-blue-600 h-1 rounded-full animate-pulse" style={{ width: '60%' }} />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Generating content...</p>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

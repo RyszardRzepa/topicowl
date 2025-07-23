@@ -1,23 +1,20 @@
 # Product Overview
 
-**Prospects.dev** is a powerful lead generation platform that helps businesses find the right companies and contacts who want to purchase their products.
+## AI SEO Content Machine
 
-## Core Features
+An automated content creation platform that uses multi-agent AI systems to generate, manage, and publish SEO-optimized articles at scale.
 
-- **Company Search**: Find companies based on industry, size, location, technology stack, and other criteria
-- **Contact Discovery**: Identify key decision-makers and contacts within target companies
-- **Buying Intent Analysis**: AI-powered analysis using Google Gemini to identify buying signals and personalization opportunities
-- **Prospect List Management**: Organize and manage discovered leads in customizable lists
-- **Credit System**: Usage-based pricing model for searches and data enrichment
-- **Email Draft Generation**: AI-generated personalized outreach emails based on buying intent analysis
+### Core Features
 
-## Target Users
+- **Kanban-based Article Management**: Visual workflow with columns for Ideas, To Generate, Generating, Wait for Publish, and Published
+- **Multi-Agent Content Generation**: Coordinated AI agents handle research, writing, fact-checking, SEO optimization, and internal linking
+- **Automated Publishing**: Scheduled article publishing with cron job automation
+- **SEO Optimization**: Built-in keyword research, competitor analysis, and search engine optimization
 
-Sales teams, business development professionals, and marketers looking to identify and engage with qualified prospects through data-driven lead generation.
+### Target Users
 
-## Key Value Propositions
+Content marketers, SEO specialists, and businesses looking to scale their content production while maintaining quality and search engine visibility.
 
-1. **Comprehensive Data**: Combines Apollo.io API with AI analysis for rich prospect insights
-2. **Buying Intent Signals**: Identifies companies showing purchase intent for specific products
-3. **Personalization at Scale**: Generates personalized outreach based on company-specific insights
-4. **Unified Platform**: Single interface for search, analysis, and prospect management
+### Key Value Proposition
+
+Transform content ideas into published, SEO-optimized articles through automated multi-agent workflows, reducing manual effort while maintaining editorial control through an intuitive kanban interface.
