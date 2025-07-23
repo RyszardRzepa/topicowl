@@ -1,7 +1,25 @@
 import { NextResponse } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
-import type { WriteRequest, WriteResponse, ApiResponse } from '@/types/types';
+import type { ResearchResponse } from '../research/route';
+import type { ApiResponse } from '@/types/types';
+
+// Types colocated with this API route
+export interface WriteRequest {
+  topic: string;
+  keywords: string[];
+  targetWordCount: number;
+  researchData?: ResearchResponse;
+  tone?: 'professional' | 'casual' | 'authoritative' | 'friendly';
+}
+
+export interface WriteResponse {
+  title: string;
+  content: string;
+  metaDescription: string;
+  wordCount: number;
+  keywordsUsed: string[];
+}
 
 // Helper functions for tone and structure instructions
 const getToneInstructions = (tone: string): string => {

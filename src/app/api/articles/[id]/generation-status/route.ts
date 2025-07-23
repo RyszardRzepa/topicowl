@@ -1,10 +1,18 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import type { ApiResponse, GenerationStatus } from '@/types/types';
+import type { ApiResponse } from '@/types/types';
+import { getProgress } from '@/lib/progress-tracker';
 
-// Import the progress map from the generate route
-// Note: In a real implementation, this would be stored in Redis or a database
-const progressMap = new Map<string, GenerationStatus>();
+// Types colocated with this API route
+export interface GenerationStatus {
+  articleId: string;
+  status: 'pending' | 'researching' | 'writing' | 'validating' | 'updating' | 'completed' | 'failed';
+  progress: number; // 0-100
+  currentStep?: string;
+  error?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
 
 export async function GET(
   req: NextRequest,
@@ -20,7 +28,7 @@ export async function GET(
       );
     }
 
-    const progress = progressMap.get(id);
+    const progress = getProgress(id);
     
     if (!progress) {
       return NextResponse.json(

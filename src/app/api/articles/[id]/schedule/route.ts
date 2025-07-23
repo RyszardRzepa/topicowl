@@ -5,13 +5,19 @@ import { articles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { ApiResponse } from '@/types/types';
 
+// Types colocated with this API route
+export interface ArticleScheduleRequest {
+  scheduledAt: string;
+  status?: string;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const body = await req.json() as { scheduledAt: string; status?: string };
+    const body: ArticleScheduleRequest = await req.json() as ArticleScheduleRequest;
     
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json(

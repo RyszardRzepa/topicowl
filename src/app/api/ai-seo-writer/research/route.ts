@@ -1,7 +1,31 @@
 import { NextResponse } from 'next/server';
 import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
-import type { ResearchRequest, ResearchResponse, ApiResponse } from '@/types/types';
+import type { ApiResponse } from '@/types/types';
+
+// Types colocated with this API route
+export interface ResearchRequest {
+  topic: string;
+  keywords?: string[];
+  competitors?: string[];
+}
+
+export interface ResearchResponse {
+  keywordData: {
+    keyword: string;
+    searchVolume: number;
+    difficulty: number;
+    relatedKeywords: string[];
+  }[];
+  competitorAnalysis: {
+    url: string;
+    title: string;
+    wordCount: number;
+    keyTopics: string[];
+  }[];
+  contentGaps: string[];
+  recommendedTopics: string[];
+}
 
 // Research prompt template
 const getResearchPrompt = (title: string, keywords: string[]) => `

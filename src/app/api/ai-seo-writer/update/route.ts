@@ -1,7 +1,20 @@
 import { NextResponse } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
-import type { UpdateRequest, UpdateResponse, ApiResponse } from '@/types/types';
+import type { ValidateResponse } from '../validate/route';
+import type { ApiResponse } from '@/types/types';
+
+// Types colocated with this API route
+export interface UpdateRequest {
+  content: string;
+  issues: ValidateResponse['issues'];
+}
+
+export interface UpdateResponse {
+  updatedContent: string;
+  fixedIssues: string[];
+  remainingIssues: ValidateResponse['issues'];
+}
 
 // Update prompt template
 const getUpdatePrompt = (article: string, issues: UpdateRequest['issues']) => `

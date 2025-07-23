@@ -1,18 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { articles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+
+// Types colocated with this API route
+type DatabaseArticle = typeof articles.$inferSelect;
 
 export interface KanbanColumn {
   id: string;
   title: string;
   status: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
-  articles: any[];
+  articles: DatabaseArticle[];
   color: string;
 }
 
+export interface KanbanBoard {
+  columns: KanbanColumn[];
+}
+
 // GET /api/kanban/board - Get kanban board with articles organized by status
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     // Get all articles
     const allArticles = await db

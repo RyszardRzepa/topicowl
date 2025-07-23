@@ -7,6 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
 
+// Example: Import API types from their colocated routes when needed
+// import type { CreateArticleRequest } from '@/app/api/kanban/articles/route';
+// import type { MoveArticleRequest } from '@/app/api/kanban/move-article/route';
+
 interface Article {
   id: number;
   title: string;

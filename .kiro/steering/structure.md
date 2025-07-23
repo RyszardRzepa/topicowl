@@ -56,9 +56,9 @@ api/
 - **Component naming**: kebab-case with `.tsx` extension
 
 ### Types (`src/types/`)
-- **types.ts**: Shared type definitions for API requests/responses
+- **types.ts**: Shared domain types and common interfaces (e.g., database entities, UI state)
 - **design-tokens.ts**: UI design token types for consistency
-- **All API endpoints**: Import and export types from `types.ts` for full-stack type safety
+- **API types**: Each API route defines and exports its own request/response types for colocation
 
 ### Database Layer (`src/server/`)
 - **Database connection**: `db/index.ts` - Drizzle database instance
@@ -97,15 +97,15 @@ api/
 
 ### File Naming
 - **Components**: kebab-case (e.g., `kanban-board.tsx`)
-- **API routes**: `route.ts` in feature folders
-- **Types**: Shared types in `src/types/types.ts`
+- **API routes**: `route.ts` in feature folders with colocated types
+- **Types**: Domain types in `src/types/types.ts`, API types colocated with routes
 - **Database**: snake_case for table/column names, camelCase for TypeScript
 
 ### Code Organization Principles
 - **No services layer**: All business logic written directly in API route handlers
 - **Inline logic**: Keep related functionality together in the same file
-- **Shared types**: Import/export all API types from `src/types/types.ts`
-- **Type safety**: Full TypeScript coverage between API and client using shared types
+- **Colocated types**: Each API route defines and exports its own request/response types
+- **Type safety**: Full TypeScript coverage with types colocated near their usage
 
 ### Database Schema
 - **Table prefix**: `content-machine_` for multi-project support
@@ -116,7 +116,7 @@ api/
 ### API Structure
 - **RESTful endpoints**: Standard HTTP methods
 - **Error handling**: Consistent error responses with status codes
-- **Type safety**: Import types from `src/types/types.ts` for requests/responses
+- **Type safety**: Each route defines and exports its own types for colocation
 - **Self-contained**: All logic written directly in route handlers
 
 ### Environment Variables

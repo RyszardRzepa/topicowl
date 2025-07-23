@@ -1,7 +1,26 @@
 import { NextResponse } from 'next/server';
 import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
-import type { ValidateRequest, ValidateResponse, ApiResponse } from '@/types/types';
+import type { ApiResponse } from '@/types/types';
+
+// Types colocated with this API route
+export interface ValidateRequest {
+  content: string;
+  title: string;
+  keywords: string[];
+}
+
+export interface ValidateResponse {
+  isValid: boolean;
+  issues: {
+    type: 'factual' | 'seo' | 'readability' | 'grammar';
+    severity: 'low' | 'medium' | 'high';
+    message: string;
+    suggestion?: string;
+  }[];
+  seoScore: number;
+  readabilityScore: number;
+}
 
 // Validation prompt template
 const getValidationPrompt = (article: string) => `

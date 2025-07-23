@@ -4,6 +4,13 @@ import { articles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+// Types colocated with this API route
+export interface MoveArticleRequest {
+  articleId: number;
+  newStatus: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+  newPosition: number;
+}
+
 const moveArticleSchema = z.object({
   articleId: z.number(),
   newStatus: z.enum(['idea', 'to_generate', 'generating', 'wait_for_publish', 'published']),

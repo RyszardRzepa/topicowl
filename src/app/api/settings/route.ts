@@ -5,6 +5,13 @@ import { articleSettings } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+// Types colocated with this API route
+export interface ArticleSettingsRequest {
+  toneOfVoice?: string;
+  articleStructure?: string;
+  maxWords?: number;
+}
+
 const articleSettingsSchema = z.object({
   toneOfVoice: z.string().optional(),
   articleStructure: z.string().optional(),

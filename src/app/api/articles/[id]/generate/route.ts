@@ -3,27 +3,14 @@ import { NextResponse } from "next/server";
 import { db } from '@/server/db';
 import { articles } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
-import type { ApiResponse, GenerationStatus } from '@/types/types';
+import type { ApiResponse } from '@/types/types';
+import { updateProgress } from '@/lib/progress-tracker';
 
-// In-memory progress tracking - in production, you'd use Redis or similar
-const progressMap = new Map<string, GenerationStatus>();
-
-// Helper function to update progress
-const updateProgress = (
-  articleId: string, 
-  status: GenerationStatus['status'], 
-  progress: number, 
-  currentStep?: string
-) => {
-  progressMap.set(articleId, {
-    articleId,
-    status,
-    progress,
-    currentStep,
-    startedAt: progressMap.get(articleId)?.startedAt ?? new Date().toISOString(),
-    completedAt: status === 'completed' || status === 'failed' ? new Date().toISOString() : undefined,
-  });
-};
+// Types colocated with this API route
+export interface ArticleGenerationRequest {
+  articleId: string;
+  forceRegenerate?: boolean;
+}
 
 // Main generation function - simplified version
 async function generateArticleContent(articleId: string) {
@@ -124,6 +111,3 @@ export async function POST(
     );
   }
 }
-
-// Export the progress map for the status endpoint
-export { progressMap };

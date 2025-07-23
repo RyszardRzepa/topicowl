@@ -8,11 +8,11 @@
 - **Direct database access** - API routes interact with database directly using Drizzle ORM
 - **No abstraction layers** - Avoid creating service classes or utility functions for business logic
 
-### 2. Shared Type System
-- **Central type definitions** - All API request/response types live in `src/types/types.ts`
-- **Import types in API routes** - Use shared types for request validation and response formatting
-- **Import types in client code** - Use same types for API calls and data handling
-- **Full-stack type safety** - Ensure TypeScript compilation catches API contract mismatches
+### 2. Colocated Type System
+- **API types with routes** - Each API route defines and exports its own request/response types
+- **Import types from routes** - Client code imports types directly from API route files
+- **Domain types centralized** - Shared domain types (database entities, UI state) live in `src/types/types.ts`
+- **Full-stack type safety** - Ensure TypeScript compilation catches API contract mismatches with colocated types
 
 ### 3. Code Organization
 - **Keep related logic together** - Group functionality within the same file rather than splitting across services
@@ -20,15 +20,63 @@
 - **Direct implementation** - Write code inline rather than abstracting into helper functions
 - **Clear file purposes** - Each file should have a single, obvious responsibility
 
+### 4. Type Organization Strategy
+- **API types colocated** - Request/response types live with their API routes
+- **Domain types centralized** - Database entities, business models in `src/types/types.ts`
+- **Component types local** - Component-specific props/state types stay in component files
+- **Export for reuse** - API routes export types for client consumption
+
+#### Type Location Guidelines:
+```typescript
+// ✅ Domain types (centralized in src/types/types.ts)
+export interface Article {
+  id: string;
+  title: string;
+  content: string;
+  status: 'draft' | 'published';
+  createdAt: Date;
+}
+
+// ✅ API types (colocated with routes)
+// src/app/api/articles/route.ts
+export interface CreateArticleRequest {
+  title: string;
+  topic: string;
+}
+
+// ✅ Component types (local to component)
+// src/components/article-form.tsx
+interface ArticleFormProps {
+  onSubmit: (data: CreateArticleRequest) => void;
+  isLoading: boolean;
+}
+```
+
 ## File Structure Examples
 
-### ✅ Good: API Route with Inline Logic
+### ✅ Good: API Route with Colocated Types
 ```typescript
 // src/app/api/articles/[id]/generate/route.ts
 import { NextRequest } from 'next/server';
 import { db } from '@/server/db';
 import { articles } from '@/server/db/schema';
-import { ApiResponse, ArticleGenerationRequest } from '@/types/types';
+
+// Types colocated with the API route
+export interface ArticleGenerationRequest {
+  settings?: {
+    tone?: string;
+    keywords?: string[];
+  };
+}
+
+export interface ArticleGenerationResponse {
+  success: boolean;
+  data: {
+    id: string;
+    status: 'generating' | 'completed' | 'failed';
+    progress?: number;
+  };
+}
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const articleId = params.id;
@@ -48,7 +96,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   // Continue with writing, validation, etc. - all inline
   // ...
   
-  return Response.json({ success: true, data: article } as ApiResponse);
+  return Response.json({ 
+    success: true, 
+    data: { id: articleId, status: 'generating' } 
+  } as ArticleGenerationResponse);
 }
 ```
 
@@ -64,10 +115,24 @@ export async function POST(request: NextRequest) {
 }
 ```
 
-### ✅ Good: Shared Types Usage
+### ✅ Good: Colocated Types Usage
 ```typescript
 // src/app/api/articles/route.ts
-import { CreateArticleRequest, ApiResponse, Article } from '@/types/types';
+import { NextRequest } from 'next/server';
+import { db } from '@/server/db';
+import { Article } from '@/types/types'; // Domain type from central location
+
+// API-specific types colocated with route
+export interface CreateArticleRequest {
+  title: string;
+  topic: string;
+  targetKeywords?: string[];
+}
+
+export interface CreateArticleResponse {
+  success: boolean;
+  data: Article;
+}
 
 export async function POST(request: NextRequest) {
   const body: CreateArticleRequest = await request.json();
@@ -78,17 +143,18 @@ export async function POST(request: NextRequest) {
   return Response.json({ 
     success: true, 
     data: newArticle 
-  } as ApiResponse<Article>);
+  } as CreateArticleResponse);
 }
 ```
 
 ```typescript
 // src/components/article-form.tsx
-import { CreateArticleRequest, Article } from '@/types/types';
+import { CreateArticleRequest, CreateArticleResponse } from '@/app/api/articles/route';
 
-async function createArticle(data: CreateArticleRequest): Promise<Article> {
+async function createArticle(data: CreateArticleRequest): Promise<CreateArticleResponse> {
   const response = await fetch('/api/articles', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
   
@@ -99,8 +165,9 @@ async function createArticle(data: CreateArticleRequest): Promise<Article> {
 ## Implementation Checklist
 
 ### When Creating New API Endpoints
-- [ ] Define request/response types in `src/types/types.ts`
-- [ ] Import types in the API route file
+- [ ] Define request/response types colocated in the API route file
+- [ ] Export types for client consumption
+- [ ] Use domain types from `src/types/types.ts` for shared entities
 - [ ] Write all business logic directly in the route handler
 - [ ] Access database directly using Drizzle ORM
 - [ ] Handle errors inline without service abstractions
@@ -109,7 +176,8 @@ async function createArticle(data: CreateArticleRequest): Promise<Article> {
 - [ ] Write logic directly in the API route where it's needed
 - [ ] Avoid creating separate service files
 - [ ] Keep related functionality together in the same file
-- [ ] Use shared types for data validation and transformation
+- [ ] Use colocated types for data validation and transformation
+- [ ] Import domain types from `src/types/types.ts` when needed
 
 ### When Working with Database
 - [ ] Import database instance directly: `import { db } from '@/server/db'`
@@ -128,6 +196,7 @@ async function createArticle(data: CreateArticleRequest): Promise<Article> {
 1. **Simplicity** - Easier to understand and debug when logic is co-located
 2. **Transparency** - Clear data flow without abstraction layers
 3. **Performance** - Fewer function calls and file imports
-4. **Type Safety** - Direct use of shared types catches errors at compile time
-5. **Maintainability** - Changes are localized to single files
+4. **Type Safety** - Colocated types provide immediate feedback and are easier to maintain
+5. **Maintainability** - Changes are localized to single files, including their types
 6. **Debugging** - Stack traces point directly to business logic location
+7. **Colocation** - Types live next to their usage, making the code more cohesive

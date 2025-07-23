@@ -1,8 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { articles } from "@/server/db/schema";
-import { eq, and, max } from "drizzle-orm";
+import { max } from "drizzle-orm";
 import { z } from "zod";
+
+// Types colocated with this API route
+export interface CreateArticleRequest {
+  title: string;
+  description?: string;
+  keywords?: string[];
+  targetAudience?: string;
+  priority?: 'low' | 'medium' | 'high';
+}
 
 const createArticleSchema = z.object({
   title: z.string().min(1).max(255),
@@ -15,7 +25,7 @@ const createArticleSchema = z.object({
 // POST /api/kanban/articles - Create new article
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validatedData = createArticleSchema.parse(body);
     
     // Get the maximum kanban position for new article positioning
@@ -52,7 +62,7 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/kanban/articles - Get all articles
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const allArticles = await db
       .select()

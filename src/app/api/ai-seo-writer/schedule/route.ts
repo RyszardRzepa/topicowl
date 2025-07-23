@@ -2,7 +2,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db } from '@/server/db';
 import { articles } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
-import type { ScheduleRequest, ApiResponse } from '@/types/types';
+import type { ApiResponse } from '@/types/types';
+
+// Types colocated with this API route
+export interface ScheduleRequest {
+  articleId: string;
+  publishDate: string;
+  timezone?: string;
+}
 
 export async function PATCH(request: NextRequest) {
   try {
