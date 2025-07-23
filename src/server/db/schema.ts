@@ -2,7 +2,7 @@
 // https://orm.drizzle.team/docs/sql-schema-declaration
 
 import { sql } from "drizzle-orm";
-import { boolean, timestamp, text, integer, varchar } from "drizzle-orm/pg-core";
+import { boolean, timestamp, text, integer, varchar, pgEnum, serial } from "drizzle-orm/pg-core";
 import { index, jsonb, pgSchema } from "drizzle-orm/pg-core";
 
 /**
@@ -48,3 +48,72 @@ export const posts = contentMachineSchema.table(
   },
   (t) => [index("name_idx").on(t.name)],
 );
+
+// Article status enum for kanban workflow
+export const articleStatusEnum = pgEnum("article_status", [
+  "idea",
+  "to_generate", 
+  "generating",
+  "wait_for_publish",
+  "published",
+]);
+
+export const articlePriorityEnum = pgEnum("article_priority", [
+  "low",
+  "medium", 
+  "high",
+]);
+
+// Articles table for kanban-based workflow
+export const articles = contentMachineSchema.table("articles", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  keywords: jsonb("keywords").default([]).notNull(),
+  targetAudience: varchar("target_audience", { length: 255 }),
+  status: articleStatusEnum("status").default("idea").notNull(),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  priority: articlePriorityEnum("priority").default("medium").notNull(),
+  estimatedReadTime: integer("estimated_read_time"),
+  kanbanPosition: integer("kanban_position").default(0).notNull(),
+  
+  // Content fields (populated after generation)
+  metaDescription: varchar("meta_description", { length: 255 }),
+  outline: jsonb("outline"),
+  draft: text("draft"),
+  optimizedContent: text("optimized_content"),
+  factCheckReport: jsonb("fact_check_report").default({}).notNull(),
+  seoScore: integer("seo_score"),
+  internalLinks: jsonb("internal_links").default([]).notNull(),
+  sources: jsonb("sources").default([]).notNull(),
+  
+  // Generation tracking
+  generationTaskId: varchar("generation_task_id"),
+  generationStartedAt: timestamp("generation_started_at", { withTimezone: true }),
+  generationCompletedAt: timestamp("generation_completed_at", { withTimezone: true }),
+  generationError: text("generation_error"),
+  
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+// Article Settings table for global configuration
+export const articleSettings = contentMachineSchema.table("article_settings", {
+  id: serial("id").primaryKey(),
+  toneOfVoice: text("tone_of_voice"),
+  articleStructure: text("article_structure"),
+  maxWords: integer("max_words").default(800),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
