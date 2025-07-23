@@ -3,7 +3,7 @@
 import { customAlphabet } from "nanoid";
 import { sql } from "drizzle-orm";
 import { boolean, timestamp, text, integer, varchar, pgEnum, serial } from "drizzle-orm/pg-core";
-import { index, jsonb, pgSchema } from "drizzle-orm/pg-core";
+import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -21,6 +21,7 @@ export const generatePublicId = customAlphabet(
 
 export const users = contentMachineSchema.table("users", {
   id: text("id").primaryKey().default(generatePublicId()),
+  clerk_user_id: text("clerk_user_id").unique().notNull(),
   email: text("email").notNull(),
   firstName: text("first_name"),
   lastName: text("last_name"),
@@ -56,6 +57,7 @@ export const articlePriorityEnum = pgEnum("article_priority", [
 // Articles table for kanban-based workflow
 export const articles = contentMachineSchema.table("articles", {
   id: serial("id").primaryKey(),
+  user_id: text("user_id").references(() => users.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   keywords: jsonb("keywords").default([]).notNull(),
@@ -96,6 +98,7 @@ export const articles = contentMachineSchema.table("articles", {
 // Article Settings table for global configuration
 export const articleSettings = contentMachineSchema.table("article_settings", {
   id: serial("id").primaryKey(),
+  user_id: text("user_id").references(() => users.id),
   toneOfVoice: text("tone_of_voice"),
   articleStructure: text("article_structure"),
   maxWords: integer("max_words").default(800),
