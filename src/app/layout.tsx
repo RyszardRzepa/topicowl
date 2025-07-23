@@ -1,5 +1,13 @@
 import "@/styles/globals.css";
 import { Inter } from "next/font/google";
+import {
+  ClerkProvider,
+  SignInButton,
+  SignUpButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from "@clerk/nextjs";
 
 import { type Metadata } from "next";
 
@@ -19,8 +27,34 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} antialiased bg-white text-stone-700 text-15 leading-relaxed`}>{children}</body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body className={`${inter.className} antialiased bg-white text-stone-700 text-15 leading-relaxed`}>
+          <header className="border-b border-stone-200 bg-white">
+            <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+              <h1 className="text-xl font-semibold text-stone-900">AI SEO Content Machine</h1>
+              <div className="flex items-center gap-4">
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <button className="px-4 py-2 text-sm font-medium text-stone-600 hover:text-stone-900 transition-colors">
+                      Sign In
+                    </button>
+                  </SignInButton>
+                  <SignUpButton mode="modal">
+                    <button className="px-4 py-2 text-sm font-medium bg-stone-900 text-white rounded-md hover:bg-stone-800 transition-colors">
+                      Sign Up
+                    </button>
+                  </SignUpButton>
+                </SignedOut>
+                <SignedIn>
+                  <UserButton />
+                </SignedIn>
+              </div>
+            </div>
+          </header>
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
