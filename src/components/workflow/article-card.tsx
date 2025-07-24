@@ -197,7 +197,7 @@ export function ArticleCard({
                     className="h-6 w-6 p-0"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete();
+                      void handleDelete();
                     }}
                   >
                     <Trash2 className="h-3 w-3 text-red-500" />
@@ -242,7 +242,7 @@ export function ArticleCard({
                       min={new Date().toISOString().slice(0, 16)}
                       onChange={(e) => {
                         if (e.target.value) {
-                          handleScheduleGeneration(new Date(e.target.value).toISOString());
+                          void handleScheduleGeneration(new Date(e.target.value).toISOString());
                         }
                       }}
                     />
@@ -260,7 +260,7 @@ export function ArticleCard({
                     <Button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleGenerate();
+                        void handleGenerate();
                       }}
                       size="sm" 
                       className="bg-green-600 hover:bg-green-700 text-white text-xs h-8"
@@ -306,7 +306,7 @@ export function ArticleCard({
               )}
 
               {/* Analytics for published articles */}
-              {isPublished && (article.views || article.clicks) && (
+              {isPublished && (article.views ?? article.clicks) && (
                 <div className="flex gap-3 text-xs text-gray-600">
                   {article.views && (
                     <div className="flex items-center gap-1">
@@ -344,7 +344,7 @@ export function ArticleCard({
                       min={new Date().toISOString().slice(0, 16)}
                       onChange={(e) => {
                         if (e.target.value) {
-                          handleSchedulePublishing(new Date(e.target.value).toISOString());
+                          void handleSchedulePublishing(new Date(e.target.value).toISOString());
                         }
                       }}
                     />
@@ -362,7 +362,7 @@ export function ArticleCard({
                     <Button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        handlePublish();
+                        void handlePublish();
                       }}
                       size="sm" 
                       className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"

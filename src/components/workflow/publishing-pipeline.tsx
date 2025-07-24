@@ -62,8 +62,6 @@ export function PublishingPipeline({
     setSelectedArticles(newSelected);
   };
 
-  const selectableArticles = readyNow;
-
   return (
     <div 
       role="tabpanel" 
@@ -116,7 +114,7 @@ export function PublishingPipeline({
                     min={new Date().toISOString().slice(0, 16)}
                     onChange={(e) => {
                       if (e.target.value) {
-                        handleBulkSchedule(new Date(e.target.value).toISOString());
+                        void handleBulkSchedule(new Date(e.target.value).toISOString());
                       }
                     }}
                   />
@@ -225,7 +223,7 @@ export function PublishingPipeline({
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {publishedArticles
-                .sort((a, b) => new Date(b.publishedAt || b.updatedAt).getTime() - new Date(a.publishedAt || a.updatedAt).getTime())
+                .sort((a, b) => new Date(b.publishedAt ?? b.updatedAt).getTime() - new Date(a.publishedAt ?? a.updatedAt).getTime())
                 .slice(0, 12) // Show only most recent 12
                 .map((article) => (
                   <ArticleCard
@@ -277,7 +275,7 @@ export function PublishingPipeline({
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="text-2xl font-bold text-gray-600">
-                  {publishedArticles.reduce((sum, article) => sum + (article.views || 0), 0).toLocaleString()}
+                  {publishedArticles.reduce((sum, article) => sum + (article.views ?? 0), 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-800">Total Views</div>
               </div>

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { WorkflowTabs } from './workflow-tabs';
 import { PlanningHub } from './planning-hub';
 import { PublishingPipeline } from './publishing-pipeline';
 import type { Article, WorkflowPhase } from '@/types';
+import type { DatabaseArticle, KanbanColumn } from '@/app/api/articles/board/route';
 
 interface WorkflowDashboardProps {
   className?: string;
@@ -18,8 +19,28 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Transform database article to domain Article type
+  const transformDatabaseArticle = (dbArticle: DatabaseArticle): Article => ({
+    id: dbArticle.id.toString(),
+    title: dbArticle.title,
+    content: dbArticle.optimizedContent ?? dbArticle.draft ?? undefined,
+    status: dbArticle.status,
+    keywords: Array.isArray(dbArticle.keywords) ? dbArticle.keywords as string[] : [],
+    createdAt: dbArticle.createdAt.toISOString(),
+    updatedAt: dbArticle.updatedAt.toISOString(),
+    generationProgress: dbArticle.generationProgress ?? 0,
+    estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
+    views: dbArticle.views ?? 0,
+    clicks: dbArticle.clicks ?? 0,
+    generationScheduledAt: dbArticle.generationScheduledAt?.toISOString(),
+    generationStartedAt: dbArticle.generationStartedAt?.toISOString(),
+    generationCompletedAt: dbArticle.generationCompletedAt?.toISOString(),
+    publishScheduledAt: dbArticle.scheduledAt?.toISOString(),
+    publishedAt: dbArticle.publishedAt?.toISOString(),
+  });
+
   // Fetch articles from API
-  const fetchArticles = async () => {
+  const fetchArticles = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await fetch('/api/articles/board');
@@ -28,35 +49,22 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       }
       
       // Transform kanban board response to flat articles array
-      const data = await response.json();
+      const response_data: unknown = await response.json();
+      
+      // Type guard to ensure we have the correct response structure
+      if (!Array.isArray(response_data)) {
+        throw new Error('Invalid response format');
+      }
+      
+      // Type assertion after validation
+      const data = response_data as KanbanColumn[];
       const allArticles: Article[] = [];
       
-      if (Array.isArray(data)) {
-        data.forEach((column: any) => {
-          if (column.articles && Array.isArray(column.articles)) {
-            column.articles.forEach((article: any) => {
-              allArticles.push({
-                id: article.id.toString(),
-                title: article.title,
-                content: article.optimizedContent || article.draft,
-                status: article.status,
-                keywords: Array.isArray(article.keywords) ? article.keywords : [],
-                createdAt: article.createdAt,
-                updatedAt: article.updatedAt,
-                generationProgress: article.generationProgress || 0,
-                estimatedReadTime: article.estimatedReadTime,
-                views: article.views || 0,
-                clicks: article.clicks || 0,
-                generationScheduledAt: article.generationScheduledAt,
-                generationStartedAt: article.generationStartedAt,
-                generationCompletedAt: article.generationCompletedAt,
-                publishScheduledAt: article.scheduledAt,
-                publishedAt: article.publishedAt,
-              });
-            });
-          }
+      data.forEach((column) => {
+        column.articles.forEach((dbArticle) => {
+          allArticles.push(transformDatabaseArticle(dbArticle));
         });
-      }
+      });
       
       setArticles(allArticles);
       setError(null);
@@ -66,11 +74,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void fetchArticles();
-  }, []);
+  }, [fetchArticles]);
 
   // Refresh when returning from article preview
   useEffect(() => {
@@ -107,7 +115,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [fetchArticles]);
 
   // Article action handlers
   const handleCreateArticle = async (data: { title: string; keywords?: string[] }) => {
@@ -118,7 +126,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         body: JSON.stringify({
           title: data.title,
           description: 'Click to edit this article idea',
-          keywords: data.keywords || [],
+          keywords: data.keywords ?? [],
           priority: 'medium',
         }),
       });

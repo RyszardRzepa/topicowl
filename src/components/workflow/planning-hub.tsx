@@ -86,8 +86,6 @@ export function PlanningHub({
     setSelectedArticles(newSelected);
   };
 
-  const selectableArticles = readyArticles.filter(a => !a.generationScheduledAt);
-
   return (
     <div 
       role="tabpanel" 
@@ -140,7 +138,7 @@ export function PlanningHub({
                     min={new Date().toISOString().slice(0, 16)}
                     onChange={(e) => {
                       if (e.target.value) {
-                        handleBulkSchedule(new Date(e.target.value).toISOString());
+                        void handleBulkSchedule(new Date(e.target.value).toISOString());
                       }
                     }}
                   />

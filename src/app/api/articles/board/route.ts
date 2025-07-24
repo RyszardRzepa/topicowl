@@ -3,7 +3,7 @@ import { db } from "@/server/db";
 import { articles } from "@/server/db/schema";
 
 // Types colocated with this API route
-type DatabaseArticle = typeof articles.$inferSelect;
+export type DatabaseArticle = typeof articles.$inferSelect;
 
 export interface KanbanColumn {
   id: string;
