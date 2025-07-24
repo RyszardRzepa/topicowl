@@ -1,0 +1,319 @@
+import type { NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+import { generateObject } from "ai";
+import { google } from "@ai-sdk/google";
+import { MODELS } from "@/constants";
+import { z } from "zod";
+
+export interface AnalyzeWebsiteRequest {
+  websiteUrl: string;
+}
+
+// Zod schema for AI analysis response
+const WebsiteAnalysisSchema = z.object({
+  companyName: z.string().min(1),
+  productDescription: z.string().min(1),
+  industryCategory: z.string().min(1),
+  targetAudience: z.string().min(1),
+  toneOfVoice: z.string().min(1),
+  suggestedKeywords: z.array(z.string()).max(10),
+  contentStrategy: z.object({
+    articleStructure: z.string().min(1),
+    maxWords: z.number().int().min(200).max(2000),
+    publishingFrequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"]),
+  }),
+});
+
+type WebsiteAnalysis = z.infer<typeof WebsiteAnalysisSchema>;
+
+export interface AnalyzeWebsiteResponse {
+  success: boolean;
+  data?: {
+    domain: string;
+    companyName: string;
+    productDescription: string;
+    toneOfVoice: string;
+    suggestedKeywords: string[];
+    industryCategory: string;
+    targetAudience: string;
+    contentStrategy: {
+      articleStructure: string;
+      maxWords: number;
+      publishingFrequency: string;
+    };
+    onboardingCompleted: boolean;
+  };
+  error?: string;
+}
+
+// Enhanced website content extraction using Jina AI
+async function jinaUrlToMd(url: string): Promise<string> {
+  const jinaUrl = `https://r.jina.ai/${url}`;
+
+  try {
+    const response = await fetch(jinaUrl, {
+      headers: {
+        Accept: "text/markdown", // Request markdown if possible, otherwise text
+      },
+      // Add timeout to prevent hanging requests
+      signal: AbortSignal.timeout(30000), // 30 second timeout
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Jina AI request failed with status ${response.status}: ${await response.text()}`,
+      );
+    }
+
+    const markdownContent = await response.text();
+
+    if (!markdownContent || markdownContent.trim().length === 0) {
+      throw new Error("No content received from Jina AI");
+    }
+
+    return markdownContent;
+  } catch (error) {
+    console.error("Error fetching content with Jina AI:", error);
+    throw new Error(
+      `Failed to extract website content: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}
+
+// Enhanced AI analysis using Google Gemini with generateObject
+async function analyzeWebsiteWithAI(
+  url: string,
+  markdownContent: string,
+): Promise<WebsiteAnalysis & { domain: string }> {
+  try {
+    const domain = new URL(url).hostname.replace("www.", "");
+
+    // Use Gemini with generateObject for type-safe AI analysis
+    const { object: analysis } = await generateObject({
+      model: google(MODELS.GEMINI_FLASH_2_5),
+      schema: WebsiteAnalysisSchema,
+      prompt: `Analyze the following company website content and extract detailed information for content marketing setup.
+
+Website URL: ${url}
+Website content:
+${markdownContent}
+
+Focus on:
+1. Understanding their business model and value proposition
+2. Identifying their target market and customer base
+3. Extracting relevant keywords from their actual content
+4. Determining the appropriate tone based on their existing content
+5. Suggesting content strategy that fits their industry
+
+For industryCategory, use one of: technology, healthcare, finance, education, business, retail, manufacturing, consulting, marketing, legal, real-estate, food-beverage, travel, fitness, entertainment, non-profit, or other.
+
+For toneOfVoice, use one of: professional, friendly, technical, casual, authoritative, conversational, formal, or educational.
+
+For publishingFrequency, choose from: daily, weekly, bi-weekly, or monthly based on industry standards.
+
+Provide 5-10 relevant keywords for content marketing based on their actual content.`,
+      maxTokens: 1000,
+    });
+
+    return {
+      domain,
+      ...analysis,
+    };
+  } catch (error) {
+    console.error("Error analyzing website with AI:", error);
+
+    // Fallback to basic analysis if AI fails
+    const domain = new URL(url).hostname.replace("www.", "");
+    return {
+      domain,
+      companyName: domain,
+      productDescription: `${domain} provides professional services and solutions.`,
+      industryCategory: "business",
+      targetAudience: "business professionals",
+      toneOfVoice: "professional",
+      suggestedKeywords: [],
+      contentStrategy: {
+        articleStructure: "introduction, main points, conclusion",
+        maxWords: 800,
+        publishingFrequency: "weekly",
+      },
+    };
+  }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  try {
+    // Authentication check
+    const { userId } = await auth();
+    if (!userId) {
+      const response: AnalyzeWebsiteResponse = {
+        success: false,
+        error: "Unauthorized",
+      };
+      return Response.json(response, { status: 401 });
+    }
+
+    const body = (await request.json()) as AnalyzeWebsiteRequest;
+
+    if (!body.websiteUrl) {
+      const response: AnalyzeWebsiteResponse = {
+        success: false,
+        error: "Website URL is required",
+      };
+      return Response.json(response, { status: 400 });
+    }
+
+    // Validate and normalize URL format
+    let normalizedUrl: string;
+    try {
+      const urlObj = new URL(body.websiteUrl);
+      normalizedUrl = urlObj.toString();
+    } catch {
+      // Try adding https:// if no protocol is provided
+      try {
+        const urlObj = new URL(`https://${body.websiteUrl}`);
+        normalizedUrl = urlObj.toString();
+      } catch {
+        const response: AnalyzeWebsiteResponse = {
+          success: false,
+          error: "Invalid URL format. Please provide a valid website URL.",
+        };
+        return Response.json(response, { status: 400 });
+      }
+    }
+
+    console.log(`Starting website analysis for: ${normalizedUrl}`);
+
+    // Enhanced website content extraction using Jina AI
+    let markdownContent: string;
+    try {
+      markdownContent = await jinaUrlToMd(normalizedUrl);
+      console.log(
+        `Successfully extracted content from ${normalizedUrl}, length: ${markdownContent.length} characters`,
+      );
+    } catch (error) {
+      console.error(`Failed to extract content from ${normalizedUrl}:`, error);
+      const response: AnalyzeWebsiteResponse = {
+        success: false,
+        error: `Failed to analyze website. Please ensure the URL is accessible and try again. Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      };
+      return Response.json(response, { status: 500 });
+    }
+
+    // AI analysis using Google Gemini
+    let aiAnalysis;
+    try {
+      aiAnalysis = await analyzeWebsiteWithAI(normalizedUrl, markdownContent);
+      console.log(`AI analysis completed for ${normalizedUrl}:`, {
+        companyName: aiAnalysis.companyName,
+        industryCategory: aiAnalysis.industryCategory,
+        keywordCount: aiAnalysis.suggestedKeywords.length,
+      });
+    } catch (error) {
+      console.error(`AI analysis failed for ${normalizedUrl}:`, error);
+      const response: AnalyzeWebsiteResponse = {
+        success: false,
+        error: `Failed to analyze website content with AI. Please try again. Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      };
+      return Response.json(response, { status: 500 });
+    }
+
+    // Database operations with transaction for consistency
+    try {
+      // Get user record to check if article settings exist
+      const [userRecord] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.clerk_user_id, userId))
+        .limit(1);
+
+      if (!userRecord) {
+        const response: AnalyzeWebsiteResponse = {
+          success: false,
+          error: "User not found in database",
+        };
+        return Response.json(response, { status: 404 });
+      }
+
+      // Use transaction to ensure data consistency and complete onboarding
+      await db.transaction(async (tx) => {
+        // Update user record with analysis data AND mark onboarding as complete
+        await tx
+          .update(users)
+          .set({
+            domain: aiAnalysis.domain,
+            company_name: aiAnalysis.companyName,
+            product_description: aiAnalysis.productDescription,
+            keywords: aiAnalysis.suggestedKeywords,
+            onboarding_completed: true, // Complete onboarding in the same transaction
+            updatedAt: new Date(),
+          })
+          .where(eq(users.clerk_user_id, userId));
+
+        // Create or update article settings based on AI analysis
+        const { articleSettings } = await import("@/server/db/schema");
+
+        // Check if article settings already exist
+        const [existingSettings] = await tx
+          .select({ id: articleSettings.id })
+          .from(articleSettings)
+          .where(eq(articleSettings.user_id, userRecord.id))
+          .limit(1);
+
+        if (existingSettings) {
+          // Update existing settings
+          await tx
+            .update(articleSettings)
+            .set({
+              toneOfVoice: aiAnalysis.toneOfVoice,
+              articleStructure: aiAnalysis.contentStrategy.articleStructure,
+              maxWords: aiAnalysis.contentStrategy.maxWords,
+              updatedAt: new Date(),
+            })
+            .where(eq(articleSettings.user_id, userRecord.id));
+        } else {
+          // Create new settings
+          await tx.insert(articleSettings).values({
+            user_id: userRecord.id,
+            toneOfVoice: aiAnalysis.toneOfVoice,
+            articleStructure: aiAnalysis.contentStrategy.articleStructure,
+            maxWords: aiAnalysis.contentStrategy.maxWords,
+          });
+        }
+      });
+
+      console.log(
+        `Successfully saved analysis data and completed onboarding for user ${userId}`,
+      );
+
+      const response: AnalyzeWebsiteResponse = {
+        success: true,
+        data: {
+          ...aiAnalysis,
+          onboardingCompleted: true,
+        },
+      };
+
+      return Response.json(response);
+    } catch (dbError) {
+      console.error("Database error while saving analysis:", dbError);
+      const response: AnalyzeWebsiteResponse = {
+        success: false,
+        error: "Failed to save analysis data. Please try again.",
+      };
+      return Response.json(response, { status: 500 });
+    }
+  } catch (error) {
+    console.error("Error analyzing website:", error);
+
+    const response: AnalyzeWebsiteResponse = {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+
+    return Response.json(response, { status: 500 });
+  }
+}

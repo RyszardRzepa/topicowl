@@ -1,93 +1,129 @@
 # Project Structure
 
 ## Root Directory
-- **`.env`** - Environment variables (local)
-- **`.env.example`** - Environment variable template
-- **`package.json`** - Dependencies and scripts
-- **`tsconfig.json`** - TypeScript configuration
-- **`drizzle.config.ts`** - Database configuration
-- **`next.config.js`** - Next.js configuration
-- **`components.json`** - shadcn/ui component configuration
+- **Configuration files**: `next.config.js`, `drizzle.config.ts`, `tsconfig.json`, `eslint.config.js`, `prettier.config.js`
+- **Environment**: `.env`, `.env.example` for environment variables
+- **Database**: `drizzle/` folder contains migrations and metadata
 
-## Source Code (`src/`)
+## Source Code Organization (`src/`)
 
-### Application Routes (`src/app/`)
+### App Router Structure (`src/app/`)
+- **Root layout**: `layout.tsx` - Global app layout and metadata
+- **Home page**: `page.tsx` - Main application entry point
+- **API routes**: `api/` - RESTful endpoints organized by feature
+
+````markdown
+# Project Structure
+
+## Root Directory
+- **Configuration files**: `next.config.js`, `drizzle.config.ts`, `tsconfig.json`, `eslint.config.js`, `prettier.config.js`
+- **Environment**: `.env`, `.env.example` for environment variables
+- **Database**: `drizzle/` folder contains migrations and metadata
+- **Scripts**: `start-database.sh` for local database setup
+
+## Source Code Organization (`src/`)
+
+### App Router Structure (`src/app/`)
+- **Root layout**: `layout.tsx` - Global app layout and metadata
+- **Home page**: `page.tsx` - Main application entry point
+- **API routes**: `api/` - RESTful endpoints organized by feature
+
+### API Route Organization (`src/app/api/`)
 ```
-src/app/
-├── layout.tsx              # Root layout with providers
-├── page.tsx               # Landing page
-├── api/                   # API routes
-│   ├── trpc/[trpc]/       # tRPC API handler
-│   └── webhooks/          # External service webhooks
-├── dashboard/             # Main application
-│   ├── layout.tsx         # Dashboard layout with navigation
-│   ├── page.tsx          # Dashboard home
-│   ├── search/           # Company/contact search
-│   ├── prospect-lists/   # Lead management
-│   └── settings/         # User settings
-├── onboarding/           # User onboarding flow
-└── pricing/              # Pricing page
+api/
+├── ai-seo-writer/          # Multi-agent content generation system
+│   ├── research/           # Research phase endpoint
+│   ├── write/              # Content writing endpoint
+│   ├── validate/           # Content validation endpoint
+│   ├── update/             # Content update endpoint
+│   └── schedule/           # Article scheduling endpoint
+├── articles/               # Article management
+│   └── [id]/              # Dynamic article routes
+│       ├── generate/       # Trigger article generation
+│       ├── generation-status/ # Check generation progress
+│       └── schedule/       # Schedule article publishing
+├── kanban/                # Kanban board management
+│   ├── board/             # Get kanban board state
+│   ├── articles/          # Article CRUD operations
+│   └── move-article/      # Handle drag-and-drop
+└── cron/                  # Scheduled tasks
+    └── publish-articles/   # Automated publishing cron job
 ```
 
 ### Components (`src/components/`)
-- **`ui/`** - Reusable UI components (buttons, forms, etc.)
-- **Feature components** - Page-specific components (search, navigation, etc.)
+- **UI components**: `ui/` - Reusable UI components (buttons, cards, badges)
+- **Feature components**: `kanban/` - Kanban board implementation
+- **Component naming**: kebab-case with `.tsx` extension
 
-### Server Logic (`src/server/`)
-```
-src/server/
-├── api/
-│   ├── root.ts           # Main tRPC router
-│   ├── trpc.ts          # tRPC configuration
-│   └── routers/         # Feature-specific API routes
-│       ├── company.ts    # Company search & management
-│       ├── contacts.ts   # Contact operations
-│       ├── buying-intent.ts # AI buying intent analysis
-│       ├── credits.ts    # Credit system
-│       └── prospect-list.ts # Lead list management
-└── db/
-    ├── index.ts         # Database connection
-    └── schema.ts        # Drizzle schema definitions
-```
+### Types (`src/types/`)
+- **types.ts**: Shared domain types and common interfaces (e.g., database entities, UI state)
+- **design-tokens.ts**: UI design token types for consistency
+- **API types**: Each API route defines and exports its own request/response types for colocation
 
-### Client-Side (`src/`)
-- **`trpc/`** - tRPC client configuration
-- **`lib/`** - Utility functions and services
-- **`types.ts`** - Shared TypeScript types
-- **`constants.ts`** - Application constants
-- **`middleware.ts`** - Next.js middleware (auth)
+### Database Layer (`src/server/`)
+- **Database connection**: `db/index.ts` - Drizzle database instance
+- **Schema definition**: `db/schema.ts` - All database tables and types
+- **Schema organization**: Uses `contentMachineSchema` namespace for multi-project support
 
-## Database (`drizzle/`)
-- **Migration files** - Numbered SQL migration files
-- **`meta/`** - Drizzle metadata and snapshots
+### Utilities (`src/lib/`)
+- **prompts.ts**: AI prompt templates - contains all prompt logic inline
+- **utils.ts**: Only essential shared utilities (no business logic)
+- **sitemap.ts**: SEO sitemap generation - contains all sitemap logic inline
 
-## Key Patterns
+### Components (`src/components/`)
+- **UI components**: `ui/` - Reusable UI components (buttons, cards, badges)
+- **Feature components**: `kanban/` - Kanban board implementation
+- **Component naming**: kebab-case with `.tsx` extension
 
-### Database Schema
-- **PostgreSQL schema**: `prospects` namespace
-- **Tables**: users, companies, contacts, searches, credits, etc.
-- **JSONB fields** for flexible data (technologies, filters, AI results)
-- **Comprehensive indexing** for search performance
+### Services Layer (`src/lib/services/`)
+- **article-generation-service.ts**: Orchestrates multi-agent content generation
+- **research-service.ts**: Handles content research phase
+- **writing-service.ts**: Manages AI content writing
+- **validation-service.ts**: Fact-checking and content validation
+- **update-service.ts**: Content correction and updates
+- **scheduling-service.ts**: Article scheduling logic
 
-### API Architecture
-- **tRPC routers** organized by feature domain
-- **Zod validation** for all inputs/outputs
-- **Type-safe** end-to-end from database to frontend
-- **Credit system integration** across all paid operations
+### Database Layer (`src/server/`)
+- **Database connection**: `db/index.ts` - Drizzle database instance
+- **Schema definition**: `db/schema.ts` - All database tables and types
+- **Schema organization**: Uses `contentMachineSchema` namespace for multi-project support
 
-### Authentication Flow
-- **Clerk** handles auth, user management, webhooks
-- **Middleware** protects dashboard routes
-- **User context** available in all tRPC procedures
+### Utilities (`src/lib/`)
+- **prompts.ts**: AI prompt templates
+- **utils.ts**: General utility functions
+- **sitemap.ts**: SEO sitemap generation
 
-### UI Patterns
-- **Tailwind CSS** for styling with design system tokens
-- **Radix UI** for accessible component primitives  
-- **Responsive design** with mobile-first approach
-- **Loading states** and error boundaries throughout
+## Key Conventions
 
 ### File Naming
-- **kebab-case** for files and directories
-- **PascalCase** for React components
-- **camelCase** for functions and variables
-- **SCREAMING_SNAKE_CASE** for constants
+- **Components**: kebab-case (e.g., `kanban-board.tsx`)
+- **API routes**: `route.ts` in feature folders with colocated types
+- **Types**: Domain types in `src/types/types.ts`, API types colocated with routes
+- **Database**: snake_case for table/column names, camelCase for TypeScript
+
+### Code Organization Principles
+- **No services layer**: All business logic written directly in API route handlers
+- **Inline logic**: Keep related functionality together in the same file
+- **Colocated types**: Each API route defines and exports its own request/response types
+- **Type safety**: Full TypeScript coverage with types colocated near their usage
+
+### Database Schema
+- **Table prefix**: `content-machine_` for multi-project support
+- **ID generation**: Custom nanoid for public IDs
+- **Timestamps**: `createdAt` and `updatedAt` with automatic updates
+- **Enums**: PostgreSQL enums for status fields
+
+### API Structure
+- **RESTful endpoints**: Standard HTTP methods
+- **Error handling**: Consistent error responses with status codes
+- **Type safety**: Each route defines and exports its own types for colocation
+- **Self-contained**: All logic written directly in route handlers
+
+### Environment Variables
+- **Validation**: T3 Env with Zod schemas
+- **Server vs Client**: Clear separation of server-side and client-side variables
+- **Required variables**: `DATABASE_URL` for database connection
+
+## Architecture Reference
+See `architecture.md` for detailed guidelines on implementing the no-services architecture pattern.
+````

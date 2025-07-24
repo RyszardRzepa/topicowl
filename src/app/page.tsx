@@ -1,37 +1,45 @@
-import Link from "next/link";
+import { KanbanBoard } from "@/components/kanban/kanban-board";
+import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-      <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-        <h1 className="text-5xl font-extrabold tracking-tight text-white sm:text-[5rem]">
-          Create <span className="text-[hsl(280,100%,70%)]">T3</span> App
-        </h1>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
-          <Link
-            className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 text-white hover:bg-white/20"
-            href="https://create.t3.gg/en/usage/first-steps"
-            target="_blank"
-          >
-            <h3 className="text-2xl font-bold">First Steps →</h3>
-            <div className="text-lg">
-              Just the basics - Everything you need to know to set up your
-              database and authentication.
+    <main className="min-h-screen bg-gray-50">
+      <SignedOut>
+        <div className="container mx-auto p-8 text-center">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Welcome to AI SEO <span className="text-blue-600">Content Machine</span>
+            </h1>
+            <p className="text-gray-600 text-lg mb-8">
+              Create, manage, and publish SEO-optimized articles with AI-powered workflows
+            </p>
+            <div className="flex justify-center gap-4">
+              <SignUpButton mode="modal">
+                <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                  Get Started
+                </button>
+              </SignUpButton>
+              <SignInButton mode="modal">
+                <button className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+                  Sign In
+                </button>
+              </SignInButton>
             </div>
-          </Link>
-          <Link
-            className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 text-white hover:bg-white/20"
-            href="https://create.t3.gg/en/introduction"
-            target="_blank"
-          >
-            <h3 className="text-2xl font-bold">Documentation →</h3>
-            <div className="text-lg">
-              Learn more about Create T3 App, the libraries it uses, and how to
-              deploy it.
-            </div>
-          </Link>
-        </div>
+          </div>
       </div>
-    </main>
+    </SignedOut>
+
+    <SignedIn>
+      <div className="container mx-auto p-8">
+        <div className="mb-8">
+          <p className="text-gray-600">
+            Create, manage, and publish SEO-optimized articles with AI-powered workflows
+          </p>
+        </div>
+        
+        <KanbanBoard />
+      </div>
+    </SignedIn>
+  </main>
   );
 }

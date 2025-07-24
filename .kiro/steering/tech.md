@@ -1,75 +1,85 @@
 # Technology Stack
 
+Never run cli command 'npm run dev'.
+
 ## Framework & Runtime
-- **Next.js 15** - React framework with App Router
-- **React 19** - UI library
-- **TypeScript** - Type-safe JavaScript
-- **Node.js** - Runtime environment
+
+- **Next.js 15** with App Router architecture
+- **React 19** with TypeScript
+- **Node.js** runtime environment
 
 ## Database & ORM
-- **PostgreSQL** - Primary database
-- **Drizzle ORM** - Type-safe database toolkit
-- **Drizzle Kit** - Database migrations and introspection
 
-## Authentication & User Management
-- **Clerk** - Authentication and user management service
-- **Clerk Webhooks** - User lifecycle event handling
+- **PostgreSQL** database
+- **Drizzle ORM** with schema-based migrations
+- **Drizzle Kit** for database management
 
-## API & Data Fetching
-- **tRPC** - End-to-end typesafe APIs
-- **TanStack Query** - Server state management
-- **Apollo.io API** - Company and contact data source
-- **Google Gemini AI** - Buying intent analysis with grounding
-- **Vercel AI SDK** - AI integration toolkit
+## AI & External Services
+
+- **Vercel AI SDK** for AI model integration
+- **Google Gemini 2.0 Flash** for research and grounding
+- **Claude 3.5 Sonnet** for content writing
+- **Anthropic AI SDK** and **Google AI SDK**
 
 ## Styling & UI
-- **Tailwind CSS v4** - Utility-first CSS framework
-- **Radix UI** - Headless UI components
-- **Lucide React** - Icon library
-- **Sonner** - Toast notifications
-- **Geist Font** - Typography
+
+- **Tailwind CSS 4.0** for styling
+- **Lucide React** for icons
+- **DND Kit** and **Hello Pangea DND** for drag-and-drop functionality
 
 ## Development Tools
-- **ESLint** - Code linting with Next.js config
-- **Prettier** - Code formatting with Tailwind plugin
-- **TypeScript ESLint** - TypeScript-specific linting
 
-## Environment & Deployment
-- **T3 Env** - Environment variable validation
-- **Zod** - Runtime type validation
+- **TypeScript** with strict type checking
+- **ESLint** with Next.js config and Drizzle plugin
+- **Prettier** with Tailwind plugin for code formatting
+- **T3 Env** for environment variable validation with Zod
+
+## Architecture Principles
+
+- **No services layer**: All business logic written directly in API route handlers
+- **Shared types**: Central type definitions in `src/types/types.ts` for API/client type safety
+- **Self-contained endpoints**: Each API route contains all necessary logic inline
+- **Direct database access**: API routes interact with database directly using Drizzle ORM
 
 ## Common Commands
 
 ### Development
+
 ```bash
-npm run dev          # Start development server
+npm run dev          # Start development server with Turbo
 npm run build        # Build for production
 npm run start        # Start production server
 npm run preview      # Build and start production server
 ```
 
-### Code Quality
-```bash
-npm run lint         # Run ESLint
-npm run lint:fix     # Fix ESLint issues
-npm run typecheck    # TypeScript type checking
-npm run check        # Run lint + typecheck
-npm run format:check # Check Prettier formatting
-npm run format:write # Apply Prettier formatting
-```
-
 ### Database
+
 ```bash
 npm run db:generate  # Generate Drizzle migrations
 npm run db:migrate   # Run database migrations
 npm run db:push      # Push schema changes to database
-npm run db:studio    # Open Drizzle Studio (database GUI)
+npm run db:studio    # Open Drizzle Studio
 ```
 
-## Key Dependencies
-- **@clerk/nextjs** - Clerk authentication
-- **@trpc/server** & **@trpc/client** - tRPC API layer
-- **drizzle-orm** - Database ORM
-- **@ai-sdk/google** - Google AI integration
-- **postgres** - PostgreSQL client
-- **zod** - Schema validation
+### Code Quality
+
+```bash
+npm run check        # Run linting and type checking
+npm run lint         # Run ESLint
+npm run lint:fix     # Fix ESLint issues
+npm run typecheck    # Run TypeScript type checking
+npm run format:check # Check code formatting
+npm run format:write # Format code with Prettier
+```
+
+### Database Setup
+
+```bash
+./start-database.sh  # Start local PostgreSQL database
+```
+
+## Build Configuration
+
+- **ESLint and TypeScript errors ignored during builds** (configured in next.config.js)
+- **Environment validation** can be skipped with `SKIP_ENV_VALIDATION=true`
+- **Turbo mode** enabled for faster development builds
