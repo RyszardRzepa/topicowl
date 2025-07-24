@@ -48,6 +48,7 @@ export function ArticleCard({
   const [isScheduling, setIsScheduling] = useState(false);
   const [editData, setEditData] = useState({
     title: article.title,
+    keywords: article.keywords?.join(', ') || '',
   });
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -69,7 +70,15 @@ export function ArticleCard({
 
     setIsUpdating(true);
     try {
-      await onUpdate(article.id, { title: editData.title.trim() });
+      const keywords = editData.keywords
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+
+      await onUpdate(article.id, { 
+        title: editData.title.trim(),
+        keywords: keywords.length > 0 ? keywords : []
+      });
       setIsEditing(false);
     } catch (error) {
       console.error('Failed to update article:', error);
@@ -79,7 +88,10 @@ export function ArticleCard({
   };
 
   const handleCancel = () => {
-    setEditData({ title: article.title });
+    setEditData({ 
+      title: article.title,
+      keywords: article.keywords?.join(', ') ?? ''
+    });
     setIsEditing(false);
   };
 
@@ -139,14 +151,23 @@ export function ArticleCard({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           {isEditing ? (
-            <input
-              value={editData.title}
-              onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-              className="font-medium text-sm bg-transparent border-none outline-none flex-1 min-w-0 focus:ring-1 focus:ring-blue-500 rounded px-1"
-              placeholder="Article title..."
-              disabled={isUpdating}
-              autoFocus
-            />
+            <div className="flex-1 min-w-0 space-y-2">
+              <input
+                value={editData.title}
+                onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+                className="w-full font-medium text-sm bg-transparent border border-gray-200 outline-none focus:ring-1 focus:ring-blue-500 rounded px-2 py-1"
+                placeholder="Article title..."
+                disabled={isUpdating}
+                autoFocus
+              />
+              <input
+                value={editData.keywords}
+                onChange={(e) => setEditData({ ...editData, keywords: e.target.value })}
+                className="w-full text-xs bg-transparent border border-gray-200 outline-none focus:ring-1 focus:ring-blue-500 rounded px-2 py-1"
+                placeholder="keyword1, keyword2, keyword3..."
+                disabled={isUpdating}
+              />
+            </div>
           ) : (
             <CardTitle className="font-medium text-sm line-clamp-2 flex-1 min-w-0">
               {article.title}

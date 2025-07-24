@@ -79,6 +79,16 @@ export const articles = contentMachineSchema.table("articles", {
   internalLinks: jsonb("internal_links").default([]).notNull(),
   sources: jsonb("sources").default([]).notNull(),
   
+  // Image fields
+  featuredImageUrl: text("featured_image_url"),
+  featuredImageAlt: text("featured_image_alt"),
+  imageAttribution: jsonb("image_attribution").$type<{
+    photographer: string;
+    unsplashUrl: string;
+    downloadUrl: string;
+  }>(),
+  unsplashImageId: text("unsplash_image_id"),
+  
   // Generation tracking
   generationTaskId: varchar("generation_task_id"),
   generationProgress: integer("generation_progress").default(0), // 0-100 percentage
@@ -90,6 +100,51 @@ export const articles = contentMachineSchema.table("articles", {
   // Analytics tracking
   views: integer("views").default(0).notNull(),
   clicks: integer("clicks").default(0).notNull(),
+  
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+// Article Generation tracking table for separation of concerns
+export const articleGeneration = contentMachineSchema.table("article_generation", {
+  id: serial("id").primaryKey(),
+  articleId: integer("article_id").references(() => articles.id).notNull(),
+  userId: text("user_id").references(() => users.id).notNull(),
+  
+  // Generation process tracking
+  taskId: varchar("task_id"),
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, researching, writing, validating, completed, failed
+  progress: integer("progress").default(0).notNull(), // 0-100 percentage
+  
+  // Phase timestamps
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  
+  // Phase results
+  researchData: jsonb("research_data").default({}).notNull(),
+  draftContent: text("draft_content"),
+  validationReport: jsonb("validation_report").default({}).notNull(),
+  seoReport: jsonb("seo_report").default({}).notNull(),
+  
+  // Image selection tracking
+  selectedImageId: text("selected_image_id"),
+  imageAttribution: jsonb("image_attribution").$type<{
+    photographer: string;
+    unsplashUrl: string;
+    downloadUrl: string;
+  }>(),
+  imageQuery: text("image_query"),
+  imageKeywords: jsonb("image_keywords").default([]).notNull(),
+  
+  // Error handling
+  error: text("error"),
+  errorDetails: jsonb("error_details"),
   
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)

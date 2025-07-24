@@ -1,12 +1,15 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { WorkflowTabs } from './workflow-tabs';
-import { PlanningHub } from './planning-hub';
-import { PublishingPipeline } from './publishing-pipeline';
-import type { Article, WorkflowPhase } from '@/types';
-import type { DatabaseArticle, KanbanColumn } from '@/app/api/articles/board/route';
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { WorkflowTabs } from "./workflow-tabs";
+import { PlanningHub } from "./planning-hub";
+import { PublishingPipeline } from "./publishing-pipeline";
+import type { Article, WorkflowPhase } from "@/types";
+import type {
+  DatabaseArticle,
+  KanbanColumn,
+} from "@/app/api/articles/board/route";
 
 interface WorkflowDashboardProps {
   className?: string;
@@ -14,7 +17,7 @@ interface WorkflowDashboardProps {
 
 export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<WorkflowPhase>('planning');
+  const [activeTab, setActiveTab] = useState<WorkflowPhase>("planning");
   const [articles, setArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,52 +28,75 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     title: dbArticle.title,
     content: dbArticle.optimizedContent ?? dbArticle.draft ?? undefined,
     status: dbArticle.status,
-    keywords: Array.isArray(dbArticle.keywords) ? dbArticle.keywords as string[] : [],
-    createdAt: dbArticle.createdAt.toISOString(),
-    updatedAt: dbArticle.updatedAt.toISOString(),
+    keywords: Array.isArray(dbArticle.keywords)
+      ? (dbArticle.keywords as string[])
+      : [],
+    createdAt:
+      dbArticle.createdAt instanceof Date
+        ? dbArticle.createdAt.toISOString()
+        : dbArticle.createdAt,
+    updatedAt:
+      dbArticle.updatedAt instanceof Date
+        ? dbArticle.updatedAt.toISOString()
+        : dbArticle.updatedAt,
     generationProgress: dbArticle.generationProgress ?? 0,
     estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
     views: dbArticle.views ?? 0,
     clicks: dbArticle.clicks ?? 0,
-    generationScheduledAt: dbArticle.generationScheduledAt?.toISOString(),
-    generationStartedAt: dbArticle.generationStartedAt?.toISOString(),
-    generationCompletedAt: dbArticle.generationCompletedAt?.toISOString(),
-    publishScheduledAt: dbArticle.scheduledAt?.toISOString(),
-    publishedAt: dbArticle.publishedAt?.toISOString(),
+    generationScheduledAt:
+      dbArticle.generationScheduledAt instanceof Date
+        ? dbArticle.generationScheduledAt.toISOString()
+        : (dbArticle.generationScheduledAt ?? undefined),
+    generationStartedAt:
+      dbArticle.generationStartedAt instanceof Date
+        ? dbArticle.generationStartedAt.toISOString()
+        : (dbArticle.generationStartedAt ?? undefined),
+    generationCompletedAt:
+      dbArticle.generationCompletedAt instanceof Date
+        ? dbArticle.generationCompletedAt.toISOString()
+        : (dbArticle.generationCompletedAt ?? undefined),
+    publishScheduledAt:
+      dbArticle.scheduledAt instanceof Date
+        ? dbArticle.scheduledAt.toISOString()
+        : (dbArticle.scheduledAt ?? undefined),
+    publishedAt:
+      dbArticle.publishedAt instanceof Date
+        ? dbArticle.publishedAt.toISOString()
+        : (dbArticle.publishedAt ?? undefined),
   });
 
   // Fetch articles from API
   const fetchArticles = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/articles/board');
+      const response = await fetch("/api/articles/board");
       if (!response.ok) {
-        throw new Error('Failed to fetch articles');
+        throw new Error("Failed to fetch articles");
       }
-      
+
       // Transform kanban board response to flat articles array
       const response_data: unknown = await response.json();
-      
+
       // Type guard to ensure we have the correct response structure
       if (!Array.isArray(response_data)) {
-        throw new Error('Invalid response format');
+        throw new Error("Invalid response format");
       }
-      
+
       // Type assertion after validation
       const data = response_data as KanbanColumn[];
       const allArticles: Article[] = [];
-      
+
       data.forEach((column) => {
         column.articles.forEach((dbArticle) => {
           allArticles.push(transformDatabaseArticle(dbArticle));
         });
       });
-      
+
       setArticles(allArticles);
       setError(null);
     } catch (error) {
-      console.error('Failed to load articles:', error);
-      setError('Failed to load articles');
+      console.error("Failed to load articles:", error);
+      setError("Failed to load articles");
     } finally {
       setIsLoading(false);
     }
@@ -84,83 +110,91 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        const statusChange = sessionStorage.getItem('articleStatusChanged');
+        const statusChange = sessionStorage.getItem("articleStatusChanged");
         if (statusChange) {
-          sessionStorage.removeItem('articleStatusChanged');
+          sessionStorage.removeItem("articleStatusChanged");
           void fetchArticles();
         }
       }
     };
 
     const handleFocus = () => {
-      const statusChange = sessionStorage.getItem('articleStatusChanged');
+      const statusChange = sessionStorage.getItem("articleStatusChanged");
       if (statusChange) {
-        sessionStorage.removeItem('articleStatusChanged');
+        sessionStorage.removeItem("articleStatusChanged");
         void fetchArticles();
       }
     };
 
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'articleStatusChanged' && e.newValue) {
+      if (e.key === "articleStatusChanged" && e.newValue) {
         void fetchArticles();
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('storage', handleStorageChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("storage", handleStorageChange);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('storage', handleStorageChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, [fetchArticles]);
 
   // Article action handlers
-  const handleCreateArticle = async (data: { title: string; keywords?: string[] }) => {
+  const handleCreateArticle = async (data: {
+    title: string;
+    keywords?: string[];
+  }) => {
     try {
-      const response = await fetch('/api/articles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: data.title,
-          description: 'Click to edit this article idea',
+          description: "Click to edit this article idea",
           keywords: data.keywords ?? [],
-          priority: 'medium',
+          priority: "medium",
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create article');
+        throw new Error("Failed to create article");
       }
 
       await fetchArticles(); // Refresh articles
     } catch (error) {
-      console.error('Failed to create article:', error);
-      setError('Failed to create article');
+      console.error("Failed to create article:", error);
+      setError("Failed to create article");
     }
   };
 
-  const handleUpdateArticle = async (articleId: string, updates: Partial<Article>) => {
+  const handleUpdateArticle = async (
+    articleId: string,
+    updates: Partial<Article>,
+  ) => {
     try {
       const response = await fetch(`/api/articles/${articleId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update article');
+        throw new Error("Failed to update article");
       }
 
       // Optimistic update
-      setArticles(prev => prev.map(article => 
-        article.id === articleId ? { ...article, ...updates } : article
-      ));
+      setArticles((prev) =>
+        prev.map((article) =>
+          article.id === articleId ? { ...article, ...updates } : article,
+        ),
+      );
     } catch (error) {
-      console.error('Failed to update article:', error);
-      setError('Failed to update article');
+      console.error("Failed to update article:", error);
+      setError("Failed to update article");
       await fetchArticles(); // Revert on error
     }
   };
@@ -168,49 +202,56 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const handleDeleteArticle = async (articleId: string) => {
     try {
       const response = await fetch(`/api/articles/${articleId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete article');
+        throw new Error("Failed to delete article");
       }
 
       // Optimistic update
-      setArticles(prev => prev.filter(article => article.id !== articleId));
+      setArticles((prev) => prev.filter((article) => article.id !== articleId));
     } catch (error) {
-      console.error('Failed to delete article:', error);
-      setError('Failed to delete article');
+      console.error("Failed to delete article:", error);
+      setError("Failed to delete article");
       await fetchArticles(); // Revert on error
     }
   };
 
   const handleGenerateArticle = async (articleId: string) => {
     try {
-      const response = await fetch('/api/articles/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/articles/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ articleId }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start article generation');
+        throw new Error("Failed to start article generation");
       }
 
       // Optimistic update to generating status
-      setArticles(prev => prev.map(article => 
-        article.id === articleId ? { ...article, status: 'generating', generationProgress: 0 } : article
-      ));
+      setArticles((prev) =>
+        prev.map((article) =>
+          article.id === articleId
+            ? { ...article, status: "generating", generationProgress: 0 }
+            : article,
+        ),
+      );
     } catch (error) {
-      console.error('Failed to generate article:', error);
-      setError('Failed to generate article');
+      console.error("Failed to generate article:", error);
+      setError("Failed to generate article");
     }
   };
 
-  const handleScheduleGeneration = async (articleId: string, scheduledAt: Date) => {
+  const handleScheduleGeneration = async (
+    articleId: string,
+    scheduledAt: Date,
+  ) => {
     try {
-      const response = await fetch('/api/articles/schedule-generation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/articles/schedule-generation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           articleId: parseInt(articleId),
           generationScheduledAt: scheduledAt.toISOString(),
@@ -218,41 +259,48 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to schedule generation');
+        throw new Error("Failed to schedule generation");
       }
 
       // Optimistic update
-      setArticles(prev => prev.map(article => 
-        article.id === articleId ? { ...article, generationScheduledAt: scheduledAt.toISOString() } : article
-      ));
+      setArticles((prev) =>
+        prev.map((article) =>
+          article.id === articleId
+            ? { ...article, generationScheduledAt: scheduledAt.toISOString() }
+            : article,
+        ),
+      );
     } catch (error) {
-      console.error('Failed to schedule generation:', error);
-      setError('Failed to schedule generation');
+      console.error("Failed to schedule generation:", error);
+      setError("Failed to schedule generation");
     }
   };
 
   const handlePublishArticle = async (articleId: string) => {
     try {
       // Update article status to published
-      await handleUpdateArticle(articleId, { 
-        status: 'published', 
-        publishedAt: new Date().toISOString() 
+      await handleUpdateArticle(articleId, {
+        status: "published",
+        publishedAt: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Failed to publish article:', error);
-      setError('Failed to publish article');
+      console.error("Failed to publish article:", error);
+      setError("Failed to publish article");
     }
   };
 
-  const handleSchedulePublishing = async (articleId: string, scheduledAt: Date) => {
+  const handleSchedulePublishing = async (
+    articleId: string,
+    scheduledAt: Date,
+  ) => {
     try {
       // Update article with scheduled publish time
-      await handleUpdateArticle(articleId, { 
-        publishScheduledAt: scheduledAt.toISOString() 
+      await handleUpdateArticle(articleId, {
+        publishScheduledAt: scheduledAt.toISOString(),
       });
     } catch (error) {
-      console.error('Failed to schedule publishing:', error);
-      setError('Failed to schedule publishing');
+      console.error("Failed to schedule publishing:", error);
+      setError("Failed to schedule publishing");
     }
   };
 
@@ -263,7 +311,10 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     }
   };
 
-  const handleBulkScheduleGeneration = async (articleIds: string[], scheduledAt: Date) => {
+  const handleBulkScheduleGeneration = async (
+    articleIds: string[],
+    scheduledAt: Date,
+  ) => {
     // For now, schedule each article individually
     for (const articleId of articleIds) {
       await handleScheduleGeneration(articleId, scheduledAt);
@@ -277,7 +328,10 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     }
   };
 
-  const handleBulkSchedulePublishing = async (articleIds: string[], scheduledAt: Date) => {
+  const handleBulkSchedulePublishing = async (
+    articleIds: string[],
+    scheduledAt: Date,
+  ) => {
     // For now, schedule each article individually
     for (const articleId of articleIds) {
       await handleSchedulePublishing(articleId, scheduledAt);
@@ -289,18 +343,21 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   };
 
   // Count articles for each phase
-  const planningArticles = articles.filter(a => 
-    a.status === 'idea' || a.status === 'to_generate' || a.status === 'generating'
+  const planningArticles = articles.filter(
+    (a) =>
+      a.status === "idea" ||
+      a.status === "to_generate" ||
+      a.status === "generating",
   );
-  const publishingArticles = articles.filter(a => 
-    a.status === 'wait_for_publish' || a.status === 'published'
+  const publishingArticles = articles.filter(
+    (a) => a.status === "wait_for_publish" || a.status === "published",
   );
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
           <p className="mt-2 text-gray-600">Loading workflow dashboard...</p>
         </div>
       </div>
@@ -309,12 +366,12 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button 
+          <p className="mb-4 text-red-600">{error}</p>
+          <button
             onClick={fetchArticles}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             Retry
           </button>
@@ -327,7 +384,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     <div className={className}>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Content Workflow</h1>
-        <p className="text-sm text-gray-600 mt-1">
+        <p className="mt-1 text-sm text-gray-600">
           Manage your article creation and publishing pipeline
         </p>
       </div>
@@ -339,7 +396,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         publishingCount={publishingArticles.length}
       />
 
-      {activeTab === 'planning' ? (
+      {activeTab === "planning" ? (
         <PlanningHub
           articles={planningArticles}
           onCreateArticle={handleCreateArticle}
