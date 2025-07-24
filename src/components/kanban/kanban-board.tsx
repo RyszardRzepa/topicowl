@@ -8,7 +8,25 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { isDraggable, isValidStatusTransition, type ArticleStatus } from '@/lib/kanban-flow';
+import type { ArticleStatus } from '@/types';
+
+// Inline kanban flow logic
+const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
+  idea: ['to_generate'],
+  to_generate: ['generating'], // Only through generate button, not drag
+  generating: ['wait_for_publish'], // Automatically moved by system after generation
+  wait_for_publish: ['published'],
+  published: [], // Cannot be moved
+};
+
+const isValidStatusTransition = (from: ArticleStatus, to: ArticleStatus): boolean => {
+  return STATUS_FLOW[from].includes(to);
+};
+
+const isDraggable = (status: ArticleStatus): boolean => {
+  // Only allow dragging for idea and wait_for_publish status
+  return status === 'idea' || status === 'wait_for_publish';
+};
 
 // Example: Import API types from their colocated routes when needed
 // import type { CreateArticleRequest } from '@/app/api/articles/route';
@@ -92,6 +110,18 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
   const updateArticle = async (articleId: number, updates: Partial<Article>) => {
     try {
+      // Optimistic update - update UI immediately
+      const updatedColumns = columns.map(column => ({
+        ...column,
+        articles: column.articles.map(article => 
+          article.id === articleId 
+            ? { ...article, ...updates }
+            : article
+        )
+      }));
+      
+      setColumns(updatedColumns);
+
       const response = await fetch(`/api/articles/${articleId}`, {
         method: 'PUT',
         headers: {
@@ -104,16 +134,25 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         throw new Error('Failed to update article');
       }
 
-      // Refresh the board to get updated data
-      await fetchKanbanBoard();
+      // No refresh needed - optimistic update is sufficient
     } catch (error) {
       console.error('Failed to update article:', error);
       setError('Failed to update article');
+      // Revert optimistic update on error by fetching fresh data
+      await fetchKanbanBoard();
     }
   };
 
   const deleteArticle = async (articleId: number) => {
     try {
+      // Optimistic update - remove article from UI immediately
+      const updatedColumns = columns.map(column => ({
+        ...column,
+        articles: column.articles.filter(article => article.id !== articleId)
+      }));
+      
+      setColumns(updatedColumns);
+
       const response = await fetch(`/api/articles/${articleId}`, {
         method: 'DELETE',
       });
@@ -122,19 +161,55 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         throw new Error('Failed to delete article');
       }
 
-      // Refresh the board to get updated data
-      await fetchKanbanBoard();
+      // No refresh needed - optimistic update is sufficient
     } catch (error) {
       console.error('Failed to delete article:', error);
       setError('Failed to delete article');
+      // Revert optimistic update on error by fetching fresh data
+      await fetchKanbanBoard();
     }
   };
 
   const generateArticle = async (articleId: number) => {
     console.log('generateArticle called with ID:', articleId);
     try {
-      const response = await fetch(`/api/articles/${articleId}/generate`, {
+      // Optimistic update - move article to generating status immediately
+      const updatedColumns = columns.map(column => {
+        const filteredArticles = column.articles.filter(article => article.id !== articleId);
+        
+        if (column.status === 'generating') {
+          // Add article to generating column
+          const articleToMove = columns
+            .flatMap(col => col.articles)
+            .find(article => article.id === articleId);
+          
+          if (articleToMove) {
+            const updatedArticle = {
+              ...articleToMove,
+              status: 'generating' as const,
+              kanbanPosition: column.articles.length // Add to end of generating column
+            };
+            
+            filteredArticles.push(updatedArticle);
+          }
+        }
+        
+        return {
+          ...column,
+          articles: filteredArticles
+        };
+      });
+      
+      setColumns(updatedColumns);
+
+      const response = await fetch(`/api/articles/generate`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          articleId: articleId.toString(),
+        }),
       });
 
       console.log('Generate API response status:', response.status);
@@ -148,16 +223,30 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
       const responseData = await response.json() as unknown;
       console.log('Generate API response data:', responseData);
 
-      // Refresh the board to show the generating status
-      await fetchKanbanBoard();
+      // No refresh needed - optimistic update is sufficient
+      // The server will handle the actual generation process
     } catch (error) {
       console.error('Failed to generate article:', error);
       setError('Failed to generate article');
+      // Revert optimistic update on error by fetching fresh data
+      await fetchKanbanBoard();
     }
   };
 
   const scheduleGeneration = async (articleId: number, scheduledAt: string) => {
     try {
+      // Optimistic update - update the scheduled time immediately
+      const updatedColumns = columns.map(column => ({
+        ...column,
+        articles: column.articles.map(article => 
+          article.id === articleId 
+            ? { ...article, generationScheduledAt: new Date(scheduledAt) }
+            : article
+        )
+      }));
+      
+      setColumns(updatedColumns);
+
       const response = await fetch('/api/articles/schedule-generation', {
         method: 'POST',
         headers: {
@@ -173,11 +262,12 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         throw new Error('Failed to schedule article generation');
       }
 
-      // Refresh the board to show the updated schedule
-      await fetchKanbanBoard();
+      // No refresh needed - optimistic update is sufficient
     } catch (error) {
       console.error('Failed to schedule generation:', error);
       setError('Failed to schedule generation');
+      // Revert optimistic update on error by fetching fresh data
+      await fetchKanbanBoard();
     }
   };
 
@@ -227,16 +317,12 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         throw new Error(errorData.error ?? 'Failed to move article');
       }
 
-      // Only refresh if status changed to 'generating' to get real-time updates
-      if (newStatus === 'to_generate') {
-        setTimeout(() => {
-          fetchKanbanBoard().catch(console.error);
-        }, 1000); // Give the backend time to process
-      }
+      // No refresh needed - optimistic update is sufficient
+      // The server handles the position updates and the UI is already updated
     } catch (error) {
       console.error('Failed to move article:', error);
       setError('Failed to move article');
-      // Revert optimistic update on error
+      // Revert optimistic update on error by fetching fresh data
       await fetchKanbanBoard();
     }
   };
@@ -289,7 +375,20 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         throw new Error('Failed to create article');
       }
 
-      await fetchKanbanBoard();
+      const newArticle = await response.json() as Article;
+      
+      // Optimistic update - add the new article to the ideas column
+      const updatedColumns = columns.map(column => {
+        if (column.status === 'idea') {
+          return {
+            ...column,
+            articles: [...column.articles, newArticle]
+          };
+        }
+        return column;
+      });
+      
+      setColumns(updatedColumns);
     } catch (error) {
       console.error('Failed to create article:', error);
       setError('Failed to create article');

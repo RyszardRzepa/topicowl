@@ -1,12 +1,33 @@
-import type { NextRequest } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { db } from '@/server/db';
-import { users } from '@/server/db/schema';
-import { eq } from 'drizzle-orm';
+import type { NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+import { generateObject } from "ai";
+import { google } from "@ai-sdk/google";
+import { MODELS } from "@/constants";
+import { z } from "zod";
 
 export interface AnalyzeWebsiteRequest {
   websiteUrl: string;
 }
+
+// Zod schema for AI analysis response
+const WebsiteAnalysisSchema = z.object({
+  companyName: z.string().min(1),
+  productDescription: z.string().min(1),
+  industryCategory: z.string().min(1),
+  targetAudience: z.string().min(1),
+  toneOfVoice: z.string().min(1),
+  suggestedKeywords: z.array(z.string()).max(10),
+  contentStrategy: z.object({
+    articleStructure: z.string().min(1),
+    maxWords: z.number().int().min(200).max(2000),
+    publishingFrequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"]),
+  }),
+});
+
+type WebsiteAnalysis = z.infer<typeof WebsiteAnalysisSchema>;
 
 export interface AnalyzeWebsiteResponse {
   success: boolean;
@@ -23,127 +44,104 @@ export interface AnalyzeWebsiteResponse {
       maxWords: number;
       publishingFrequency: string;
     };
+    onboardingCompleted: boolean;
   };
   error?: string;
 }
 
-// Simple website scraping function (placeholder - would use proper scraping in production)
-async function scrapeWebsite(url: string) {
+// Enhanced website content extraction using Jina AI
+async function jinaUrlToMd(url: string): Promise<string> {
+  const jinaUrl = `https://r.jina.ai/${url}`;
+
   try {
-    const response = await fetch(url, {
+    const response = await fetch(jinaUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; AI-SEO-Content-Machine/1.0)',
+        Accept: "text/markdown", // Request markdown if possible, otherwise text
       },
+      // Add timeout to prevent hanging requests
+      signal: AbortSignal.timeout(30000), // 30 second timeout
     });
-    
+
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(
+        `Jina AI request failed with status ${response.status}: ${await response.text()}`,
+      );
     }
-    
-    const html = await response.text();
-    
-    // Extract basic information from HTML
-    const titleRegex = /<title[^>]*>([^<]+)<\/title>/i;
-    const descriptionRegex = /<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i;
-    const keywordsRegex = /<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']+)["']/i;
-    
-    const titleMatch = titleRegex.exec(html);
-    const descriptionMatch = descriptionRegex.exec(html);
-    const keywordsMatch = keywordsRegex.exec(html);
-    
-    // Extract text content (simplified)
-    const textContent = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 5000); // Limit content for AI processing
-    
-    return {
-      title: titleMatch?.[1]?.trim() ?? '',
-      description: descriptionMatch?.[1]?.trim() ?? '',
-      keywords: keywordsMatch?.[1]?.trim() ?? '',
-      textContent,
-      url,
-    };
+
+    const markdownContent = await response.text();
+
+    if (!markdownContent || markdownContent.trim().length === 0) {
+      throw new Error("No content received from Jina AI");
+    }
+
+    return markdownContent;
   } catch (error) {
-    throw new Error(`Failed to scrape website: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error("Error fetching content with Jina AI:", error);
+    throw new Error(
+      `Failed to extract website content: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
-// AI analysis function (placeholder - would use actual AI in production)
-async function analyzeWebsiteContent(websiteContent: {
-  title: string;
-  description: string;
-  keywords: string;
-  textContent: string;
-  url: string;
-}) {
-  // This is a simplified version - in production you'd use actual AI services
-  const domain = new URL(websiteContent.url).hostname.replace('www.', '');
-  
-  // Simple heuristics for demo purposes
-  const companyName = websiteContent.title.split(' - ')[0]?.split(' | ')[0] ?? domain;
-  
-  const productDescription = websiteContent.description || 
-    `${companyName} provides professional services and solutions.`;
-  
-  // Extract potential keywords from content
-  const contentWords = websiteContent.textContent
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(word => word.length > 3 && word.length < 15)
-    .filter(word => !/^\d+$/.test(word));
-  
-  const wordCounts = contentWords.reduce((acc, word) => {
-    acc[word] = (acc[word] ?? 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  
-  const suggestedKeywords = Object.entries(wordCounts)
-    .filter(([, count]) => count > 2)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
-    .map(([word]) => word);
-  
-  // Simple industry detection
-  const industryKeywords = {
-    'technology': ['software', 'app', 'digital', 'tech', 'development', 'platform'],
-    'healthcare': ['health', 'medical', 'care', 'patient', 'treatment', 'clinic'],
-    'finance': ['financial', 'investment', 'banking', 'money', 'finance', 'loan'],
-    'education': ['education', 'learning', 'student', 'course', 'training', 'school'],
-    'business': ['business', 'consulting', 'service', 'professional', 'company', 'enterprise'],
-  };
-  
-  let industryCategory = 'business';
-  let maxMatches = 0;
-  
-  for (const [industry, keywords] of Object.entries(industryKeywords)) {
-    const matches = keywords.filter(keyword => 
-      websiteContent.textContent.toLowerCase().includes(keyword)
-    ).length;
-    
-    if (matches > maxMatches) {
-      maxMatches = matches;
-      industryCategory = industry;
-    }
+// Enhanced AI analysis using Google Gemini with generateObject
+async function analyzeWebsiteWithAI(
+  url: string,
+  markdownContent: string,
+): Promise<WebsiteAnalysis & { domain: string }> {
+  try {
+    const domain = new URL(url).hostname.replace("www.", "");
+
+    // Use Gemini with generateObject for type-safe AI analysis
+    const { object: analysis } = await generateObject({
+      model: google(MODELS.GEMINI_FLASH_2_5),
+      schema: WebsiteAnalysisSchema,
+      prompt: `Analyze the following company website content and extract detailed information for content marketing setup.
+
+Website URL: ${url}
+Website content:
+${markdownContent}
+
+Focus on:
+1. Understanding their business model and value proposition
+2. Identifying their target market and customer base
+3. Extracting relevant keywords from their actual content
+4. Determining the appropriate tone based on their existing content
+5. Suggesting content strategy that fits their industry
+
+For industryCategory, use one of: technology, healthcare, finance, education, business, retail, manufacturing, consulting, marketing, legal, real-estate, food-beverage, travel, fitness, entertainment, non-profit, or other.
+
+For toneOfVoice, use one of: professional, friendly, technical, casual, authoritative, conversational, formal, or educational.
+
+For publishingFrequency, choose from: daily, weekly, bi-weekly, or monthly based on industry standards.
+
+Provide 5-10 relevant keywords for content marketing based on their actual content.`,
+      maxTokens: 1000,
+    });
+
+    return {
+      domain,
+      ...analysis,
+    };
+  } catch (error) {
+    console.error("Error analyzing website with AI:", error);
+
+    // Fallback to basic analysis if AI fails
+    const domain = new URL(url).hostname.replace("www.", "");
+    return {
+      domain,
+      companyName: domain,
+      productDescription: `${domain} provides professional services and solutions.`,
+      industryCategory: "business",
+      targetAudience: "business professionals",
+      toneOfVoice: "professional",
+      suggestedKeywords: [],
+      contentStrategy: {
+        articleStructure: "introduction, main points, conclusion",
+        maxWords: 800,
+        publishingFrequency: "weekly",
+      },
+    };
   }
-  
-  return {
-    domain,
-    companyName,
-    productDescription,
-    toneOfVoice: 'professional', // Would be determined by AI analysis
-    suggestedKeywords,
-    industryCategory,
-    targetAudience: 'business professionals', // Would be determined by AI analysis
-    contentStrategy: {
-      articleStructure: 'introduction, main points, conclusion',
-      maxWords: 800,
-      publishingFrequency: 'weekly',
-    },
-  };
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -153,63 +151,169 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (!userId) {
       const response: AnalyzeWebsiteResponse = {
         success: false,
-        error: 'Unauthorized',
+        error: "Unauthorized",
       };
       return Response.json(response, { status: 401 });
     }
 
-    const body = await request.json() as AnalyzeWebsiteRequest;
-    
+    const body = (await request.json()) as AnalyzeWebsiteRequest;
+
     if (!body.websiteUrl) {
       const response: AnalyzeWebsiteResponse = {
         success: false,
-        error: 'Website URL is required',
+        error: "Website URL is required",
       };
       return Response.json(response, { status: 400 });
     }
 
-    // Validate URL format
+    // Validate and normalize URL format
+    let normalizedUrl: string;
     try {
-      new URL(body.websiteUrl);
+      const urlObj = new URL(body.websiteUrl);
+      normalizedUrl = urlObj.toString();
     } catch {
+      // Try adding https:// if no protocol is provided
+      try {
+        const urlObj = new URL(`https://${body.websiteUrl}`);
+        normalizedUrl = urlObj.toString();
+      } catch {
+        const response: AnalyzeWebsiteResponse = {
+          success: false,
+          error: "Invalid URL format. Please provide a valid website URL.",
+        };
+        return Response.json(response, { status: 400 });
+      }
+    }
+
+    console.log(`Starting website analysis for: ${normalizedUrl}`);
+
+    // Enhanced website content extraction using Jina AI
+    let markdownContent: string;
+    try {
+      markdownContent = await jinaUrlToMd(normalizedUrl);
+      console.log(
+        `Successfully extracted content from ${normalizedUrl}, length: ${markdownContent.length} characters`,
+      );
+    } catch (error) {
+      console.error(`Failed to extract content from ${normalizedUrl}:`, error);
       const response: AnalyzeWebsiteResponse = {
         success: false,
-        error: 'Invalid URL format',
+        error: `Failed to analyze website. Please ensure the URL is accessible and try again. Error: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
-      return Response.json(response, { status: 400 });
+      return Response.json(response, { status: 500 });
     }
 
-    // Website scraping logic inline
-    const websiteContent = await scrapeWebsite(body.websiteUrl);
-    
-    // AI analysis using simplified logic for now
-    const aiAnalysis = await analyzeWebsiteContent(websiteContent);
-    
-    // Update user record directly
-    await db.update(users)
-      .set({
-        domain: aiAnalysis.domain,
-        company_name: aiAnalysis.companyName,
-        product_description: aiAnalysis.productDescription,
-        keywords: aiAnalysis.suggestedKeywords,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.clerk_user_id, userId));
-    
-    const response: AnalyzeWebsiteResponse = {
-      success: true,
-      data: aiAnalysis,
-    };
-    
-    return Response.json(response);
+    // AI analysis using Google Gemini
+    let aiAnalysis;
+    try {
+      aiAnalysis = await analyzeWebsiteWithAI(normalizedUrl, markdownContent);
+      console.log(`AI analysis completed for ${normalizedUrl}:`, {
+        companyName: aiAnalysis.companyName,
+        industryCategory: aiAnalysis.industryCategory,
+        keywordCount: aiAnalysis.suggestedKeywords.length,
+      });
+    } catch (error) {
+      console.error(`AI analysis failed for ${normalizedUrl}:`, error);
+      const response: AnalyzeWebsiteResponse = {
+        success: false,
+        error: `Failed to analyze website content with AI. Please try again. Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      };
+      return Response.json(response, { status: 500 });
+    }
+
+    // Database operations with transaction for consistency
+    try {
+      // Get user record to check if article settings exist
+      const [userRecord] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.clerk_user_id, userId))
+        .limit(1);
+
+      if (!userRecord) {
+        const response: AnalyzeWebsiteResponse = {
+          success: false,
+          error: "User not found in database",
+        };
+        return Response.json(response, { status: 404 });
+      }
+
+      // Use transaction to ensure data consistency and complete onboarding
+      await db.transaction(async (tx) => {
+        // Update user record with analysis data AND mark onboarding as complete
+        await tx
+          .update(users)
+          .set({
+            domain: aiAnalysis.domain,
+            company_name: aiAnalysis.companyName,
+            product_description: aiAnalysis.productDescription,
+            keywords: aiAnalysis.suggestedKeywords,
+            onboarding_completed: true, // Complete onboarding in the same transaction
+            updatedAt: new Date(),
+          })
+          .where(eq(users.clerk_user_id, userId));
+
+        // Create or update article settings based on AI analysis
+        const { articleSettings } = await import("@/server/db/schema");
+
+        // Check if article settings already exist
+        const [existingSettings] = await tx
+          .select({ id: articleSettings.id })
+          .from(articleSettings)
+          .where(eq(articleSettings.user_id, userRecord.id))
+          .limit(1);
+
+        if (existingSettings) {
+          // Update existing settings
+          await tx
+            .update(articleSettings)
+            .set({
+              toneOfVoice: aiAnalysis.toneOfVoice,
+              articleStructure: aiAnalysis.contentStrategy.articleStructure,
+              maxWords: aiAnalysis.contentStrategy.maxWords,
+              updatedAt: new Date(),
+            })
+            .where(eq(articleSettings.user_id, userRecord.id));
+        } else {
+          // Create new settings
+          await tx.insert(articleSettings).values({
+            user_id: userRecord.id,
+            toneOfVoice: aiAnalysis.toneOfVoice,
+            articleStructure: aiAnalysis.contentStrategy.articleStructure,
+            maxWords: aiAnalysis.contentStrategy.maxWords,
+          });
+        }
+      });
+
+      console.log(
+        `Successfully saved analysis data and completed onboarding for user ${userId}`,
+      );
+
+      const response: AnalyzeWebsiteResponse = {
+        success: true,
+        data: {
+          ...aiAnalysis,
+          onboardingCompleted: true,
+        },
+      };
+
+      return Response.json(response);
+    } catch (dbError) {
+      console.error("Database error while saving analysis:", dbError);
+      const response: AnalyzeWebsiteResponse = {
+        success: false,
+        error: "Failed to save analysis data. Please try again.",
+      };
+      return Response.json(response, { status: 500 });
+    }
   } catch (error) {
-    console.error('Error analyzing website:', error);
-    
+    console.error("Error analyzing website:", error);
+
     const response: AnalyzeWebsiteResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
-    
+
     return Response.json(response, { status: 500 });
   }
 }

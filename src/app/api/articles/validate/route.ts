@@ -2,7 +2,7 @@ import { google } from '@ai-sdk/google';
 import { generateText, generateObject } from 'ai';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
-import { prompts } from '@/lib/prompts';
+import { prompts } from '@/constants';
 import { MODELS } from '@/constants';
 
 // Types colocated with this API route

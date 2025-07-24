@@ -3,26 +3,62 @@ import { db } from "@/server/db";
 import { articles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { updateProgress } from '@/lib/progress-tracker';
-import { isValidStatusTransition, type ArticleStatus } from '@/lib/kanban-flow';
-import type { ApiResponse } from '@/types/types';
+import type { ApiResponse, ArticleStatus } from '@/types';
+import type { GenerationStatus } from '@/app/api/articles/[id]/generation-status/route';
+import type { ArticleGenerationRequest } from '@/app/api/articles/generate/route';
 import { API_BASE_URL } from '@/constants';
 
 // Types colocated with this API route
 export interface MoveArticleRequest {
   articleId: number;
-  newStatus: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+  newStatus: ArticleStatus;
   newPosition: number;
 }
+
+// Kanban flow logic - inline implementation
+const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
+  idea: ['to_generate'],
+  to_generate: ['generating'], // Only through generate button, not drag
+  generating: ['wait_for_publish'], // Automatically moved by system after generation
+  wait_for_publish: ['published'],
+  published: [], // Cannot be moved
+};
+
+const isValidStatusTransition = (from: ArticleStatus, to: ArticleStatus): boolean => {
+  return STATUS_FLOW[from].includes(to);
+};
+
+// In-memory progress tracking - inline implementation
+const progressMap = new Map<string, GenerationStatus>();
+
+// Helper function to update progress - inline implementation  
+const updateProgress = (
+  articleId: string, 
+  status: GenerationStatus['status'], 
+  progress: number, 
+  currentStep?: string
+) => {
+  progressMap.set(articleId, {
+    articleId,
+    status,
+    progress,
+    currentStep,
+    startedAt: progressMap.get(articleId)?.startedAt ?? new Date().toISOString(),
+    completedAt: status === 'completed' || status === 'failed' ? new Date().toISOString() : undefined,
+  });
+};
 
 // Article generation function - calls the generate API endpoint
 async function generateArticleContentInline(articleId: string) {
   console.log('Starting article generation by calling generate API for article:', articleId);
   try {
     // Call the generate API endpoint instead of duplicating logic
-    const generateResponse = await fetch(`${API_BASE_URL}/api/articles/${articleId}/generate`, {
+    const generateResponse = await fetch(`${API_BASE_URL}/api/articles/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        articleId: articleId.toString(),
+      } as ArticleGenerationRequest),
     });
 
     if (!generateResponse.ok) {

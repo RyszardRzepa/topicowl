@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 // src/app/api/articles/route.ts
 import { NextRequest } from 'next/server';
 import { db } from '@/server/db';
-import { Article } from '@/types/types'; // Domain type from central location
+import { Article } from '@/types'; // Domain type from central location
 
 // API-specific types colocated with route
 export interface CreateArticleRequest {

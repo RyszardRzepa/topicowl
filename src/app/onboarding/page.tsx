@@ -33,27 +33,7 @@ export default function OnboardingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if user is already onboarded
-  useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      if (!isLoaded || !user) return;
-      
-      try {
-        const response = await fetch("/api/onboarding/status");
-        if (response.ok) {
-          const data = await response.json() as { onboarding_completed: boolean };
-          if (data.onboarding_completed) {
-            router.push("/");
-            return;
-          }
-        }
-      } catch (err) {
-        console.error("Error checking onboarding status:", err);
-      }
-    };
-
-    void checkOnboardingStatus();
-  }, [isLoaded, user, router]);
+  // Note: Onboarding status check is now handled by OnboardingChecker component in layout
 
   const handleUrlSubmit = async (url: string) => {
     setIsLoading(true);

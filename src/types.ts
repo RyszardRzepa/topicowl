@@ -22,12 +22,15 @@ export const blogPostSchema = z.object({
 
 export type BlogPost = z.infer<typeof blogPostSchema>;
 
+// Article status type - shared domain type
+export type ArticleStatus = 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+
 // Article types - core domain entity
 export interface Article {
   id: string;
   title: string;
   content?: string;
-  status: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+  status: ArticleStatus;
   keywords?: string[];
   targetWordCount?: number;
   publishDate?: string;

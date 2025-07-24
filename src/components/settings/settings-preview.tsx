@@ -72,29 +72,82 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Current Settings Summary */}
+      {/* Company Information Summary */}
+      <div className="bg-blue-50 rounded-lg p-4">
+        <h3 className="font-semibold text-blue-900 mb-3">Company Information</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-blue-700">Company:</span>
+            <span className="font-medium text-blue-900">{settings.companyName || 'Not set'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-blue-700">Industry:</span>
+            <span className="font-medium text-blue-900 capitalize">
+              {settings.industryCategory?.replace('-', ' ') || 'Not set'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-blue-700">Target Audience:</span>
+            <span className="font-medium text-blue-900">{settings.targetAudience || 'Not set'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-blue-700">Keywords:</span>
+            <span className="font-medium text-blue-900">
+              {settings.keywords && settings.keywords.length > 0 
+                ? `${settings.keywords.length} keywords` 
+                : 'None set'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Article Generation Settings Summary */}
       <div className="bg-gray-50 rounded-lg p-4">
-        <h3 className="font-semibold text-gray-900 mb-3">Current Configuration</h3>
+        <h3 className="font-semibold text-gray-900 mb-3">Generation Settings</h3>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-600">Tone:</span>
             <span className="font-medium capitalize">{settings.toneOfVoice ?? 'Professional'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Structure:</span>
-            <span className="font-medium">
-              {(settings.articleStructure ?? 'introduction-body-conclusion')
-                .split('-')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                .join('-')}
-            </span>
-          </div>
-          <div className="flex justify-between">
             <span className="text-gray-600">Max Words:</span>
             <span className="font-medium">{settings.maxWords ?? 800}</span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Frequency:</span>
+            <span className="font-medium capitalize">
+              {settings.publishingFrequency?.replace('-', ' ') ?? 'Weekly'}
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Article Structure Preview */}
+      <div className="bg-green-50 rounded-lg p-4">
+        <h3 className="font-semibold text-green-900 mb-3">Article Structure</h3>
+        <div className="text-sm text-green-800">
+          <p className="font-mono text-xs bg-green-100 p-2 rounded">
+            {settings.articleStructure || 'Introduction • Main points • Conclusion'}
+          </p>
+        </div>
+      </div>
+
+      {/* Keywords Display */}
+      {settings.keywords && settings.keywords.length > 0 && (
+        <div className="bg-purple-50 rounded-lg p-4">
+          <h3 className="font-semibold text-purple-900 mb-3">Target Keywords</h3>
+          <div className="flex flex-wrap gap-2">
+            {settings.keywords.map((keyword, index) => (
+              <span 
+                key={index}
+                className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-medium"
+              >
+                {keyword}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Style Descriptions */}
       <div className="space-y-4">
@@ -105,12 +158,14 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
           </p>
         </div>
         
-        <div>
-          <h4 className="font-medium text-gray-900 mb-2">Article Structure</h4>
-          <p className="text-sm text-gray-600">
-            {getStructureDescription(settings.articleStructure)}
-          </p>
-        </div>
+        {settings.productDescription && (
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">Product/Service Context</h4>
+            <p className="text-sm text-gray-600 italic">
+              "{settings.productDescription}"
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Sample Content Preview */}

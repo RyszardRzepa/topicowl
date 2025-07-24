@@ -1,9 +1,9 @@
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
 import { NextResponse } from 'next/server';
-import { prompts } from '@/lib/prompts';
+import { prompts } from '@/constants';
 import { MODELS } from '@/constants';
-import { blogPostSchema } from '@/types/types';
+import { blogPostSchema } from '@/types';
 
 // Types colocated with this API route
 interface Correction {

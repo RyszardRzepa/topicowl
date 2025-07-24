@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import type { ApiResponse } from '@/types/types';
-import { getProgress } from '@/lib/progress-tracker';
+import type { ApiResponse } from '@/types';
 
 // Types colocated with this API route
 export interface GenerationStatus {
@@ -13,6 +12,14 @@ export interface GenerationStatus {
   startedAt?: string;
   completedAt?: string;
 }
+
+// In-memory progress tracking - in production, this should be replaced with Redis or database storage
+const progressMap = new Map<string, GenerationStatus>();
+
+// Helper function to get progress - inline implementation
+const getProgress = (articleId: string): GenerationStatus | undefined => {
+  return progressMap.get(articleId);
+};
 
 export async function GET(
   req: NextRequest,

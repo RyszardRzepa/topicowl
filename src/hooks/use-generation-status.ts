@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { GenerationStatus } from '@/app/api/articles/[id]/generation-status/route';
-import type { ApiResponse } from '@/types/types';
+import type { ApiResponse } from '@/types';
 
 interface UseGenerationStatusOptions {
   articleId: string;

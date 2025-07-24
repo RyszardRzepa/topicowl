@@ -12,12 +12,18 @@ const isPublicRoute = createRouteMatcher([
 const isOnboardingRoute = createRouteMatcher(["/onboarding"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // Allow public routes
+  // Allow public routes to pass through without authentication
   if (isPublicRoute(req)) {
     return;
   }
 
-  // Protect all other routes
+  // For API routes that use auth(), we need to let clerkMiddleware handle them
+  // but not redirect if user is not authenticated - let the API route handle it
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    return;
+  }
+
+  // For all other routes, require authentication
   const { userId } = await auth();
   
   if (!userId) {
@@ -26,9 +32,9 @@ export default clerkMiddleware(async (auth, req) => {
     return Response.redirect(signInUrl);
   }
 
-  // Allow API routes and onboarding routes to pass through
+  // Allow onboarding routes to pass through
   // Onboarding check will be handled in the app pages themselves
-  if (req.nextUrl.pathname.startsWith("/api/") || isOnboardingRoute(req)) {
+  if (isOnboardingRoute(req)) {
     return;
   }
 });

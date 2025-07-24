@@ -6,7 +6,7 @@ import { Edit, RefreshCw, Calendar, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // Import colocated types from API routes for type safety
-import type { ArticleGenerationRequest } from '@/app/api/articles/[id]/generate/route';
+import type { ArticleGenerationRequest } from '@/app/api/articles/generate/route';
 import type { ArticleScheduleRequest } from '@/app/api/articles/[id]/schedule/route';
 import type { ArticleDetailResponse } from '@/app/api/articles/[id]/route';
 
@@ -38,7 +38,7 @@ export function ArticleActions({
 
     setIsRegenerating(true);
     try {
-      const response = await fetch(`/api/articles/${article.id}/generate`, {
+      const response = await fetch(`/api/articles/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -4,6 +4,10 @@ mode: agent
 
 # Architecture Guidelines
 
+Never run cli command 'npm run dev'. 
+Don't create new files in the `src/lib` directory. Write all business logic directly in the files where it is needed. 
+New types: write common types in `src/types/types.ts` and colocated types in the API route files.
+
 ## Core Principles
 
 ### 1. No Services Layer
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
 // src/app/api/articles/route.ts
 import { NextRequest } from 'next/server';
 import { db } from '@/server/db';
-import { Article } from '@/types/types'; // Domain type from central location
+import { Article } from '@/types'; // Domain type from central location
 
 // API-specific types colocated with route
 export interface CreateArticleRequest {
