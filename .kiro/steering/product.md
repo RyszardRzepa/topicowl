@@ -2,6 +2,7 @@
 # Product Overview
 
 ## AI SEO Content Machine
+Never run cli command 'npm run dev'. 
 
 An automated content creation platform that uses multi-agent AI systems to generate, manage, and publish SEO-optimized articles at scale.
 

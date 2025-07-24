@@ -1,9 +1,9 @@
 'use client';
 
-import { type ArticleSettings } from '@/lib/services/settings-service';
+import type { ArticleSettingsResponse } from '@/app/api/settings/route';
 
 interface SettingsPreviewProps {
-  settings: ArticleSettings;
+  settings: ArticleSettingsResponse;
 }
 
 export function SettingsPreview({ settings }: SettingsPreviewProps) {

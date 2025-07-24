@@ -12,6 +12,15 @@ export interface ArticleSettingsRequest {
   maxWords?: number;
 }
 
+export interface ArticleSettingsResponse {
+  id: number;
+  toneOfVoice: string;
+  articleStructure: string;
+  maxWords: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const articleSettingsSchema = z.object({
   toneOfVoice: z.string().optional(),
   articleStructure: z.string().optional(),

@@ -2,11 +2,18 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { settingsService, type ArticleSettings, type ArticleSettingsForm } from '@/lib/services/settings-service';
+import type { ArticleSettingsRequest, ArticleSettingsResponse } from '@/app/api/settings/route';
+
+// Form-specific type for component state
+interface ArticleSettingsForm {
+  toneOfVoice: string;
+  articleStructure: string;
+  maxWords: number;
+}
 
 interface ArticleSettingsFormProps {
-  initialSettings: ArticleSettings;
-  onSettingsUpdate: (settings: ArticleSettings) => void;
+  initialSettings: ArticleSettingsResponse;
+  onSettingsUpdate: (settings: ArticleSettingsResponse) => void;
 }
 
 export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: ArticleSettingsFormProps) {
@@ -31,7 +38,20 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
       setSaving(true);
       setSaveMessage(null);
       
-      const updatedSettings = await settingsService.updateSettings(formData);
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData as ArticleSettingsRequest),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save settings' })) as { error?: string };
+        throw new Error(errorData.error ?? 'Failed to save settings');
+      }
+
+      const updatedSettings = await response.json() as ArticleSettingsResponse;
       onSettingsUpdate(updatedSettings);
       setSaveMessage('Settings saved successfully!');
     } catch (error) {
@@ -47,7 +67,27 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
       setSaving(true);
       setSaveMessage(null);
       
-      const { settings } = await settingsService.resetSettings(initialSettings.id);
+      // Reset to default settings by posting defaults
+      const defaultSettings: ArticleSettingsRequest = {
+        toneOfVoice: 'professional',
+        articleStructure: 'introduction-body-conclusion',
+        maxWords: 800,
+      };
+
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(defaultSettings),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to reset settings' })) as { error?: string };
+        throw new Error(errorData.error ?? 'Failed to reset settings');
+      }
+
+      const settings = await response.json() as ArticleSettingsResponse;
       setFormData({
         toneOfVoice: settings.toneOfVoice ?? 'professional',
         articleStructure: settings.articleStructure ?? 'introduction-body-conclusion',

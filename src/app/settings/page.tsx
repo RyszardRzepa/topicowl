@@ -6,10 +6,10 @@ import { ArrowLeft } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { ArticleSettingsForm } from '@/components/settings/article-settings-form';
 import { SettingsPreview } from '@/components/settings/settings-preview';
-import { settingsService, type ArticleSettings } from '@/lib/services/settings-service';
+import type { ArticleSettingsResponse } from '@/app/api/settings/route';
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<ArticleSettings | null>(null);
+  const [settings, setSettings] = useState<ArticleSettingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +21,13 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       setError(null);
-      const currentSettings = await settingsService.getSettings();
+      
+      const response = await fetch('/api/settings');
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings');
+      }
+      
+      const currentSettings = await response.json() as ArticleSettingsResponse;
       setSettings(currentSettings);
     } catch (err) {
       console.error('Failed to load settings:', err);
@@ -31,7 +37,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSettingsUpdate = async (updatedSettings: ArticleSettings) => {
+  const handleSettingsUpdate = async (updatedSettings: ArticleSettingsResponse) => {
     setSettings(updatedSettings);
   };
 
