@@ -25,6 +25,17 @@ export type BlogPost = z.infer<typeof blogPostSchema>;
 // Article status type - shared domain type
 export type ArticleStatus = 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
 
+// Workflow phases for new UI
+export type WorkflowPhase = 'planning' | 'publishing';
+
+// Enhanced article status for workflow organization
+export interface ArticleWorkflowStatus {
+  status: ArticleStatus;
+  phase: WorkflowPhase;
+  isScheduled: boolean;
+  isActive: boolean; // currently being processed
+}
+
 // Article types - core domain entity
 export interface Article {
   id: string;
@@ -36,6 +47,21 @@ export interface Article {
   publishDate?: string;
   createdAt: string;
   updatedAt: string;
+  
+  // Enhanced fields for new workflow
+  generationProgress?: number; // 0-100 percentage
+  estimatedReadTime?: number; // in minutes
+  views?: number;
+  clicks?: number;
+  
+  // Generation scheduling
+  generationScheduledAt?: string;
+  generationStartedAt?: string;
+  generationCompletedAt?: string;
+  
+  // Publishing scheduling
+  publishScheduledAt?: string;
+  publishedAt?: string;
 }
 
 // Settings types - domain entity for application configuration

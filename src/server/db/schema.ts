@@ -81,10 +81,15 @@ export const articles = contentMachineSchema.table("articles", {
   
   // Generation tracking
   generationTaskId: varchar("generation_task_id"),
+  generationProgress: integer("generation_progress").default(0), // 0-100 percentage
   generationScheduledAt: timestamp("generation_scheduled_at", { withTimezone: true }),
   generationStartedAt: timestamp("generation_started_at", { withTimezone: true }),
   generationCompletedAt: timestamp("generation_completed_at", { withTimezone: true }),
   generationError: text("generation_error"),
+  
+  // Analytics tracking
+  views: integer("views").default(0).notNull(),
+  clicks: integer("clicks").default(0).notNull(),
   
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
