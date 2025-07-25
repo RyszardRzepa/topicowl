@@ -57,7 +57,7 @@ export async function GET(
 
     const { id } = await params;
 
-    if (!id || isNaN(parseInt(id))) {
+    if (!id && isNaN(parseInt(id))) {
       return NextResponse.json(
         { success: false, error: "Invalid article ID" } as ApiResponse,
         { status: 400 },
@@ -107,15 +107,15 @@ export async function GET(
         status: article.status === "generating" ? "pending" : "completed",
         progress:
           article.status === "generating"
-            ? article.generationProgress || 0
+            ? article.generationProgress ?? 0
             : 100,
         currentStep:
           article.status === "generating" ? "Initializing..." : undefined,
         startedAt:
-          article.generationStartedAt?.toISOString() ||
+          article.generationStartedAt?.toISOString() ??
           new Date().toISOString(),
         completedAt: article.generationCompletedAt?.toISOString(),
-        error: article.generationError || undefined,
+        error: article.generationError ?? undefined,
       };
 
       return NextResponse.json({
@@ -155,10 +155,10 @@ export async function GET(
           ? undefined
           : `${latestGeneration.status}...`,
       startedAt:
-        latestGeneration.startedAt?.toISOString() ||
+        latestGeneration.startedAt?.toISOString() ??
         latestGeneration.createdAt.toISOString(),
       completedAt: latestGeneration.completedAt?.toISOString(),
-      error: latestGeneration.error || undefined,
+      error: latestGeneration.error ?? undefined,
     };
 
     return NextResponse.json({
