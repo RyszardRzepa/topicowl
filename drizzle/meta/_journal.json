@@ -71,6 +71,13 @@
       "when": 1753440689182,
       "tag": "0009_slow_zzzax",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1753458847851,
+      "tag": "0010_keen_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

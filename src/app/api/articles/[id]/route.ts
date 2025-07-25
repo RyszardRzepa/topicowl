@@ -69,6 +69,8 @@ const updateArticleSchema = z.object({
   draft: z.string().optional(),
   optimizedContent: z.string().optional(),
   generationScheduledAt: z.string().datetime().optional(),
+  status: z.enum(["idea", "to_generate", "generating", "wait_for_publish", "published"]).optional(),
+  publishedAt: z.string().datetime().optional(),
 });
 
 // GET /api/articles/[id] - Get single article with extended preview data
@@ -365,19 +367,38 @@ export async function PUT(
     }
 
     // Update the article
-    const { generationScheduledAt, ...otherData } = validatedData;
+    const { generationScheduledAt, publishedAt, ...otherData } = validatedData;
     
     const updateData = {
       ...otherData,
       updatedAt: new Date(),
       ...(generationScheduledAt && { generationScheduledAt: new Date(generationScheduledAt) }),
+      ...(publishedAt && { publishedAt: new Date(publishedAt) }),
     };
+
+    // Check if we're publishing the article
+    const isPublishing = validatedData.status === 'published';
+    const previousStatus = existingArticle[0]!.status;
 
     const [updatedArticle] = await db
       .update(articles)
       .set(updateData)
       .where(eq(articles.id, articleId))
       .returning();
+
+    // Trigger webhook if article was just published
+    if (isPublishing && previousStatus !== 'published' && updatedArticle) {
+      // Call the publish API to handle webhook delivery
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/articles/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          articleId: updatedArticle.id
+        })
+      }).catch((error: unknown) => {
+        console.error('Failed to trigger publish webhook for article', updatedArticle.id, ':', error);
+      });
+    }
 
     return NextResponse.json({
       success: true,

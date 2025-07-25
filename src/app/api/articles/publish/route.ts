@@ -1,40 +1,174 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles } from "@/server/db/schema";
+import { articles, users } from "@/server/db/schema";
 import { eq, and, lte } from "drizzle-orm";
 import type { ApiResponse } from '@/types';
+import crypto from "crypto";
 
-// POST /api/articles/publish - Publish scheduled articles
-export async function POST(_req: NextRequest) {
+// Type for article data
+type ArticleData = {
+  id: number;
+  user_id: string | null;
+  title: string;
+  description: string | null;
+  keywords: unknown;
+  targetAudience: string | null;
+  status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
+  scheduledAt: Date | null;
+  publishedAt: Date | null;
+  estimatedReadTime: number | null;
+  kanbanPosition: number;
+  metaDescription: string | null;
+  outline: unknown;
+  draft: string | null;
+  optimizedContent: string | null;
+  factCheckReport: unknown;
+  seoScore: number | null;
+  internalLinks: unknown;
+  sources: unknown;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+// Webhook delivery function
+async function sendWebhookAsync(userId: string, article: ArticleData): Promise<void> {
   try {
-    // Find articles scheduled for publishing that are due
-    const now = new Date();
-    const articlesToPublish = await db
-      .select()
-      .from(articles)
-      .where(
-        and(
-          eq(articles.status, 'wait_for_publish'),
-          lte(articles.publishedAt, now)
-        )
-      );
+    // Get user webhook configuration
+    const [userConfig] = await db
+      .select({
+        webhook_url: users.webhook_url,
+        webhook_secret: users.webhook_secret,
+        webhook_enabled: users.webhook_enabled,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    // Check if webhook is configured and enabled
+    if (!userConfig?.webhook_enabled || !userConfig.webhook_url) {
+      return; // No webhook configured, skip
+    }
+
+    // Prepare webhook payload
+    const payload = {
+      event: 'article.published',
+      timestamp: new Date().toISOString(),
+      article: {
+        id: article.id,
+        title: article.title,
+        description: article.description,
+        content: article.optimizedContent ?? article.draft ?? '',
+        keywords: Array.isArray(article.keywords) ? article.keywords : [],
+        targetAudience: article.targetAudience,
+        metaDescription: article.metaDescription,
+        estimatedReadTime: article.estimatedReadTime,
+        seoScore: article.seoScore,
+        coverImageUrl: article.coverImageUrl,
+        coverImageAlt: article.coverImageAlt,
+        publishedAt: article.publishedAt?.toISOString(),
+        sources: Array.isArray(article.sources) ? article.sources : [],
+        internalLinks: Array.isArray(article.internalLinks) ? article.internalLinks : [],
+        createdAt: article.createdAt.toISOString(),
+        updatedAt: article.updatedAt.toISOString(),
+      }
+    };
+
+    const payloadString = JSON.stringify(payload);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'ContentMachine-Webhook/1.0',
+    };
+
+    // Generate HMAC signature if secret is provided
+    if (userConfig.webhook_secret) {
+      const signature = crypto
+        .createHmac('sha256', userConfig.webhook_secret)
+        .update(payloadString)
+        .digest('hex');
+      headers['X-Webhook-Signature'] = `sha256=${signature}`;
+    }
+
+    // Send webhook with simple fetch
+    try {
+      const response = await fetch(userConfig.webhook_url, {
+        method: 'POST',
+        headers,
+        body: payloadString,
+      });
+
+      if (!response.ok) {
+        console.error(`Webhook delivery failed: ${response.status} ${response.statusText}`);
+      } else {
+        console.log(`Webhook delivered successfully for article ${article.id}`);
+      }
+    } catch (fetchError) {
+      console.error('Webhook delivery error:', fetchError);
+    }
+
+  } catch (error) {
+    console.error('Error in sendWebhookAsync:', error);
+  }
+}
+
+// POST /api/articles/publish - Publish scheduled articles or single article
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({})) as { articleId?: number };
+    const { articleId } = body;
+
+    let articlesToPublish;
+
+    if (articleId) {
+      // Single article publishing (from manual publish button)
+      articlesToPublish = await db
+        .select()
+        .from(articles)
+        .where(eq(articles.id, articleId))
+        .limit(1);
+    } else {
+      // Scheduled publishing (from cron job)
+      const now = new Date();
+      articlesToPublish = await db
+        .select()
+        .from(articles)
+        .where(
+          and(
+            eq(articles.status, 'wait_for_publish'),
+            lte(articles.publishedAt, now)
+          )
+        );
+    }
 
     const publishedArticles = [];
 
-    // Update each article to published status
+    // Update each article to published status and send webhook
     for (const article of articlesToPublish) {
-      const [updatedArticle] = await db
-        .update(articles)
-        .set({
-          status: 'published',
-          updatedAt: new Date(),
-        })
-        .where(eq(articles.id, article.id))
-        .returning();
+      // Only update status if not already published
+      if (article.status !== 'published') {
+        const [updatedArticle] = await db
+          .update(articles)
+          .set({
+            status: 'published',
+            updatedAt: new Date(),
+            // Set publishedAt if not already set
+            ...((!article.publishedAt) && { publishedAt: new Date() })
+          })
+          .where(eq(articles.id, article.id))
+          .returning();
 
-      if (updatedArticle) {
-        publishedArticles.push(updatedArticle);
+        if (updatedArticle) {
+          publishedArticles.push(updatedArticle);
+          
+          // Send webhook directly if user has one configured
+          if (updatedArticle.user_id) {
+            void sendWebhookAsync(updatedArticle.user_id, updatedArticle as ArticleData).catch((error: unknown) => {
+              console.error('Failed to send webhook for article', updatedArticle.id, ':', error);
+            });
+          }
+        }
       }
     }
     

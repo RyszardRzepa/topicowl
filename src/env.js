@@ -14,6 +14,14 @@ export const env = createEnv({
     CLERK_WEBHOOK_SECRET: z.string(),
     UNSPLASH_ACCESS_KEY: z.string().min(1),
     UNSPLASH_SECRET_KEY: z.string().min(1).optional(), // For future user auth features
+    
+    // Webhook configuration
+    WEBHOOK_TIMEOUT_MS: z.string().default("30000"),
+    WEBHOOK_MAX_RETRIES: z.string().default("3"),
+    WEBHOOK_RETRY_BASE_DELAY: z.string().default("30"),
+    WEBHOOK_RATE_LIMIT_PER_HOUR: z.string().default("100"),
+    WEBHOOK_REQUIRE_HTTPS: z.string().default("true"),
+    
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -25,6 +33,7 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
+    NEXT_PUBLIC_APP_URL: z.string().url().optional(),
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
   },
 
@@ -41,6 +50,15 @@ export const env = createEnv({
     CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET,
     UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
     UNSPLASH_SECRET_KEY: process.env.UNSPLASH_SECRET_KEY,
+    
+    // Webhook configuration
+    WEBHOOK_TIMEOUT_MS: process.env.WEBHOOK_TIMEOUT_MS,
+    WEBHOOK_MAX_RETRIES: process.env.WEBHOOK_MAX_RETRIES,
+    WEBHOOK_RETRY_BASE_DELAY: process.env.WEBHOOK_RETRY_BASE_DELAY,
+    WEBHOOK_RATE_LIMIT_PER_HOUR: process.env.WEBHOOK_RATE_LIMIT_PER_HOUR,
+    WEBHOOK_REQUIRE_HTTPS: process.env.WEBHOOK_REQUIRE_HTTPS,
+    
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

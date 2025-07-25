@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { ArticleSettingsForm } from '@/components/settings/article-settings-form';
 import { SettingsPreview } from '@/components/settings/settings-preview';
+import { WebhookSettings } from '@/components/settings/webhook-settings';
 import type { ArticleSettingsResponse } from '@/app/api/settings/route';
 
 export default function SettingsPage() {
@@ -105,16 +106,16 @@ export default function SettingsPage() {
         </div>
         
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Article Settings</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-600 mt-2">
-            Configure how your articles are generated. These settings will be applied to all new article generation.
+            Configure your article generation settings and webhook integrations.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
+          <div className="space-y-8">
             <Card className="p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Configuration</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Article Generation</h2>
               {settings && (
                 <ArticleSettingsForm
                   initialSettings={settings}
@@ -122,6 +123,8 @@ export default function SettingsPage() {
                 />
               )}
             </Card>
+            
+            <WebhookSettings />
           </div>
 
           <div>

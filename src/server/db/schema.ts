@@ -31,6 +31,12 @@ export const users = contentMachineSchema.table("users", {
   keywords: jsonb("keywords"),
   onboarding_completed: boolean("onboarding_completed").default(false).notNull(),
 
+  // Webhook configuration
+  webhook_url: text("webhook_url"),
+  webhook_secret: text("webhook_secret"),
+  webhook_enabled: boolean("webhook_enabled").default(false).notNull(),
+  webhook_events: jsonb("webhook_events").default(["article.published"]).notNull(),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
@@ -147,4 +153,38 @@ export const articleSettings = contentMachineSchema.table("article_settings", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull()
     .$onUpdate(() => new Date()),
+});
+
+// Webhook delivery tracking table
+export const webhookDeliveries = contentMachineSchema.table("webhook_deliveries", {
+  id: serial("id").primaryKey(),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  article_id: integer("article_id").references(() => articles.id).notNull(),
+  webhook_url: text("webhook_url").notNull(),
+  event_type: text("event_type").default("article.published").notNull(),
+  
+  // Delivery tracking
+  status: text("status").default("pending").notNull(), // pending, success, failed, retrying
+  attempts: integer("attempts").default(1).notNull(),
+  max_attempts: integer("max_attempts").default(3).notNull(),
+  
+  // Request/Response data
+  request_payload: jsonb("request_payload").notNull(),
+  response_status: integer("response_status"),
+  response_body: text("response_body"),
+  delivery_time_ms: integer("delivery_time_ms"),
+  
+  // Error handling
+  error_message: text("error_message"),
+  error_details: jsonb("error_details"),
+  
+  // Retry scheduling
+  next_retry_at: timestamp("next_retry_at", { withTimezone: true }),
+  retry_backoff_seconds: integer("retry_backoff_seconds").default(30).notNull(),
+  
+  created_at: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  delivered_at: timestamp("delivered_at", { withTimezone: true }),
+  failed_at: timestamp("failed_at", { withTimezone: true }),
 });

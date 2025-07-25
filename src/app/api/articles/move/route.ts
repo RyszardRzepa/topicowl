@@ -159,6 +159,21 @@ export async function POST(req: NextRequest) {
       .where(eq(articles.id, articleId))
       .returning();
 
+    // If moved to "published" status, trigger webhook
+    if (newStatus === 'published') {
+      // Trigger webhook delivery asynchronously
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/webhooks/deliver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          articleId: articleId,
+          eventType: 'article.published'
+        })
+      }).catch(error => {
+        console.error('Failed to trigger webhook delivery for article', articleId, ':', error);
+      });
+    }
+
     // If moved to "generating" status, automatically start generation
     if (newStatus === 'generating') {
       try {
