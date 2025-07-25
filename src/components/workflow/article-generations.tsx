@@ -221,7 +221,6 @@ export function ArticleGenerations({
       {generatingArticles.length > 0 && (
         <div>
           <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
             Currently Generating ({generatingArticles.length})
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

@@ -2,9 +2,6 @@
 # Product Overview
 
 ## AI SEO Content Machine
-Never run cli command 'npm run dev'. 
-Don't create new files in the `src/lib` directory. Write all business logic directly in the files where it is needed. 
-New types: write common types in `src/types/types.ts` and colocated types in the API route files.
 
 An automated content creation platform that uses multi-agent AI systems to generate, manage, and publish SEO-optimized articles at scale.
 

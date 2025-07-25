@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles } from "@/server/db/schema";
+import { articles, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -79,6 +80,30 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
@@ -102,6 +127,14 @@ export async function GET(
     }
 
     const articleData = article[0] as ArticleData;
+
+    // Verify article ownership
+    if (articleData.user_id !== userRecord.id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Article does not belong to current user' },
+        { status: 403 }
+      );
+    }
 
     // Generate SEO analysis from existing data
     const seoAnalysis: SEOAnalysis | undefined = articleData.seoScore ? {
@@ -284,6 +317,30 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
@@ -296,7 +353,7 @@ export async function PUT(
     const body = await req.json() as unknown;
     const validatedData = updateArticleSchema.parse(body);
 
-    // Check if article exists
+    // Check if article exists and belongs to current user
     const existingArticle = await db
       .select()
       .from(articles)
@@ -308,6 +365,14 @@ export async function PUT(
         success: false, 
         error: 'Article not found' 
       }, { status: 404 });
+    }
+
+    // Verify article ownership
+    if (existingArticle[0]!.user_id !== userRecord.id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Article does not belong to current user' },
+        { status: 403 }
+      );
     }
 
     // Update the article
@@ -358,6 +423,30 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
@@ -367,7 +456,7 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Check if article exists
+    // Check if article exists and belongs to current user
     const existingArticle = await db
       .select()
       .from(articles)
@@ -379,6 +468,14 @@ export async function DELETE(
         success: false, 
         error: 'Article not found' 
       }, { status: 404 });
+    }
+
+    // Verify article ownership
+    if (existingArticle[0]!.user_id !== userRecord.id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Article does not belong to current user' },
+        { status: 403 }
+      );
     }
 
     // Delete the article

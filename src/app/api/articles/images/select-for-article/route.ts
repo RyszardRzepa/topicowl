@@ -43,21 +43,19 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Get generation record
+    // Get generation record (optional - may not exist for articles without user_id)
     const generationRecords = await db.select()
       .from(articleGeneration)
       .where(eq(articleGeneration.id, body.generationId))
       .limit(1);
     
-    if (!generationRecords.length) {
-      console.log('[ARTICLE_IMAGE_SELECTION] Generation not found:', body.generationId);
-      return NextResponse.json(
-        { error: 'Generation not found' },
-        { status: 404 }
-      );
-    }
+    const generationRecord = generationRecords.length > 0 ? generationRecords[0] : null;
     
-    console.log('[ARTICLE_IMAGE_SELECTION] Found generation record');
+    if (generationRecord) {
+      console.log('[ARTICLE_IMAGE_SELECTION] Found generation record');
+    } else {
+      console.log('[ARTICLE_IMAGE_SELECTION] No generation record found, proceeding without it');
+    }
     
     // Search for images using the existing search endpoint
     const searchUrl = new URL('/api/articles/images/search', request.url);
@@ -94,18 +92,26 @@ export async function POST(request: NextRequest) {
     
     console.log('[ARTICLE_IMAGE_SELECTION] Selected image:', selectedImage.id);
     
-    // Update generation record with image data
-    await db.update(articleGeneration)
-      .set({
-        selectedImageId: selectedImage.id,
-        imageAttribution: attribution,
-        imageQuery: body.title,
-        imageKeywords: body.keywords,
-        updatedAt: new Date()
-      })
-      .where(eq(articleGeneration.id, body.generationId));
-    
-    console.log('[ARTICLE_IMAGE_SELECTION] Updated generation record with image data');
+    // Update generation record with image data (if it exists)
+    if (generationRecord) {
+      try {
+        await db.update(articleGeneration)
+          .set({
+            selectedImageId: selectedImage.id,
+            imageAttribution: attribution,
+            imageQuery: body.title,
+            imageKeywords: body.keywords,
+            updatedAt: new Date()
+          })
+          .where(eq(articleGeneration.id, body.generationId));
+        
+        console.log('[ARTICLE_IMAGE_SELECTION] Updated generation record with image data');
+      } catch (error) {
+        console.warn('[ARTICLE_IMAGE_SELECTION] Failed to update generation record:', error);
+      }
+    } else {
+      console.log('[ARTICLE_IMAGE_SELECTION] Skipping generation record update (no record found)');
+    }
     
     // Update article with cover image
     const imageAlt = selectedImage.altDescription ?? 

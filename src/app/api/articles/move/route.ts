@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles } from "@/server/db/schema";
+import { articles, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { ApiResponse, ArticleStatus } from '@/types';
@@ -28,25 +29,8 @@ const isValidStatusTransition = (from: ArticleStatus, to: ArticleStatus): boolea
   return STATUS_FLOW[from].includes(to);
 };
 
-// In-memory progress tracking - inline implementation
-const progressMap = new Map<string, GenerationStatus>();
-
-// Helper function to update progress - inline implementation  
-const updateProgress = (
-  articleId: string, 
-  status: GenerationStatus['status'], 
-  progress: number, 
-  currentStep?: string
-) => {
-  progressMap.set(articleId, {
-    articleId,
-    status,
-    progress,
-    currentStep,
-    startedAt: progressMap.get(articleId)?.startedAt ?? new Date().toISOString(),
-    completedAt: status === 'completed' || status === 'failed' ? new Date().toISOString() : undefined,
-  });
-};
+// Note: Progress tracking is now handled by the database via the generate API
+// No need for in-memory tracking since generation records are stored in articleGeneration table
 
 // Article generation function - calls the generate API endpoint
 async function generateArticleContentInline(articleId: string) {
@@ -70,7 +54,6 @@ async function generateArticleContentInline(articleId: string) {
 
   } catch (error) {
     console.error('Generation error:', error);
-    updateProgress(articleId, 'failed', 0, undefined);
     
     // Update article status to failed
     await db
@@ -93,10 +76,34 @@ const moveArticleSchema = z.object({
 // POST /api/articles/move - Move article between columns/statuses
 export async function POST(req: NextRequest) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const body = await req.json() as unknown;
     const { articleId, newStatus, newPosition } = moveArticleSchema.parse(body);
 
-    // Get current article
+    // Get current article and verify ownership
     const [currentArticle] = await db
       .select()
       .from(articles)
@@ -106,6 +113,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Article not found' },
         { status: 404 }
+      );
+    }
+
+    // Verify article ownership
+    if (currentArticle.user_id !== userRecord.id) {
+      return NextResponse.json(
+        { error: 'Access denied: Article does not belong to current user' },
+        { status: 403 }
       );
     }
 
@@ -148,8 +163,6 @@ export async function POST(req: NextRequest) {
     if (newStatus === 'generating') {
       try {
         console.log('Auto-starting generation for article:', articleId);
-        // Initialize progress tracking
-        updateProgress(articleId.toString(), 'pending', 0, 'Initializing generation');
         
         // Start generation process (runs in background) - all logic inline
         generateArticleContentInline(articleId.toString()).catch((error: unknown) => {
