@@ -42,11 +42,8 @@ type ArticleData = {
   seoScore: number | null;
   internalLinks: unknown;
   sources: unknown;
-  generationTaskId: string | null;
-  generationScheduledAt: Date | null;
-  generationStartedAt: Date | null;
-  generationCompletedAt: Date | null;
-  generationError: string | null;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -272,25 +269,17 @@ function calculateWordCount(content: string | null): number {
 function generateGenerationLogs(article: ArticleData): GenerationLog[] {
   const logs: GenerationLog[] = [];
   
-  if (article.generationScheduledAt) {
-    logs.push({
-      phase: 'research',
-      status: article.generationStartedAt ? 'completed' : 'pending',
-      timestamp: new Date(article.generationScheduledAt),
-      details: 'Article generation scheduled'
-    });
-  }
-  
-  if (article.generationStartedAt) {
+  // Simple logs based on available content
+  if (article.draft) {
     logs.push({
       phase: 'writing',
-      status: article.draft ? 'completed' : article.generationError ? 'failed' : 'pending',
-      timestamp: new Date(article.generationStartedAt),
-      details: article.generationError ?? 'Content generation in progress'
+      status: 'completed',
+      timestamp: new Date(article.updatedAt),
+      details: 'Draft content generated'
     });
   }
   
-  if (article.draft && article.factCheckReport) {
+  if (article.factCheckReport) {
     logs.push({
       phase: 'validation',
       status: 'completed',
@@ -303,7 +292,7 @@ function generateGenerationLogs(article: ArticleData): GenerationLog[] {
     logs.push({
       phase: 'optimization',
       status: 'completed',
-      timestamp: new Date(article.generationCompletedAt ?? article.updatedAt),
+      timestamp: new Date(article.updatedAt),
       details: 'Content optimized for SEO'
     });
   }

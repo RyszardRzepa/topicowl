@@ -17,8 +17,8 @@ export interface ArticleImageSelectionRequest {
 export interface ArticleImageSelectionResponse {
   success: boolean;
   data: {
-    featuredImageUrl: string;    // URL for article.featuredImageUrl
-    featuredImageAlt?: string;   // For article.featuredImageAlt
+    coverImageUrl: string;       // URL for article.coverImageUrl
+    coverImageAlt?: string;      // For article.coverImageAlt
     attribution: {
       photographer: string;
       unsplashUrl: string;
@@ -120,19 +120,19 @@ export async function POST(request: NextRequest) {
     
     await db.update(articles)
       .set({
-        featuredImageUrl: selectedImage.urls.regular,
-        featuredImageAlt: imageAlt,
+        coverImageUrl: selectedImage.urls.regular,
+        coverImageAlt: imageAlt,
         updatedAt: new Date()
       })
       .where(eq(articles.id, body.articleId));
     
-    console.log('[ARTICLE_IMAGE_SELECTION] Updated article with featured image');
+    console.log('[ARTICLE_IMAGE_SELECTION] Updated article with cover image');
     
     const response: ArticleImageSelectionResponse = {
       success: true,
       data: {
-        featuredImageUrl: selectedImage.urls.regular,
-        featuredImageAlt: imageAlt,
+        coverImageUrl: selectedImage.urls.regular,
+        coverImageAlt: imageAlt,
         attribution: attribution,
         unsplashImageId: selectedImage.id
       }

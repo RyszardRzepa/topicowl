@@ -57,11 +57,8 @@ export default async function ArticlePreviewPage({ params }: ArticlePreviewPageP
       seoScore: articleData.seoScore,
       internalLinks: articleData.internalLinks,
       sources: articleData.sources,
-      generationTaskId: articleData.generationTaskId,
-      generationScheduledAt: articleData.generationScheduledAt,
-      generationStartedAt: articleData.generationStartedAt,
-      generationCompletedAt: articleData.generationCompletedAt,
-      generationError: articleData.generationError,
+      coverImageUrl: articleData.coverImageUrl,
+      coverImageAlt: articleData.coverImageAlt,
       createdAt: articleData.createdAt,
       updatedAt: articleData.updatedAt,
       // Extended fields that are expected by ArticleDetailResponse['data']
@@ -106,14 +103,12 @@ export default async function ArticlePreviewPage({ params }: ArticlePreviewPageP
             </Link>
             <span className="mx-2">/</span>
             <span className="text-gray-900 font-medium">
-              {/* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access */}
               {article.title}
             </span>
           </nav>
         </div>
 
         {/* Article Content with Actions */}
-        {/* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment */}
         <ArticlePreviewClient initialArticle={article} />
       </div>
     </main>

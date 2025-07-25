@@ -99,29 +99,12 @@ export async function GET(
       .orderBy(desc(articleGeneration.createdAt))
       .limit(1);
 
-    // If no generation record exists, check article status
+    // If no generation record exists, return not found
     if (!latestGeneration) {
-      // Return status based on article state
-      const status: GenerationStatus = {
-        articleId: id,
-        status: article.status === "generating" ? "pending" : "completed",
-        progress:
-          article.status === "generating"
-            ? article.generationProgress ?? 0
-            : 100,
-        currentStep:
-          article.status === "generating" ? "Initializing..." : undefined,
-        startedAt:
-          article.generationStartedAt?.toISOString() ??
-          new Date().toISOString(),
-        completedAt: article.generationCompletedAt?.toISOString(),
-        error: article.generationError ?? undefined,
-      };
-
-      return NextResponse.json({
-        success: true,
-        ...status,
-      });
+      return NextResponse.json(
+        { success: false, error: "No generation found for this article" } as ApiResponse,
+        { status: 404 }
+      );
     }
 
     // Map generation record status to response
@@ -146,14 +129,39 @@ export async function GET(
       }
     };
 
+    // Enhanced phase descriptions
+    const getPhaseDescription = (status: string): string => {
+      switch (status) {
+        case "pending":
+          return "Queued for generation";
+        case "researching":
+          return "Researching topic and gathering information";
+        case "writing":
+          return "Writing article content";
+        case "validating":
+          return "Fact-checking and validation";
+        case "updating":
+          return "Applying final optimizations";
+        case "completed":
+          return "Generation completed successfully";
+        case "failed":
+          return "Generation failed";
+        default:
+          return "Processing...";
+      }
+    };
+
     const status: GenerationStatus = {
       articleId: id,
       status: mapStatus(latestGeneration.status),
       progress: latestGeneration.progress,
-      currentStep:
-        latestGeneration.status === "completed"
-          ? undefined
-          : `${latestGeneration.status}...`,
+      currentStep: latestGeneration.status === "completed" 
+        ? undefined 
+        : getPhaseDescription(latestGeneration.status),
+      phase: latestGeneration.status === "researching" ? "research" :
+             latestGeneration.status === "writing" ? "writing" :
+             latestGeneration.status === "validating" ? "validation" :
+             latestGeneration.status === "updating" ? "optimization" : undefined,
       startedAt:
         latestGeneration.startedAt?.toISOString() ??
         latestGeneration.createdAt.toISOString(),

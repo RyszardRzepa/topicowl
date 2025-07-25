@@ -2,8 +2,15 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Image as ImageIcon } from 'lucide-react';
+import Image from 'next/image';
 import { ArticleActions } from './article-actions';
-import { ArticlePreview } from './article-preview';
 import { ArticleMetadata } from './article-metadata';
 import { ArticleEditor } from './article-editor';
 import { GenerationProgress } from './generation-progress';
@@ -121,8 +128,6 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
     setIsEditing(false);
   }, []);
 
-
-
   return (
     <div className="space-y-6">
       {/* Success/Error Messages */}
@@ -184,7 +189,128 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
           isLoading={isSaving}
         />
       ) : (
-        <ArticlePreview article={article} />
+        <div className="space-y-6">
+          {/* Cover Image Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                Cover Image
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {article.coverImageUrl ? (
+                <div className="space-y-2">
+                  <Image
+                    src={article.coverImageUrl}
+                    alt={article.coverImageAlt ?? 'Article cover image'}
+                    width={800}
+                    height={384}
+                    className="w-full h-96 object-cover rounded-lg border"
+                    unoptimized
+                  />
+                  {article.coverImageAlt && (
+                    <p className="text-sm text-gray-600">{article.coverImageAlt}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No cover image set</p>
+                  <p className="text-sm mt-1">Use the Edit button to add a cover image</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Article Content Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Article Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Status Badge */}
+                <div className="flex items-center gap-2">
+                  <Badge variant={
+                    article.status === 'published' ? 'default' :
+                    article.status === 'wait_for_publish' ? 'secondary' :
+                    article.status === 'generating' ? 'red' : 'outline'
+                  }>
+                    {article.status.replace('_', ' ').toUpperCase()}
+                  </Badge>
+                  {article.status === 'generating' && (
+                    <span className="text-sm text-gray-600">Generation in progress...</span>
+                  )}
+                </div>
+
+                {/* Content Display */}
+                {article.optimizedContent ?? article.draft ? (
+                  <div className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:leading-relaxed prose-strong:text-gray-900">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkBreaks, remarkGfm]}
+                      components={{
+                        p: ({ children }) => <p className="mb-4 leading-relaxed">{children}</p>,
+                        h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 text-gray-900">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 text-gray-900">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-lg font-medium mb-2 text-gray-900">{children}</h3>,
+                        ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>,
+                        li: ({ children }) => <li className="text-gray-700">{children}</li>,
+                        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                        em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
+                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-4 py-2 mb-4 italic text-gray-600">{children}</blockquote>,
+                      }}
+                    >
+                      {(article.optimizedContent ?? article.draft) ?? ''}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No content available yet</p>
+                    {article.status === 'idea' && (
+                      <p className="text-sm mt-2">Move to &quot;To Generate&quot; to create content</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Meta Description */}
+                {article.metaDescription && (
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Meta Description</Label>
+                    <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
+                      {article.metaDescription}
+                    </p>
+                  </div>
+                )}
+
+                {/* Keywords */}
+                {Array.isArray(article.keywords) && article.keywords.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Keywords</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {(article.keywords as string[]).map((keyword: string, index: number) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {keyword}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Word Count */}
+                {(article.optimizedContent ?? article.draft) && (
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Word Count</Label>
+                    <p className="text-sm text-gray-600">
+                      {((article.optimizedContent ?? article.draft) ?? '').split(/\s+/).filter(word => word.length > 0).length} words
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

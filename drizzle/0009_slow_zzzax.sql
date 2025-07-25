@@ -1,0 +1,1 @@
+ALTER TABLE "content-machine"."users" ALTER COLUMN "id" SET DEFAULT '8G3JAHCE';

@@ -10,10 +10,6 @@ import type { WriteResponse } from '@/app/api/articles/write/route';
 import type { ValidateResponse } from '@/app/api/articles/validate/route';
 import type { UpdateResponse } from '@/app/api/articles/update/route';
 import type { ArticleImageSelectionResponse } from '@/app/api/articles/images/select-for-article/route';
-import { 
-  updateProgress, 
-  clearProgress,
-} from '@/lib/generation-progress';
 import { API_BASE_URL } from '@/constants';
 
 // Types colocated with this API route
@@ -27,8 +23,6 @@ async function generateArticleContentInline(articleId: string) {
   console.log('Starting article generation for article:', articleId);
   let generationRecord: typeof articleGeneration.$inferSelect | null = null; // Declare at function scope
   try {
-    updateProgress(articleId, 'researching', 10, 'research', 'Starting research phase');
-
     // Get article from database
     const [article] = await db
       .select()
@@ -79,8 +73,17 @@ async function generateArticleContentInline(articleId: string) {
 
     console.log('Updated article status to generating');
 
+    // Update generation record to researching phase
+    await db
+      .update(articleGeneration)
+      .set({
+        status: 'researching',
+        progress: 10,
+        updatedAt: new Date()
+      })
+      .where(eq(articleGeneration.id, generationRecord.id));
+
     // STEP 1: Research Phase - Call research API
-    updateProgress(articleId, 'researching', 20, 'research', 'Conducting topic research');
     
     const keywords = Array.isArray(article.keywords) ? (article.keywords as string[]) : [];
     
@@ -131,10 +134,21 @@ async function generateArticleContentInline(articleId: string) {
     const researchData = await researchResponse.json() as ResearchResponse;
     console.log('Research response received:', JSON.stringify(researchData, null, 2));
     console.log('Research data length:', researchData?.researchData?.length ?? 0);
+
+    // Update generation record with research results  
+    await db
+      .update(articleGeneration)
+      .set({
+        status: 'researching',
+        progress: 35,
+        researchData: researchData.researchData || {},
+        updatedAt: new Date()
+      })
+      .where(eq(articleGeneration.id, generationRecord.id));
+
     console.log('Research completed, starting image selection...');
 
     // STEP 2: Image Selection Phase - Call image selection API
-    updateProgress(articleId, 'researching', 35, 'research', 'Selecting cover image');
 
     let coverImageUrl = '';
     try {
@@ -157,7 +171,7 @@ async function generateArticleContentInline(articleId: string) {
       if (imageSelectionResponse.ok) {
         const imageData = await imageSelectionResponse.json() as ArticleImageSelectionResponse;
         console.log('Image selection response received:', JSON.stringify(imageData, null, 2));
-        coverImageUrl = imageData.data?.featuredImageUrl ?? '';
+        coverImageUrl = imageData.data?.coverImageUrl ?? '';
         console.log('Cover image selected:', coverImageUrl);
       } else {
         console.warn('Image selection failed, continuing without cover image');
@@ -168,8 +182,17 @@ async function generateArticleContentInline(articleId: string) {
 
     console.log('Image selection completed, starting writing phase...');
 
+    // Update generation record to writing phase
+    await db
+      .update(articleGeneration)
+      .set({
+        status: 'writing',
+        progress: 50,
+        updatedAt: new Date()
+      })
+      .where(eq(articleGeneration.id, generationRecord.id));
+
     // STEP 3: Writing Phase - Call write API
-    updateProgress(articleId, 'writing', 50, 'writing', 'Writing article content');
 
     const writeRequestBody = {
       researchData: researchData.researchData ?? '', // Direct access since research API returns { researchData: "..." }
@@ -204,8 +227,18 @@ async function generateArticleContentInline(articleId: string) {
     console.log('Write data content length:', writeData.content?.length ?? 0);
     console.log('Writing completed, starting validation...');
 
+    // Update generation record with writing results
+    await db
+      .update(articleGeneration)
+      .set({
+        status: 'validating',
+        progress: 70,
+        draftContent: writeData.content || '',
+        updatedAt: new Date()
+      })
+      .where(eq(articleGeneration.id, generationRecord.id));
+
     // STEP 4: Validation Phase - Call validate API
-    updateProgress(articleId, 'validating', 75, 'validation', 'Validating content accuracy');
 
     const validateRequestBody = {
       article: writeData.content ?? '',
@@ -233,8 +266,18 @@ async function generateArticleContentInline(articleId: string) {
 
     const validationData = await validateResponse.json() as ApiResponse<ValidateResponse>;
 
+    // Update generation record with validation results
+    await db
+      .update(articleGeneration)
+      .set({
+        status: 'updating',
+        progress: 90,
+        validationReport: validationData || {},
+        updatedAt: new Date()
+      })
+      .where(eq(articleGeneration.id, generationRecord.id));
+
     // STEP 5: Update Phase - Call update API if needed
-    updateProgress(articleId, 'updating', 90, 'optimization', 'Finalizing content');
 
     let finalContent = writeData.content ?? '';
     const finalMetaDescription = writeData.metaDescription ?? '';
@@ -277,7 +320,6 @@ async function generateArticleContentInline(articleId: string) {
         draft: finalContent,
         metaDescription: finalMetaDescription,
         status: 'wait_for_publish', // Ready for review/publishing
-        generationCompletedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(articles.id, parseInt(articleId)));
@@ -299,20 +341,16 @@ async function generateArticleContentInline(articleId: string) {
     }
 
     console.log('Saved generated content and updated status');
-
-    updateProgress(articleId, 'completed', 100, 'optimization', 'Article generation completed successfully');
     console.log('Generation completed successfully for article:', articleId);
 
   } catch (error) {
     console.error('Generation error:', error);
-    updateProgress(articleId, 'failed', 0, undefined);
     
     // Update article status to failed
     await db
       .update(articles)
       .set({
         status: 'idea', // Reset to idea status
-        generationError: error instanceof Error ? error.message : 'Unknown error occurred',
         updatedAt: new Date(),
       })
       .where(eq(articles.id, parseInt(articleId)));
@@ -325,6 +363,7 @@ async function generateArticleContentInline(articleId: string) {
           .set({
             status: 'failed',
             error: error instanceof Error ? error.message : 'Unknown error occurred',
+            errorDetails: { timestamp: new Date().toISOString() },
             updatedAt: new Date(),
           })
           .where(eq(articleGeneration.id, generationRecord.id));
@@ -410,14 +449,9 @@ export async function POST(req: NextRequest) {
       .update(articles)
       .set({
         status: 'generating',
-        generationStartedAt: new Date(),
-        generationError: null, // Clear any previous errors
         updatedAt: new Date(),
       })
       .where(eq(articles.id, id));
-
-    // Initialize progress tracking
-    updateProgress(articleId, 'pending', 0, undefined, 'Initializing generation');
 
     console.log('Starting background generation process for article:', articleId);
     // Start generation process (runs in background) - all logic inline
