@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { WorkflowTabs } from "./workflow-tabs";
 import { PlanningHub } from "./planning-hub";
+import { ArticleGenerations } from "./article-generations";
 import { PublishingPipeline } from "./publishing-pipeline";
+import { useGenerationPolling } from "@/hooks/use-generation-polling";
 import type { Article, WorkflowPhase } from "@/types";
 import type {
   DatabaseArticle,
@@ -101,6 +103,54 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       setIsLoading(false);
     }
   }, []);
+
+  // Get currently generating articles
+  const generatingArticles = articles.filter(article => article.status === 'generating');
+  
+  // Handle generation status updates
+  const handleGenerationStatusUpdate = useCallback((articleId: string, statusData: { progress?: number; phase?: 'research' | 'writing' | 'validation' | 'optimization'; error?: string }) => {
+    setArticles(prevArticles => 
+      prevArticles.map(article => 
+        article.id === articleId 
+          ? {
+              ...article,
+              generationProgress: statusData.progress,
+              generationPhase: statusData.phase,
+              generationError: statusData.error,
+            }
+          : article
+      )
+    );
+  }, []);
+
+  const handleGenerationComplete = useCallback((_articleId: string) => {
+    // Refresh articles to get the updated status
+    void fetchArticles();
+  }, [fetchArticles]);
+
+  const handleGenerationError = useCallback((articleId: string, error: string) => {
+    setArticles(prevArticles => 
+      prevArticles.map(article => 
+        article.id === articleId 
+          ? {
+              ...article,
+              generationError: error,
+            }
+          : article
+      )
+    );
+  }, []);
+
+  // Use polling for the first generating article as an example
+  // In a real implementation, you'd need a more sophisticated approach for multiple articles
+  const firstGeneratingArticle = generatingArticles[0];
+  useGenerationPolling({
+    articleId: firstGeneratingArticle?.id ?? '',
+    enabled: !!firstGeneratingArticle && !firstGeneratingArticle.generationError,
+    onStatusUpdate: (statusData) => handleGenerationStatusUpdate(firstGeneratingArticle?.id ?? '', statusData),
+    onComplete: () => handleGenerationComplete(firstGeneratingArticle?.id ?? ''),
+    onError: (error) => handleGenerationError(firstGeneratingArticle?.id ?? '', error),
+  });
 
   useEffect(() => {
     void fetchArticles();
@@ -344,10 +394,14 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   // Count articles for each phase
   const planningArticles = articles.filter(
-    (a) =>
-      a.status === "idea" ||
-      a.status === "to_generate" ||
-      a.status === "generating",
+    (a) => a.status === "idea" || a.status === "to_generate",
+  );
+  const generationsArticles = articles.filter(
+    (a) => 
+      a.status === "generating" || 
+      (a.generationScheduledAt && a.status === "to_generate") ||
+      (a.status === "wait_for_publish" && a.generationCompletedAt) ||
+      a.generationError,
   );
   const publishingArticles = articles.filter(
     (a) => a.status === "wait_for_publish" || a.status === "published",
@@ -393,10 +447,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         planningCount={planningArticles.length}
+        generationsCount={generationsArticles.length}
         publishingCount={publishingArticles.length}
       />
 
-      {activeTab === "planning" ? (
+      {activeTab === "planning" && (
         <PlanningHub
           articles={planningArticles}
           onCreateArticle={handleCreateArticle}
@@ -408,7 +463,17 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           onBulkSchedule={handleBulkScheduleGeneration}
           onNavigateToArticle={handleNavigateToArticle}
         />
-      ) : (
+      )}
+
+      {activeTab === "generations" && (
+        <ArticleGenerations
+          articles={generationsArticles}
+          onRetryGeneration={handleGenerateArticle}
+          onNavigateToArticle={handleNavigateToArticle}
+        />
+      )}
+
+      {activeTab === "publishing" && (
         <PublishingPipeline
           articles={publishingArticles}
           onUpdateArticle={handleUpdateArticle}

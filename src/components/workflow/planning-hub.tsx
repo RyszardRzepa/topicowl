@@ -249,6 +249,8 @@ export function PlanningHub({
                   mode="planning"
                   onUpdate={onUpdateArticle}
                   onDelete={onDeleteArticle}
+                  onGenerate={onGenerateArticle}
+                  onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
                 />
               ))}
@@ -307,6 +309,8 @@ export function PlanningHub({
                   key={article.id}
                   article={article}
                   mode="planning"
+                  onGenerate={onGenerateArticle}
+                  onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
                 />
               ))}

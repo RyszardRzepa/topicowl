@@ -8,7 +8,10 @@ import type { ResearchResponse } from '@/app/api/articles/research/route';
 import type { WriteResponse } from '@/app/api/articles/write/route';
 import type { ValidateResponse } from '@/app/api/articles/validate/route';
 import type { UpdateResponse } from '@/app/api/articles/update/route';
-import type { GenerationStatus } from '@/app/api/articles/[id]/generation-status/route';
+import { 
+  updateProgress, 
+  clearProgress,
+} from '@/lib/generation-progress';
 import { API_BASE_URL } from '@/constants';
 
 // Types colocated with this API route
@@ -17,36 +20,11 @@ export interface ArticleGenerationRequest {
   forceRegenerate?: boolean;
 }
 
-// Extended research response that includes the actual research text
-interface ExtendedResearchResponse extends ResearchResponse {
-  researchData: string;
-}
-
-// In-memory progress tracking - inline implementation
-const progressMap = new Map<string, GenerationStatus>();
-
-// Helper function to update progress - inline implementation  
-const updateProgress = (
-  articleId: string, 
-  status: GenerationStatus['status'], 
-  progress: number, 
-  currentStep?: string
-) => {
-  progressMap.set(articleId, {
-    articleId,
-    status,
-    progress,
-    currentStep,
-    startedAt: progressMap.get(articleId)?.startedAt ?? new Date().toISOString(),
-    completedAt: status === 'completed' || status === 'failed' ? new Date().toISOString() : undefined,
-  });
-};
-
 // Article generation function - orchestrates existing API endpoints
 async function generateArticleContentInline(articleId: string) {
   console.log('Starting article generation for article:', articleId);
   try {
-    updateProgress(articleId, 'researching', 10, 'Starting research phase');
+    updateProgress(articleId, 'researching', 10, 'research', 'Starting research phase');
 
     // Get article from database
     const [article] = await db
@@ -70,7 +48,7 @@ async function generateArticleContentInline(articleId: string) {
     console.log('Updated article status to generating');
 
     // STEP 1: Research Phase - Call research API
-    updateProgress(articleId, 'researching', 20, 'Conducting topic research');
+    updateProgress(articleId, 'researching', 20, 'research', 'Conducting topic research');
     
     const keywords = Array.isArray(article.keywords) ? (article.keywords as string[]) : [];
     
@@ -118,17 +96,19 @@ async function generateArticleContentInline(articleId: string) {
       throw new Error(`Research API failed: ${researchResponse.status} ${researchResponse.statusText} - ${errorBody}`);
     }
 
-    const researchData = await researchResponse.json() as ApiResponse<ExtendedResearchResponse>;
+    const researchData = await researchResponse.json() as ResearchResponse;
+    console.log('Research response received:', JSON.stringify(researchData, null, 2));
+    console.log('Research data length:', researchData?.researchData?.length ?? 0);
     console.log('Research completed, starting writing phase...');
 
     // STEP 2: Writing Phase - Call write API
-    updateProgress(articleId, 'writing', 50, 'Writing article content');
+    updateProgress(articleId, 'writing', 50, 'writing', 'Writing article content');
 
     const writeRequestBody = {
-      topic: article.title,
+      researchData: researchData.researchData ?? '', // Direct access since research API returns { researchData: "..." }
+      title: article.title,
       keywords: keywords,
       targetWordCount: 1500,
-      researchData: researchData.data, // Pass the extended research data object
       tone: 'professional',
     };
 
@@ -151,19 +131,20 @@ async function generateArticleContentInline(articleId: string) {
       throw new Error(`Write API failed: ${writeResponse.status} ${writeResponse.statusText} - ${errorBody}`);
     }
 
-    const writeData = await writeResponse.json() as ApiResponse<WriteResponse>;
+    const writeData = await writeResponse.json() as WriteResponse;
+    console.log('Write API response received:', JSON.stringify(writeData, null, 2));
+    console.log('Write data content length:', writeData.content?.length ?? 0);
     console.log('Writing completed, starting validation...');
 
     // STEP 3: Validation Phase - Call validate API
-    updateProgress(articleId, 'validating', 75, 'Validating content accuracy');
+    updateProgress(articleId, 'validating', 75, 'validation', 'Validating content accuracy');
 
     const validateRequestBody = {
-      content: writeData.data?.content,
-      title: article.title,
-      keywords: keywords,
+      article: writeData.content ?? '',
     };
 
-    console.log('Calling validation API with content length:', writeData.data?.content?.length ?? 0);
+    console.log('Calling validation API with content length:', writeData.content?.length ?? 0);
+    console.log('Validation request body:', JSON.stringify(validateRequestBody, null, 2));
     const validateResponse = await fetch(`${API_BASE_URL}/api/articles/validate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -185,18 +166,18 @@ async function generateArticleContentInline(articleId: string) {
     const validationData = await validateResponse.json() as ApiResponse<ValidateResponse>;
 
     // STEP 4: Update Phase - Call update API if needed
-    updateProgress(articleId, 'updating', 90, 'Finalizing content');
+    updateProgress(articleId, 'updating', 90, 'optimization', 'Finalizing content');
 
-    let finalContent = writeData.data?.content ?? '';
-    const finalMetaDescription = writeData.data?.metaDescription ?? '';
+    let finalContent = writeData.content ?? '';
+    const finalMetaDescription = writeData.metaDescription ?? '';
 
     // If validation found significant issues, call update API
     if (!validationData.data?.isValid && validationData.data?.issues?.some(issue => issue.severity === 'high' || issue.severity === 'medium')) {
       console.log('Validation found issues, calling update API...');
       
       const updateRequestBody = {
-        content: writeData.data?.content,
-        issues: validationData.data?.issues,
+        article: writeData.content,
+        corrections: validationData.data?.issues,
       };
       
       const updateResponse = await fetch(`${API_BASE_URL}/api/articles/update`, {
@@ -235,7 +216,7 @@ async function generateArticleContentInline(articleId: string) {
 
     console.log('Saved generated content and updated status');
 
-    updateProgress(articleId, 'completed', 100, 'Article generation completed successfully');
+    updateProgress(articleId, 'completed', 100, 'optimization', 'Article generation completed successfully');
     console.log('Generation completed successfully for article:', articleId);
 
   } catch (error) {
@@ -304,7 +285,7 @@ export async function POST(req: NextRequest) {
       .where(eq(articles.id, id));
 
     // Initialize progress tracking
-    updateProgress(articleId, 'pending', 0, 'Initializing generation');
+    updateProgress(articleId, 'pending', 0, undefined, 'Initializing generation');
 
     console.log('Starting background generation process for article:', articleId);
     // Start generation process (runs in background) - all logic inline

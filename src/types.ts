@@ -26,7 +26,7 @@ export type BlogPost = z.infer<typeof blogPostSchema>;
 export type ArticleStatus = 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
 
 // Workflow phases for new UI
-export type WorkflowPhase = 'planning' | 'publishing';
+export type WorkflowPhase = 'planning' | 'generations' | 'publishing';
 
 // Enhanced article status for workflow organization
 export interface ArticleWorkflowStatus {
@@ -50,6 +50,8 @@ export interface Article {
   
   // Enhanced fields for new workflow
   generationProgress?: number; // 0-100 percentage
+  generationPhase?: 'research' | 'writing' | 'validation' | 'optimization';
+  generationError?: string;
   estimatedReadTime?: number; // in minutes
   views?: number;
   clicks?: number;

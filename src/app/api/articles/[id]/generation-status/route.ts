@@ -1,25 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import type { ApiResponse } from '@/types';
-
-// Types colocated with this API route
-export interface GenerationStatus {
-  articleId: string;
-  status: 'pending' | 'researching' | 'writing' | 'validating' | 'updating' | 'completed' | 'failed';
-  progress: number; // 0-100
-  currentStep?: string;
-  error?: string;
-  startedAt?: string;
-  completedAt?: string;
-}
-
-// In-memory progress tracking - in production, this should be replaced with Redis or database storage
-const progressMap = new Map<string, GenerationStatus>();
-
-// Helper function to get progress - inline implementation
-const getProgress = (articleId: string): GenerationStatus | undefined => {
-  return progressMap.get(articleId);
-};
+import { getProgress } from '@/lib/generation-progress';
 
 export async function GET(
   req: NextRequest,
@@ -46,8 +28,14 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: progress,
-    } as ApiResponse<GenerationStatus>);
+      progress: progress.progress,
+      phase: progress.phase,
+      status: progress.status,
+      error: progress.error,
+      estimatedCompletion: progress.estimatedCompletion,
+      startedAt: progress.startedAt,
+      completedAt: progress.completedAt,
+    });
 
   } catch (error) {
     console.error('Get generation status error:', error);

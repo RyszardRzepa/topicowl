@@ -7,16 +7,24 @@ import {
   Clock, 
   CheckCircle, 
   Calendar,
-  AlertCircle 
+  AlertCircle,
+  Search,
+  PenTool,
+  CheckSquare,
+  Target
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { ArticleStatus } from '@/types';
+
+type GenerationPhase = 'research' | 'writing' | 'validation' | 'optimization';
 
 interface StatusIndicatorProps {
   status: ArticleStatus;
   isScheduled?: boolean;
   progress?: number;
+  phase?: GenerationPhase;
   estimatedCompletion?: string;
+  error?: string;
   className?: string;
 }
 
@@ -24,9 +32,44 @@ export function StatusIndicator({
   status, 
   isScheduled = false, 
   progress, 
+  phase,
   estimatedCompletion,
+  error,
   className 
 }: StatusIndicatorProps) {
+  const getPhaseConfig = (currentPhase: GenerationPhase) => {
+    switch (currentPhase) {
+      case 'research':
+        return {
+          icon: Search,
+          label: 'Researching',
+          color: 'text-blue-600',
+          description: 'Gathering information and sources'
+        };
+      case 'writing':
+        return {
+          icon: PenTool,
+          label: 'Writing',
+          color: 'text-green-600',
+          description: 'Creating content'
+        };
+      case 'validation':
+        return {
+          icon: CheckSquare,
+          label: 'Validating',
+          color: 'text-yellow-600',
+          description: 'Fact-checking and reviewing'
+        };
+      case 'optimization':
+        return {
+          icon: Target,
+          label: 'Optimizing',
+          color: 'text-purple-600',
+          description: 'SEO optimization and final touches'
+        };
+    }
+  };
+
   const getStatusConfig = () => {
     switch (status) {
       case 'idea':
@@ -46,9 +89,9 @@ export function StatusIndicator({
       case 'generating':
         return {
           icon: Zap,
-          label: 'Generating',
+          label: phase ? getPhaseConfig(phase).label : 'Generating',
           color: 'bg-blue-100 text-blue-800',
-          description: 'AI writing content'
+          description: phase ? getPhaseConfig(phase).description : 'AI writing content'
         };
       case 'wait_for_publish':
         return {
@@ -81,13 +124,29 @@ export function StatusIndicator({
     <div className={cn("space-y-2", className)}>
       <Badge 
         variant="secondary" 
-        className={cn("flex items-center gap-1.5 w-fit", config.color)}
+        className={cn(
+          "flex items-center gap-1.5 w-fit", 
+          config.color,
+          status === 'generating' && "animate-pulse"
+        )}
       >
         <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
       
-      {status === 'generating' && typeof progress === 'number' && (
+      {/* Error display */}
+      {error && (
+        <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+          <div className="flex items-center gap-1 mb-1">
+            <AlertCircle className="h-3 w-3" />
+            <span className="font-medium">Generation Failed</span>
+          </div>
+          <p>{error}</p>
+        </div>
+      )}
+      
+      {/* Progress display for generating articles */}
+      {status === 'generating' && typeof progress === 'number' && !error && (
         <div className="space-y-1">
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
@@ -101,6 +160,19 @@ export function StatusIndicator({
               <span>Est. {estimatedCompletion}</span>
             )}
           </div>
+          
+          {/* Phase indicator */}
+          {phase && (
+            <div className="flex items-center gap-1 text-xs mt-1">
+              <div className={cn("flex items-center gap-1", getPhaseConfig(phase).color)}>
+                {(() => {
+                  const PhaseIcon = getPhaseConfig(phase).icon;
+                  return <PhaseIcon className="h-3 w-3" />;
+                })()}
+                <span className="font-medium">{getPhaseConfig(phase).description}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
       

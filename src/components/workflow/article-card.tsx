@@ -48,7 +48,7 @@ export function ArticleCard({
   const [isScheduling, setIsScheduling] = useState(false);
   const [editData, setEditData] = useState({
     title: article.title,
-    keywords: article.keywords?.join(', ') || '',
+    keywords: article.keywords?.join(', ') ?? '',
   });
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -57,7 +57,7 @@ export function ArticleCard({
     if (isEditing || isScheduling) return;
     
     const target = e.target as HTMLElement;
-    const isInteractive = target.closest('button') || target.closest('input') || target.closest('a');
+    const isInteractive = target.closest('button') ?? target.closest('input') ?? target.closest('a');
     
     if (!isInteractive && onNavigate) {
       e.preventDefault();
@@ -131,7 +131,8 @@ export function ArticleCard({
   // Determine what actions are available based on mode and status
   const canEdit = mode === 'planning' && (article.status === 'idea' || article.status === 'to_generate');
   const canDelete = mode === 'planning' && article.status === 'idea';
-  const canGenerate = mode === 'planning' && article.status === 'to_generate';
+  const canGenerate = mode === 'planning' && (article.status === 'idea' || article.status === 'to_generate' || (article.status === 'generating' && article.generationError));
+  const canRetry = mode === 'planning' && article.status === 'generating' && article.generationError;
   const canPublish = mode === 'publishing' && article.status === 'wait_for_publish';
   const isGenerating = article.status === 'generating';
   const isPublished = article.status === 'published';
@@ -231,21 +232,25 @@ export function ArticleCard({
       </CardHeader>
       
       <CardContent className="pt-0">
-        {/* Status indicator */}
-        <StatusIndicator 
-          status={article.status}
-          isScheduled={!!article.generationScheduledAt}
-          progress={article.generationProgress}
-          estimatedCompletion={isGenerating && article.generationStartedAt ? "5 min" : undefined}
-          className="mb-3"
-        />
+        {/* Status indicator - only show for generating articles or if there's an error */}
+        {(isGenerating || article.generationError) && (
+          <StatusIndicator 
+            status={article.status}
+            isScheduled={!!article.generationScheduledAt}
+            progress={article.generationProgress}
+            phase={article.generationPhase}
+            error={article.generationError}
+            estimatedCompletion={isGenerating && article.generationStartedAt ? "5 min" : undefined}
+            className="mb-3"
+          />
+        )}
 
         {/* Planning mode specific content */}
         {mode === 'planning' && (
           <>
             {/* Generation actions */}
             {canGenerate && !isEditing && (
-              <div className="mb-3 space-y-2">
+              <div className={`space-y-2 ${(!isGenerating && !article.generationError) ? 'mb-3' : ''}`}>
                 {/* Show scheduled time if exists */}
                 {article.generationScheduledAt && (
                   <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded flex items-center gap-1">
@@ -277,31 +282,48 @@ export function ArticleCard({
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleGenerate();
-                      }}
-                      size="sm" 
-                      className="bg-green-600 hover:bg-green-700 text-white text-xs h-8"
-                    >
-                      <Play className="mr-1 h-3 w-3" />
-                      Generate
-                    </Button>
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsScheduling(true);
-                      }}
-                      size="sm" 
-                      variant="outline"
-                      className="text-xs h-8"
-                    >
-                      <Calendar className="mr-1 h-3 w-3" />
-                      Schedule
-                    </Button>
-                  </div>
+                  <>
+                    {/* Show retry button for failed generations */}
+                    {canRetry ? (
+                      <Button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleGenerate();
+                        }}
+                        size="sm" 
+                        className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 w-full"
+                      >
+                        <Play className="mr-1 h-3 w-3" />
+                        Retry Generation
+                      </Button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleGenerate();
+                          }}
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700 text-white text-xs h-8"
+                        >
+                          <Play className="mr-1 h-3 w-3" />
+                          Generate
+                        </Button>
+                        <Button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsScheduling(true);
+                          }}
+                          size="sm" 
+                          variant="outline"
+                          className="text-xs h-8"
+                        >
+                          <Calendar className="mr-1 h-3 w-3" />
+                          Schedule
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
