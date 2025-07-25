@@ -11,7 +11,6 @@ export interface CreateArticleRequest {
   description?: string;
   keywords?: string[];
   targetAudience?: string;
-  priority?: 'low' | 'medium' | 'high';
 }
 
 const createArticleSchema = z.object({
@@ -19,7 +18,6 @@ const createArticleSchema = z.object({
   description: z.string().optional(),
   keywords: z.array(z.string()).default([]),
   targetAudience: z.string().optional(),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
 // POST /api/articles - Create new article

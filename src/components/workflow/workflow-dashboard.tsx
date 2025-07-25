@@ -206,7 +206,6 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           title: data.title,
           description: "Click to edit this article idea",
           keywords: data.keywords ?? [],
-          priority: "medium",
         }),
       });
 

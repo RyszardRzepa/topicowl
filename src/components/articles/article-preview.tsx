@@ -12,7 +12,6 @@ interface ArticlePreviewData {
   status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
   scheduledAt: Date | null;
   publishedAt: Date | null;
-  priority: "low" | "medium" | "high";
   estimatedReadTime: number | null;
   metaDescription: string | null;
   outline: unknown;
@@ -63,11 +62,6 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
           )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="font-medium text-gray-900 mb-2">Priority</h3>
-              <span className="capitalize text-gray-700">{article.priority}</span>
-            </div>
-            
             {article.targetAudience && (
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">Target Audience</h3>

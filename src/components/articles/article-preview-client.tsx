@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArticleActions } from './article-actions';
 import { ArticlePreview } from './article-preview';
 import { ArticleMetadata } from './article-metadata';
+import { ArticleEditor } from './article-editor';
 import { GenerationProgress } from './generation-progress';
 import { useGenerationStatus } from '@/hooks/use-generation-status';
 import type { ArticleDetailResponse } from '@/app/api/articles/[id]/route';
@@ -16,6 +17,7 @@ interface ArticlePreviewClientProps {
 export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientProps) {
   const [article, setArticle] = useState(initialArticle);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState<string | null>(null);
   const [showErrorMessage, setShowErrorMessage] = useState<string | null>(null);
   const router = useRouter();
@@ -78,6 +80,47 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
     setIsEditing(!isEditing);
   }, [isEditing]);
 
+  // Handle article save
+  const handleSave = useCallback(async (updatedData: Partial<ArticleDetailResponse['data']>) => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/articles/${article.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update article');
+      }
+
+      await response.json();
+      
+      // Update local state
+      setArticle(prev => ({ ...prev, ...updatedData }));
+      setIsEditing(false);
+      setShowSuccessMessage('Article updated successfully!');
+      setTimeout(() => setShowSuccessMessage(null), 3000);
+      
+      // Refresh the page data
+      router.refresh();
+      
+    } catch (error) {
+      console.error('Save error:', error);
+      setShowErrorMessage('Failed to save article changes');
+      setTimeout(() => setShowErrorMessage(null), 5000);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [article.id, router]);
+
+  // Handle edit cancel
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+
 
 
   return (
@@ -130,17 +173,19 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
           onStatusChange={handleStatusChange}
           className="mb-4"
         />
-        {isEditing && (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-sm text-blue-800">
-              Edit mode is enabled. You can now modify the article content below.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Article Content */}
-      <ArticlePreview article={article} />
+      {isEditing ? (
+        <ArticleEditor
+          article={article}
+          onSave={handleSave}
+          onCancel={handleCancelEdit}
+          isLoading={isSaving}
+        />
+      ) : (
+        <ArticlePreview article={article} />
+      )}
     </div>
   );
 }

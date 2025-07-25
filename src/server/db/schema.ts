@@ -48,11 +48,7 @@ export const articleStatusEnum = pgEnum("article_status", [
   "published",
 ]);
 
-export const articlePriorityEnum = pgEnum("article_priority", [
-  "low",
-  "medium", 
-  "high",
-]);
+
 
 // Articles table for kanban-based workflow
 export const articles = contentMachineSchema.table("articles", {
@@ -65,7 +61,7 @@ export const articles = contentMachineSchema.table("articles", {
   status: articleStatusEnum("status").default("idea").notNull(),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   publishedAt: timestamp("published_at", { withTimezone: true }),
-  priority: articlePriorityEnum("priority").default("medium").notNull(),
+
   estimatedReadTime: integer("estimated_read_time"),
   kanbanPosition: integer("kanban_position").default(0).notNull(),
   

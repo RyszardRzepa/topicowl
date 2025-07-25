@@ -46,7 +46,7 @@ export default async function ArticlePreviewPage({ params }: ArticlePreviewPageP
       status: articleData.status,
       scheduledAt: articleData.scheduledAt,
       publishedAt: articleData.publishedAt,
-      priority: articleData.priority,
+
       estimatedReadTime: articleData.estimatedReadTime,
       kanbanPosition: articleData.kanbanPosition,
       metaDescription: articleData.metaDescription,

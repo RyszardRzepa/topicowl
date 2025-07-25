@@ -367,7 +367,6 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
           title: 'New Article Idea',
           description: 'Click to edit this article idea',
           keywords: ['article', 'content'], // Provide default keywords
-          priority: 'medium',
         }),
       });
 

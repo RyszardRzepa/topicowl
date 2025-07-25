@@ -30,7 +30,7 @@ type ArticleData = {
   status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
   scheduledAt: Date | null;
   publishedAt: Date | null;
-  priority: "low" | "medium" | "high";
+
   estimatedReadTime: number | null;
   kanbanPosition: number;
   metaDescription: string | null;
@@ -67,7 +67,9 @@ const updateArticleSchema = z.object({
   description: z.string().optional(),
   keywords: z.array(z.string()).optional(),
   targetAudience: z.string().optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
+  metaDescription: z.string().optional(),
+  draft: z.string().optional(),
+  optimizedContent: z.string().optional(),
   generationScheduledAt: z.string().datetime().optional(),
 });
 
