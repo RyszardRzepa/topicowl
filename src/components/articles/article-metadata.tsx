@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface ArticleMetadataData {
   id: number;
   title: string;
-  status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
+  status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published";
   scheduledAt: Date | null;
   publishedAt: Date | null;
   createdAt: Date;
@@ -33,6 +33,8 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
   const getStatusDisplay = (status: ArticleMetadataData['status']) => {
     const statusMap = {
       idea: { text: 'Idea', color: 'text-gray-600 bg-gray-100' },
+      scheduled: { text: 'Scheduled', color: 'text-indigo-600 bg-indigo-100' },
+      queued: { text: 'Queued', color: 'text-orange-600 bg-orange-100' },
       to_generate: { text: 'To Generate', color: 'text-blue-600 bg-blue-100' },
       generating: { text: 'Generating', color: 'text-yellow-600 bg-yellow-100' },
       wait_for_publish: { text: 'Wait for Publish', color: 'text-purple-600 bg-purple-100' },

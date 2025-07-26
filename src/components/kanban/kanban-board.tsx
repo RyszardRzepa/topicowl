@@ -12,7 +12,9 @@ import type { ArticleStatus } from '@/types';
 
 // Inline kanban flow logic
 const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
-  idea: ['to_generate'],
+  idea: ['to_generate', 'scheduled'],
+  scheduled: ['queued', 'idea'],
+  queued: ['generating', 'scheduled', 'idea'],
   to_generate: ['generating'], // Only through generate button, not drag
   generating: ['wait_for_publish'], // Automatically moved by system after generation
   wait_for_publish: ['published'],

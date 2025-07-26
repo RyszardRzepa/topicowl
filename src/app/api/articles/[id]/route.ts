@@ -28,7 +28,7 @@ type ArticleData = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
+  status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published";
   scheduledAt: Date | null;
   publishedAt: Date | null;
 

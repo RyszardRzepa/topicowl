@@ -48,6 +48,8 @@ export const users = contentMachineSchema.table("users", {
 // Article status enum for kanban workflow
 export const articleStatusEnum = pgEnum("article_status", [
   "idea",
+  "scheduled",
+  "queued", 
   "to_generate", 
   "generating",
   "wait_for_publish",
@@ -67,6 +69,15 @@ export const articles = contentMachineSchema.table("articles", {
   status: articleStatusEnum("status").default("idea").notNull(),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+
+  // Scheduling fields for automated generation
+  scheduling_type: varchar("scheduling_type", { length: 20 }).default("manual"), // 'manual', 'automatic'
+  scheduling_frequency: varchar("scheduling_frequency", { length: 20 }), // 'once', 'daily', 'weekly', 'monthly'
+  scheduling_frequency_config: jsonb("scheduling_frequency_config"), // Store frequency details
+  next_schedule_at: timestamp("next_schedule_at", { withTimezone: true }), // Next time to add to queue
+  last_scheduled_at: timestamp("last_scheduled_at", { withTimezone: true }), // Last time added to queue
+  schedule_count: integer("schedule_count").default(0), // How many times scheduled
+  is_recurring_schedule: boolean("is_recurring_schedule").default(false),
 
   estimatedReadTime: integer("estimated_read_time"),
   kanbanPosition: integer("kanban_position").default(0).notNull(),
@@ -92,6 +103,37 @@ export const articles = contentMachineSchema.table("articles", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull()
     .$onUpdate(() => new Date()),
+});
+
+// Add the self-reference after table definition
+export const articlesRelations = {
+  parent_article_id: integer("parent_article_id"),
+};
+
+// Generation queue table for tracking articles scheduled for generation
+export const generationQueue = contentMachineSchema.table("generation_queue", {
+  id: serial("id").primaryKey(),
+  article_id: integer("article_id").references(() => articles.id).notNull(),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  added_to_queue_at: timestamp("added_to_queue_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  scheduled_for_date: timestamp("scheduled_for_date", { withTimezone: true }), // The date this article was scheduled for
+  queue_position: integer("queue_position"), // Order in queue (FIFO)
+  scheduling_type: varchar("scheduling_type", { length: 20 }).default("manual"), // 'manual', 'automatic'
+  status: varchar("status", { length: 20 }).default("queued"), // 'queued', 'processing', 'completed', 'failed'
+  attempts: integer("attempts").default(0),
+  max_attempts: integer("max_attempts").default(3),
+  error_message: text("error_message"),
+  created_at: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+  processed_at: timestamp("processed_at", { withTimezone: true }),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
 });
 
 // Article Generation tracking table for separation of concerns

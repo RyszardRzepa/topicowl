@@ -23,7 +23,7 @@ export const blogPostSchema = z.object({
 export type BlogPost = z.infer<typeof blogPostSchema>;
 
 // Article status type - shared domain type
-export type ArticleStatus = 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+export type ArticleStatus = 'idea' | 'scheduled' | 'queued' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
 
 // Workflow phases for new UI
 export type WorkflowPhase = 'planning' | 'generations' | 'publishing';
