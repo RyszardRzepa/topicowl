@@ -85,13 +85,41 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
               }
             }
           } else {
+            // Handle API errors gracefully
             console.error("Error checking onboarding status:", data.error);
+            
+            // If error indicates user record creation is pending, assume not onboarded
+            if (data.error?.includes('pending')) {
+              setOnboardingStatus(false);
+              
+              // Redirect to onboarding if not already there
+              if (!allowedDuringOnboarding.some(route => pathname.startsWith(route))) {
+                router.push("/onboarding");
+                return;
+              }
+            } else {
+              // For other errors, assume onboarding is not completed but allow access
+              setOnboardingStatus(false);
+            }
+          }
+        } else if (response.status === 404) {
+          // User not found in database - assume not onboarded and redirect to onboarding
+          console.warn("User not found in database, redirecting to onboarding");
+          setOnboardingStatus(false);
+          
+          if (!allowedDuringOnboarding.some(route => pathname.startsWith(route))) {
+            router.push("/onboarding");
+            return;
           }
         } else {
           console.error("Failed to check onboarding status:", response.status);
+          // For server errors, be permissive and allow access
+          setOnboardingStatus(false);
         }
       } catch (err) {
         console.error("Error checking onboarding status:", err);
+        // For network errors, be permissive and allow access
+        setOnboardingStatus(false);
       } finally {
         setIsChecking(false);
       }
