@@ -10,7 +10,7 @@ export type DatabaseArticle = typeof articles.$inferSelect;
 export interface KanbanColumn {
   id: string;
   title: string;
-  status: 'idea' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+  status: 'idea' | 'scheduled' | 'queued' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
   articles: DatabaseArticle[];
   color: string;
 }
@@ -61,6 +61,20 @@ export async function GET(_req: NextRequest) {
         status: 'idea',
         articles: [],
         color: '#6B7280', // gray
+      },
+      {
+        id: 'scheduled',
+        title: 'Scheduled',
+        status: 'scheduled',
+        articles: [],
+        color: '#6366F1', // indigo
+      },
+      {
+        id: 'queued',
+        title: 'Generation Queue',
+        status: 'queued',
+        articles: [],
+        color: '#F97316', // orange
       },
       {
         id: 'to_generate',

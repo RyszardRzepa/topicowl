@@ -260,6 +260,99 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     }
   };
 
+  // New scheduling function for automatic recurring schedules
+  const scheduleArticle = async (
+    articleId: number, 
+    scheduledAt: string, 
+    frequency: 'once' | 'daily' | 'weekly' | 'monthly' = 'once'
+  ) => {
+    try {
+      const response = await fetch('/api/articles/schedule', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          articleId,
+          scheduledAt,
+          schedulingType: frequency === 'once' ? 'manual' : 'automatic',
+          frequency,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to schedule article');
+      }
+
+      // Refresh the board to get updated data
+      await fetchKanbanBoard();
+    } catch (error) {
+      console.error('Failed to schedule article:', error);
+      setError(error instanceof Error ? error.message : 'Failed to schedule article');
+    }
+  };
+
+  // Add article to generation queue manually
+  const addToQueue = async (articleId: number) => {
+    try {
+      const response = await fetch('/api/articles/generation-queue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          articleId,
+          scheduledForDate: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add to queue');
+      }
+
+      // Refresh the board to get updated data
+      await fetchKanbanBoard();
+    } catch (error) {
+      console.error('Failed to add to queue:', error);
+      setError(error instanceof Error ? error.message : 'Failed to add to queue');
+    }
+  };
+
+  // Remove article from generation queue
+  const removeFromQueue = async (articleId: number) => {
+    try {
+      // First get the queue to find the queue item ID
+      const queueResponse = await fetch('/api/articles/generation-queue');
+      if (!queueResponse.ok) {
+        throw new Error('Failed to fetch queue');
+      }
+      
+      const queueData = await queueResponse.json();
+      const queueItem = queueData.data.articles.find((item: any) => item.articleId === articleId);
+      
+      if (!queueItem) {
+        throw new Error('Article not found in queue');
+      }
+
+      const response = await fetch(`/api/articles/generation-queue?queueItemId=${queueItem.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove from queue');
+      }
+
+      // Refresh the board to get updated data
+      await fetchKanbanBoard();
+    } catch (error) {
+      console.error('Failed to remove from queue:', error);
+      setError(error instanceof Error ? error.message : 'Failed to remove from queue');
+    }
+  };
+
   const moveArticle = async (articleId: number, newStatus: string, newPosition: number) => {
     try {
       // Optimistic update - update UI immediately
@@ -421,7 +514,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
       </div>
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 min-h-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 min-h-0">
           {columns.map((column) => (
             <div key={column.id} className="flex flex-col min-w-0">
               <div className="mb-4">
@@ -470,6 +563,9 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                               onDelete={deleteArticle}
                               onGenerate={generateArticle}
                               onScheduleGeneration={scheduleGeneration}
+                              onScheduleArticle={scheduleArticle}
+                              onAddToQueue={addToQueue}
+                              onRemoveFromQueue={removeFromQueue}
                               onNavigate={(articleId) => router.push(`/articles/${articleId}`)}
                             />
                           </div>
@@ -494,6 +590,9 @@ function ArticleCard({
   onDelete,
   onGenerate,
   onScheduleGeneration,
+  onScheduleArticle,
+  onAddToQueue,
+  onRemoveFromQueue,
   onNavigate
 }: { 
   article: Article;
@@ -501,10 +600,14 @@ function ArticleCard({
   onDelete: (articleId: number) => Promise<void>;
   onGenerate: (articleId: number) => Promise<void>;
   onScheduleGeneration: (articleId: number, scheduledAt: string) => Promise<void>;
+  onScheduleArticle: (articleId: number, scheduledAt: string, frequency?: 'once' | 'daily' | 'weekly' | 'monthly') => Promise<void>;
+  onAddToQueue: (articleId: number) => Promise<void>;
+  onRemoveFromQueue: (articleId: number) => Promise<void>;
   onNavigate: (articleId: number) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [schedulingFrequency, setSchedulingFrequency] = useState<'once' | 'daily' | 'weekly' | 'monthly'>('once');
   const [editData, setEditData] = useState({
     title: article.title,
   });
@@ -577,6 +680,32 @@ function ArticleCard({
       setIsScheduling(false);
     } catch (error) {
       console.error('Failed to schedule generation:', error);
+    }
+  };
+
+  const handleScheduleArticle = async (scheduledAt: string) => {
+    try {
+      await onScheduleArticle(article.id, scheduledAt, schedulingFrequency);
+      setIsScheduling(false);
+      setSchedulingFrequency('once');
+    } catch (error) {
+      console.error('Failed to schedule article:', error);
+    }
+  };
+
+  const handleAddToQueue = async () => {
+    try {
+      await onAddToQueue(article.id);
+    } catch (error) {
+      console.error('Failed to add to queue:', error);
+    }
+  };
+
+  const handleRemoveFromQueue = async () => {
+    try {
+      await onRemoveFromQueue(article.id);
+    } catch (error) {
+      console.error('Failed to remove from queue:', error);
     }
   };
 
@@ -719,9 +848,112 @@ function ArticleCard({
           </div>
         )}
 
+        {/* Scheduling UI for idea status */}
+        {article.status === 'idea' && !isEditing && (
+          <div className="mb-3 space-y-2">
+            {isScheduling ? (
+              <div className="space-y-2">
+                <input
+                  type="datetime-local"
+                  className="w-full text-xs border border-gray-200 rounded p-2"
+                  min={new Date().toISOString().slice(0, 16)}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      void handleScheduleArticle(new Date(e.target.value).toISOString());
+                    }
+                  }}
+                />
+                <select
+                  value={schedulingFrequency}
+                  onChange={(e) => setSchedulingFrequency(e.target.value as any)}
+                  className="w-full text-xs border border-gray-200 rounded p-2"
+                >
+                  <option value="once">One-time</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+                <div className="flex gap-1">
+                  <Button 
+                    onClick={() => {
+                      setIsScheduling(false);
+                      setSchedulingFrequency('once');
+                    }}
+                    size="sm" 
+                    variant="outline"
+                    className="flex-1 text-xs h-7"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-1">
+                <Button 
+                  onClick={handleAddToQueue}
+                  size="sm" 
+                  className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7 px-2"
+                >
+                  <Play className="mr-1 h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">Queue</span>
+                </Button>
+                <Button 
+                  onClick={() => setIsScheduling(true)}
+                  size="sm" 
+                  variant="outline"
+                  className="text-xs h-7 px-2"
+                >
+                  <CalendarClock className="mr-1 h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">Schedule</span>
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Controls for scheduled articles */}
+        {article.status === 'scheduled' && !isEditing && (
+          <div className="mb-3 space-y-2">
+            <div className="grid grid-cols-2 gap-1">
+              <Button 
+                onClick={handleAddToQueue}
+                size="sm" 
+                className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7 px-2"
+              >
+                <Play className="mr-1 h-3 w-3 flex-shrink-0" />
+                <span className="truncate">Queue Now</span>
+              </Button>
+              <Button 
+                onClick={() => setIsScheduling(true)}
+                size="sm" 
+                variant="outline"
+                className="text-xs h-7 px-2"
+              >
+                <Edit3 className="mr-1 h-3 w-3 flex-shrink-0" />
+                <span className="truncate">Edit</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Controls for queued articles */}
+        {article.status === 'queued' && !isEditing && (
+          <div className="mb-3 space-y-2">
+            <Button 
+              onClick={handleRemoveFromQueue}
+              size="sm" 
+              variant="outline"
+              className="w-full text-xs h-7 px-2 text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <X className="mr-1 h-3 w-3 flex-shrink-0" />
+              <span className="truncate">Remove from Queue</span>
+            </Button>
+          </div>
+        )}
+
+        {/* Generation controls for to_generate status */}
         {article.status === 'to_generate' && !isEditing && (
           <div className="mb-3 space-y-2">
-            {/* Scheduling UI */}
             {isScheduling ? (
               <div className="space-y-2">
                 <input
@@ -775,10 +1007,34 @@ function ArticleCard({
           </div>
         ) : (
           <>
+            {/* Schedule information display */}
             {article.scheduledAt && (
               <div className="text-xs text-blue-600 flex items-center gap-1">
                 <Calendar className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">Scheduled: {new Date(article.scheduledAt).toLocaleDateString()}</span>
+                <span className="truncate">
+                  {article.status === 'scheduled' 
+                    ? `Next: ${new Date(article.scheduledAt).toLocaleDateString()}`
+                    : `Scheduled: ${new Date(article.scheduledAt).toLocaleDateString()}`
+                  }
+                </span>
+              </div>
+            )}
+            
+            {/* Queue information display */}
+            {article.status === 'queued' && (
+              <div className="text-xs text-orange-600 flex items-center gap-1">
+                <CalendarClock className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">In generation queue</span>
+              </div>
+            )}
+
+            {/* Recurring schedule indicator */}
+            {article.is_recurring_schedule && (
+              <div className="text-xs text-indigo-600 flex items-center gap-1">
+                <Calendar className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">
+                  {article.scheduling_frequency} schedule
+                </span>
               </div>
             )}
           </>
