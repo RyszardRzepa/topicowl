@@ -5,7 +5,31 @@ import { articles, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 // Types colocated with this API route
-export type DatabaseArticle = typeof articles.$inferSelect;
+export type DatabaseArticle = {
+  id: number;
+  user_id: string | null;
+  title: string;
+  description: string | null;
+  keywords: unknown;
+  targetAudience: string | null;
+  status: 'idea' | 'scheduled' | 'queued' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+  scheduledAt: Date | null;
+  publishedAt: Date | null;
+  estimatedReadTime: number | null;
+  kanbanPosition: number;
+  metaDescription: string | null;
+  outline: unknown;
+  draft: string | null;
+  optimizedContent: string | null;
+  factCheckReport: unknown;
+  seoScore: number | null;
+  internalLinks: unknown;
+  sources: unknown;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 export interface KanbanColumn {
   id: string;
@@ -46,9 +70,33 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    // Get only this user's articles
+    // Get only this user's articles - select specific columns to avoid issues with missing columns
     const allArticles = await db
-      .select()
+      .select({
+        id: articles.id,
+        user_id: articles.user_id,
+        title: articles.title,
+        description: articles.description,
+        keywords: articles.keywords,
+        targetAudience: articles.targetAudience,
+        status: articles.status,
+        scheduledAt: articles.scheduledAt,
+        publishedAt: articles.publishedAt,
+        estimatedReadTime: articles.estimatedReadTime,
+        kanbanPosition: articles.kanbanPosition,
+        metaDescription: articles.metaDescription,
+        outline: articles.outline,
+        draft: articles.draft,
+        optimizedContent: articles.optimizedContent,
+        factCheckReport: articles.factCheckReport,
+        seoScore: articles.seoScore,
+        internalLinks: articles.internalLinks,
+        sources: articles.sources,
+        coverImageUrl: articles.coverImageUrl,
+        coverImageAlt: articles.coverImageAlt,
+        createdAt: articles.createdAt,
+        updatedAt: articles.updatedAt,
+      })
       .from(articles)
       .where(eq(articles.user_id, userRecord.id))
       .orderBy(articles.kanbanPosition, articles.createdAt);

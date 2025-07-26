@@ -33,10 +33,9 @@ const isDraggable = (status: ArticleStatus): boolean => {
 // Example: Import API types from their colocated routes when needed
 // import type { CreateArticleRequest } from '@/app/api/articles/route';
 // import type { MoveArticleRequest } from '@/app/api/articles/move/route';
-import type { KanbanColumn } from '@/app/api/articles/board/route';
-import type { articles } from "@/server/db/schema";
+import type { KanbanColumn, DatabaseArticle } from '@/app/api/articles/board/route';
 
-type Article = typeof articles.$inferSelect;
+type Article = DatabaseArticle;
 
 interface KanbanBoardProps {
   className?: string;
@@ -1028,15 +1027,6 @@ function ArticleCard({
               </div>
             )}
 
-            {/* Recurring schedule indicator */}
-            {article.is_recurring_schedule && (
-              <div className="text-xs text-indigo-600 flex items-center gap-1">
-                <Calendar className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">
-                  {article.scheduling_frequency} schedule
-                </span>
-              </div>
-            )}
           </>
         )}
       </CardContent>
