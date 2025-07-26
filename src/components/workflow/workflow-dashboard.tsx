@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { WorkflowTabs } from "./workflow-tabs";
 import { PlanningHub } from "./planning-hub";
 import { ArticleGenerations } from "./article-generations";
@@ -19,10 +19,38 @@ interface WorkflowDashboardProps {
 
 export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<WorkflowPhase>("planning");
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  
+  // Get active tab from URL search params, fallback to 'planning'
+  const getValidTab = (tab: string | null): WorkflowPhase => {
+    if (tab === "planning" || tab === "generations" || tab === "publishing") {
+      return tab;
+    }
+    return "planning";
+  };
+  
+  const activeTabFromUrl = getValidTab(searchParams.get("tab"));
+  const [activeTab, setActiveTab] = useState<WorkflowPhase>(activeTabFromUrl);
   const [articles, setArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Function to update URL when tab changes
+  const handleTabChange = (newTab: WorkflowPhase) => {
+    setActiveTab(newTab);
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    newSearchParams.set("tab", newTab);
+    router.push(`${pathname}?${newSearchParams.toString()}`, { scroll: false });
+  };
+
+  // Sync activeTab with URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const urlTab = getValidTab(searchParams.get("tab"));
+    if (urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [searchParams, activeTab]);
 
   // Transform database article to domain Article type
   const transformDatabaseArticle = (dbArticle: DatabaseArticle): Article => ({
@@ -41,30 +69,21 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       dbArticle.updatedAt instanceof Date
         ? dbArticle.updatedAt.toISOString()
         : dbArticle.updatedAt,
-    generationProgress: dbArticle.generationProgress ?? 0,
+    generationProgress: 0, // Default since not in database schema yet
     estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
-    views: dbArticle.views ?? 0,
-    clicks: dbArticle.clicks ?? 0,
-    generationScheduledAt:
-      dbArticle.generationScheduledAt instanceof Date
-        ? dbArticle.generationScheduledAt.toISOString()
-        : (dbArticle.generationScheduledAt ?? undefined),
-    generationStartedAt:
-      dbArticle.generationStartedAt instanceof Date
-        ? dbArticle.generationStartedAt.toISOString()
-        : (dbArticle.generationStartedAt ?? undefined),
-    generationCompletedAt:
-      dbArticle.generationCompletedAt instanceof Date
-        ? dbArticle.generationCompletedAt.toISOString()
-        : (dbArticle.generationCompletedAt ?? undefined),
+    views: 0, // Not tracked in database yet
+    clicks: 0, // Not tracked in database yet
+    generationScheduledAt: undefined, // Will be populated when generation tracking is added
+    generationStartedAt: undefined, // Will be populated when generation tracking is added
+    generationCompletedAt: undefined, // Will be populated when generation tracking is added
     publishScheduledAt:
       dbArticle.scheduledAt instanceof Date
         ? dbArticle.scheduledAt.toISOString()
-        : (dbArticle.scheduledAt ?? undefined),
+        : (typeof dbArticle.scheduledAt === 'string' ? dbArticle.scheduledAt : undefined),
     publishedAt:
       dbArticle.publishedAt instanceof Date
         ? dbArticle.publishedAt.toISOString()
-        : (dbArticle.publishedAt ?? undefined),
+        : (typeof dbArticle.publishedAt === 'string' ? dbArticle.publishedAt : undefined),
   });
 
   // Fetch articles from API
@@ -398,9 +417,9 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const generationsArticles = articles.filter(
     (a) => 
       a.status === "generating" || 
-      (a.generationScheduledAt && a.status === "to_generate") ||
-      (a.status === "wait_for_publish" && a.generationCompletedAt) ||
-      a.generationError,
+      (Boolean(a.generationScheduledAt) && a.status === "to_generate") ||
+      (a.status === "wait_for_publish" && Boolean(a.generationCompletedAt)) ||
+      Boolean(a.generationError),
   );
   const publishingArticles = articles.filter(
     (a) => a.status === "wait_for_publish" || a.status === "published",
@@ -444,7 +463,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
       <WorkflowTabs
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         planningCount={planningArticles.length}
         generationsCount={generationsArticles.length}
         publishingCount={publishingArticles.length}

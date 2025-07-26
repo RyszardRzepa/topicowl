@@ -254,7 +254,7 @@ export function ArticleGenerations({
         </div>
       )}
 
-      {/* Recently Completed */}
+      Recently Completed
       {completedArticles.length > 0 && (
         <div>
           <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">

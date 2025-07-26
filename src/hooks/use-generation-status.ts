@@ -42,7 +42,7 @@ export function useGenerationStatus({
       setError(null);
 
       const response = await fetch(`/api/articles/${articleId}/generation-status`);
-      const result: ApiResponse<GenerationStatus> = await response.json();
+      const result = await response.json() as ApiResponse<GenerationStatus>;
 
       if (!mountedRef.current) return;
 
@@ -98,10 +98,12 @@ export function useGenerationStatus({
     }
 
     // Initial fetch
-    fetchStatus();
+    void fetchStatus();
 
     // Start polling
-    intervalRef.current = setInterval(fetchStatus, interval);
+    intervalRef.current = setInterval(() => {
+      void fetchStatus();
+    }, interval);
 
     return () => {
       if (intervalRef.current) {

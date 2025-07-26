@@ -20,26 +20,26 @@ interface OnboardingStatusResponse {
   error?: string;
 }
 
+// Routes that should be accessible during onboarding
+const allowedDuringOnboarding = [
+  "/onboarding",
+  "/sign-in",
+  "/sign-up",
+  "/api"
+];
+
+// Routes that don't require onboarding check (public routes)
+const publicRoutes = [
+  "/sign-in",
+  "/sign-up"
+];
+
 export function OnboardingChecker({ children }: OnboardingCheckerProps) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
   const [onboardingStatus, setOnboardingStatus] = useState<boolean | null>(null);
   const [isChecking, setIsChecking] = useState(true);
-
-  // Routes that should be accessible during onboarding
-  const allowedDuringOnboarding = [
-    "/onboarding",
-    "/sign-in",
-    "/sign-up",
-    "/api"
-  ];
-
-  // Routes that don't require onboarding check (public routes)
-  const publicRoutes = [
-    "/sign-in",
-    "/sign-up"
-  ];
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
@@ -63,7 +63,7 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
         const response = await fetch("/api/onboarding/status");
         
         if (response.ok) {
-          const data: OnboardingStatusResponse = await response.json();
+          const data = await response.json() as OnboardingStatusResponse;
           
           if (data.success) {
             setOnboardingStatus(data.onboarding_completed);

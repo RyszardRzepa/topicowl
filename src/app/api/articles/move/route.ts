@@ -5,7 +5,6 @@ import { articles, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { ApiResponse, ArticleStatus } from '@/types';
-import type { GenerationStatus } from '@/app/api/articles/[id]/generation-status/route';
 import type { ArticleGenerationRequest } from '@/app/api/articles/generate/route';
 import { API_BASE_URL } from '@/constants';
 
@@ -60,7 +59,6 @@ async function generateArticleContentInline(articleId: string) {
       .update(articles)
       .set({
         status: 'idea', // Reset to idea status
-        generationError: error instanceof Error ? error.message : 'Unknown error occurred',
         updatedAt: new Date(),
       })
       .where(eq(articles.id, parseInt(articleId)));

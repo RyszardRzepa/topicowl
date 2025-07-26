@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 interface GenerationStatusData {
   progress?: number;
@@ -39,7 +39,18 @@ export function useGenerationPolling({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const checkGenerationStatus = async () => {
+  const cleanupPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  const checkGenerationStatus = useCallback(async () => {
     try {
       // Abort previous request if still pending
       if (abortControllerRef.current) {
@@ -75,10 +86,10 @@ export function useGenerationPolling({
       // Stop polling if generation is complete or failed
       if (data.status === 'completed') {
         onComplete();
-        stopPolling();
+        cleanupPolling();
       } else if (data.status === 'failed') {
         onError(data.error ?? 'Generation failed');
-        stopPolling();
+        cleanupPolling();
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -88,11 +99,11 @@ export function useGenerationPolling({
       
       console.error('Error checking generation status:', error);
       onError(error instanceof Error ? error.message : 'Unknown error occurred');
-      stopPolling();
+      cleanupPolling();
     }
-  };
+  }, [articleId, onStatusUpdate, onComplete, onError, cleanupPolling]);
 
-  const startPolling = () => {
+  const startPolling = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
@@ -103,19 +114,11 @@ export function useGenerationPolling({
     intervalRef.current = setInterval(() => {
       void checkGenerationStatus();
     }, intervalMs);
-  };
+  }, [checkGenerationStatus, intervalMs]);
 
-  const stopPolling = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-  };
+  const stopPolling = useCallback(() => {
+    cleanupPolling();
+  }, [cleanupPolling]);
 
   useEffect(() => {
     if (enabled) {
@@ -127,14 +130,14 @@ export function useGenerationPolling({
     return () => {
       stopPolling();
     };
-  }, [enabled, articleId, intervalMs]);
+  }, [enabled, articleId, intervalMs, startPolling, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopPolling();
     };
-  }, []);
+  }, [stopPolling]);
 
   return {
     startPolling,
