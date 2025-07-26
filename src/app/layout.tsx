@@ -1,5 +1,5 @@
 import "@/styles/globals.css";
-import { Inter } from "next/font/google";
+// import { Inter } from "next/font/google";
 import {
   ClerkProvider,
   SignInButton,
@@ -14,11 +14,11 @@ import { OnboardingChecker } from "@/components/auth/onboarding-checker";
 
 import { type Metadata } from "next";
 
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
+// const inter = Inter({
+//   subsets: ["latin"],
+//   weight: ["400", "500", "600", "700"],
+//   display: "swap",
+// });
 
 export const metadata: Metadata = {
   title: "AI SEO Content Machine",
@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className={`${inter.className} antialiased bg-white text-stone-700 text-15 leading-relaxed`}>
+        <body className={`font-sans antialiased bg-white text-stone-700 text-15 leading-relaxed`}>
           <OnboardingChecker>
             <header className="border-b border-stone-200 bg-white">
               <div className="container mx-auto px-4 py-4 flex justify-between items-center">

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles } from "@/server/db/schema";
+import { articles, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -30,7 +31,7 @@ type ArticleData = {
   status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
   scheduledAt: Date | null;
   publishedAt: Date | null;
-  priority: "low" | "medium" | "high";
+
   estimatedReadTime: number | null;
   kanbanPosition: number;
   metaDescription: string | null;
@@ -41,11 +42,8 @@ type ArticleData = {
   seoScore: number | null;
   internalLinks: unknown;
   sources: unknown;
-  generationTaskId: string | null;
-  generationScheduledAt: Date | null;
-  generationStartedAt: Date | null;
-  generationCompletedAt: Date | null;
-  generationError: string | null;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -67,8 +65,12 @@ const updateArticleSchema = z.object({
   description: z.string().optional(),
   keywords: z.array(z.string()).optional(),
   targetAudience: z.string().optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
+  metaDescription: z.string().optional(),
+  draft: z.string().optional(),
+  optimizedContent: z.string().optional(),
   generationScheduledAt: z.string().datetime().optional(),
+  status: z.enum(["idea", "to_generate", "generating", "wait_for_publish", "published"]).optional(),
+  publishedAt: z.string().datetime().optional(),
 });
 
 // GET /api/articles/[id] - Get single article with extended preview data
@@ -77,6 +79,30 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
@@ -100,6 +126,14 @@ export async function GET(
     }
 
     const articleData = article[0] as ArticleData;
+
+    // Verify article ownership
+    if (articleData.user_id !== userRecord.id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Article does not belong to current user' },
+        { status: 403 }
+      );
+    }
 
     // Generate SEO analysis from existing data
     const seoAnalysis: SEOAnalysis | undefined = articleData.seoScore ? {
@@ -237,25 +271,17 @@ function calculateWordCount(content: string | null): number {
 function generateGenerationLogs(article: ArticleData): GenerationLog[] {
   const logs: GenerationLog[] = [];
   
-  if (article.generationScheduledAt) {
-    logs.push({
-      phase: 'research',
-      status: article.generationStartedAt ? 'completed' : 'pending',
-      timestamp: new Date(article.generationScheduledAt),
-      details: 'Article generation scheduled'
-    });
-  }
-  
-  if (article.generationStartedAt) {
+  // Simple logs based on available content
+  if (article.draft) {
     logs.push({
       phase: 'writing',
-      status: article.draft ? 'completed' : article.generationError ? 'failed' : 'pending',
-      timestamp: new Date(article.generationStartedAt),
-      details: article.generationError ?? 'Content generation in progress'
+      status: 'completed',
+      timestamp: new Date(article.updatedAt),
+      details: 'Draft content generated'
     });
   }
   
-  if (article.draft && article.factCheckReport) {
+  if (article.factCheckReport) {
     logs.push({
       phase: 'validation',
       status: 'completed',
@@ -268,7 +294,7 @@ function generateGenerationLogs(article: ArticleData): GenerationLog[] {
     logs.push({
       phase: 'optimization',
       status: 'completed',
-      timestamp: new Date(article.generationCompletedAt ?? article.updatedAt),
+      timestamp: new Date(article.updatedAt),
       details: 'Content optimized for SEO'
     });
   }
@@ -282,6 +308,30 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
@@ -294,7 +344,7 @@ export async function PUT(
     const body = await req.json() as unknown;
     const validatedData = updateArticleSchema.parse(body);
 
-    // Check if article exists
+    // Check if article exists and belongs to current user
     const existingArticle = await db
       .select()
       .from(articles)
@@ -308,20 +358,47 @@ export async function PUT(
       }, { status: 404 });
     }
 
+    // Verify article ownership
+    if (existingArticle[0]!.user_id !== userRecord.id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Article does not belong to current user' },
+        { status: 403 }
+      );
+    }
+
     // Update the article
-    const { generationScheduledAt, ...otherData } = validatedData;
+    const { generationScheduledAt, publishedAt, ...otherData } = validatedData;
     
     const updateData = {
       ...otherData,
       updatedAt: new Date(),
       ...(generationScheduledAt && { generationScheduledAt: new Date(generationScheduledAt) }),
+      ...(publishedAt && { publishedAt: new Date(publishedAt) }),
     };
+
+    // Check if we're publishing the article
+    const isPublishing = validatedData.status === 'published';
+    const previousStatus = existingArticle[0]!.status;
 
     const [updatedArticle] = await db
       .update(articles)
       .set(updateData)
       .where(eq(articles.id, articleId))
       .returning();
+
+    // Trigger webhook if article was just published
+    if (isPublishing && previousStatus !== 'published' && updatedArticle) {
+      // Call the publish API to handle webhook delivery
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/articles/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          articleId: updatedArticle.id
+        })
+      }).catch((error: unknown) => {
+        console.error('Failed to trigger publish webhook for article', updatedArticle.id, ':', error);
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -356,6 +433,30 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
@@ -365,7 +466,7 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Check if article exists
+    // Check if article exists and belongs to current user
     const existingArticle = await db
       .select()
       .from(articles)
@@ -377,6 +478,14 @@ export async function DELETE(
         success: false, 
         error: 'Article not found' 
       }, { status: 404 });
+    }
+
+    // Verify article ownership
+    if (existingArticle[0]!.user_id !== userRecord.id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Article does not belong to current user' },
+        { status: 403 }
+      );
     }
 
     // Delete the article

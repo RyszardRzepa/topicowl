@@ -235,18 +235,6 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
   const scheduleGeneration = async (articleId: number, scheduledAt: string) => {
     try {
-      // Optimistic update - update the scheduled time immediately
-      const updatedColumns = columns.map(column => ({
-        ...column,
-        articles: column.articles.map(article => 
-          article.id === articleId 
-            ? { ...article, generationScheduledAt: new Date(scheduledAt) }
-            : article
-        )
-      }));
-      
-      setColumns(updatedColumns);
-
       const response = await fetch('/api/articles/schedule-generation', {
         method: 'POST',
         headers: {
@@ -254,7 +242,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         },
         body: JSON.stringify({
           articleId,
-          generationScheduledAt: scheduledAt,
+          scheduledAt: scheduledAt,
         }),
       });
 
@@ -262,12 +250,11 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         throw new Error('Failed to schedule article generation');
       }
 
-      // No refresh needed - optimistic update is sufficient
+      // Refresh the board to get updated data
+      await fetchKanbanBoard();
     } catch (error) {
       console.error('Failed to schedule generation:', error);
       setError('Failed to schedule generation');
-      // Revert optimistic update on error by fetching fresh data
-      await fetchKanbanBoard();
     }
   };
 
@@ -367,7 +354,6 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
           title: 'New Article Idea',
           description: 'Click to edit this article idea',
           keywords: ['article', 'content'], // Provide default keywords
-          priority: 'medium',
         }),
       });
 
@@ -592,12 +578,6 @@ function ArticleCard({
     }
   };
 
-  const formatScheduledTime = (dateValue: string | Date | null) => {
-    if (!dateValue) return '';
-    const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
-    return date.toLocaleString();
-  };
-
   // Determine card interactivity based on status
   const isInteractive = article.status === 'idea' || article.status === 'to_generate';
   const isGenerating = article.status === 'generating';
@@ -739,14 +719,6 @@ function ArticleCard({
 
         {article.status === 'to_generate' && !isEditing && (
           <div className="mb-3 space-y-2">
-            {/* Show scheduled time if exists */}
-            {article.generationScheduledAt && (
-              <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded flex items-center gap-1">
-                <CalendarClock className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">Generation scheduled: {formatScheduledTime(article.generationScheduledAt)}</span>
-              </div>
-            )}
-            
             {/* Scheduling UI */}
             {isScheduling ? (
               <div className="space-y-2">

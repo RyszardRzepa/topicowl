@@ -24,9 +24,9 @@ export interface ArticleSettingsRequest {
 export interface ArticleSettingsResponse {
   // Article settings from articleSettings table
   id: number;
-  toneOfVoice: string;
-  articleStructure: string;
-  maxWords: number;
+  toneOfVoice: string | null;
+  articleStructure: string | null;
+  maxWords: number | null;
   createdAt: Date;
   updatedAt: Date;
   // Company settings from users table
@@ -93,10 +93,10 @@ export async function GET() {
       .limit(1);
     
     if (!articleSettingsRecord) {
-      // Return default settings if none exist
+            // Return default settings if no article settings exist
       const defaultSettings: ArticleSettingsResponse = {
-        id: 0,
-        toneOfVoice: "professional",
+        id: 0, // This will be set when actually created
+        toneOfVoice: "Professional and informative",
         articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
         maxWords: 800,
         createdAt: new Date(),
@@ -112,7 +112,12 @@ export async function GET() {
     
     // Combine article settings with user company data
     const combinedSettings: ArticleSettingsResponse = {
-      ...articleSettingsRecord,
+      id: articleSettingsRecord.id,
+      toneOfVoice: articleSettingsRecord.toneOfVoice,
+      articleStructure: articleSettingsRecord.articleStructure,
+      maxWords: articleSettingsRecord.maxWords,
+      createdAt: articleSettingsRecord.createdAt,
+      updatedAt: articleSettingsRecord.updatedAt,
       companyName: userRecord.company_name ?? undefined,
       productDescription: userRecord.product_description ?? undefined,
       keywords: Array.isArray(userRecord.keywords) ? userRecord.keywords as string[] : [],
@@ -195,7 +200,7 @@ export async function POST(req: NextRequest) {
       
       if (existingSettings) {
         // Update existing article settings
-        [updatedArticleSettings] = await tx
+        const updateResult = await tx
           .update(articleSettings)
           .set({
             ...articleSettingsData,
@@ -203,15 +208,21 @@ export async function POST(req: NextRequest) {
           })
           .where(eq(articleSettings.id, existingSettings.id))
           .returning();
+        updatedArticleSettings = updateResult[0];
       } else {
         // Create new article settings
-        [updatedArticleSettings] = await tx
+        const insertResult = await tx
           .insert(articleSettings)
           .values({
             user_id: userRecord.id,
             ...articleSettingsData,
           })
           .returning();
+        updatedArticleSettings = insertResult[0];
+      }
+
+      if (!updatedArticleSettings) {
+        throw new Error('Failed to create or update article settings');
       }
 
       // Get updated user data for response
@@ -228,7 +239,7 @@ export async function POST(req: NextRequest) {
 
       // Combine for response
       const combinedResponse: ArticleSettingsResponse = {
-        ...updatedArticleSettings!,
+        ...updatedArticleSettings,
         companyName: updatedUser?.company_name ?? undefined,
         productDescription: updatedUser?.product_description ?? undefined,
         keywords: Array.isArray(updatedUser?.keywords) ? updatedUser.keywords as string[] : [],

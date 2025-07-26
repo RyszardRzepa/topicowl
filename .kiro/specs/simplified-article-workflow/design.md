@@ -24,6 +24,7 @@ The new interface will consist of two main sections accessible via tabs or a spl
 ### 1. Article Planning Hub
 
 #### Layout Structure
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ [Article Planning] [Publishing Pipeline]               │
@@ -51,6 +52,7 @@ The new interface will consist of two main sections accessible via tabs or a spl
 ```
 
 #### Key Features
+
 - **Simple Article Creation**: Minimal form with title and optional keywords
 - **Clear Status Grouping**: Ideas and Generating sections with counts
 - **Prominent Actions**: Generate Now and Schedule buttons for each article
@@ -60,6 +62,7 @@ The new interface will consist of two main sections accessible via tabs or a spl
 ### 2. Publishing Pipeline
 
 #### Layout Structure
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ [Article Planning] [Publishing Pipeline]               │
@@ -89,6 +92,7 @@ The new interface will consist of two main sections accessible via tabs or a spl
 ```
 
 #### Key Features
+
 - **Ready-to-Publish Focus**: Clear separation of articles ready for publishing
 - **Publishing Actions**: Publish Now and Schedule options for each article
 - **Article Metadata**: Word count, generation time, and performance metrics
@@ -98,10 +102,11 @@ The new interface will consist of two main sections accessible via tabs or a spl
 ### 3. Shared Components
 
 #### Article Card Component
+
 ```typescript
 interface ArticleCardProps {
   article: Article;
-  mode: 'planning' | 'publishing';
+  mode: "planning" | "publishing";
   onGenerate?: (id: string) => void;
   onScheduleGeneration?: (id: string, date: Date) => void;
   onPublish?: (id: string) => void;
@@ -110,11 +115,13 @@ interface ArticleCardProps {
 ```
 
 #### Quick Action Modal
+
 - **Generation Scheduling**: Simple date/time picker with presets (Tomorrow 9 AM, This Weekend, etc.)
 - **Publishing Scheduling**: Date/time picker with content calendar integration
 - **Bulk Actions**: Multi-select interface for batch operations
 
 #### Status Indicators
+
 - **Planning Phase**: Idea (💡), Generating (⚡), Ready (✓)
 - **Publishing Phase**: Scheduled (📅), Published (📄)
 - **Progress Bars**: Real-time generation progress
@@ -123,49 +130,51 @@ interface ArticleCardProps {
 ## Data Models
 
 ### Enhanced Article Model
+
 ```typescript
 interface Article {
   id: string;
   title: string;
   keywords?: string[];
-  status: 'idea' | 'generating' | 'ready' | 'scheduled' | 'published';
-  
+  status: "idea" | "generating" | "ready" | "scheduled" | "published";
+
   // Generation tracking
   generationStartedAt?: Date;
   generationCompletedAt?: Date;
   generationProgress?: number;
   generationScheduledAt?: Date;
-  
+
   // Publishing tracking
   publishScheduledAt?: Date;
   publishedAt?: Date;
-  
+
   // Content metadata
   wordCount?: number;
   estimatedReadTime?: number;
-  
+
   // Analytics (basic)
   views?: number;
   clicks?: number;
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
 ```
 
 ### Workflow State Management
+
 ```typescript
 interface WorkflowState {
-  activeTab: 'planning' | 'publishing';
+  activeTab: "planning" | "publishing";
   selectedArticles: string[];
   bulkActionMode: boolean;
-  
+
   // Planning state
   planningFilters: {
     status: ArticleStatus[];
     scheduled: boolean;
   };
-  
+
   // Publishing state
   publishingFilters: {
     readyOnly: boolean;
@@ -177,11 +186,13 @@ interface WorkflowState {
 ## Error Handling
 
 ### User-Friendly Error Messages
+
 - **Generation Failures**: "Article generation failed. Would you like to try again?"
 - **Scheduling Conflicts**: "This time slot is busy. Try scheduling for [suggested time]."
 - **Publishing Errors**: "Unable to publish article. Check your connection and try again."
 
 ### Graceful Degradation
+
 - **Offline Mode**: Queue actions for when connection is restored
 - **Partial Failures**: Show which articles succeeded/failed in bulk operations
 - **Recovery Options**: Automatic retry with exponential backoff
@@ -189,18 +200,21 @@ interface WorkflowState {
 ## Testing Strategy
 
 ### User Experience Testing
+
 1. **Task-based Testing**: Time users completing common workflows
 2. **A/B Testing**: Compare new interface against current kanban board
 3. **Accessibility Testing**: Ensure keyboard navigation and screen reader compatibility
 4. **Mobile Responsiveness**: Test on various device sizes
 
 ### Functional Testing
+
 1. **Workflow State Management**: Test transitions between planning and publishing
 2. **Real-time Updates**: Verify generation progress and status updates
 3. **Scheduling Accuracy**: Test generation and publishing scheduling
 4. **Bulk Operations**: Test multi-article actions and error handling
 
 ### Performance Testing
+
 1. **Large Article Lists**: Test with 100+ articles
 2. **Real-time Updates**: Ensure smooth progress updates during generation
 3. **Search and Filtering**: Test response times with large datasets
@@ -208,21 +222,25 @@ interface WorkflowState {
 ## Implementation Phases
 
 ### Phase 1: Core Interface
+
 - Implement tab-based navigation
 - Create Article Planning Hub with basic functionality
 - Migrate existing article creation and generation
 
 ### Phase 2: Publishing Pipeline
+
 - Implement Publishing Pipeline interface
 - Add scheduling functionality for publishing
 - Create published articles archive
 
 ### Phase 3: Enhanced Features
+
 - Add bulk operations
 - Implement quick action modals
 - Add basic analytics display
 
 ### Phase 4: Polish and Optimization
+
 - Add keyboard shortcuts
 - Implement advanced filtering
 - Performance optimizations and caching

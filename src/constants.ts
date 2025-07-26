@@ -56,7 +56,7 @@ export const prompts = {
     Keywords focus: ${keywords.join(', ')}
   `,
 
-  writing: (data: { title: string; researchData: string }, settings?: { toneOfVoice?: string; articleStructure?: string; maxWords?: number }, relatedPosts?: string[]) => {
+  writing: (data: { title: string; researchData: string; coverImage?: string }, settings?: { toneOfVoice?: string; articleStructure?: string; maxWords?: number }, relatedPosts?: string[]) => {
     const currentDate = new Date().toISOString().split('T')[0];
 
     const toneOfVoice = settings?.toneOfVoice ?? 'Friendly expert, concise, practical.';
@@ -89,6 +89,11 @@ ${relatedPosts && relatedPosts.length > 0
         ? relatedPosts.join(', ')
         : 'No related posts available - you may suggest relevant placeholders like "oslo-attractions", "oslo-food-guide"'}
 </related_posts>
+
+${data.coverImage ? `<cover_image>
+A cover image has been selected for this article: ${data.coverImage}
+This image should complement the article content and be referenced appropriately in the imageCaption field.
+</cover_image>` : ''}
 
 Use this research data when writing:
 ${data.researchData}

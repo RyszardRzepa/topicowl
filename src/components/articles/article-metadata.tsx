@@ -64,7 +64,7 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
       </div>
 
       {/* Publishing Information */}
-      {(article.scheduledAt || article.publishedAt) && (
+      {(article.scheduledAt ?? article.publishedAt) && (
         <Card>
           <CardHeader>
             <CardTitle>Publishing Information</CardTitle>

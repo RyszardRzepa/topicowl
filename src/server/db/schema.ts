@@ -31,6 +31,12 @@ export const users = contentMachineSchema.table("users", {
   keywords: jsonb("keywords"),
   onboarding_completed: boolean("onboarding_completed").default(false).notNull(),
 
+  // Webhook configuration
+  webhook_url: text("webhook_url"),
+  webhook_secret: text("webhook_secret"),
+  webhook_enabled: boolean("webhook_enabled").default(false).notNull(),
+  webhook_events: jsonb("webhook_events").default(["article.published"]).notNull(),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
@@ -48,11 +54,7 @@ export const articleStatusEnum = pgEnum("article_status", [
   "published",
 ]);
 
-export const articlePriorityEnum = pgEnum("article_priority", [
-  "low",
-  "medium", 
-  "high",
-]);
+
 
 // Articles table for kanban-based workflow
 export const articles = contentMachineSchema.table("articles", {
@@ -65,7 +67,7 @@ export const articles = contentMachineSchema.table("articles", {
   status: articleStatusEnum("status").default("idea").notNull(),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   publishedAt: timestamp("published_at", { withTimezone: true }),
-  priority: articlePriorityEnum("priority").default("medium").notNull(),
+
   estimatedReadTime: integer("estimated_read_time"),
   kanbanPosition: integer("kanban_position").default(0).notNull(),
   
@@ -79,12 +81,54 @@ export const articles = contentMachineSchema.table("articles", {
   internalLinks: jsonb("internal_links").default([]).notNull(),
   sources: jsonb("sources").default([]).notNull(),
   
-  // Generation tracking
-  generationTaskId: varchar("generation_task_id"),
-  generationScheduledAt: timestamp("generation_scheduled_at", { withTimezone: true }),
-  generationStartedAt: timestamp("generation_started_at", { withTimezone: true }),
-  generationCompletedAt: timestamp("generation_completed_at", { withTimezone: true }),
-  generationError: text("generation_error"),
+  // Image fields
+  coverImageUrl: text("cover_image_url"),
+  coverImageAlt: text("cover_image_alt"),
+  
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+// Article Generation tracking table for separation of concerns
+export const articleGeneration = contentMachineSchema.table("article_generation", {
+  id: serial("id").primaryKey(),
+  articleId: integer("article_id").references(() => articles.id).notNull(),
+  userId: text("user_id").references(() => users.id).notNull(),
+  
+  // Generation process tracking
+  taskId: varchar("task_id"),
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, researching, writing, validating, completed, failed
+  progress: integer("progress").default(0).notNull(), // 0-100 percentage
+  
+  // Phase timestamps
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  
+  // Phase results
+  researchData: jsonb("research_data").default({}).notNull(),
+  draftContent: text("draft_content"),
+  validationReport: jsonb("validation_report").default({}).notNull(),
+  seoReport: jsonb("seo_report").default({}).notNull(),
+  
+  // Image selection tracking
+  selectedImageId: text("selected_image_id"),
+  imageAttribution: jsonb("image_attribution").$type<{
+    photographer: string;
+    unsplashUrl: string;
+    downloadUrl: string;
+  }>(),
+  imageQuery: text("image_query"),
+  imageKeywords: jsonb("image_keywords").default([]).notNull(),
+  
+  // Error handling
+  error: text("error"),
+  errorDetails: jsonb("error_details"),
   
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
@@ -109,4 +153,38 @@ export const articleSettings = contentMachineSchema.table("article_settings", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull()
     .$onUpdate(() => new Date()),
+});
+
+// Webhook delivery tracking table
+export const webhookDeliveries = contentMachineSchema.table("webhook_deliveries", {
+  id: serial("id").primaryKey(),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  article_id: integer("article_id").references(() => articles.id).notNull(),
+  webhook_url: text("webhook_url").notNull(),
+  event_type: text("event_type").default("article.published").notNull(),
+  
+  // Delivery tracking
+  status: text("status").default("pending").notNull(), // pending, success, failed, retrying
+  attempts: integer("attempts").default(1).notNull(),
+  max_attempts: integer("max_attempts").default(3).notNull(),
+  
+  // Request/Response data
+  request_payload: jsonb("request_payload").notNull(),
+  response_status: integer("response_status"),
+  response_body: text("response_body"),
+  delivery_time_ms: integer("delivery_time_ms"),
+  
+  // Error handling
+  error_message: text("error_message"),
+  error_details: jsonb("error_details"),
+  
+  // Retry scheduling
+  next_retry_at: timestamp("next_retry_at", { withTimezone: true }),
+  retry_backoff_seconds: integer("retry_backoff_seconds").default(30).notNull(),
+  
+  created_at: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  delivered_at: timestamp("delivered_at", { withTimezone: true }),
+  failed_at: timestamp("failed_at", { withTimezone: true }),
 });

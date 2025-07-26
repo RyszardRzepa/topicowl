@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { WebsiteUrlForm } from "@/components/onboarding/website-url-form";
@@ -55,7 +55,7 @@ export default function OnboardingPage() {
         throw new Error("Failed to analyze website");
       }
 
-      const result: AnalyzeWebsiteResponse = await response.json();
+      const result = await response.json() as AnalyzeWebsiteResponse;
       
       if (result.success && result.data) {
         setAnalysisData(result.data);

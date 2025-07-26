@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles } from "@/server/db/schema";
-import { max } from "drizzle-orm";
+import { articles, users } from "@/server/db/schema";
+import { max, eq } from "drizzle-orm";
 import { z } from "zod";
 
 // Types colocated with this API route
@@ -11,7 +12,6 @@ export interface CreateArticleRequest {
   description?: string;
   keywords?: string[];
   targetAudience?: string;
-  priority?: 'low' | 'medium' | 'high';
 }
 
 const createArticleSchema = z.object({
@@ -19,19 +19,43 @@ const createArticleSchema = z.object({
   description: z.string().optional(),
   keywords: z.array(z.string()).default([]),
   targetAudience: z.string().optional(),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
 // POST /api/articles - Create new article
 export async function POST(req: NextRequest) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const body: unknown = await req.json();
     const validatedData = createArticleSchema.parse(body);
     
-    // Get the maximum kanban position for new article positioning
+    // Get the maximum kanban position for this user's articles
     const maxPositionResult = await db
       .select({ maxPosition: max(articles.kanbanPosition) })
-      .from(articles);
+      .from(articles)
+      .where(eq(articles.user_id, userRecord.id));
     
     const nextPosition = (maxPositionResult[0]?.maxPosition ?? -1) + 1;
 
@@ -39,6 +63,7 @@ export async function POST(req: NextRequest) {
       .insert(articles)
       .values({
         ...validatedData,
+        user_id: userRecord.id,
         status: 'idea',
         kanbanPosition: nextPosition,
       })
@@ -61,15 +86,41 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/articles - Get all articles
+// GET /api/articles - Get user's articles
 export async function GET(_req: NextRequest) {
   try {
-    const allArticles = await db
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get user record from database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Get only this user's articles
+    const userArticles = await db
       .select()
       .from(articles)
+      .where(eq(articles.user_id, userRecord.id))
       .orderBy(articles.kanbanPosition, articles.createdAt);
     
-    return NextResponse.json(allArticles);
+    return NextResponse.json(userArticles);
 
   } catch (error) {
     console.error('Get articles error:', error);

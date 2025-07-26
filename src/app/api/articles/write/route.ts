@@ -14,6 +14,7 @@ interface WriteRequest {
   keywords: string[];
   author?: string;
   publicationName?: string;
+  coverImage?: string; // URL of the selected cover image
 }
 
 export interface WriteResponse {
@@ -69,10 +70,20 @@ export async function POST(request: Request) {
     const { object: articleObject } = await generateObject({
       model: anthropic(MODELS.CLAUDE_SONET_4),
       schema: blogPostSchema,
-      prompt: prompts.writing(body, settingsData, []),
+      prompt: prompts.writing({
+        title: body.title,
+        researchData: body.researchData,
+        coverImage: body.coverImage
+      }, settingsData, []),
     });
 
-    return NextResponse.json(articleObject as WriteResponse);
+    // Include the cover image in the response if provided
+    const responseObject = {
+      ...articleObject,
+      ...(body.coverImage && { coverImage: body.coverImage })
+    } as WriteResponse;
+
+    return NextResponse.json(responseObject);
   } catch (error) {
     console.error('Write endpoint error:', error);
     return NextResponse.json(

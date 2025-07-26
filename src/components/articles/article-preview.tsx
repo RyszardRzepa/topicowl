@@ -12,7 +12,6 @@ interface ArticlePreviewData {
   status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
   scheduledAt: Date | null;
   publishedAt: Date | null;
-  priority: "low" | "medium" | "high";
   estimatedReadTime: number | null;
   metaDescription: string | null;
   outline: unknown;
@@ -22,11 +21,6 @@ interface ArticlePreviewData {
   seoScore: number | null;
   internalLinks: unknown;
   sources: unknown;
-  generationTaskId: string | null;
-  generationScheduledAt: Date | null;
-  generationStartedAt: Date | null;
-  generationCompletedAt: Date | null;
-  generationError: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,17 +30,6 @@ interface ArticlePreviewProps {
 }
 
 export function ArticlePreview({ article }: ArticlePreviewProps) {
-  // Format date helper
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
-  };
-
   return (
     <div className="space-y-6">
       {/* Basic Information Card */}
@@ -63,11 +46,6 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
           )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="font-medium text-gray-900 mb-2">Priority</h3>
-              <span className="capitalize text-gray-700">{article.priority}</span>
-            </div>
-            
             {article.targetAudience && (
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">Target Audience</h3>
@@ -118,11 +96,6 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Article is being generated...</p>
-              {article.generationStartedAt && (
-                <p className="text-sm text-gray-500 mt-2">
-                  Started {formatDate(article.generationStartedAt)}
-                </p>
-              )}
             </div>
           ) : article.optimizedContent ? (
             <div className="prose max-w-none">
@@ -151,18 +124,6 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
           )}
         </CardContent>
       </Card>
-
-      {/* Generation Error Card */}
-      {article.generationError && (
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="text-red-800">Generation Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-700">{article.generationError}</p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

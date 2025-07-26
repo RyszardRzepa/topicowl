@@ -18,7 +18,7 @@ export interface CompleteOnboardingResponse {
   error?: string;
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
+export async function POST(_request: NextRequest): Promise<Response> {
   try {
     // Authentication check
     const { userId } = await auth();
@@ -29,8 +29,6 @@ export async function POST(request: NextRequest): Promise<Response> {
       };
       return Response.json(response, { status: 401 });
     }
-
-    const body = (await request.json()) as CompleteOnboardingRequest;
 
     // Get user record
     const [userRecord] = await db

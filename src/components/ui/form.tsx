@@ -31,7 +31,7 @@ export function FormField({
   );
 }
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {}
+type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, ...props }, ref) => {
@@ -49,7 +49,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 );
 Select.displayName = "Select";
 
-interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, ...props }, ref) => {

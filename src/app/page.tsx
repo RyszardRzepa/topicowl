@@ -1,4 +1,4 @@
-import { KanbanBoard } from "@/components/kanban/kanban-board";
+import { WorkflowDashboard } from "@/components/workflow/workflow-dashboard";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 
 export default function HomePage() {
@@ -31,13 +31,7 @@ export default function HomePage() {
 
     <SignedIn>
       <div className="container mx-auto p-8">
-        <div className="mb-8">
-          <p className="text-gray-600">
-            Create, manage, and publish SEO-optimized articles with AI-powered workflows
-          </p>
-        </div>
-        
-        <KanbanBoard />
+        <WorkflowDashboard />
       </div>
     </SignedIn>
   </main>

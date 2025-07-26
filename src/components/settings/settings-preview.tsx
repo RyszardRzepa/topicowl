@@ -22,21 +22,6 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
     }
   };
 
-  const getStructureDescription = (structure: string | null) => {
-    switch (structure) {
-      case 'introduction-body-conclusion':
-        return 'Classic academic structure with clear opening, detailed content, and summary.';
-      case 'problem-solution':
-        return 'Identifies challenges and provides actionable solutions.';
-      case 'how-to':
-        return 'Step-by-step guide format with numbered instructions and tips.';
-      case 'listicle':
-        return 'Numbered or bulleted list format for easy scanning and consumption.';
-      default:
-        return 'Classic structure with introduction, body, and conclusion.';
-    }
-  };
-
   const getSampleContent = () => {
     const tone = settings.toneOfVoice ?? 'professional';
     
@@ -78,17 +63,17 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-blue-700">Company:</span>
-            <span className="font-medium text-blue-900">{settings.companyName || 'Not set'}</span>
+            <span className="font-medium text-blue-900">{settings.companyName ?? 'Not set'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-blue-700">Industry:</span>
             <span className="font-medium text-blue-900 capitalize">
-              {settings.industryCategory?.replace('-', ' ') || 'Not set'}
+              {settings.industryCategory?.replace('-', ' ') ?? 'Not set'}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-blue-700">Target Audience:</span>
-            <span className="font-medium text-blue-900">{settings.targetAudience || 'Not set'}</span>
+            <span className="font-medium text-blue-900">{settings.targetAudience ?? 'Not set'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-blue-700">Keywords:</span>
@@ -127,7 +112,7 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
         <h3 className="font-semibold text-green-900 mb-3">Article Structure</h3>
         <div className="text-sm text-green-800">
           <p className="font-mono text-xs bg-green-100 p-2 rounded">
-            {settings.articleStructure || 'Introduction • Main points • Conclusion'}
+            {settings.articleStructure ?? 'Introduction • Main points • Conclusion'}
           </p>
         </div>
       </div>
@@ -162,7 +147,7 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
           <div>
             <h4 className="font-medium text-gray-900 mb-2">Product/Service Context</h4>
             <p className="text-sm text-gray-600 italic">
-              "{settings.productDescription}"
+              &ldquo;{settings.productDescription}&rdquo;
             </p>
           </div>
         )}
