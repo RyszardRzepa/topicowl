@@ -171,7 +171,7 @@ export function ArticleActions({
         <Button
           onClick={() => setShowDeleteConfirm(true)}
           disabled={isDeleting}
-          variant="danger"
+          variant="destructive"
           size="sm"
           className="flex items-center gap-2"
         >
@@ -201,7 +201,7 @@ export function ArticleActions({
               </Button>
               <Button
                 onClick={handleDelete}
-                variant="danger"
+                variant="destructive"
                 size="sm"
                 disabled={isDeleting}
               >
@@ -246,7 +246,7 @@ export function ArticleActions({
               </Button>
               <Button
                 onClick={handleSchedule}
-                variant="primary"
+                variant="default"
                 size="sm"
                 disabled={isScheduling || !scheduledDate}
               >

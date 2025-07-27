@@ -42,7 +42,7 @@ export function DateTimePicker({
     if (date) {
       const [hours, minutes] = timeValue.split(":").map(Number);
       const newDate = new Date(date);
-      newDate.setHours(hours || 0, minutes || 0, 0, 0);
+      newDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
       setSelectedDate(newDate);
       onChange(newDate);
     } else {
@@ -56,7 +56,7 @@ export function DateTimePicker({
     if (selectedDate) {
       const [hours, minutes] = time.split(":").map(Number);
       const newDate = new Date(selectedDate);
-      newDate.setHours(hours || 0, minutes || 0, 0, 0);
+      newDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
       setSelectedDate(newDate);
       onChange(newDate);
     }
@@ -66,7 +66,7 @@ export function DateTimePicker({
     if (selectedDate) {
       const [hours, minutes] = timeValue.split(":").map(Number);
       const finalDate = new Date(selectedDate);
-      finalDate.setHours(hours || 0, minutes ?? 0, 0, 0);
+      finalDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
       onChange(finalDate);
     }
     setOpen(false);
@@ -98,7 +98,7 @@ export function DateTimePicker({
               if (minDate && date < minDate) return true;
               return date < new Date(new Date().setHours(0, 0, 0, 0));
             }}
-            initialFocus
+            autoFocus
           />
           <div className="flex items-center space-x-2 px-3">
             <Clock className="h-4 w-4 text-muted-foreground" />

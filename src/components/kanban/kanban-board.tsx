@@ -259,7 +259,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
       const result: ScheduleGenerationResponse = await response.json();
       
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to schedule article generation');
+        throw new Error(result.error);
       }
 
       // Refresh the board to get updated data
@@ -319,7 +319,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add to queue');
+        throw new Error(errorData.error ?? 'Failed to add to queue');
       }
 
       // Refresh the board to get updated data
@@ -340,7 +340,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
       }
       
       const queueData = await queueResponse.json();
-      const queueItem = queueData.data.articles.find((item: any) => item.articleId === articleId);
+      const queueItem = queueData.data.articles.find((item: { id: number; articleId: number }) => item.articleId === articleId);
       
       if (!queueItem) {
         throw new Error('Article not found in queue');
@@ -897,7 +897,7 @@ function ArticleCard({
                 />
                 <select
                   value={schedulingFrequency}
-                  onChange={(e) => setSchedulingFrequency(e.target.value as any)}
+                  onChange={(e) => setSchedulingFrequency(e.target.value as 'once' | 'daily' | 'weekly' | 'monthly')}
                   className="w-full text-xs border border-gray-200 rounded p-2"
                 >
                   <option value="once">One-time</option>

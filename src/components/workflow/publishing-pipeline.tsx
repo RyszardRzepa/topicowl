@@ -91,7 +91,7 @@ export function PublishingPipeline({
           {/* Bulk action mode toggle */}
           {readyNow.length > 0 && (
             <Button
-              variant={isBulkMode ? "primary" : "outline"}
+              variant={isBulkMode ? "default" : "outline"}
               size="sm"
               onClick={() => {
                 setIsBulkMode(!isBulkMode);

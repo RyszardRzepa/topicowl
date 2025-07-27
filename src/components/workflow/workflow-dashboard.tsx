@@ -35,7 +35,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const activeTabFromUrl = getValidTab(searchParams.get("tab"));
   const [activeTab, setActiveTab] = useState<WorkflowPhase>(activeTabFromUrl);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Function to update URL when tab changes
@@ -71,7 +71,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       dbArticle.updatedAt instanceof Date
         ? dbArticle.updatedAt.toISOString()
         : dbArticle.updatedAt,
-    generationProgress: dbArticle.generationProgress ?? 0,
+    generationProgress: typeof dbArticle.generationProgress === 'number' ? dbArticle.generationProgress : 0,
     estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
     views: 0, // Not tracked in database yet
     clicks: 0, // Not tracked in database yet
@@ -362,7 +362,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         }),
       });
 
-      const result: ScheduleGenerationResponse = await response.json();
+      const result = await response.json() as ScheduleGenerationResponse;
 
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Failed to schedule generation");
