@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ArticleStatus } from '@/types';
+import type { ScheduleGenerationResponse } from '@/app/api/articles/schedule-generation/route';
 
 // Inline kanban flow logic
 const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
@@ -247,8 +248,10 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to schedule article generation');
+      const result: ScheduleGenerationResponse = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to schedule article generation');
       }
 
       // Refresh the board to get updated data
@@ -606,6 +609,7 @@ function ArticleCard({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [selectedScheduleTime, setSelectedScheduleTime] = useState<string>("");
   const [schedulingFrequency, setSchedulingFrequency] = useState<'once' | 'daily' | 'weekly' | 'monthly'>('once');
   const [editData, setEditData] = useState({
     title: article.title,
@@ -677,8 +681,15 @@ function ArticleCard({
     try {
       await onScheduleGeneration(article.id, scheduledAt);
       setIsScheduling(false);
+      setSelectedScheduleTime("");
     } catch (error) {
       console.error('Failed to schedule generation:', error);
+    }
+  };
+
+  const handleConfirmScheduleGeneration = async () => {
+    if (selectedScheduleTime) {
+      await handleScheduleGeneration(selectedScheduleTime);
     }
   };
 
@@ -686,9 +697,16 @@ function ArticleCard({
     try {
       await onScheduleArticle(article.id, scheduledAt, schedulingFrequency);
       setIsScheduling(false);
+      setSelectedScheduleTime("");
       setSchedulingFrequency('once');
     } catch (error) {
       console.error('Failed to schedule article:', error);
+    }
+  };
+
+  const handleConfirmScheduleArticle = async () => {
+    if (selectedScheduleTime) {
+      await handleScheduleArticle(selectedScheduleTime);
     }
   };
 
@@ -855,10 +873,13 @@ function ArticleCard({
                 <input
                   type="datetime-local"
                   className="w-full text-xs border border-gray-200 rounded p-2"
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  value={selectedScheduleTime ? new Date(selectedScheduleTime).toISOString().slice(0, 16) : ""}
                   onChange={(e) => {
                     if (e.target.value) {
-                      void handleScheduleArticle(new Date(e.target.value).toISOString());
+                      setSelectedScheduleTime(new Date(e.target.value).toISOString());
+                    } else {
+                      setSelectedScheduleTime("");
                     }
                   }}
                 />
@@ -876,6 +897,7 @@ function ArticleCard({
                   <Button 
                     onClick={() => {
                       setIsScheduling(false);
+                      setSelectedScheduleTime("");
                       setSchedulingFrequency('once');
                     }}
                     size="sm" 
@@ -883,6 +905,14 @@ function ArticleCard({
                     className="flex-1 text-xs h-7"
                   >
                     Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleConfirmScheduleArticle}
+                    size="sm" 
+                    disabled={!selectedScheduleTime}
+                    className="flex-1 text-xs h-7"
+                  >
+                    Schedule
                   </Button>
                 </div>
               </div>
@@ -958,21 +988,35 @@ function ArticleCard({
                 <input
                   type="datetime-local"
                   className="w-full text-xs border border-gray-200 rounded p-2"
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  value={selectedScheduleTime ? new Date(selectedScheduleTime).toISOString().slice(0, 16) : ""}
                   onChange={(e) => {
                     if (e.target.value) {
-                      void handleScheduleGeneration(new Date(e.target.value).toISOString());
+                      setSelectedScheduleTime(new Date(e.target.value).toISOString());
+                    } else {
+                      setSelectedScheduleTime("");
                     }
                   }}
                 />
                 <div className="flex gap-1">
                   <Button 
-                    onClick={() => setIsScheduling(false)}
+                    onClick={() => {
+                      setIsScheduling(false);
+                      setSelectedScheduleTime("");
+                    }}
                     size="sm" 
                     variant="outline"
                     className="flex-1 text-xs h-7"
                   >
                     Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleConfirmScheduleGeneration}
+                    size="sm" 
+                    disabled={!selectedScheduleTime}
+                    className="flex-1 text-xs h-7"
+                  >
+                    Schedule
                   </Button>
                 </div>
               </div>

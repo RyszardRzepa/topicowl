@@ -23,7 +23,7 @@ interface UseGenerationStatusReturn {
 export function useGenerationStatus({
   articleId,
   enabled = true,
-  interval = 2000, // Poll every 2 seconds
+  interval = 5000, // Poll every 5 seconds
   onStatusChange,
   onComplete,
   onError,

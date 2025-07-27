@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { WorkflowTabs } from "./workflow-tabs";
 import { PlanningHub } from "./planning-hub";
 import { ArticleGenerations } from "./article-generations";
@@ -12,6 +13,7 @@ import type {
   DatabaseArticle,
   KanbanColumn,
 } from "@/app/api/articles/board/route";
+import type { ScheduleGenerationResponse } from "@/app/api/articles/schedule-generation/route";
 
 interface WorkflowDashboardProps {
   className?: string;
@@ -21,7 +23,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  
+
   // Get active tab from URL search params, fallback to 'planning'
   const getValidTab = (tab: string | null): WorkflowPhase => {
     if (tab === "planning" || tab === "generations" || tab === "publishing") {
@@ -29,7 +31,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     }
     return "planning";
   };
-  
+
   const activeTabFromUrl = getValidTab(searchParams.get("tab"));
   const [activeTab, setActiveTab] = useState<WorkflowPhase>(activeTabFromUrl);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -69,21 +71,30 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       dbArticle.updatedAt instanceof Date
         ? dbArticle.updatedAt.toISOString()
         : dbArticle.updatedAt,
-    generationProgress: 0, // Default since not in database schema yet
+    generationProgress: dbArticle.generationProgress ?? 0,
     estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
     views: 0, // Not tracked in database yet
     clicks: 0, // Not tracked in database yet
-    generationScheduledAt: undefined, // Will be populated when generation tracking is added
+    generationScheduledAt:
+      dbArticle.generationScheduledAt instanceof Date
+        ? dbArticle.generationScheduledAt.toISOString()
+        : typeof dbArticle.generationScheduledAt === "string"
+          ? dbArticle.generationScheduledAt
+          : undefined,
     generationStartedAt: undefined, // Will be populated when generation tracking is added
     generationCompletedAt: undefined, // Will be populated when generation tracking is added
     publishScheduledAt:
       dbArticle.scheduledAt instanceof Date
         ? dbArticle.scheduledAt.toISOString()
-        : (typeof dbArticle.scheduledAt === 'string' ? dbArticle.scheduledAt : undefined),
+        : typeof dbArticle.scheduledAt === "string"
+          ? dbArticle.scheduledAt
+          : undefined,
     publishedAt:
       dbArticle.publishedAt instanceof Date
         ? dbArticle.publishedAt.toISOString()
-        : (typeof dbArticle.publishedAt === 'string' ? dbArticle.publishedAt : undefined),
+        : typeof dbArticle.publishedAt === "string"
+          ? dbArticle.publishedAt
+          : undefined,
   });
 
   // Fetch articles from API
@@ -124,51 +135,76 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   }, []);
 
   // Get currently generating articles
-  const generatingArticles = articles.filter(article => article.status === 'generating');
-  
+  const generatingArticles = articles.filter(
+    (article) => article.status === "generating",
+  );
+
   // Handle generation status updates
-  const handleGenerationStatusUpdate = useCallback((articleId: string, statusData: { progress?: number; phase?: 'research' | 'writing' | 'validation' | 'optimization'; error?: string }) => {
-    setArticles(prevArticles => 
-      prevArticles.map(article => 
-        article.id === articleId 
-          ? {
-              ...article,
-              generationProgress: statusData.progress,
-              generationPhase: statusData.phase,
-              generationError: statusData.error,
-            }
-          : article
-      )
-    );
-  }, []);
+  const handleGenerationStatusUpdate = useCallback(
+    (
+      articleId: string,
+      statusData: {
+        progress?: number;
+        phase?: "research" | "writing" | "validation" | "optimization";
+        error?: string;
+      },
+    ) => {
+      setArticles((prevArticles) =>
+        prevArticles.map((article) =>
+          article.id === articleId
+            ? {
+                ...article,
+                generationProgress: statusData.progress,
+                generationPhase: statusData.phase,
+                generationError: statusData.error,
+              }
+            : article,
+        ),
+      );
+    },
+    [],
+  );
 
-  const handleGenerationComplete = useCallback((_articleId: string) => {
-    // Refresh articles to get the updated status
-    void fetchArticles();
-  }, [fetchArticles]);
+  const handleGenerationComplete = useCallback(
+    (_articleId: string) => {
+      // Refresh articles to get the updated status
+      void fetchArticles();
+    },
+    [fetchArticles],
+  );
 
-  const handleGenerationError = useCallback((articleId: string, error: string) => {
-    setArticles(prevArticles => 
-      prevArticles.map(article => 
-        article.id === articleId 
-          ? {
-              ...article,
-              generationError: error,
-            }
-          : article
-      )
-    );
-  }, []);
+  const handleGenerationError = useCallback(
+    (articleId: string, error: string) => {
+      setArticles((prevArticles) =>
+        prevArticles.map((article) =>
+          article.id === articleId
+            ? {
+                ...article,
+                generationError: error,
+              }
+            : article,
+        ),
+      );
+    },
+    [],
+  );
 
   // Use polling for the first generating article as an example
   // In a real implementation, you'd need a more sophisticated approach for multiple articles
   const firstGeneratingArticle = generatingArticles[0];
   useGenerationPolling({
-    articleId: firstGeneratingArticle?.id ?? '',
-    enabled: !!firstGeneratingArticle && !firstGeneratingArticle.generationError,
-    onStatusUpdate: (statusData) => handleGenerationStatusUpdate(firstGeneratingArticle?.id ?? '', statusData),
-    onComplete: () => handleGenerationComplete(firstGeneratingArticle?.id ?? ''),
-    onError: (error) => handleGenerationError(firstGeneratingArticle?.id ?? '', error),
+    articleId: firstGeneratingArticle?.id ?? "",
+    enabled:
+      !!firstGeneratingArticle && !firstGeneratingArticle.generationError,
+    onStatusUpdate: (statusData) =>
+      handleGenerationStatusUpdate(
+        firstGeneratingArticle?.id ?? "",
+        statusData,
+      ),
+    onComplete: () =>
+      handleGenerationComplete(firstGeneratingArticle?.id ?? ""),
+    onError: (error) =>
+      handleGenerationError(firstGeneratingArticle?.id ?? "", error),
   });
 
   useEffect(() => {
@@ -322,22 +358,31 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           articleId: parseInt(articleId),
-          generationScheduledAt: scheduledAt.toISOString(),
+          scheduledAt: scheduledAt.toISOString(),
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to schedule generation");
+      const result: ScheduleGenerationResponse = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Failed to schedule generation");
       }
 
-      // Optimistic update
-      setArticles((prev) =>
-        prev.map((article) =>
+      // Optimistic update - ensure the article moves to the correct tab
+      setArticles((prev) => {
+        const updated = prev.map((article) =>
           article.id === articleId
-            ? { ...article, generationScheduledAt: scheduledAt.toISOString() }
+            ? {
+                ...article,
+                generationScheduledAt: scheduledAt.toISOString(),
+                // Ensure status is correct for scheduled articles
+                status:
+                  article.status === "idea" ? "to_generate" : article.status,
+              }
             : article,
-        ),
-      );
+        );
+        return updated;
+      });
     } catch (error) {
       console.error("Failed to schedule generation:", error);
       setError("Failed to schedule generation");
@@ -383,7 +428,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     articleIds: string[],
     scheduledAt: Date,
   ) => {
-    // For now, schedule each article individually
+    // Schedule each article individually
     for (const articleId of articleIds) {
       await handleScheduleGeneration(articleId, scheduledAt);
     }
@@ -412,29 +457,22 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   // Count articles for each phase
   const planningArticles = articles.filter(
-    (a) => a.status === "idea" || a.status === "to_generate",
+    (a) =>
+      a.status === "idea" ||
+      (a.status === "to_generate" && !a.generationScheduledAt),
   );
   const generationsArticles = articles.filter(
-    (a) => 
-      a.status === "generating" || 
-      (Boolean(a.generationScheduledAt) && a.status === "to_generate") ||
-      (a.status === "wait_for_publish" && Boolean(a.generationCompletedAt)) ||
+    (a) =>
+      a.status === "generating" ||
+      (a.status === "to_generate" && Boolean(a.generationScheduledAt)) ||
       Boolean(a.generationError),
   );
   const publishingArticles = articles.filter(
     (a) => a.status === "wait_for_publish" || a.status === "published",
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-gray-600">Loading workflow dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  // Don't show loading indicator to prevent flickering on tab changes
+  // Just show empty content until data arrives
 
   if (error) {
     return (
@@ -461,47 +499,53 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         </p>
       </div>
 
-      <WorkflowTabs
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        planningCount={planningArticles.length}
-        generationsCount={generationsArticles.length}
-        publishingCount={publishingArticles.length}
-      />
-
-      {activeTab === "planning" && (
-        <PlanningHub
-          articles={planningArticles}
-          onCreateArticle={handleCreateArticle}
-          onUpdateArticle={handleUpdateArticle}
-          onDeleteArticle={handleDeleteArticle}
-          onGenerateArticle={handleGenerateArticle}
-          onScheduleGeneration={handleScheduleGeneration}
-          onBulkGenerate={handleBulkGenerate}
-          onBulkSchedule={handleBulkScheduleGeneration}
-          onNavigateToArticle={handleNavigateToArticle}
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange as (value: string) => void}
+      >
+        <WorkflowTabs
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          planningCount={planningArticles.length}
+          generationsCount={generationsArticles.length}
+          publishingCount={publishingArticles.length}
         />
-      )}
 
-      {activeTab === "generations" && (
-        <ArticleGenerations
-          articles={generationsArticles}
-          onRetryGeneration={handleGenerateArticle}
-          onNavigateToArticle={handleNavigateToArticle}
-        />
-      )}
+        <TabsContent value="planning">
+          <PlanningHub
+            articles={planningArticles}
+            onCreateArticle={handleCreateArticle}
+            onUpdateArticle={handleUpdateArticle}
+            onDeleteArticle={handleDeleteArticle}
+            onGenerateArticle={handleGenerateArticle}
+            onScheduleGeneration={handleScheduleGeneration}
+            onBulkGenerate={handleBulkGenerate}
+            onBulkSchedule={handleBulkScheduleGeneration}
+            onNavigateToArticle={handleNavigateToArticle}
+          />
+        </TabsContent>
 
-      {activeTab === "publishing" && (
-        <PublishingPipeline
-          articles={publishingArticles}
-          onUpdateArticle={handleUpdateArticle}
-          onPublishArticle={handlePublishArticle}
-          onSchedulePublishing={handleSchedulePublishing}
-          onBulkPublish={handleBulkPublish}
-          onBulkSchedule={handleBulkSchedulePublishing}
-          onNavigateToArticle={handleNavigateToArticle}
-        />
-      )}
+        <TabsContent value="generations">
+          <ArticleGenerations
+            articles={generationsArticles}
+            onRetryGeneration={handleGenerateArticle}
+            onNavigateToArticle={handleNavigateToArticle}
+            onRefresh={fetchArticles}
+          />
+        </TabsContent>
+
+        <TabsContent value="publishing">
+          <PublishingPipeline
+            articles={publishingArticles}
+            onUpdateArticle={handleUpdateArticle}
+            onPublishArticle={handlePublishArticle}
+            onSchedulePublishing={handleSchedulePublishing}
+            onBulkPublish={handleBulkPublish}
+            onBulkSchedule={handleBulkSchedulePublishing}
+            onNavigateToArticle={handleNavigateToArticle}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

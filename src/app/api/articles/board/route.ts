@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users } from "@/server/db/schema";
+import { articles, users, articleGeneration } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 // Types colocated with this API route
@@ -29,6 +29,10 @@ export type DatabaseArticle = {
   coverImageAlt: string | null;
   createdAt: Date;
   updatedAt: Date;
+  // Generation tracking fields
+  generationScheduledAt: Date | null;
+  generationStatus: string | null;
+  generationProgress: number | null;
 };
 
 export interface KanbanColumn {
@@ -70,7 +74,7 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    // Get only this user's articles - select specific columns to avoid issues with missing columns
+    // Get only this user's articles with generation tracking info
     const allArticles = await db
       .select({
         id: articles.id,
@@ -96,8 +100,13 @@ export async function GET(_req: NextRequest) {
         coverImageAlt: articles.coverImageAlt,
         createdAt: articles.createdAt,
         updatedAt: articles.updatedAt,
+        // Generation tracking fields
+        generationScheduledAt: articleGeneration.scheduledAt,
+        generationStatus: articleGeneration.status,
+        generationProgress: articleGeneration.progress,
       })
       .from(articles)
+      .leftJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
       .where(eq(articles.user_id, userRecord.id))
       .orderBy(articles.kanbanPosition, articles.createdAt);
 

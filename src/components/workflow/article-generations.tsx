@@ -7,15 +7,20 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
+  X,
 } from "lucide-react";
+import { useState } from "react";
 import type { Article } from "@/types";
 import { cn } from "@/lib/utils";
+import type { RunNowResponse } from "@/app/api/articles/[id]/run-now/route";
+import type { CancelScheduleResponse } from "@/app/api/articles/[id]/cancel-schedule/route";
 
 interface ArticleGenerationsProps {
   articles: Article[];
   onCancelGeneration?: (articleId: string) => void;
   onRetryGeneration?: (articleId: string) => void;
   onNavigateToArticle?: (articleId: string) => void;
+  onRefresh?: () => void;
 }
 
 export function ArticleGenerations({
@@ -23,16 +28,70 @@ export function ArticleGenerations({
   onCancelGeneration,
   onRetryGeneration,
   onNavigateToArticle,
+  onRefresh,
 }: ArticleGenerationsProps) {
-  // Separate articles by status
-  const scheduledArticles = articles.filter(
-    (a) => a.generationScheduledAt && a.status === "to_generate",
-  );
-  const generatingArticles = articles.filter((a) => a.status === "generating");
-  const completedArticles = articles.filter(
-    (a) => a.status === "wait_for_publish" && a.generationCompletedAt,
-  );
+  const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+
+  // Handler for running scheduled generation immediately
+  const handleRunNow = async (articleId: string) => {
+    setLoadingActions(prev => ({ ...prev, [`run-${articleId}`]: true }));
+    try {
+      const response = await fetch(`/api/articles/${articleId}/run-now`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const result = await response.json() as RunNowResponse;
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Failed to start generation");
+      }
+
+      // Refresh the articles list
+      onRefresh?.();
+    } catch (error) {
+      console.error("Failed to run generation now:", error);
+      // You might want to show a toast notification here
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [`run-${articleId}`]: false }));
+    }
+  };
+
+  // Handler for canceling scheduled generation
+  const handleCancelSchedule = async (articleId: string) => {
+    setLoadingActions(prev => ({ ...prev, [`cancel-${articleId}`]: true }));
+    try {
+      const response = await fetch(`/api/articles/${articleId}/cancel-schedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const result = await response.json() as CancelScheduleResponse;
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Failed to cancel generation");
+      }
+
+      // Refresh the articles list
+      onRefresh?.();
+    } catch (error) {
+      console.error("Failed to cancel generation:", error);
+      // You might want to show a toast notification here
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [`cancel-${articleId}`]: false }));
+    }
+  };
+
+  // Separate articles by status (mutually exclusive categories)
   const failedArticles = articles.filter((a) => a.generationError);
+  const scheduledArticles = articles.filter(
+    (a) => a.generationScheduledAt && a.status === "to_generate" && !a.generationError,
+  );
+  const generatingArticles = articles.filter((a) => a.status === "generating" && !a.generationError);
+  const completedArticles = articles.filter(
+    (a) => a.status === "wait_for_publish" && a.generationCompletedAt && !a.generationError,
+  );
 
   const getProgressColor = (progress: number) => {
     if (progress < 30) return "bg-red-500";
@@ -76,7 +135,7 @@ export function ArticleGenerations({
   }) => (
     <div
       className={cn(
-        "rounded-lg border bg-white p-4 transition-shadow hover:shadow-md",
+        "group relative rounded-lg border bg-white p-4 transition-shadow hover:shadow-md",
         {
           "border-orange-200": status === "scheduled",
           "border-blue-200": status === "generating",
@@ -84,6 +143,8 @@ export function ArticleGenerations({
           "border-red-200": status === "failed",
         },
       )}
+      onMouseEnter={() => setHoveredCard(article.id)}
+      onMouseLeave={() => setHoveredCard(null)}
     >
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
@@ -166,6 +227,38 @@ export function ArticleGenerations({
 
         {/* Actions */}
         <div className="ml-4 flex items-center gap-2">
+          {/* Scheduled article actions - show on hover */}
+          {status === "scheduled" && hoveredCard === article.id && (
+            <>
+              <button
+                onClick={() => handleRunNow(article.id)}
+                disabled={loadingActions[`run-${article.id}`]}
+                className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                title="Run generation now"
+              >
+                {loadingActions[`run-${article.id}`] ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Play className="h-3 w-3" />
+                )}
+                Run Now
+              </button>
+              <button
+                onClick={() => handleCancelSchedule(article.id)}
+                disabled={loadingActions[`cancel-${article.id}`]}
+                className="flex items-center gap-1 rounded bg-gray-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+                title="Cancel scheduled generation"
+              >
+                {loadingActions[`cancel-${article.id}`] ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <X className="h-3 w-3" />
+                )}
+                Cancel
+              </button>
+            </>
+          )}
+
           {status === "generating" && onCancelGeneration && (
             <button
               onClick={() => onCancelGeneration(article.id)}
@@ -226,7 +319,7 @@ export function ArticleGenerations({
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {generatingArticles.map((article) => (
               <ArticleCard
-                key={article.id}
+                key={`generating-${article.id}`}
                 article={article}
                 status="generating"
               />
@@ -245,7 +338,7 @@ export function ArticleGenerations({
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {scheduledArticles.map((article) => (
               <ArticleCard
-                key={article.id}
+                key={`scheduled-${article.id}`}
                 article={article}
                 status="scheduled"
               />
@@ -264,7 +357,7 @@ export function ArticleGenerations({
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {completedArticles.map((article) => (
               <ArticleCard
-                key={article.id}
+                key={`completed-${article.id}`}
                 article={article}
                 status="completed"
               />
@@ -282,7 +375,7 @@ export function ArticleGenerations({
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {failedArticles.map((article) => (
-              <ArticleCard key={article.id} article={article} status="failed" />
+              <ArticleCard key={`failed-${article.id}`} article={article} status="failed" />
             ))}
           </div>
         </div>

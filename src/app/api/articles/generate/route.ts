@@ -3,19 +3,191 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import type { ApiResponse } from '@/types';
 import { db } from "@/server/db";
-import { articles, articleGeneration, users } from "@/server/db/schema";
+import { articles, articleGeneration, users, articleSettings } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { ResearchResponse } from '@/app/api/articles/research/route';
 import type { WriteResponse } from '@/app/api/articles/write/route';
 import type { ValidateResponse } from '@/app/api/articles/validate/route';
 import type { UpdateResponse } from '@/app/api/articles/update/route';
 import type { ArticleImageSelectionResponse } from '@/app/api/articles/images/select-for-article/route';
-import { API_BASE_URL } from '@/constants';
+import { google } from '@ai-sdk/google';
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateText, generateObject } from 'ai';
+import { prompts, MODELS } from '@/constants';
+import { blogPostSchema } from '@/types';
+import { z } from 'zod';
 
 // Types colocated with this API route
 export interface ArticleGenerationRequest {
   articleId: string;
   forceRegenerate?: boolean;
+}
+
+// Direct function implementations to avoid HTTP self-calls
+async function performResearch(title: string, keywords: string[]): Promise<ResearchResponse> {
+  console.log('[RESEARCH_FUNCTION] Starting research for:', title);
+  
+  if (!title) {
+    throw new Error('Title is required');
+  }
+  
+  if (!Array.isArray(keywords)) {
+    throw new Error('Keywords must be an array');
+  }
+  
+  if (keywords.length === 0) {
+    throw new Error('At least one keyword is required');
+  }
+
+  const model = google(MODELS.GEMINI_2_5_FLASH, {
+    useSearchGrounding: true,
+    dynamicRetrievalConfig: {
+      mode: 'MODE_UNSPECIFIED',
+    },
+  });
+
+  const { text, sources } = await generateText({
+    model,
+    prompt: prompts.research(title, keywords),
+  });
+
+  console.log('[RESEARCH_FUNCTION] Research completed, sources found:', sources?.length ?? 0);
+  return { 
+    researchData: text,
+    sources: sources ?? []
+  };
+}
+
+async function performWriting(researchData: string, title: string, keywords: string[], coverImage?: string): Promise<WriteResponse> {
+  console.log('[WRITE_FUNCTION] Starting writing for:', title);
+  
+  if (!researchData || !title || !keywords || keywords.length === 0) {
+    throw new Error('Research data, title, and keywords are required');
+  }
+
+  // Fetch article settings
+  let settingsData;
+  try {
+    const settings = await db.select().from(articleSettings).limit(1);
+    settingsData = settings.length > 0 ? {
+      toneOfVoice: settings[0]!.toneOfVoice ?? '',
+      articleStructure: settings[0]!.articleStructure ?? '',
+      maxWords: settings[0]!.maxWords ?? 800,
+    } : {
+      toneOfVoice: '',
+      articleStructure: '',
+      maxWords: 800,
+    };
+  } catch (error) {
+    console.warn('Using default article settings due to database error:', error);
+    settingsData = {
+      toneOfVoice: '',
+      articleStructure: '',
+      maxWords: 800,
+    };
+  }
+
+  const { object: articleObject } = await generateObject({
+    model: anthropic(MODELS.CLAUDE_SONET_4),
+    schema: blogPostSchema,
+    prompt: prompts.writing({
+      title: title,
+      researchData: researchData,
+      coverImage: coverImage
+    }, settingsData, []),
+  });
+
+  const responseObject = {
+    ...(articleObject as any),
+    ...(coverImage && { coverImage: coverImage })
+  } as WriteResponse;
+
+  console.log('[WRITE_FUNCTION] Writing completed');
+  return responseObject;
+}
+
+const validationResponseSchema = z.object({
+  isValid: z.boolean(),
+  issues: z.array(z.object({
+    fact: z.string(),
+    issue: z.string(),
+    correction: z.string(),
+    confidence: z.number(),
+    severity: z.enum(['low', 'medium', 'high'])
+  }))
+});
+
+async function performValidation(article: string): Promise<ValidateResponse> {
+  console.log('[VALIDATE_FUNCTION] Starting validation');
+  
+  if (!article) {
+    throw new Error('Article content is required');
+  }
+
+  const { text: validationAnalysis } = await generateText({
+    model: google(MODELS.GEMINI_2_5_FLASH, {
+      useSearchGrounding: true,
+      dynamicRetrievalConfig: {
+        mode: 'MODE_UNSPECIFIED',
+      },
+    }),
+    prompt: prompts.validation(article),
+  });
+
+  const structurePrompt = `
+    Based on this validation analysis, create a structured validation response:
+    
+    ${validationAnalysis}
+    
+    Return a JSON object with isValid boolean and any issues found.
+    Only include issues with confidence > 0.7.
+  `;
+
+  const { object } = await generateObject({
+    model: google(MODELS.GEMINI_2_5_FLASH),
+    schema: validationResponseSchema,
+    prompt: structurePrompt,
+  });
+
+  console.log('[VALIDATE_FUNCTION] Validation completed');
+  return object;
+}
+
+async function performUpdate(article: string, corrections: Array<{ fact: string; issue: string; correction: string; confidence: number }>): Promise<UpdateResponse> {
+  console.log('[UPDATE_FUNCTION] Starting update');
+  
+  if (!article || !corrections) {
+    throw new Error('Article and corrections are required');
+  }
+
+  const model = anthropic(MODELS.CLAUDE_SONET_4);
+
+  const { object: articleObject } = await generateObject({
+    model,
+    schema: blogPostSchema,
+    prompt: prompts.update(article, corrections),
+  });
+
+  const response: UpdateResponse = {
+    updatedContent: (articleObject as any).content,
+  };
+
+  console.log('[UPDATE_FUNCTION] Update completed');
+  return response;
+}
+
+async function performImageSelection(articleId: number, generationId: number, title: string, keywords: string[]): Promise<string> {
+  console.log('[IMAGE_SELECTION_FUNCTION] Starting image selection for:', title);
+  
+  try {
+    // For now, we'll skip image selection to avoid additional complexity
+    // This can be re-enabled later when the main generation flow is working
+    console.log('[IMAGE_SELECTION_FUNCTION] Skipping image selection for now');
+    return '';
+  } catch (error) {
+    console.warn('[IMAGE_SELECTION_FUNCTION] Image selection failed, continuing without image:', error);
+    return '';
+  }
 }
 
 // Article generation function - orchestrates existing API endpoints
@@ -83,7 +255,7 @@ async function generateArticleContentInline(articleId: string) {
       })
       .where(eq(articleGeneration.id, generationRecord.id));
 
-    // STEP 1: Research Phase - Call research API
+    // STEP 1: Research Phase - Call research function directly
     
     const keywords = Array.isArray(article.keywords) ? (article.keywords as string[]) : [];
     
@@ -102,36 +274,12 @@ async function generateArticleContentInline(articleId: string) {
     }
     
     if (!Array.isArray(keywords) || keywords.length === 0) {
-      console.warn('No keywords provided for research, using empty array');
+      console.warn('No keywords provided for research, using title as keyword');
+      keywords.push(article.title);
     }
     
-    const researchRequestBody = {
-      title: article.title,  // Fixed: was 'topic', should be 'title'
-      keywords: keywords,
-    };
-    
-    console.log('Calling research API with body:', JSON.stringify(researchRequestBody, null, 2));
-    const researchResponse = await fetch(`${API_BASE_URL}/api/articles/research`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(researchRequestBody),
-    });
-
-    console.log('Research API response status:', researchResponse.status);
-    console.log('Research API response statusText:', researchResponse.statusText);
-
-    if (!researchResponse.ok) {
-      let errorBody = '';
-      try {
-        errorBody = await researchResponse.text();
-        console.log('Research API error response body:', errorBody);
-      } catch (textError) {
-        console.log('Could not read error response body:', textError);
-      }
-      throw new Error(`Research API failed: ${researchResponse.status} ${researchResponse.statusText} - ${errorBody}`);
-    }
-
-    const researchData = await researchResponse.json() as ResearchResponse;
+    console.log('Calling research function with title:', article.title, 'and keywords:', keywords);
+    const researchData = await performResearch(article.title, keywords);
     console.log('Research response received:', JSON.stringify(researchData, null, 2));
     console.log('Research data length:', researchData?.researchData?.length ?? 0);
 
@@ -148,34 +296,13 @@ async function generateArticleContentInline(articleId: string) {
 
     console.log('Research completed, starting image selection...');
 
-    // STEP 2: Image Selection Phase - Call image selection API
+    // STEP 2: Image Selection Phase - Call image selection function directly
 
     let coverImageUrl = '';
     try {
-      const imageSelectionRequestBody = {
-        articleId: article.id,
-        generationId: generationRecord.id,
-        title: article.title,
-        keywords: keywords,
-        orientation: 'landscape' as const,
-      };
-
-      console.log('Calling image selection API with body:', JSON.stringify(imageSelectionRequestBody, null, 2));
-      const imageSelectionResponse = await fetch(`${API_BASE_URL}/api/articles/images/select-for-article`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(imageSelectionRequestBody),
-      });
-
-      console.log('Image selection API response status:', imageSelectionResponse.status);
-      if (imageSelectionResponse.ok) {
-        const imageData = await imageSelectionResponse.json() as ArticleImageSelectionResponse;
-        console.log('Image selection response received:', JSON.stringify(imageData, null, 2));
-        coverImageUrl = imageData.data?.coverImageUrl ?? '';
-        console.log('Cover image selected:', coverImageUrl);
-      } else {
-        console.warn('Image selection failed, continuing without cover image');
-      }
+      console.log('Calling image selection function');
+      coverImageUrl = await performImageSelection(article.id, generationRecord.id, article.title, keywords);
+      console.log('Cover image selected:', coverImageUrl);
     } catch (imageError) {
       console.warn('Image selection error, continuing without cover image:', imageError);
     }
@@ -192,38 +319,16 @@ async function generateArticleContentInline(articleId: string) {
       })
       .where(eq(articleGeneration.id, generationRecord.id));
 
-    // STEP 3: Writing Phase - Call write API
+    // STEP 3: Writing Phase - Call write function directly
 
-    const writeRequestBody = {
-      researchData: researchData.researchData ?? '', // Direct access since research API returns { researchData: "..." }
-      title: article.title,
-      keywords: keywords,
-      targetWordCount: 1500,
-      tone: 'professional',
-      coverImage: coverImageUrl, // Pass the selected cover image URL
-    };
-
-    console.log('Calling write API with body:', JSON.stringify(writeRequestBody, null, 2));
-    const writeResponse = await fetch(`${API_BASE_URL}/api/articles/write`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(writeRequestBody),
-    });
-
-    console.log('Write API response status:', writeResponse.status);
-    if (!writeResponse.ok) {
-      let errorBody = '';
-      try {
-        errorBody = await writeResponse.text();
-        console.log('Write API error response body:', errorBody);
-      } catch (textError) {
-        console.log('Could not read write error response body:', textError);
-      }
-      throw new Error(`Write API failed: ${writeResponse.status} ${writeResponse.statusText} - ${errorBody}`);
-    }
-
-    const writeData = await writeResponse.json() as WriteResponse;
-    console.log('Write API response received:', JSON.stringify(writeData, null, 2));
+    console.log('Calling write function');
+    const writeData = await performWriting(
+      researchData.researchData ?? '', 
+      article.title, 
+      keywords, 
+      coverImageUrl
+    );
+    console.log('Write response received:', JSON.stringify(writeData, null, 2));
     console.log('Write data content length:', writeData.content?.length ?? 0);
     console.log('Writing completed, starting validation...');
 
@@ -238,33 +343,10 @@ async function generateArticleContentInline(articleId: string) {
       })
       .where(eq(articleGeneration.id, generationRecord.id));
 
-    // STEP 4: Validation Phase - Call validate API
+    // STEP 4: Validation Phase - Call validate function directly
 
-    const validateRequestBody = {
-      article: writeData.content ?? '',
-    };
-
-    console.log('Calling validation API with content length:', writeData.content?.length ?? 0);
-    console.log('Validation request body:', JSON.stringify(validateRequestBody, null, 2));
-    const validateResponse = await fetch(`${API_BASE_URL}/api/articles/validate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validateRequestBody),
-    });
-
-    console.log('Validate API response status:', validateResponse.status);
-    if (!validateResponse.ok) {
-      let errorBody = '';
-      try {
-        errorBody = await validateResponse.text();
-        console.log('Validate API error response body:', errorBody);
-      } catch (textError) {
-        console.log('Could not read validate error response body:', textError);
-      }
-      throw new Error(`Validation API failed: ${validateResponse.status} ${validateResponse.statusText} - ${errorBody}`);
-    }
-
-    const validationData = await validateResponse.json() as ApiResponse<ValidateResponse>;
+    console.log('Calling validation function with content length:', writeData.content?.length ?? 0);
+    const validationData = await performValidation(writeData.content ?? '');
 
     // Update generation record with validation results
     await db
@@ -277,40 +359,17 @@ async function generateArticleContentInline(articleId: string) {
       })
       .where(eq(articleGeneration.id, generationRecord.id));
 
-    // STEP 5: Update Phase - Call update API if needed
+    // STEP 5: Update Phase - Call update function if needed
 
     let finalContent = writeData.content ?? '';
     const finalMetaDescription = writeData.metaDescription ?? '';
 
-    // If validation found significant issues, call update API
-    if (!validationData.data?.isValid && validationData.data?.issues?.some(issue => issue.severity === 'high' || issue.severity === 'medium')) {
-      console.log('Validation found issues, calling update API...');
+    // If validation found significant issues, call update function
+    if (!validationData.isValid && validationData.issues?.some(issue => issue.severity === 'high' || issue.severity === 'medium')) {
+      console.log('Validation found issues, calling update function...');
       
-      const updateRequestBody = {
-        article: writeData.content,
-        corrections: validationData.data?.issues,
-      };
-      
-      const updateResponse = await fetch(`${API_BASE_URL}/api/articles/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateRequestBody),
-      });
-
-      console.log('Update API response status:', updateResponse.status);
-      if (!updateResponse.ok) {
-        let errorBody = '';
-        try {
-          errorBody = await updateResponse.text();
-          console.log('Update API error response body:', errorBody);
-        } catch (textError) {
-          console.log('Could not read update error response body:', textError);
-        }
-        throw new Error(`Update API failed: ${updateResponse.status} ${updateResponse.statusText} - ${errorBody}`);
-      }
-
-      const updateData = await updateResponse.json() as ApiResponse<UpdateResponse>;
-      finalContent = updateData.data?.updatedContent ?? finalContent;
+      const updateData = await performUpdate(writeData.content ?? '', validationData.issues);
+      finalContent = updateData.updatedContent ?? finalContent;
     }
 
     // Save generated content

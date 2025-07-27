@@ -4,16 +4,9 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { StatusIndicator, formatRelativeTime } from "./status-indicator";
-import {
-  Play,
-  Calendar,
-  Edit3,
-  Trash2,
-  Check,
-  X,
-  Clock,
-} from "lucide-react";
+import { Play, Calendar, Edit3, Trash2, Check, X, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Article, WorkflowPhase } from "@/types";
 
@@ -50,6 +43,7 @@ export function ArticleCard({
 }: ArticleCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [selectedScheduleTime, setSelectedScheduleTime] = useState<Date | undefined>();
   const [editData, setEditData] = useState({
     title: article.title,
     keywords: article.keywords?.join(", ") ?? "",
@@ -121,17 +115,25 @@ export function ArticleCard({
     }
   };
 
-  const handleScheduleGeneration = async (scheduledAt: string) => {
+  const handleScheduleGeneration = async (scheduledAt: Date) => {
     if (onScheduleGeneration) {
-      await onScheduleGeneration(article.id, new Date(scheduledAt));
+      await onScheduleGeneration(article.id, scheduledAt);
       setIsScheduling(false);
+      setSelectedScheduleTime(undefined);
     }
   };
 
-  const handleSchedulePublishing = async (scheduledAt: string) => {
+  const handleConfirmSchedule = async () => {
+    if (selectedScheduleTime) {
+      await handleScheduleGeneration(selectedScheduleTime);
+    }
+  };
+
+  const handleSchedulePublishing = async (scheduledAt: Date) => {
     if (onSchedulePublishing) {
-      await onSchedulePublishing(article.id, new Date(scheduledAt));
+      await onSchedulePublishing(article.id, scheduledAt);
       setIsScheduling(false);
+      setSelectedScheduleTime(undefined);
     }
   };
 
@@ -252,7 +254,23 @@ export function ArticleCard({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0">
+      <CardContent className="flex flex-col pt-0">
+        {/* Keywords display - moved to top */}
+        {article.keywords && article.keywords.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1">
+            {article.keywords.slice(0, 3).map((keyword, index) => (
+              <Badge key={index} variant="outline" className="text-xs">
+                {typeof keyword === "string" ? keyword : String(keyword)}
+              </Badge>
+            ))}
+            {article.keywords.length > 3 && (
+              <Badge variant="outline" className="text-xs">
+                +{article.keywords.length - 3} more
+              </Badge>
+            )}
+          </div>
+        )}
+
         {/* Status indicator - only show for generating articles or if there's an error */}
         {(isGenerating || article.generationError) && (
           <StatusIndicator
@@ -268,48 +286,84 @@ export function ArticleCard({
           />
         )}
 
-        {/* Planning mode specific content */}
-        {mode === "planning" && (
-          <>
-            {/* Generation actions */}
-            {canGenerate && !isEditing && (
-              <div
-                className={`space-y-2 ${!isGenerating && !article.generationError ? "mb-3" : ""}`}
-              >
-                {/* Show scheduled time if exists */}
-                {article.generationScheduledAt && (
-                  <div className="flex items-center gap-1 rounded bg-blue-50 p-2 text-xs text-blue-600">
-                    <Calendar className="h-3 w-3" />
-                    <span>
-                      Scheduled:{" "}
-                      {formatRelativeTime(article.generationScheduledAt)}
-                    </span>
-                  </div>
-                )}
+        {/* Publishing mode metadata */}
+        {mode === "publishing" && (
+          <div className="mb-3 space-y-1">
+            {article.estimatedReadTime && (
+              <div className="flex items-center gap-1 text-xs text-gray-600">
+                <Clock className="h-3 w-3" />
+                {article.estimatedReadTime} min read
+              </div>
+            )}
 
+            {article.generationCompletedAt && (
+              <div className="text-xs text-gray-600">
+                Generated: {formatRelativeTime(article.generationCompletedAt)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Spacer to push actions to bottom */}
+        <div className="flex-1" />
+
+        {/* Action buttons at bottom */}
+        {!isEditing && (
+          <div className="mt-4 space-y-2">
+            {/* Show scheduled times */}
+            {article.generationScheduledAt && (
+              <div className="flex items-center gap-1 rounded bg-blue-50 p-2 text-xs text-blue-600">
+                <Calendar className="h-3 w-3" />
+                <span>
+                  Scheduled: {formatRelativeTime(article.generationScheduledAt)}
+                </span>
+              </div>
+            )}
+
+            {article.publishScheduledAt && (
+              <div className="flex items-center gap-1 rounded bg-green-50 p-2 text-xs text-green-600">
+                <Calendar className="h-3 w-3" />
+                <span>
+                  Publish scheduled:{" "}
+                  {formatRelativeTime(article.publishScheduledAt)}
+                </span>
+              </div>
+            )}
+
+            {/* Planning mode actions */}
+            {mode === "planning" && canGenerate && (
+              <>
                 {/* Scheduling UI */}
                 {isScheduling ? (
                   <div className="space-y-2">
-                    <input
-                      type="datetime-local"
-                      className="w-full rounded border border-gray-200 p-2 text-xs"
-                      min={new Date().toISOString().slice(0, 16)}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          void handleScheduleGeneration(
-                            new Date(e.target.value).toISOString(),
-                          );
-                        }
-                      }}
+                    <DateTimePicker
+                      value={selectedScheduleTime}
+                      onChange={setSelectedScheduleTime}
+                      placeholder="Select date and time"
+                      minDate={new Date(Date.now() + 60000)} // 1 minute from now
+                      className="text-xs"
                     />
-                    <Button
-                      onClick={() => setIsScheduling(false)}
-                      size="sm"
-                      variant="outline"
-                      className="h-7 w-full text-xs"
-                    >
-                      Cancel
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        onClick={() => {
+                          setIsScheduling(false);
+                          setSelectedScheduleTime(undefined);
+                        }}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleConfirmSchedule}
+                        size="sm"
+                        disabled={!selectedScheduleTime}
+                        className="h-8 text-xs"
+                      >
+                        Schedule
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -321,23 +375,23 @@ export function ArticleCard({
                           void handleGenerate();
                         }}
                         size="sm"
-                        className="h-8 w-full bg-red-600 text-xs text-white hover:bg-red-700"
+                        className="h-9 w-full bg-red-600 text-sm text-white hover:bg-red-700"
                       >
-                        <Play className="mr-1 h-3 w-3" />
+                        <Play className="mr-2 h-4 w-4" />
                         Retry Generation
                       </Button>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             void handleGenerate();
                           }}
                           size="sm"
-                          className="h-8 bg-green-600 text-xs text-white hover:bg-green-700"
+                          className="h-9 bg-green-600 text-sm text-white hover:bg-green-700"
                         >
-                          <Play className="mr-1 h-3 w-3" />
-                          Generate
+                          <Play className="mr-2 h-4 w-4" />
+                          Generate Article
                         </Button>
                         <Button
                           onClick={(e) => {
@@ -346,89 +400,60 @@ export function ArticleCard({
                           }}
                           size="sm"
                           variant="outline"
-                          className="h-8 text-xs"
+                          className="h-9 text-sm"
                         >
-                          <Calendar className="mr-1 h-3 w-3" />
-                          Schedule
+                          <Calendar className="mr-2 h-4 w-4" />
+                          Schedule Article
                         </Button>
                       </div>
                     )}
                   </>
                 )}
-              </div>
+              </>
             )}
-          </>
-        )}
 
-        {/* Publishing mode specific content */}
-        {mode === "publishing" && (
-          <>
-            {/* Article metadata */}
-            <div className="mb-3 space-y-1">
-              {article.estimatedReadTime && (
-                <div className="flex items-center gap-1 text-xs text-gray-600">
-                  <Clock className="h-3 w-3" />
-                  {article.estimatedReadTime} min read
-                </div>
-              )}
-
-              {article.generationCompletedAt && (
-                <div className="text-xs text-gray-600">
-                  Generated: {formatRelativeTime(article.generationCompletedAt)}
-                </div>
-              )}
-            </div>
-
-            {/* Publishing actions */}
-            {canPublish && !isEditing && (
-              <div className="space-y-2">
-                {/* Show scheduled publish time if exists */}
-                {article.publishScheduledAt && (
-                  <div className="flex items-center gap-1 rounded bg-green-50 p-2 text-xs text-green-600">
-                    <Calendar className="h-3 w-3" />
-                    <span>
-                      Publish scheduled:{" "}
-                      {formatRelativeTime(article.publishScheduledAt)}
-                    </span>
-                  </div>
-                )}
-
+            {/* Publishing mode actions */}
+            {mode === "publishing" && canPublish && (
+              <>
                 {/* Publishing UI */}
                 {isScheduling ? (
                   <div className="space-y-2">
-                    <input
-                      type="datetime-local"
-                      className="w-full rounded border border-gray-200 p-2 text-xs"
-                      min={new Date().toISOString().slice(0, 16)}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          void handleSchedulePublishing(
-                            new Date(e.target.value).toISOString(),
-                          );
+                    <DateTimePicker
+                      value={selectedScheduleTime}
+                      onChange={(date) => {
+                        setSelectedScheduleTime(date);
+                        if (date) {
+                          void handleSchedulePublishing(date);
                         }
                       }}
+                      placeholder="Select publish date and time"
+                      minDate={new Date()}
+                      className="text-xs"
                     />
                     <Button
-                      onClick={() => setIsScheduling(false)}
+                      onClick={() => {
+                        setIsScheduling(false);
+                        setSelectedScheduleTime(undefined);
+                      }}
                       size="sm"
                       variant="outline"
-                      className="h-7 w-full text-xs"
+                      className="h-8 w-full text-xs"
                     >
                       Cancel
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     <Button
                       onClick={(e) => {
                         e.stopPropagation();
                         void handlePublish();
                       }}
                       size="sm"
-                      className="h-8 bg-blue-600 text-xs text-white hover:bg-blue-700"
+                      className="h-9 bg-blue-600 text-sm text-white hover:bg-blue-700"
                     >
-                      <Check className="mr-1 h-3 w-3" />
-                      Publish
+                      <Check className="mr-2 h-4 w-4" />
+                      Publish Article
                     </Button>
                     <Button
                       onClick={(e) => {
@@ -437,30 +462,14 @@ export function ArticleCard({
                       }}
                       size="sm"
                       variant="outline"
-                      className="h-8 text-xs"
+                      className="h-9 text-sm"
                     >
-                      <Calendar className="mr-1 h-3 w-3" />
-                      Schedule
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Schedule Article
                     </Button>
                   </div>
                 )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Keywords display */}
-        {article.keywords && article.keywords.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {article.keywords.slice(0, 3).map((keyword, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {typeof keyword === "string" ? keyword : String(keyword)}
-              </Badge>
-            ))}
-            {article.keywords.length > 3 && (
-              <Badge variant="outline" className="text-xs">
-                +{article.keywords.length - 3} more
-              </Badge>
+              </>
             )}
           </div>
         )}
