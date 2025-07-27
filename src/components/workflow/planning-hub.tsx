@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription,
+  CardFooter 
+} from '@/components/ui/card';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { ArticleCard } from './article-card';
 import { Plus, Play, Calendar, Settings } from 'lucide-react';
@@ -197,11 +204,14 @@ export function PlanningHub({
       {isCreating && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
-            <CardTitle className="text-base">Create New Article Idea</CardTitle>
+            <CardTitle>Create New Article Idea</CardTitle>
+            <CardDescription>
+              Add a new article idea to your content pipeline
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Article Title *
               </label>
               <input
@@ -209,13 +219,13 @@ export function PlanningHub({
                 value={newArticleData.title}
                 onChange={(e) => setNewArticleData({ ...newArticleData, title: e.target.value })}
                 placeholder="Enter your article title..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 autoFocus
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Keywords (optional)
               </label>
               <input
@@ -223,30 +233,29 @@ export function PlanningHub({
                 value={newArticleData.keywords}
                 onChange={(e) => setNewArticleData({ ...newArticleData, keywords: e.target.value })}
                 placeholder="keyword1, keyword2, keyword3..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               />
-              <p className="text-xs text-gray-500 mt-1">Separate keywords with commas</p>
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                onClick={handleCreateArticle}
-                disabled={!newArticleData.title.trim()}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                Create Article
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsCreating(false);
-                  setNewArticleData({ title: '', keywords: '' });
-                }}
-              >
-                Cancel
-              </Button>
+              <p className="text-xs text-stone-500 mt-1">Separate keywords with commas</p>
             </div>
           </CardContent>
+          <CardFooter className="gap-2">
+            <Button
+              onClick={handleCreateArticle}
+              disabled={!newArticleData.title.trim()}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Create Article
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCreating(false);
+                setNewArticleData({ title: '', keywords: '' });
+              }}
+            >
+              Cancel
+            </Button>
+          </CardFooter>
         </Card>
       )}
 

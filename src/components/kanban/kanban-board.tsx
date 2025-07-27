@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription,
+  CardFooter,
+  CardAction 
+} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Edit3, Check, X, Trash2, Play, CalendarClock } from 'lucide-react';
@@ -344,7 +352,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to remove from queue');
+        throw new Error(errorData.error ?? 'Failed to remove from queue');
       }
 
       // Refresh the board to get updated data
@@ -747,105 +755,109 @@ function ArticleCard({
       onClick={handleCardClick}
       title="Click to view article details"
     >
-      <CardHeader className="pb-2 p-3">
-        <div className="flex items-start justify-between gap-2 min-w-0">
-          {/* Status badge for non-idea articles */}
-          {article.status !== 'idea' && (
-            <Badge 
-              variant="secondary" 
-              className={cn(
-                "text-xs mr-2 flex-shrink-0",
-                {
-                  "bg-yellow-100 text-yellow-800": article.status === 'to_generate',
-                  "bg-blue-100 text-blue-800": article.status === 'generating',
-                  "bg-purple-100 text-purple-800": article.status === 'wait_for_publish',
-                  "bg-green-100 text-green-800": article.status === 'published',
-                }
-              )}
-            >
-              {article.status === 'to_generate' && 'Ready'}
-              {article.status === 'generating' && 'Generating'}
-              {article.status === 'wait_for_publish' && 'Waiting'}
-              {article.status === 'published' && 'Published'}
-            </Badge>
-          )}
-
-          {isEditing ? (
+      <CardHeader>
+        {isEditing ? (
+          <div className="space-y-3">
             <input
               value={editData.title}
               onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-              className="font-medium text-sm bg-transparent border-none outline-none flex-1 min-w-0"
+              className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               placeholder="Article title..."
               disabled={isUpdating || !canEdit}
+              autoFocus
             />
-          ) : (
-            <CardTitle 
-              className={cn(
-                "font-medium text-sm line-clamp-2 flex-1 min-w-0 transition-colors",
-                canEdit ? "cursor-pointer hover:text-blue-600" : "cursor-default hover:text-gray-700"
-              )}
-              onClick={(e) => {
-                if (canEdit) {
-                  e.stopPropagation();
-                  setIsEditing(true);
-                }
-              }}
-            >
-              {article.title}
-            </CardTitle>
-          )}
-          
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {isEditing ? (
-              <>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0 flex-shrink-0"
-                  onClick={handleSave}
-                  disabled={isUpdating || !editData.title.trim()}
-                >
-                  <Check className="h-3 w-3 text-green-600" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0 flex-shrink-0"
-                  onClick={handleCancel}
-                  disabled={isUpdating}
-                >
-                  <X className="h-3 w-3 text-gray-500" />
-                </Button>
-              </>
-            ) : (
-              <>
-                {canEdit && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-6 w-6 p-0 flex-shrink-0"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <Edit3 className="h-3 w-3" />
-                  </Button>
-                )}
-                {canEdit && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-6 w-6 p-0 flex-shrink-0"
-                    onClick={handleDelete}
-                  >
-                    <Trash2 className="h-3 w-3 text-red-500" />
-                  </Button>
-                )}
-              </>
-            )}
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-2">
+              <CardTitle 
+                className={cn(
+                  "line-clamp-2 min-w-0 flex-1 transition-colors",
+                  canEdit ? "cursor-pointer hover:text-blue-600" : "cursor-default"
+                )}
+                onClick={(e) => {
+                  if (canEdit) {
+                    e.stopPropagation();
+                    setIsEditing(true);
+                  }
+                }}
+              >
+                {article.title}
+              </CardTitle>
+              <CardAction>
+                {canEdit && (
+                  <>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0"
+                      onClick={handleDelete}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </>
+                )}
+              </CardAction>
+            </div>
+            
+            {/* Status badge as description */}
+            {article.status !== 'idea' && (
+              <CardDescription>
+                <Badge 
+                  variant="secondary" 
+                  className={cn(
+                    "text-xs",
+                    {
+                      "bg-yellow-100 text-yellow-800": article.status === 'to_generate',
+                      "bg-blue-100 text-blue-800": article.status === 'generating',
+                      "bg-purple-100 text-purple-800": article.status === 'wait_for_publish',
+                      "bg-green-100 text-green-800": article.status === 'published',
+                    }
+                  )}
+                >
+                  {article.status === 'to_generate' && 'Ready'}
+                  {article.status === 'generating' && 'Generating'}
+                  {article.status === 'wait_for_publish' && 'Waiting'}
+                  {article.status === 'published' && 'Published'}
+                </Badge>
+              </CardDescription>
+            )}
+          </>
+        )}
+
+        {/* Edit action buttons in header when editing */}
+        {isEditing && (
+          <CardAction className="justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancel}
+              disabled={isUpdating}
+            >
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isUpdating || !editData.title.trim()}
+            >
+              <Check className="mr-2 h-4 w-4" />
+              Save
+            </Button>
+          </CardAction>
+        )}
       </CardHeader>
       
-      <CardContent className="pt-0 p-3">
+      <CardContent>
         {/* Status indicator for generating articles */}
         {isGenerating && (
           <div className="mb-3">
