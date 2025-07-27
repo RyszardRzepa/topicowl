@@ -5,6 +5,8 @@ Don't create new files in the `src/lib` directory. Write all business logic dire
 New types: write common types in `src/types/types.ts` and colocated types in the API route files.
 Dont create scripts files for testing.
 
+Always use ?? instead ||.
+
 ## Framework & Runtime
 
 - **Next.js 15** with App Router architecture

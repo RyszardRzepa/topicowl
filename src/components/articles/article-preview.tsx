@@ -1,6 +1,12 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription 
+} from "@/components/ui/card";
 
 // Article preview data interface
 interface ArticlePreviewData {
@@ -36,6 +42,9 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
       <Card>
         <CardHeader>
           <CardTitle>Article Information</CardTitle>
+          <CardDescription>
+            Basic details and metadata for this article
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {article.description && (
@@ -90,6 +99,9 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
       <Card>
         <CardHeader>
           <CardTitle>Content</CardTitle>
+          <CardDescription>
+            The generated or draft content for this article
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {article.status === 'generating' ? (

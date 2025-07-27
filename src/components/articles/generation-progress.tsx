@@ -1,6 +1,12 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription 
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AlertCircle, CheckCircle, Clock, Loader2 } from "lucide-react";
 import type { GenerationStatus } from '@/app/api/articles/[id]/generation-status/route';
@@ -83,6 +89,9 @@ export function GenerationProgress({ status, className }: GenerationProgressProp
           {getStatusIcon()}
           Generation Progress
         </CardTitle>
+        <CardDescription>
+          Track the progress of your article generation
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Status and Progress */}

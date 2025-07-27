@@ -10,6 +10,31 @@ const scheduleGenerationSchema = z.object({
   scheduledAt: z.string().datetime(),
 });
 
+// API types for this endpoint
+export interface ScheduleGenerationRequest {
+  articleId: number;
+  scheduledAt: string; // ISO datetime string
+}
+
+export interface ScheduleGenerationResponse {
+  success: boolean;
+  article?: {
+    id: number;
+    title: string;
+    status: string;
+    updatedAt: Date;
+  };
+  generationRecord?: {
+    id: number;
+    status: string;
+    progress: number;
+    scheduledAt: Date;
+  };
+  message?: string;
+  error?: string;
+  details?: unknown;
+}
+
 // POST /api/articles/schedule-generation - Schedule article generation
 export async function POST(req: NextRequest) {
   try {
@@ -17,8 +42,8 @@ export async function POST(req: NextRequest) {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: "Unauthorized" } as ScheduleGenerationResponse,
+        { status: 401 },
       );
     }
 
@@ -31,19 +56,32 @@ export async function POST(req: NextRequest) {
 
     if (!userRecord) {
       return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+        {
+          success: false,
+          error: "User not found",
+        } as ScheduleGenerationResponse,
+        { status: 404 },
       );
     }
 
-    const body = await req.json() as unknown;
+    const body = (await req.json()) as unknown;
     const { articleId, scheduledAt } = scheduleGenerationSchema.parse(body);
     const scheduledDate = new Date(scheduledAt);
+    const currentDate = new Date();
 
-    if (scheduledDate <= new Date()) {
+
+
+    // Add a 30-second buffer to account for processing time and timezone differences
+    const bufferTime = 30 * 1000; // 30 seconds in milliseconds
+    const minimumTime = new Date(currentDate.getTime() + bufferTime);
+
+    if (scheduledDate <= minimumTime) {
       return NextResponse.json(
-        { error: 'Scheduled time must be in the future' },
-        { status: 400 }
+        {
+          success: false,
+          error: "Scheduled time must be at least 30 seconds in the future",
+        } as ScheduleGenerationResponse,
+        { status: 400 },
       );
     }
 
@@ -56,15 +94,21 @@ export async function POST(req: NextRequest) {
 
     if (!existingArticle) {
       return NextResponse.json(
-        { error: 'Article not found' },
-        { status: 404 }
+        {
+          success: false,
+          error: "Article not found",
+        } as ScheduleGenerationResponse,
+        { status: 404 },
       );
     }
 
     if (existingArticle.user_id !== userRecord.id) {
       return NextResponse.json(
-        { error: 'Access denied: Article does not belong to current user' },
-        { status: 403 }
+        {
+          success: false,
+          error: "Access denied: Article does not belong to current user",
+        } as ScheduleGenerationResponse,
+        { status: 403 },
       );
     }
 
@@ -72,7 +116,7 @@ export async function POST(req: NextRequest) {
     const [updatedArticle] = await db
       .update(articles)
       .set({
-        status: 'to_generate', // Ensure it's in the right status
+        status: "to_generate", // Ensure it's in the right status
         updatedAt: new Date(),
       })
       .where(eq(articles.id, articleId))
@@ -84,7 +128,7 @@ export async function POST(req: NextRequest) {
       .values({
         articleId: articleId,
         userId: userRecord.id,
-        status: 'pending',
+        status: "pending",
         progress: 0,
         scheduledAt: scheduledDate,
       })
@@ -95,19 +139,25 @@ export async function POST(req: NextRequest) {
       article: updatedArticle,
       generationRecord: generationRecord,
       message: `Article generation scheduled for ${scheduledDate.toLocaleString()}`,
-    });
-
+    } as ScheduleGenerationResponse);
   } catch (error) {
-    console.error('Schedule generation error:', error);
+    console.error("Schedule generation error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input data', details: error.errors },
-        { status: 400 }
+        {
+          success: false,
+          error: "Invalid input data",
+          details: error.errors,
+        } as ScheduleGenerationResponse,
+        { status: 400 },
       );
     }
     return NextResponse.json(
-      { error: 'Failed to schedule article generation' },
-      { status: 500 }
+      {
+        success: false,
+        error: "Failed to schedule article generation",
+      } as ScheduleGenerationResponse,
+      { status: 500 },
     );
   }
 }
