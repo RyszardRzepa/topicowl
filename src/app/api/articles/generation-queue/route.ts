@@ -113,12 +113,12 @@ export async function GET(_req: NextRequest) {
           articleId: item.articleId,
           title: item.title,
           addedToQueueAt: item.addedToQueueAt.toISOString(),
-          scheduledForDate: item.scheduledForDate?.toISOString() || new Date().toISOString(),
-          queuePosition: item.queuePosition || 0,
+          scheduledForDate: item.scheduledForDate?.toISOString() ?? new Date().toISOString(),
+          queuePosition: item.queuePosition ?? 0,
           schedulingType: item.schedulingType as "manual" | "automatic",
           status: item.status as "queued" | "processing" | "completed" | "failed",
-          attempts: item.attempts || 0,
-          errorMessage: item.errorMessage || undefined,
+          attempts: item.attempts ?? 0,
+          errorMessage: item.errorMessage ?? undefined,
         })),
         totalCount: queueItems.length,
         currentlyProcessing,
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate the article has required fields
-    if (!existingArticle.title || !existingArticle.keywords) {
+    if (!existingArticle.title && !existingArticle.keywords) {
       return NextResponse.json(
         { error: 'Article must have title and keywords before being queued' },
         { status: 400 }

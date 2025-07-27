@@ -50,7 +50,7 @@ const scheduleArticleSchema = z.object({
 function calculateNextScheduleTime(
   scheduledAt: Date,
   frequency: string,
-  frequencyConfig?: any
+  frequencyConfig?: unknown
 ): Date | null {
   if (frequency === "once") return null;
   
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Calculate next schedule time for recurring schedules
-    const nextScheduleAt = frequency ? calculateNextScheduleTime(scheduledDate, frequency, frequencyConfig) : null;
+    const nextScheduleAt = frequency ? calculateNextScheduleTime(scheduledDate, frequency) : null;
 
     const [updatedArticle] = await db
       .update(articles)
@@ -151,11 +151,11 @@ export async function POST(req: NextRequest) {
         status: 'scheduled',
         scheduledAt: scheduledDate,
         scheduling_type: schedulingType,
-        scheduling_frequency: frequency || null,
-        scheduling_frequency_config: frequencyConfig || null,
+        scheduling_frequency: frequency ?? null,
+        scheduling_frequency_config: frequencyConfig ?? null,
         next_schedule_at: nextScheduleAt,
         is_recurring_schedule: frequency !== "once" && frequency !== undefined,
-        schedule_count: (existingArticle.schedule_count || 0) + 1,
+        schedule_count: (existingArticle.schedule_count ?? 0) + 1,
         updatedAt: new Date(),
       })
       .where(eq(articles.id, articleId))
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
         status: updatedArticle.status,
         scheduledAt: updatedArticle.scheduledAt!.toISOString(),
         schedulingType: updatedArticle.scheduling_type!,
-        frequency: updatedArticle.scheduling_frequency || undefined,
+        frequency: updatedArticle.scheduling_frequency ?? undefined,
         nextScheduleAt: updatedArticle.next_schedule_at?.toISOString(),
       },
       message: `Article scheduled for ${scheduledDate.toLocaleString()}`,
@@ -261,7 +261,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Calculate next schedule time for recurring schedules
-    const nextScheduleAt = frequency ? calculateNextScheduleTime(scheduledDate, frequency, frequencyConfig) : null;
+    const nextScheduleAt = frequency ? calculateNextScheduleTime(scheduledDate, frequency) : null;
 
     // Update the article with new scheduling information
     const [updatedArticle] = await db
@@ -269,8 +269,8 @@ export async function PUT(req: NextRequest) {
       .set({
         scheduledAt: scheduledDate,
         scheduling_type: schedulingType,
-        scheduling_frequency: frequency || null,
-        scheduling_frequency_config: frequencyConfig || null,
+        scheduling_frequency: frequency ?? null,
+        scheduling_frequency_config: frequencyConfig ?? null,
         next_schedule_at: nextScheduleAt,
         is_recurring_schedule: frequency !== "once" && frequency !== undefined,
         updatedAt: new Date(),
@@ -293,7 +293,7 @@ export async function PUT(req: NextRequest) {
         status: updatedArticle.status,
         scheduledAt: updatedArticle.scheduledAt!.toISOString(),
         schedulingType: updatedArticle.scheduling_type!,
-        frequency: updatedArticle.scheduling_frequency || undefined,
+        frequency: updatedArticle.scheduling_frequency ?? undefined,
         nextScheduleAt: updatedArticle.next_schedule_at?.toISOString(),
       },
       message: `Article schedule updated`,

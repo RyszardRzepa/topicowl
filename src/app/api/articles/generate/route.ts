@@ -98,7 +98,7 @@ async function performWriting(researchData: string, title: string, keywords: str
   });
 
   const responseObject = {
-    ...(articleObject as any),
+    ...(articleObject),
     ...(coverImage && { coverImage: coverImage })
   } as WriteResponse;
 
@@ -169,7 +169,7 @@ async function performUpdate(article: string, corrections: Array<{ fact: string;
   });
 
   const response: UpdateResponse = {
-    updatedContent: (articleObject as any).content,
+    updatedContent: (articleObject).content,
   };
 
   console.log('[UPDATE_FUNCTION] Update completed');

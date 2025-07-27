@@ -385,7 +385,7 @@ export async function GET() {
       data: {
         queueStats: queueStats.reduce(
           (acc, item) => {
-            acc[item.status!] = (acc[item.status!] || 0) + 1;
+            acc[item.status!] = (acc[item.status!] ?? 0) + 1;
             return acc;
           },
           {} as Record<string, number>,
