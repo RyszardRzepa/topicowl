@@ -192,10 +192,17 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   // Use polling for the first generating article as an example
   // In a real implementation, you'd need a more sophisticated approach for multiple articles
   const firstGeneratingArticle = generatingArticles[0];
+  
+  // Don't poll if user is on an article page (to avoid duplicate polling)
+  const isOnArticlePage = pathname.startsWith('/articles/');
+  
   useGenerationPolling({
     articleId: firstGeneratingArticle?.id ?? "",
     enabled:
-      !!firstGeneratingArticle && !firstGeneratingArticle.generationError,
+      !!firstGeneratingArticle && 
+      !firstGeneratingArticle.generationError &&
+      !isOnArticlePage, // Disable if on article page
+    intervalMs: 45000, // Poll less frequently from dashboard (45 seconds)
     onStatusUpdate: (statusData) =>
       handleGenerationStatusUpdate(
         firstGeneratingArticle?.id ?? "",

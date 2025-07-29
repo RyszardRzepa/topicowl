@@ -1,0 +1,27 @@
+{
+  "name": "Code Standards Compliance Checker",
+  "description": "Automatically reviews code changes to ensure compliance with project structure, tech stack, and coding standards",
+  "triggers": [
+    {
+      "type": "file_saved",
+      "patterns": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "src/**/*.js",
+        "src/**/*.jsx"
+      ]
+    },
+    {
+      "type": "file_created",
+      "patterns": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "src/**/*.js",
+        "src/**/*.jsx"
+      ]
+    }
+  ],
+  "prompt": "Review the modified/created file(s) and check compliance with our project standards:\n\n## Files to Review:\n{files}\n\n## Compliance Checklist:\n\n### Tech Stack Compliance (tech.md):\n- ✅ Uses ?? instead of || for null coalescing\n- ✅ No new files created in src/lib directory (business logic should be colocated)\n- ✅ Common types in src/types/types.ts, colocated types in API route files\n- ✅ Uses Next.js 15 App Router patterns\n- ✅ Uses TypeScript with proper typing\n- ✅ Uses Drizzle ORM for database operations\n- ✅ Uses Clerk for authentication\n- ✅ Uses Tailwind CSS for styling\n- ✅ Uses Radix UI components\n- ✅ Uses Lucide React for icons\n\n### Project Structure Compliance (structure.md):\n- ✅ API routes in src/app/api/ with colocated types\n- ✅ Components organized by feature (articles/, workflow/, settings/, etc.)\n- ✅ UI primitives in src/components/ui/\n- ✅ Server-only code in src/server/\n- ✅ kebab-case for directories and files\n- ✅ PascalCase for React components\n- ✅ camelCase for TypeScript files\n- ✅ snake_case for database columns\n- ✅ RESTful API patterns\n- ✅ Zod schemas for API validation\n- ✅ Consistent error handling with ApiResponse<T>\n- ✅ Client components marked with 'use client'\n\n### Code Quality Standards:\n- ✅ Proper TypeScript types and interfaces\n- ✅ Error handling and validation\n- ✅ Consistent naming conventions\n- ✅ No hardcoded values (use env variables)\n- ✅ Proper imports and exports\n- ✅ Database queries use Drizzle ORM patterns\n- ✅ Authentication checks where needed\n\n## Instructions:\n1. Analyze each file for compliance with the above standards\n2. If violations are found, provide specific fixes with code examples\n3. If the code is compliant, acknowledge it briefly\n4. For any violations, use strReplace to fix them automatically\n5. Focus on the most critical violations first (security, type safety, architecture)\n\n## Response Format:\nProvide a brief summary of compliance status and any fixes applied. Be concise but specific about what was corrected.",
+  "autoApprove": true,
+  "enabled": true
+}

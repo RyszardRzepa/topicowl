@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Gemini AI Docs Fetcher",
+  "description": "Automatically fetches Google Gemini and Vercel AI SDK documentation using context7 before writing any code that uses these APIs",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/app/api/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before writing any code that uses Google Gemini API or Vercel AI SDK, first use context7 to fetch the latest documentation for these technologies. Focus on:\n\n1. Google Gemini API documentation - latest methods, parameters, and best practices\n2. Vercel AI SDK documentation - current patterns, hooks, and integration approaches\n3. Any relevant examples or migration guides\n\nAfter fetching the docs, proceed with implementing the requested functionality using the most current and recommended approaches from the documentation."
+  }
+}

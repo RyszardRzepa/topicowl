@@ -14,7 +14,7 @@ import { ArticleActions } from './article-actions';
 import { ArticleMetadata } from './article-metadata';
 import { ArticleEditor } from './article-editor';
 import { GenerationProgress } from './generation-progress';
-import { useGenerationStatus } from '@/hooks/use-generation-status';
+import { useGenerationPolling } from '@/hooks/use-generation-polling';
 import type { ArticleDetailResponse } from '@/app/api/articles/[id]/route';
 
 interface ArticlePreviewClientProps {
@@ -30,10 +30,10 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
   const router = useRouter();
 
   // Use generation status polling for articles in "generating" status
-  const { status: generationStatus } = useGenerationStatus({
+  const { status: generationStatus } = useGenerationPolling({
     articleId: article.id.toString(),
     enabled: article.status === 'generating',
-    onStatusChange: (status) => {
+    onStatusUpdate: (status) => {
       // Update article status when generation progresses
       if (status.status === 'completed') {
         setShowSuccessMessage('Article generation completed successfully!');
@@ -47,11 +47,11 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
         router.refresh();
       }
     },
-    onComplete: (status) => {
+    onComplete: () => {
       // Update the article state when generation is complete
       setArticle(prev => ({
         ...prev,
-        status: status.status === 'completed' ? 'wait_for_publish' : 'to_generate'
+        status: 'wait_for_publish'
       }));
     },
     onError: (error) => {

@@ -1,29 +1,23 @@
-```markdown
 # Product Overview
 
-## AI SEO Content Machine
+Content Machine is an AI-powered content creation and workflow management platform that helps users generate, manage, and publish articles through an automated pipeline.
 
-An automated content creation platform that uses multi-agent AI systems to generate, manage, and publish SEO-optimized articles at scale.
+## Core Features
 
-### Core Features
+- **AI Article Generation**: Uses Google Gemini and Anthropic Claude APIs to research, write, and optimize articles
+- **Kanban Workflow**: Visual workflow management with phases: Planning → Generations → Publishing
+- **Scheduling System**: Automated article generation and publishing scheduling with cron jobs
+- **User Management**: Clerk-based authentication with onboarding flow
+- **Webhook Integration**: Configurable webhooks for article lifecycle events
+- **Image Integration**: Unsplash API integration for article cover images
 
-- **Kanban-based Article Management**: Visual workflow with columns for Ideas, To Generate, Generating, Wait for Publish, and Published
-- **Multi-Agent Content Generation**: AI agents handle research, writing, fact-checking, SEO optimization, and internal linking directly within API endpoints
-- **Automated Publishing**: Scheduled article publishing with cron job automation
-- **SEO Optimization**: Built-in keyword research, competitor analysis, and search engine optimization
+## User Journey
 
-### Architecture Highlights
+1. **Onboarding**: Users provide website URL, company info, and keywords for AI analysis
+2. **Planning**: Create article ideas, set keywords, and schedule generation
+3. **Generation**: AI researches, writes, validates, and optimizes content
+4. **Publishing**: Review, edit, and publish articles with scheduling options
 
-- **Self-contained API endpoints**: All business logic written directly in route handlers
-- **Type-safe communication**: Shared types between API and client via `src/types/types.ts`
-- **Direct database interaction**: No abstraction layers, API routes use Drizzle ORM directly
-- **Inline AI orchestration**: Multi-agent workflows implemented directly in API endpoints
+## Business Model
 
-### Target Users
-
-Content marketers, SEO specialists, and businesses looking to scale their content production while maintaining quality and search engine visibility.
-
-### Key Value Proposition
-
-Transform content ideas into published, SEO-optimized articles through automated multi-agent workflows, reducing manual effort while maintaining editorial control through an intuitive kanban interface.
-```
+SaaS platform targeting content creators, marketing teams, and businesses needing consistent content production.

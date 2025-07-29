@@ -1,120 +1,92 @@
 # Project Structure
 
-## Root Directory
-- **Configuration files**: `next.config.js`, `drizzle.config.ts`, `tsconfig.json`, `eslint.config.js`, `prettier.config.js`
-- **Environment**: `.env`, `.env.example` for environment variables
-- **Database**: `drizzle/` folder contains migrations and metadata
-- **Documentation**: `docs/` folder contains architecture and implementation docs
+## Architecture Patterns
 
-## Source Code Organization (`src/`)
+### Next.js App Router Structure
+- **Route Handlers**: API routes in `src/app/api/` with colocated types
+- **Page Components**: UI pages in `src/app/` with nested routing
+- **Server Components**: Default server-side rendering with client components marked explicitly
 
-### App Router Structure (`src/app/`)
-- **Root layout**: `layout.tsx` - Global app layout and metadata
-- **Home page**: `page.tsx` - Main application entry point
-- **API routes**: `api/` - RESTful endpoints organized by feature
-- **Page routes**: Feature-specific pages (articles, settings, onboarding, etc.)
+### Database Layer
+- **Schema-first**: Single schema file `src/server/db/schema.ts` with Drizzle ORM
+- **Multi-tenant**: Uses PostgreSQL schema `content-machine` for isolation
+- **Migrations**: Versioned migrations in `drizzle/` directory
 
-### API Route Organization (`src/app/api/`)
+### Component Organization
 ```
-api/
-├── articles/               # Article management
-│   ├── [id]/              # Dynamic article routes
-│   │   ├── generation-status/ # Check generation progress
-│   │   └── schedule/       # Schedule article publishing
-│   ├── board/             # Kanban board state
-│   ├── generate/          # Trigger article generation
-│   ├── images/            # Image search and selection
-│   ├── move/              # Handle drag-and-drop
-│   ├── publish/           # Article publishing
-│   ├── research/          # Content research
-│   ├── schedule-generation/ # Schedule generation tasks
-│   ├── update/            # Article updates
-│   ├── validate/          # Content validation
-│   └── write/             # Content writing
-├── cron/                  # Scheduled tasks
-│   ├── generate-articles/ # Automated generation cron job
-│   └── webhook-retries/   # Webhook retry handling
-├── onboarding/            # User onboarding flow
-│   ├── analyze-website/   # Website analysis
-│   ├── complete/          # Complete onboarding
-│   └── status/            # Onboarding status
-├── settings/              # Application settings
-│   ├── [id]/              # Dynamic settings routes
-│   └── webhooks/          # Webhook configuration
-└── webhooks/              # External webhook handlers
-    └── clerk/             # Clerk authentication webhooks
+src/components/
+├── ui/           # Reusable UI primitives (shadcn/ui pattern)
+├── articles/     # Article-specific components
+├── workflow/     # Workflow dashboard components
+├── settings/     # Settings page components
+├── onboarding/   # Onboarding flow components
+└── auth/         # Authentication components
 ```
 
-### Page Routes (`src/app/`)
-- **Articles**: `articles/[id]/` - Individual article pages
-- **Settings**: `settings/` - Application configuration
-- **Onboarding**: `onboarding/` - User onboarding flow
-- **Authentication**: `sign-in/`, `sign-up/` - Auth pages
-- **Demo**: `demo/` - Demo/preview functionality
+### API Route Patterns
+```
+src/app/api/
+├── articles/     # Article CRUD and workflow operations
+├── settings/     # User settings and configuration
+├── webhooks/     # External webhook handlers (Clerk, etc.)
+├── cron/         # Scheduled job endpoints
+└── onboarding/   # User onboarding flow
+```
 
-### Components (`src/components/`)
-- **UI components**: `ui/` - Reusable UI components (buttons, cards, forms, etc.)
-- **Articles**: `articles/` - Article-specific components (editor, preview, actions)
-- **Auth**: `auth/` - Authentication-related components
-- **Kanban**: `kanban/` - Kanban board implementation
-- **Onboarding**: `onboarding/` - Onboarding flow components
-- **Settings**: `settings/` - Settings page components
-- **Workflow**: `workflow/` - Workflow dashboard and pipeline components
-- **Component naming**: kebab-case with `.tsx` extension
+## Key Directories
 
-### Types (`src/types.ts`)
-- **Shared domain types**: Common interfaces and types used across the application
-- **API types**: Each API route defines and exports its own request/response types for colocation
+### `/src/app/`
+- **Pages**: React Server Components for UI routes
+- **API Routes**: RESTful endpoints with colocated request/response types
+- **Layouts**: Shared layouts with authentication checks
 
-### Database Layer (`src/server/`)
-- **Database connection**: `db/index.ts` - Drizzle database instance
-- **Schema definition**: `db/schema.ts` - All database tables and types
+### `/src/components/`
+- **Feature-based organization** by domain (articles, workflow, settings)
+- **ui/**: Reusable primitives following shadcn/ui patterns
+- **Client components** explicitly marked with `"use client"`
 
-### Utilities (`src/lib/`)
-- **utils.ts**: Essential shared utilities (no business logic)
+### `/src/server/`
+- **Database**: Drizzle schema and connection setup
+- **Server-only code**: Database queries and business logic
 
-### Hooks (`src/hooks/`)
-- **use-generation-polling.ts**: Polling hook for generation status
-- **use-generation-status.ts**: Generation status management hook
+### `/src/types.ts`
+- **Shared domain types**: Core business entities (Article, BlogPost, etc.)
+- **API types**: Colocated with routes for request/response schemas
 
-### Styles (`src/styles/`)
-- **globals.css**: Global CSS styles and Tailwind imports
+## Naming Conventions
 
-### Configuration Files
-- **constants.ts**: Application constants
-- **env.js**: Environment variable validation
-- **middleware.ts**: Next.js middleware configuration
+### Files & Directories
+- **kebab-case** for directories and files
+- **PascalCase** for React components
+- **camelCase** for TypeScript files and utilities
 
-## Key Conventions
+### Database
+- **snake_case** for table and column names
+- **Descriptive prefixes**: `webhook_`, `generation_`, `scheduling_`
 
-### File Naming
-- **Components**: kebab-case (e.g., `kanban-board.tsx`)
-- **API routes**: `route.ts` in feature folders with colocated types
-- **Types**: Domain types in `src/types.ts`, API types colocated with routes
-- **Database**: snake_case for table/column names, camelCase for TypeScript
+### API Routes
+- **RESTful patterns**: `/api/articles/[id]/action`
+- **Nested resources**: `/api/articles/[id]/schedule`
+- **Bulk operations**: `/api/articles/generate` (POST with array)
 
-### Code Organization Principles
-- **No services layer**: All business logic written directly in API route handlers
-- **Inline logic**: Keep related functionality together in the same file
-- **Colocated types**: Each API route defines and exports its own request/response types
-- **Type safety**: Full TypeScript coverage with types colocated near their usage
+## Code Organization Principles
 
-### Database Schema
-- **ID generation**: Custom nanoid for public IDs
-- **Timestamps**: `createdAt` and `updatedAt` with automatic updates
-- **Enums**: PostgreSQL enums for status fields
+### Type Safety
+- **Zod schemas** for API validation
+- **Colocated types** with API routes
+- **Shared domain types** in `/src/types.ts`
 
-### API Structure
-- **RESTful endpoints**: Standard HTTP methods
-- **Error handling**: Consistent error responses with status codes
-- **Type safety**: Each route defines and exports its own types for colocation
-- **Self-contained**: All logic written directly in route handlers
+### Error Handling
+- **Consistent API responses** with `ApiResponse<T>` wrapper
+- **Graceful degradation** in UI components
+- **Error boundaries** for React error handling
 
-### Environment Variables
-- **Validation**: T3 Env with Zod schemas
-- **Server vs Client**: Clear separation of server-side and client-side variables
-- **Required variables**: `DATABASE_URL` for database connection
+### State Management
+- **Server state**: React Server Components + database queries
+- **Client state**: React hooks for UI state
+- **URL state**: Search params for navigation state
 
-## Architecture Reference
-See `architecture.md` for detailed guidelines on implementing the no-services architecture pattern.
-````
+### Authentication
+- **Clerk integration** with middleware protection
+- **User context** available in all protected routes
+- **Database user mapping** via `clerk_user_id`
