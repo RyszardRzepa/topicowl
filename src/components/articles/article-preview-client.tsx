@@ -160,19 +160,9 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
         <GenerationProgress status={generationStatus} />
       )}
 
-      {/* Article Actions */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Article Actions</h3>
-        <ArticleActions
-          article={article}
-          onEdit={handleEdit}
-          onStatusChange={handleStatusChange}
-          className="mb-4"
-        />
-      </div>
 
       {/* Article Editor - Always in Edit Mode */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         <ArticleMetadataEditor
           article={article}
           onSave={handleSave}
@@ -189,6 +179,8 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
             status: article.status,
             keywords: Array.isArray(article.keywords) ? article.keywords : [],
             metaDescription: article.metaDescription ?? undefined,
+            coverImageUrl: article.coverImageUrl ?? undefined,
+            coverImageAlt: article.coverImageAlt ?? undefined,
           }}
         />
       </div>

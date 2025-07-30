@@ -14,7 +14,9 @@ interface ArticlePreviewPageProps {
 }
 
 // Server component for article preview page
-export default async function ArticlePreviewPage({ params }: ArticlePreviewPageProps) {
+export default async function ArticlePreviewPage({
+  params,
+}: ArticlePreviewPageProps) {
   const { id } = await params;
   const articleId = parseInt(id);
 
@@ -23,8 +25,8 @@ export default async function ArticlePreviewPage({ params }: ArticlePreviewPageP
     notFound();
   }
 
-    // Fetch article directly from database instead of making internal API calls
-  let article!: ArticleDetailResponse['data']; // Definite assignment assertion
+  // Fetch article directly from database instead of making internal API calls
+  let article!: ArticleDetailResponse["data"]; // Definite assignment assertion
   try {
     const [articleData] = await db
       .select()
@@ -41,7 +43,9 @@ export default async function ArticlePreviewPage({ params }: ArticlePreviewPageP
       user_id: articleData.user_id,
       title: articleData.title,
       description: articleData.description,
-      keywords: Array.isArray(articleData.keywords) ? (articleData.keywords as string[]) : [],
+      keywords: Array.isArray(articleData.keywords)
+        ? (articleData.keywords as string[])
+        : [],
       targetAudience: articleData.targetAudience,
       status: articleData.status,
       scheduledAt: articleData.scheduledAt,
@@ -64,50 +68,45 @@ export default async function ArticlePreviewPage({ params }: ArticlePreviewPageP
       createdAt: articleData.createdAt,
       updatedAt: articleData.updatedAt,
       // Extended fields that are expected by ArticleDetailResponse['data']
-      targetKeywords: Array.isArray(articleData.keywords) ? (articleData.keywords as string[]) : [],
-      researchSources: Array.isArray(articleData.sources) ? (articleData.sources as string[]) : [],
-      wordCount: articleData.optimizedContent 
-        ? articleData.optimizedContent.split(/\s+/).length 
-        : articleData.draft 
-          ? articleData.draft.split(/\s+/).length 
+      targetKeywords: Array.isArray(articleData.keywords)
+        ? (articleData.keywords as string[])
+        : [],
+      researchSources: Array.isArray(articleData.sources)
+        ? (articleData.sources as string[])
+        : [],
+      wordCount: articleData.optimizedContent
+        ? articleData.optimizedContent.split(/\s+/).length
+        : articleData.draft
+          ? articleData.draft.split(/\s+/).length
           : 0,
       // Optional extended fields
-      seoAnalysis: articleData.seoScore ? {
-        score: articleData.seoScore,
-        recommendations: [],
-        keywordDensity: {},
-        readabilityScore: 0
-      } : undefined,
-      generationLogs: []
+      seoAnalysis: articleData.seoScore
+        ? {
+            score: articleData.seoScore,
+            recommendations: [],
+            keywordDensity: {},
+            readabilityScore: 0,
+          }
+        : undefined,
+      generationLogs: [],
     };
   } catch (error) {
-    console.error('Failed to fetch article:', error);
+    console.error("Failed to fetch article:", error);
     notFound();
   }
 
   // TypeScript assertion: article is guaranteed to be defined here due to notFound() calls above
   return (
     <main className="min-h-screen bg-gray-50">
-      <div className="container mx-auto p-8 max-w-4xl">
+      <div className="container mx-auto max-w-4xl p-8">
         {/* Navigation Header */}
         <div className="mb-8">
           <Link href="/" className="inline-block">
             <Button variant="ghost" className="mb-4 hover:bg-gray-100">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Kanban Board
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
             </Button>
           </Link>
-          
-          {/* Breadcrumb */}
-          <nav className="text-sm text-gray-500">
-            <Link href="/" className="hover:text-gray-700">
-              Kanban Board
-            </Link>
-            <span className="mx-2">/</span>
-            <span className="text-gray-900 font-medium">
-              {article.title}
-            </span>
-          </nav>
         </div>
 
         {/* Article Content with Actions */}

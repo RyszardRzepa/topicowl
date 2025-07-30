@@ -135,27 +135,9 @@ export function ArticleActions({
   return (
     <>
       <div className={`flex flex-wrap gap-2 ${className}`}>
-        <Button
-          onClick={onEdit}
-          disabled={!canEdit}
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-2"
-        >
-          <Edit className="h-4 w-4" />
-          Edit
-        </Button>
+       
 
-        <Button
-          onClick={handleRegenerate}
-          disabled={!canRegenerate || isRegenerating}
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
-          {isRegenerating ? 'Regenerating...' : 'Regenerate'}
-        </Button>
+      
 
         <Button
           onClick={() => setShowScheduleDialog(true)}
