@@ -15,6 +15,8 @@ import type { ValidateResponse } from "@/app/api/articles/validate/route";
 import type { UpdateResponse } from "@/app/api/articles/update/route";
 import type { ArticleImageSelectionResponse } from "@/app/api/articles/images/select-for-article/route";
 
+export const maxDuration = 800;
+
 // Types colocated with this API route
 export interface ArticleGenerationRequest {
   articleId: string;

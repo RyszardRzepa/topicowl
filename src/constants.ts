@@ -637,12 +637,19 @@ ${researchData}
 <outline_requirements>
 1. Extract the 5 most important and actionable key points from the research data
 2. Each key point should directly relate to the article title and target keywords
-3. Provide a 40-60 word summary for each key point that captures the essential information
+3. Provide a concise summary (150-350 characters) for each key point that captures the essential information
 4. Include 1-2 relevant links per key point from the research data (when available)
 5. Ensure the outline flows logically and covers the topic comprehensively
 6. Focus on practical, valuable information that readers can act upon
 7. Total outline length must not exceed 300 words
+8. CRITICAL: Each summary MUST be between 150-350 characters (count characters, not words!)
 </outline_requirements>
+
+<character_counting_guide>
+Count characters, not words. For reference:
+- 150 characters ≈ "This is a medium-length summary that provides sufficient detail about the topic while staying concise and actionable for readers."
+- 350 characters ≈ "This is a longer summary that provides comprehensive detail about the topic while still maintaining readability and staying within the specified character limit. It includes enough information to be valuable to readers seeking actionable insights and practical guidance."
+</character_counting_guide>
 
 <output_format>
 Return a JSON object with this exact structure:
@@ -653,27 +660,27 @@ Return a JSON object with this exact structure:
   "keyPoints": [
     {
       "heading": "Clear, descriptive heading for key point 1",
-      "summary": "40-60 word summary explaining what this section will cover and why it's important",
+      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
       "relevantLinks": ["url1", "url2"]
     },
     {
       "heading": "Clear, descriptive heading for key point 2", 
-      "summary": "40-60 word summary explaining what this section will cover and why it's important",
+      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
       "relevantLinks": ["url1"]
     },
     {
       "heading": "Clear, descriptive heading for key point 3",
-      "summary": "40-60 word summary explaining what this section will cover and why it's important", 
+      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important", 
       "relevantLinks": ["url1", "url2"]
     },
     {
       "heading": "Clear, descriptive heading for key point 4",
-      "summary": "40-60 word summary explaining what this section will cover and why it's important",
+      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
       "relevantLinks": ["url1"]
     },
     {
       "heading": "Clear, descriptive heading for key point 5",
-      "summary": "40-60 word summary explaining what this section will cover and why it's important",
+      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
       "relevantLinks": ["url1", "url2"]
     }
   ],
@@ -684,16 +691,17 @@ Return a JSON object with this exact structure:
 <quality_checklist>
 Before finalizing, ensure:
 ✅ Each key point has a unique, descriptive heading
-✅ Summaries are 40-60 words each
+✅ Summaries are 150-350 characters each
 ✅ All key points relate to the title and keywords
 ✅ Relevant links are included where available from research
 ✅ Total word count is under 300 words
 ✅ Outline provides comprehensive topic coverage
 ✅ Information is practical and actionable
+✅ Character count verified for each summary (not word count!)
 </quality_checklist>
 
 <instruction>
-Analyze the research data and create a focused outline that distills the most valuable information into 5 key points. Return only the JSON object.
+Analyze the research data and create a focused outline that distills the most valuable information into 5 key points. Pay special attention to character limits for summaries. Return only the JSON object.
 </instruction>
   `,
 };

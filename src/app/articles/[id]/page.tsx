@@ -49,7 +49,9 @@ export default async function ArticlePreviewPage({ params }: ArticlePreviewPageP
 
       estimatedReadTime: articleData.estimatedReadTime,
       kanbanPosition: articleData.kanbanPosition,
+      slug: articleData.slug,
       metaDescription: articleData.metaDescription,
+      metaKeywords: articleData.metaKeywords,
       outline: articleData.outline,
       draft: articleData.draft,
       optimizedContent: articleData.optimizedContent,

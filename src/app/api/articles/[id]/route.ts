@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { articles, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import type { ArticleStatus } from "@/types";
 
 // Types colocated with this API route
 export interface SEOAnalysis {
@@ -28,13 +29,15 @@ type ArticleData = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published";
+  status: ArticleStatus;
   scheduledAt: Date | null;
   publishedAt: Date | null;
 
   estimatedReadTime: number | null;
   kanbanPosition: number;
+  slug: string | null;
   metaDescription: string | null;
+  metaKeywords: unknown;
   outline: unknown;
   draft: string | null;
   optimizedContent: string | null;
@@ -61,16 +64,12 @@ export interface ArticleDetailResponse {
 }
 
 const updateArticleSchema = z.object({
-  title: z.string().min(1).max(255).optional(),
-  description: z.string().optional(),
-  keywords: z.array(z.string()).optional(),
-  targetAudience: z.string().optional(),
+  slug: z.string().optional(),
   metaDescription: z.string().optional(),
-  draft: z.string().optional(),
+  metaKeywords: z.array(z.string()).optional(),
   optimizedContent: z.string().optional(),
-  generationScheduledAt: z.string().datetime().optional(),
-  status: z.enum(["idea", "to_generate", "generating", "wait_for_publish", "published"]).optional(),
-  publishedAt: z.string().datetime().optional(),
+  coverImageUrl: z.string().optional(),
+  coverImageAlt: z.string().optional(),
 });
 
 // GET /api/articles/[id] - Get single article with extended preview data
@@ -127,12 +126,20 @@ export async function GET(
 
     const articleData = article[0] as ArticleData;
 
-    // Verify article ownership
+    // Verify article ownership and that it's not deleted
     if (articleData.user_id !== userRecord.id) {
       return NextResponse.json(
         { success: false, error: 'Access denied: Article does not belong to current user' },
         { status: 403 }
       );
+    }
+
+    // Return 404 if article is deleted
+    if (articleData.status === "deleted") {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Article not found' 
+      }, { status: 404 });
     }
 
     // Generate SEO analysis from existing data
@@ -366,39 +373,25 @@ export async function PUT(
       );
     }
 
-    // Update the article
-    const { generationScheduledAt, publishedAt, ...otherData } = validatedData;
-    
-    const updateData = {
-      ...otherData,
-      updatedAt: new Date(),
-      ...(generationScheduledAt && { generationScheduledAt: new Date(generationScheduledAt) }),
-      ...(publishedAt && { publishedAt: new Date(publishedAt) }),
-    };
+    // Prevent updating deleted articles
+    if (existingArticle[0]!.status === "deleted") {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Cannot update deleted article' 
+      }, { status: 410 });
+    }
 
-    // Check if we're publishing the article
-    const isPublishing = validatedData.status === 'published';
-    const previousStatus = existingArticle[0]!.status;
+    // Update the article with only the allowed fields
+    const updateData = {
+      ...validatedData,
+      updatedAt: new Date(),
+    };
 
     const [updatedArticle] = await db
       .update(articles)
       .set(updateData)
       .where(eq(articles.id, articleId))
       .returning();
-
-    // Trigger webhook if article was just published
-    if (isPublishing && previousStatus !== 'published' && updatedArticle) {
-      // Call the publish API to handle webhook delivery
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/articles/publish`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          articleId: updatedArticle.id
-        })
-      }).catch((error: unknown) => {
-        console.error('Failed to trigger publish webhook for article', updatedArticle.id, ':', error);
-      });
-    }
 
     return NextResponse.json({
       success: true,
@@ -488,14 +481,28 @@ export async function DELETE(
       );
     }
 
-    // Delete the article
-    await db
-      .delete(articles)
-      .where(eq(articles.id, articleId));
+    // Check if article is already deleted
+    if (existingArticle[0]!.status === "deleted") {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Article is already deleted' 
+      }, { status: 410 });
+    }
+
+    // Soft delete the article by updating status to "deleted"
+    const [deletedArticle] = await db
+      .update(articles)
+      .set({ 
+        status: "deleted",
+        updatedAt: new Date()
+      })
+      .where(eq(articles.id, articleId))
+      .returning();
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Article deleted successfully' 
+      message: 'Article deleted successfully',
+      data: deletedArticle
     });
 
   } catch (error) {

@@ -2,17 +2,10 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { Image as ImageIcon } from 'lucide-react';
-import Image from 'next/image';
 import { ArticleActions } from './article-actions';
 import { ArticleMetadata } from './article-metadata';
-import { ArticleEditor } from './article-editor';
+import { ArticleMetadataEditor } from './article-metadata-editor';
+import { ContentEditorWithPreview } from './content-editor-with-preview';
 import { GenerationProgress } from './generation-progress';
 import { useGenerationPolling } from '@/hooks/use-generation-polling';
 import type { ArticleDetailResponse } from '@/app/api/articles/[id]/route';
@@ -23,7 +16,6 @@ interface ArticlePreviewClientProps {
 
 export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientProps) {
   const [article, setArticle] = useState(initialArticle);
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState<string | null>(null);
   const [showErrorMessage, setShowErrorMessage] = useState<string | null>(null);
@@ -82,11 +74,6 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
     }));
   }, [router, article.id]);
 
-  // Handle edit mode toggle
-  const handleEdit = useCallback(() => {
-    setIsEditing(!isEditing);
-  }, [isEditing]);
-
   // Handle article save
   const handleSave = useCallback(async (updatedData: Partial<ArticleDetailResponse['data']>) => {
     setIsSaving(true);
@@ -107,7 +94,7 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
       
       // Update local state
       setArticle(prev => ({ ...prev, ...updatedData }));
-      setIsEditing(false);
+      setShowSuccessMessage('Article updated successfully!');
       setTimeout(() => setShowSuccessMessage(null), 3000);
       
       // Refresh the page data
@@ -122,10 +109,15 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
     }
   }, [article.id, router]);
 
-  // Handle edit cancel
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
+  // Dummy handler since we're always in edit mode
+  const handleEdit = useCallback(() => {
+    // No action needed - we're always in edit mode
   }, []);
+
+  // Handle content save from Lexical editor
+  const handleContentSave = useCallback(async (content: string) => {
+    await handleSave({ optimizedContent: content });
+  }, [handleSave]);
 
   return (
     <div className="space-y-6">
@@ -179,138 +171,27 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
         />
       </div>
 
-      {/* Article Content */}
-      {isEditing ? (
-        <ArticleEditor
+      {/* Article Editor - Always in Edit Mode */}
+      <div className="space-y-6">
+        <ArticleMetadataEditor
           article={article}
           onSave={handleSave}
-          onCancel={handleCancelEdit}
           isLoading={isSaving}
         />
-      ) : (
-        <div className="space-y-6">
-          {/* Cover Image Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5" />
-                Cover Image
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {article.coverImageUrl ? (
-                <div className="space-y-2">
-                  <Image
-                    src={article.coverImageUrl}
-                    alt={article.coverImageAlt ?? 'Article cover image'}
-                    width={800}
-                    height={384}
-                    className="w-full h-96 object-cover rounded-lg border"
-                    unoptimized
-                  />
-                  {article.coverImageAlt && (
-                    <p className="text-sm text-gray-600">{article.coverImageAlt}</p>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No cover image set</p>
-                  <p className="text-sm mt-1">Use the Edit button to add a cover image</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Article Content Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Article Content</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Status Badge */}
-                <div className="flex items-center gap-2">
-                  <Badge variant={
-                    article.status === 'published' ? 'default' :
-                    article.status === 'wait_for_publish' ? 'secondary' :
-                    article.status === 'generating' ? 'red' : 'outline'
-                  }>
-                    {article.status.replace('_', ' ').toUpperCase()}
-                  </Badge>
-                  {article.status === 'generating' && (
-                    <span className="text-sm text-gray-600">Generation in progress...</span>
-                  )}
-                </div>
-
-                {/* Content Display */}
-                {article.optimizedContent ?? article.draft ? (
-                  <div className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:leading-relaxed prose-strong:text-gray-900">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkBreaks, remarkGfm]}
-                      components={{
-                        p: ({ children }) => <p className="mb-4 leading-relaxed">{children}</p>,
-                        h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 text-gray-900">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 text-gray-900">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-lg font-medium mb-2 text-gray-900">{children}</h3>,
-                        ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>,
-                        li: ({ children }) => <li className="text-gray-700">{children}</li>,
-                        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                        em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
-                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-4 py-2 mb-4 italic text-gray-600">{children}</blockquote>,
-                      }}
-                    >
-                      {(article.optimizedContent ?? article.draft) ?? ''}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No content available yet</p>
-                    {article.status === 'idea' && (
-                      <p className="text-sm mt-2">Move to &quot;To Generate&quot; to create content</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Meta Description */}
-                {article.metaDescription && (
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Meta Description</Label>
-                    <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
-                      {article.metaDescription}
-                    </p>
-                  </div>
-                )}
-
-                {/* Keywords */}
-                {Array.isArray(article.keywords) && article.keywords.length > 0 && (
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Keywords</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {(article.keywords as string[]).map((keyword: string, index: number) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                          {keyword}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Word Count */}
-                {(article.optimizedContent ?? article.draft) && (
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Word Count</Label>
-                    <p className="text-sm text-gray-600">
-                      {((article.optimizedContent ?? article.draft) ?? '').split(/\s+/).filter(word => word.length > 0).length} words
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        
+        {/* Content Editor Section - Rich text editor with preview */}
+        <ContentEditorWithPreview
+          initialContent={(article.optimizedContent ?? article.draft) ?? ''}
+          onSave={handleContentSave}
+          isLoading={isSaving}
+          placeholder="Start writing your article content..."
+          article={{
+            status: article.status,
+            keywords: Array.isArray(article.keywords) ? article.keywords : [],
+            metaDescription: article.metaDescription ?? undefined,
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -1,29 +1,38 @@
 // Domain types for shared business entities
 // API-specific request/response types are colocated with their routes
 
-import { z } from 'zod';
+import { z } from "zod";
+import type { articleStatusEnum } from "@/server/db/schema";
 
-// Blog Post Schema - shared domain entity for article generation
-export const blogPostSchema = z.object({
-  id: z.string().describe("A unique ID for the blog post. A random number as a string is fine."),
-  title: z.string().describe("The title of the blog post."),
-  slug: z.string().describe("A URL-friendly version of the title."),
-  excerpt: z.string().describe("A short, compelling summary (1-2 sentences)."),
-  metaDescription: z.string().describe("An SEO-friendly description for the blog post. Max 160 char."),
-  readingTime: z.string().describe("An estimated reading time, e.g., '5 min read'."),
-  content: z.string().describe("The full article content in Markdown format."),
-  author: z.string().default('by Oslo Explore staff').describe("The author of the blog post."),
-  date: z.string().describe("The publication date."),
-  coverImage: z.string().optional().describe("A placeholder URL for the cover image."),
-  imageCaption: z.string().optional().describe("A placeholder caption for the cover image."),
-  tags: z.array(z.string()).optional().describe("An array of relevant keywords."),
+// OpenGraph metadata schema
+export const ogMetadataSchema = z.object({
+  title: z.string().describe("The title of the blog post that would appear in search results."),
+  description: z.string().describe("A compelling description of the blog post (max 160 characters)."),
+  image: z.string().url().optional().describe("A URL to a relevant image for the blog post."),
+  url: z.string().url().describe("The canonical URL of the blog post."),
+  siteName: z.string().describe("The name of the website."),
+  type: z.literal("article").default("article"),
+  publishedTime: z.string().optional().describe("The published time of the article in ISO format."),
+  modifiedTime: z.string().optional().describe("The last modified time of the article in ISO format."),
+  author: z.string().optional().describe("The author of the article."),
+  section: z.string().optional().describe("The section/category of the article."),
+  tags: z.array(z.string()).optional().describe("An array of tags for the article."),
   relatedPosts: z.array(z.string()).optional().describe("An array of related post slugs."),
 });
 
-export type BlogPost = z.infer<typeof blogPostSchema>;
+export type BlogPost = z.infer<typeof ogMetadataSchema>;
 
-// Article status type - shared domain type
-export type ArticleStatus = 'idea' | 'scheduled' | 'queued' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+// Blog post schema for API routes
+export const blogPostSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  description: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  status: z.string().optional(),
+});
+
+// Article status type - imported from database schema
+export type ArticleStatus = typeof articleStatusEnum.enumValues[number];;
 
 // Workflow phases for new UI
 export type WorkflowPhase = 'planning' | 'generations' | 'publishing';

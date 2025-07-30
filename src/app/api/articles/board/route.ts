@@ -2,7 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import { articles, users, articleGeneration } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
+import type { ArticleStatus } from "@/types";
 
 // Types colocated with this API route
 export type DatabaseArticle = {
@@ -12,7 +13,7 @@ export type DatabaseArticle = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status: 'idea' | 'scheduled' | 'queued' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+  status: ArticleStatus;
   scheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
@@ -39,7 +40,7 @@ export type DatabaseArticle = {
 export interface KanbanColumn {
   id: string;
   title: string;
-  status: 'idea' | 'scheduled' | 'queued' | 'to_generate' | 'generating' | 'wait_for_publish' | 'published';
+  status: Exclude<ArticleStatus, 'deleted'>; // Exclude deleted from kanban columns
   articles: DatabaseArticle[];
   color: string;
 }
@@ -109,7 +110,12 @@ export async function GET(_req: NextRequest) {
       })
       .from(articles)
       .leftJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
-      .where(eq(articles.user_id, userRecord.id))
+      .where(
+        and(
+          eq(articles.user_id, userRecord.id),
+          ne(articles.status, "deleted")
+        )
+      )
       .orderBy(articles.kanbanPosition, articles.createdAt);
 
     // Define kanban columns

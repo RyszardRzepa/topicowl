@@ -1,0 +1,111 @@
+/* Lexical Editor Styles */
+.lexical-editor {
+  position: relative;
+}
+
+.lexical-editor .ContentEditable__root {
+  border: none;
+  font-size: inherit;
+  display: block;
+  position: relative;
+  tab-size: 1;
+  outline: 0px;
+  min-height: 400px;
+  line-height: 1.6;
+}
+
+.lexical-editor .ContentEditable__root:focus {
+  outline: none;
+}
+
+.lexical-editor .ContentEditable__root.ContentEditable__rootFocused {
+  outline: none;
+}
+
+/* Ensure proper prose styling for Lexical */
+.lexical-editor .prose {
+  max-width: none;
+}
+
+.lexical-editor .prose p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+  color: rgb(55 65 81);
+}
+
+.lexical-editor .prose h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: rgb(17 24 39);
+}
+
+.lexical-editor .prose h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: rgb(17 24 39);
+}
+
+.lexical-editor .prose h3 {
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: rgb(17 24 39);
+}
+
+.lexical-editor .prose ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.lexical-editor .prose ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.lexical-editor .prose li {
+  margin-bottom: 0.25rem;
+  color: rgb(55 65 81);
+}
+
+.lexical-editor .prose strong {
+  font-weight: 600;
+  color: rgb(17 24 39);
+}
+
+.lexical-editor .prose em {
+  font-style: italic;
+  color: rgb(55 65 81);
+}
+
+.lexical-editor .prose blockquote {
+  border-left: 4px solid rgb(209 213 219);
+  padding-left: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  font-style: italic;
+  color: rgb(107 114 128);
+}
+
+.lexical-editor .prose a {
+  color: rgb(37 99 235);
+  text-decoration: underline;
+}
+
+.lexical-editor .prose a:hover {
+  color: rgb(29 78 216);
+}
+
+/* Placeholder styling */
+.lexical-editor .ContentEditable__placeholder {
+  color: rgb(156 163 175);
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  user-select: none;
+}

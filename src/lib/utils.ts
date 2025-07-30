@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Generic fetcher function with response time logging and 5-minute timeout
+// Generic fetcher function with response time logging and configurable timeout
 export async function fetcher<T = unknown>(
   url: string,
   options: {
@@ -21,15 +21,14 @@ export async function fetcher<T = unknown>(
     body,
     headers = {},
     responseType = "json",
-    timeout = 5 * 60 * 1000,
-  } = options; // 5 minutes default
+    timeout = 15 * 60 * 1000, // 15 minutes default for AI operations
+  } = options;
 
   const startTime = Date.now();
 
   console.log(`Making ${method} request to ${url}`, {
     responseType,
     hasBody: !!body,
-    timeout: `${timeout}ms`,
   });
 
   try {

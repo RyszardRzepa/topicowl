@@ -24,6 +24,7 @@ const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
   generating: ['wait_for_publish'], // Automatically moved by system after generation
   wait_for_publish: ['published'],
   published: [], // Cannot be moved
+  deleted: [], // Deleted articles cannot be moved
 };
 
 const isValidStatusTransition = (from: ArticleStatus, to: ArticleStatus): boolean => {
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate status transition
-    if (!isValidStatusTransition(currentArticle.status as ArticleStatus, newStatus as ArticleStatus)) {
+    if (!isValidStatusTransition(currentArticle.status, newStatus)) {
       return NextResponse.json(
         { error: 'Invalid status transition. Articles can only move forward in the workflow.' },
         { status: 400 }

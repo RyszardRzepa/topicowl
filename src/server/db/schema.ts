@@ -54,9 +54,8 @@ export const articleStatusEnum = pgEnum("article_status", [
   "generating",
   "wait_for_publish",
   "published",
+  "deleted",
 ]);
-
-
 
 // Articles table for kanban-based workflow
 export const articles = contentMachineSchema.table("articles", {
@@ -83,7 +82,9 @@ export const articles = contentMachineSchema.table("articles", {
   kanbanPosition: integer("kanban_position").default(0).notNull(),
   
   // Content fields (populated after generation)
+  slug: varchar("slug", { length: 255 }),
   metaDescription: varchar("meta_description", { length: 255 }),
+  metaKeywords: jsonb("meta_keywords").default([]).notNull(),
   outline: jsonb("outline"),
   draft: text("draft"),
   optimizedContent: text("optimized_content"),

@@ -11,32 +11,29 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Save, XCircle } from "lucide-react";
+import { X, Plus, Save } from "lucide-react";
 import Image from "next/image";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 
-interface ArticleEditorProps {
+interface ArticleMetadataEditorProps {
   article: ArticleDetailResponse["data"];
   onSave: (
     updatedArticle: Partial<ArticleDetailResponse["data"]>,
   ) => Promise<void>;
-  onCancel: () => void;
   isLoading?: boolean;
 }
 
-export function ArticleEditor({
+export function ArticleMetadataEditor({
   article,
   onSave,
-  onCancel,
   isLoading = false,
-}: ArticleEditorProps) {
+}: ArticleMetadataEditorProps) {
   const [formData, setFormData] = useState({
     slug: article.slug ?? "",
     metaDescription: article.metaDescription ?? "",
     metaKeywords: Array.isArray(article.metaKeywords)
       ? (article.metaKeywords as string[])
       : [],
-    optimizedContent: article.optimizedContent ?? "",
     coverImageUrl: article.coverImageUrl ?? "",
     coverImageAlt: article.coverImageAlt ?? "",
   });
@@ -231,47 +228,11 @@ export function ArticleEditor({
         </CardContent>
       </Card>
 
-      {/* Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Article Content</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label
-              htmlFor="optimizedContent"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Article Content
-            </label>
-            <Textarea
-              id="optimizedContent"
-              value={formData.optimizedContent}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, optimizedContent: e.target.value }))
-              }
-              placeholder="Enter article content"
-              rows={15}
-              className="font-mono text-sm"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Action Buttons */}
-      <div className="flex gap-3">
+      {/* Action Button */}
+      <div className="flex justify-end">
         <Button type="submit" disabled={isLoading}>
           <Save className="mr-2 h-4 w-4" />
-          {isLoading ? "Saving..." : "Save Changes"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isLoading}
-        >
-          <XCircle className="mr-2 h-4 w-4" />
-          Cancel
+          {isLoading ? "Saving..." : "Save Metadata"}
         </Button>
       </div>
     </form>

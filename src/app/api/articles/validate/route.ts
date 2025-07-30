@@ -50,23 +50,10 @@ export async function POST(request: Request) {
           mode: "MODE_UNSPECIFIED",
         },
       }),
-      prompt: `
-        You are an expert fact-checker. Analyze this article and identify factual issues.
-        
-        Article: ${body.article}
-        
-        Return results in this format:
-        VALIDATION RESULTS:
-        
-        CLAIM: [Exact text from article]
-        STATUS: [UNVERIFIED or CONTRADICTED]
-        REASON: [One sentence explaining the issue]
-        
-        If no issues: "VALIDATION RESULTS: No factual issues identified."
-      `,
+      prompt: prompts.validation(body.article),
     });
 
-    // Then get structured validation using the main prompt
+    // Then extract structured data from validation text - only claims that are not valid or partially true
     const { object } = await generateObject({
       model: google(MODELS.GEMINI_2_5_FLASH, {
         useSearchGrounding: true,
@@ -75,7 +62,23 @@ export async function POST(request: Request) {
         },
       }),
       schema: validationResponseSchema,
-      prompt: prompts.validation(body.article),
+      prompt: `
+        Extract structured validation data from the following fact-checking results.
+        
+        Focus ONLY on claims that are FALSE, UNVERIFIED or CONTRADICTED. Do not include verified claims.
+        
+        Validation Results:
+        ${rawValidationText}
+        
+        Extract and return a JSON object with:
+        - isValid: false if any issues are found, true if no issues
+        - issues: array of only the problematic claims with:
+          - fact: exact text from article that has an issue
+          - issue: brief description of what's wrong
+          - correction: suggested correction or "Needs verification"
+        
+        If no issues are found in the validation results, return: {"isValid": true, "issues": []}
+      `,
     });
 
     // Return both structured data and raw validation text

@@ -17,10 +17,10 @@ const outlineSchema = z.object({
           .describe("Clear, descriptive heading for the key point"),
         summary: z
           .string()
-          .min(200)
-          .max(400)
+          .min(150)
+          .max(350)
           .describe(
-            "40-60 word summary explaining what this section will cover",
+            "Concise summary (150-350 characters) explaining what this section will cover",
           ),
         relevantLinks: z
           .array(z.string())
@@ -83,17 +83,64 @@ export async function POST(request: Request) {
 
     console.log("[OUTLINE_API] Validation passed, generating outline");
 
-    const { object: outlineData } = await generateObject({
-      model: google(MODELS.GEMINI_2_5_FLASH),
-      schema: outlineSchema,
-      prompt: prompts.outline(body.title, body.keywords, body.researchData),
-      maxRetries: 3,
-    });
+    try {
+      const { object: outlineData } = await generateObject({
+        model: google(MODELS.GEMINI_2_5_FLASH),
+        schema: outlineSchema,
+        prompt: prompts.outline(body.title, body.keywords, body.researchData),
+        maxRetries: 3,
+      });
 
-    return NextResponse.json({
-      success: true,
-      data: outlineData,
-    } as ApiResponse<OutlineResponse>);
+      return NextResponse.json({
+        success: true,
+        data: outlineData,
+      } as ApiResponse<OutlineResponse>);
+    } catch (error) {
+      console.log("[OUTLINE_API] Schema validation failed, trying with relaxed schema", error);
+      
+      // Fallback schema with more lenient character limits
+      const relaxedOutlineSchema = z.object({
+        title: z.string().describe("The article title"),
+        keywords: z.array(z.string()).describe("Array of target keywords"),
+        keyPoints: z
+          .array(
+            z.object({
+              heading: z
+                .string()
+                .describe("Clear, descriptive heading for the key point"),
+              summary: z
+                .string()
+                .min(100)
+                .max(500)
+                .describe(
+                  "Concise summary explaining what this section will cover",
+                ),
+              relevantLinks: z
+                .array(z.string())
+                .describe("Array of relevant URLs from the research data"),
+            }),
+          )
+          .length(5)
+          .describe("Exactly 5 key points for the article outline"),
+        totalWords: z
+          .number()
+          .max(400)
+          .describe("Total word count of the outline"),
+      });
+
+      const { object: outlineData } = await generateObject({
+        model: google(MODELS.GEMINI_2_5_FLASH),
+        schema: relaxedOutlineSchema,
+        prompt: prompts.outline(body.title, body.keywords, body.researchData) + 
+          "\n\nIMPORTANT: Keep summaries under 350 characters to ensure proper formatting.",
+        maxRetries: 2,
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: outlineData,
+      } as ApiResponse<OutlineResponse>);
+    }
   } catch (error) {
     console.error("[OUTLINE_API] Outline generation error:", error);
     return NextResponse.json(

@@ -41,6 +41,7 @@ const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
   generating: ["wait_for_publish"], // Automatically moved by system after generation
   wait_for_publish: ["published"],
   published: [], // Cannot be moved
+  deleted: [], // Deleted articles cannot be moved
 };
 
 const isValidStatusTransition = (
@@ -489,7 +490,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     const newStatus = destination.droppableId as ArticleStatus;
 
     // Validate status transition
-    if (!isValidStatusTransition(article.status as ArticleStatus, newStatus)) {
+    if (!isValidStatusTransition(article.status, newStatus)) {
       setError(
         "Invalid move. Articles can only move forward in the workflow: Ideas → To Generate → Wait for Publish → Published",
       );
@@ -596,7 +597,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                 />
               </div>
 
-              <Droppable droppableId={column.status}>
+              <Droppable droppableId={String(column.status)}>
                 {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
@@ -611,7 +612,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                         draggableId={article.id.toString()}
                         index={index}
                         isDragDisabled={
-                          !isDraggable(article.status as ArticleStatus)
+                          !isDraggable(article.status)
                         }
                       >
                         {(provided, snapshot) => (
@@ -817,7 +818,7 @@ function ArticleCard({
           "cursor-not-allowed opacity-75": !isInteractive,
           "border-blue-500 bg-blue-50": isGenerating,
           "border-green-500 bg-green-50": isCompleted,
-          "cursor-not-allowed": !isDraggable(article.status as ArticleStatus),
+          "cursor-not-allowed": !isDraggable(article.status),
           "hover:cursor-pointer hover:border-gray-300 hover:shadow-lg":
             !isEditing && !isScheduling,
         },

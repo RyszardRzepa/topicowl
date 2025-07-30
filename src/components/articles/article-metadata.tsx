@@ -1,12 +1,13 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ArticleStatus } from "@/types";
 
 // Article metadata data interface
 interface ArticleMetadataData {
   id: number;
   title: string;
-  status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published";
+  status: ArticleStatus,
   scheduledAt: Date | null;
   publishedAt: Date | null;
   createdAt: Date;
@@ -39,6 +40,7 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
       generating: { text: 'Generating', color: 'text-yellow-600 bg-yellow-100' },
       wait_for_publish: { text: 'Wait for Publish', color: 'text-purple-600 bg-purple-100' },
       published: { text: 'Published', color: 'text-green-600 bg-green-100' },
+      deleted: { text: 'Deleted', color: 'text-red-600 bg-red-100' },
     };
     return statusMap[status];
   };
