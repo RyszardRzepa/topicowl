@@ -13,6 +13,7 @@ import {
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { ArticleCard } from './article-card';
 import { Plus, Play, Calendar, Settings } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Article } from '@/types';
 
 interface PlanningHubProps {
@@ -87,6 +88,7 @@ export function PlanningHub({
 
   const handleBulkGenerate = async () => {
     if (selectedArticles.size === 0) return;
+    
     await onBulkGenerate(Array.from(selectedArticles));
     setSelectedArticles(new Set());
     setIsBulkMode(false);
@@ -94,6 +96,7 @@ export function PlanningHub({
 
   const handleBulkSchedule = async (scheduledAt: string) => {
     if (selectedArticles.size === 0) return;
+    
     await onBulkSchedule(Array.from(selectedArticles), new Date(scheduledAt));
     setSelectedArticles(new Set());
     setIsBulkMode(false);

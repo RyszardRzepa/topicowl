@@ -82,7 +82,7 @@ export async function POST(_request: NextRequest): Promise<Response> {
         // Create default settings
         await tx.insert(articleSettings).values({
           user_id: userRecord.id,
-          toneOfVoice: "professional",
+          toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
           articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
           maxWords: 800,
         });

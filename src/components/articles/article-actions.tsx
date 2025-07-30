@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Edit, RefreshCw, Calendar, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 // Import colocated types from API routes for type safety
 import type { ArticleGenerationRequest } from '@/app/api/articles/generate/route';
@@ -53,14 +54,13 @@ export function ArticleActions({
       
       if (result.success) {
         onStatusChange?.('generating');
-        // Show success message or toast
-        alert('Article regeneration started successfully!');
+        toast.success('Article regeneration started successfully!');
       } else {
         throw new Error(result.error ?? 'Failed to regenerate article');
       }
     } catch (error) {
       console.error('Regeneration error:', error);
-      alert('Failed to regenerate article. Please try again.');
+      toast.error('Failed to regenerate article. Please try again.');
     } finally {
       setIsRegenerating(false);
     }
@@ -68,7 +68,7 @@ export function ArticleActions({
 
   const handleSchedule = async () => {
     if (!scheduledDate) {
-      alert('Please select a date and time for scheduling.');
+      toast.error('Please select a date and time for scheduling.');
       return;
     }
 
@@ -91,13 +91,13 @@ export function ArticleActions({
         onStatusChange?.('wait_for_publish');
         setShowScheduleDialog(false);
         setScheduledDate('');
-        alert('Article scheduled successfully!');
+        toast.success('Article scheduled successfully!');
       } else {
         throw new Error(result.error ?? 'Failed to schedule article');
       }
     } catch (error) {
       console.error('Scheduling error:', error);
-      alert('Failed to schedule article. Please try again.');
+      toast.error('Failed to schedule article. Please try again.');
     } finally {
       setIsScheduling(false);
     }
@@ -113,7 +113,7 @@ export function ArticleActions({
       const result = await response.json() as { success: boolean; error?: string };
       
       if (result.success) {
-        alert('Article deleted successfully!');
+        toast.success('Article deleted successfully!');
         // Navigate back to kanban board
         router.push('/');
       } else {
@@ -121,7 +121,7 @@ export function ArticleActions({
       }
     } catch (error) {
       console.error('Delete error:', error);
-      alert('Failed to delete article. Please try again.');
+      toast.error('Failed to delete article. Please try again.');
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);

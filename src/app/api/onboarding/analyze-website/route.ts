@@ -110,7 +110,7 @@ Focus on:
 
 For industryCategory, use one of: technology, healthcare, finance, education, business, retail, manufacturing, consulting, marketing, legal, real-estate, food-beverage, travel, fitness, entertainment, non-profit, or other.
 
-For toneOfVoice, use one of: professional, friendly, technical, casual, authoritative, conversational, formal, or educational.
+For toneOfVoice, provide a detailed description of the appropriate writing tone and style for this company's content. Be specific about the voice, personality, and communication approach that would resonate with their target audience. Write 1-2 sentences describing the ideal tone.
 
 For publishingFrequency, choose from: daily, weekly, bi-weekly, or monthly based on industry standards.
 
@@ -133,7 +133,7 @@ Provide 5-10 relevant keywords for content marketing based on their actual conte
       productDescription: `${domain} provides professional services and solutions.`,
       industryCategory: "business",
       targetAudience: "business professionals",
-      toneOfVoice: "professional",
+      toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
       suggestedKeywords: [],
       contentStrategy: {
         articleStructure: "introduction, main points, conclusion",

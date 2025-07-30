@@ -8,6 +8,7 @@ import { PlanningHub } from "./planning-hub";
 import { ArticleGenerations } from "./article-generations";
 import { PublishingPipeline } from "./publishing-pipeline";
 import { useGenerationPolling } from "@/hooks/use-generation-polling";
+import { toast } from "sonner";
 import type { Article, WorkflowPhase } from "@/types";
 import type {
   DatabaseArticle,
@@ -166,15 +167,27 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   );
 
   const handleGenerationComplete = useCallback(
-    (_articleId: string) => {
+    (articleId: string) => {
+      const article = articles.find(a => a.id === articleId);
+      
+      toast.success("Article generation completed!", {
+        description: article ? `"${article.title}" is ready for publishing.` : "Your article is ready for publishing.",
+      });
+      
       // Refresh articles to get the updated status
       void fetchArticles();
     },
-    [fetchArticles],
+    [fetchArticles, articles],
   );
 
   const handleGenerationError = useCallback(
     (articleId: string, error: string) => {
+      const article = articles.find(a => a.id === articleId);
+      
+      toast.error("Article generation failed", {
+        description: article ? `"${article.title}" failed to generate: ${error}` : `Generation failed: ${error}`,
+      });
+      
       setArticles((prevArticles) =>
         prevArticles.map((article) =>
           article.id === articleId
@@ -186,7 +199,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         ),
       );
     },
-    [],
+    [articles],
   );
 
   // Use polling for the first generating article as an example
@@ -275,9 +288,15 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         throw new Error("Failed to create article");
       }
 
+      toast.success("Article idea created successfully!", {
+        description: `"${data.title}" has been added to your planning phase.`,
+      });
       await fetchArticles(); // Refresh articles
     } catch (error) {
       console.error("Failed to create article:", error);
+      toast.error("Failed to create article", {
+        description: "Please try again or check your connection.",
+      });
       setError("Failed to create article");
     }
   };
@@ -303,8 +322,13 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           article.id === articleId ? { ...article, ...updates } : article,
         ),
       );
+      
+      toast.success("Article updated successfully!");
     } catch (error) {
       console.error("Failed to update article:", error);
+      toast.error("Failed to update article", {
+        description: "Please try again or check your connection.",
+      });
       setError("Failed to update article");
       await fetchArticles(); // Revert on error
     }
@@ -312,6 +336,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   const handleDeleteArticle = async (articleId: string) => {
     try {
+      const articleToDelete = articles.find(a => a.id === articleId);
       const response = await fetch(`/api/articles/${articleId}`, {
         method: "DELETE",
       });
@@ -322,8 +347,15 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
       // Optimistic update
       setArticles((prev) => prev.filter((article) => article.id !== articleId));
+      
+      toast.success("Article deleted successfully!", {
+        description: articleToDelete ? `"${articleToDelete.title}" has been removed.` : undefined,
+      });
     } catch (error) {
       console.error("Failed to delete article:", error);
+      toast.error("Failed to delete article", {
+        description: "Please try again or check your connection.",
+      });
       setError("Failed to delete article");
       await fetchArticles(); // Revert on error
     }
@@ -331,6 +363,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   const handleGenerateArticle = async (articleId: string) => {
     try {
+      const article = articles.find(a => a.id === articleId);
       const response = await fetch("/api/articles/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -349,8 +382,15 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
             : article,
         ),
       );
+      
+      toast.success("Article generation started!", {
+        description: article ? `Generating "${article.title}"...` : "Your article is being generated.",
+      });
     } catch (error) {
       console.error("Failed to generate article:", error);
+      toast.error("Failed to start article generation", {
+        description: "Please try again or check your connection.",
+      });
       setError("Failed to generate article");
     }
   };
@@ -360,6 +400,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     scheduledAt: Date,
   ) => {
     try {
+      const article = articles.find(a => a.id === articleId);
       const response = await fetch("/api/articles/schedule-generation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -390,21 +431,45 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         );
         return updated;
       });
+      
+      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      
+      toast.success("Generation scheduled successfully!", {
+        description: article 
+          ? `"${article.title}" will be generated on ${formattedDate}.`
+          : `Article will be generated on ${formattedDate}.`,
+      });
     } catch (error) {
       console.error("Failed to schedule generation:", error);
+      toast.error("Failed to schedule generation", {
+        description: "Please try again or check your connection.",
+      });
       setError("Failed to schedule generation");
     }
   };
 
   const handlePublishArticle = async (articleId: string) => {
     try {
+      const article = articles.find(a => a.id === articleId);
       // Update article status to published
       await handleUpdateArticle(articleId, {
         status: "published",
         publishedAt: new Date().toISOString(),
       });
+      
+      toast.success("Article published successfully!", {
+        description: article ? `"${article.title}" is now live.` : "Your article is now live.",
+      });
     } catch (error) {
       console.error("Failed to publish article:", error);
+      toast.error("Failed to publish article", {
+        description: "Please try again or check your connection.",
+      });
       setError("Failed to publish article");
     }
   };
@@ -414,20 +479,47 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     scheduledAt: Date,
   ) => {
     try {
+      const article = articles.find(a => a.id === articleId);
       // Update article with scheduled publish time
       await handleUpdateArticle(articleId, {
         publishScheduledAt: scheduledAt.toISOString(),
       });
+      
+      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      
+      toast.success("Publishing scheduled successfully!", {
+        description: article 
+          ? `"${article.title}" will be published on ${formattedDate}.`
+          : `Article will be published on ${formattedDate}.`,
+      });
     } catch (error) {
       console.error("Failed to schedule publishing:", error);
+      toast.error("Failed to schedule publishing", {
+        description: "Please try again or check your connection.",
+      });
       setError("Failed to schedule publishing");
     }
   };
 
   const handleBulkGenerate = async (articleIds: string[]) => {
-    // For now, generate each article individually
-    for (const articleId of articleIds) {
-      await handleGenerateArticle(articleId);
+    try {
+      // For now, generate each article individually
+      for (const articleId of articleIds) {
+        await handleGenerateArticle(articleId);
+      }
+      
+      toast.success(`Started generating ${articleIds.length} article${articleIds.length > 1 ? 's' : ''}!`, {
+        description: "Check the Generations tab to monitor progress.",
+      });
+    } catch (error) {
+      toast.error("Failed to start bulk generation", {
+        description: "Some articles may not have started generating.",
+      });
     }
   };
 
@@ -435,16 +527,43 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     articleIds: string[],
     scheduledAt: Date,
   ) => {
-    // Schedule each article individually
-    for (const articleId of articleIds) {
-      await handleScheduleGeneration(articleId, scheduledAt);
+    try {
+      // Schedule each article individually
+      for (const articleId of articleIds) {
+        await handleScheduleGeneration(articleId, scheduledAt);
+      }
+      
+      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      
+      toast.success(`Scheduled ${articleIds.length} article${articleIds.length > 1 ? 's' : ''} for generation!`, {
+        description: `All articles will be generated on ${formattedDate}.`,
+      });
+    } catch (error) {
+      toast.error("Failed to schedule bulk generation", {
+        description: "Some articles may not have been scheduled.",
+      });
     }
   };
 
   const handleBulkPublish = async (articleIds: string[]) => {
-    // For now, publish each article individually
-    for (const articleId of articleIds) {
-      await handlePublishArticle(articleId);
+    try {
+      // For now, publish each article individually
+      for (const articleId of articleIds) {
+        await handlePublishArticle(articleId);
+      }
+      
+      toast.success(`Published ${articleIds.length} article${articleIds.length > 1 ? 's' : ''}!`, {
+        description: "All selected articles are now live.",
+      });
+    } catch (error) {
+      toast.error("Failed to publish all articles", {
+        description: "Some articles may not have been published.",
+      });
     }
   };
 
@@ -452,9 +571,26 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     articleIds: string[],
     scheduledAt: Date,
   ) => {
-    // For now, schedule each article individually
-    for (const articleId of articleIds) {
-      await handleSchedulePublishing(articleId, scheduledAt);
+    try {
+      // For now, schedule each article individually
+      for (const articleId of articleIds) {
+        await handleSchedulePublishing(articleId, scheduledAt);
+      }
+      
+      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      
+      toast.success(`Scheduled ${articleIds.length} article${articleIds.length > 1 ? 's' : ''} for publishing!`, {
+        description: `All articles will be published on ${formattedDate}.`,
+      });
+    } catch (error) {
+      toast.error("Failed to schedule bulk publishing", {
+        description: "Some articles may not have been scheduled.",
+      });
     }
   };
 

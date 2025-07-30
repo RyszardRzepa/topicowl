@@ -27,7 +27,7 @@ interface ArticleSettingsFormProps {
 export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: ArticleSettingsFormProps) {
   const [formData, setFormData] = useState<ArticleSettingsForm>({
     // Article generation settings
-    toneOfVoice: initialSettings.toneOfVoice ?? 'professional',
+    toneOfVoice: initialSettings.toneOfVoice ?? 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
     articleStructure: initialSettings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
     maxWords: initialSettings.maxWords ?? 800,
     // Company/business settings
@@ -93,7 +93,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
       
       // Reset to default settings by posting defaults
       const defaultSettings: ArticleSettingsRequest = {
-        toneOfVoice: 'professional',
+        toneOfVoice: 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
         articleStructure: 'Introduction • Main points with subheadings • Practical tips • Conclusion',
         maxWords: 800,
         companyName: '',
@@ -261,23 +261,16 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
           <label htmlFor="toneOfVoice" className="block text-sm font-medium text-gray-700 mb-2">
             Tone of Voice
           </label>
-          <select
+          <textarea
             id="toneOfVoice"
+            rows={4}
             value={formData.toneOfVoice}
             onChange={(e) => handleInputChange('toneOfVoice', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="casual">Casual</option>
-            <option value="professional">Professional</option>
-            <option value="authoritative">Authoritative</option>
-            <option value="friendly">Friendly</option>
-            <option value="technical">Technical</option>
-            <option value="conversational">Conversational</option>
-            <option value="formal">Formal</option>
-            <option value="educational">Educational</option>
-          </select>
+            placeholder="Describe your desired tone of voice in detail. For example: 'Write in a professional yet approachable tone that speaks directly to small business owners. Use clear, jargon-free language with practical examples. Be encouraging and solution-focused while maintaining credibility through data and expert insights.'"
+          />
           <p className="text-sm text-gray-500 mt-1">
-            The writing style and personality of your articles
+            Describe the writing style, personality, and voice you want for your articles. Be as specific as possible to help the AI understand your brand's communication style.
           </p>
         </div>
 

@@ -96,7 +96,7 @@ export async function GET() {
             // Return default settings if no article settings exist
       const defaultSettings: ArticleSettingsResponse = {
         id: 0, // This will be set when actually created
-        toneOfVoice: "Professional and informative",
+        toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
         articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
         maxWords: 800,
         createdAt: new Date(),

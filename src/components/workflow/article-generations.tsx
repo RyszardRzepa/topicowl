@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import type { Article } from "@/types";
 import { cn } from "@/lib/utils";
 import type { RunNowResponse } from "@/app/api/articles/[id]/run-now/route";
@@ -35,6 +36,7 @@ export function ArticleGenerations({
 
   // Handler for running scheduled generation immediately
   const handleRunNow = async (articleId: string) => {
+    const article = articles.find(a => a.id === articleId);
     setLoadingActions(prev => ({ ...prev, [`run-${articleId}`]: true }));
     try {
       const response = await fetch(`/api/articles/${articleId}/run-now`, {
@@ -48,11 +50,17 @@ export function ArticleGenerations({
         throw new Error(result.error ?? "Failed to start generation");
       }
 
+      toast.success("Generation started immediately!", {
+        description: article ? `"${article.title}" is now being generated.` : "Article generation has started.",
+      });
+
       // Refresh the articles list
       onRefresh?.();
     } catch (error) {
       console.error("Failed to run generation now:", error);
-      // You might want to show a toast notification here
+      toast.error("Failed to start generation", {
+        description: "Please try again or check your connection.",
+      });
     } finally {
       setLoadingActions(prev => ({ ...prev, [`run-${articleId}`]: false }));
     }
@@ -60,6 +68,7 @@ export function ArticleGenerations({
 
   // Handler for canceling scheduled generation
   const handleCancelSchedule = async (articleId: string) => {
+    const article = articles.find(a => a.id === articleId);
     setLoadingActions(prev => ({ ...prev, [`cancel-${articleId}`]: true }));
     try {
       const response = await fetch(`/api/articles/${articleId}/cancel-schedule`, {
@@ -73,11 +82,17 @@ export function ArticleGenerations({
         throw new Error(result.error ?? "Failed to cancel generation");
       }
 
+      toast.success("Generation schedule cancelled!", {
+        description: article ? `"${article.title}" will not be generated automatically.` : "Article generation has been cancelled.",
+      });
+
       // Refresh the articles list
       onRefresh?.();
     } catch (error) {
       console.error("Failed to cancel generation:", error);
-      // You might want to show a toast notification here
+      toast.error("Failed to cancel generation", {
+        description: "Please try again or check your connection.",
+      });
     } finally {
       setLoadingActions(prev => ({ ...prev, [`cancel-${articleId}`]: false }));
     }

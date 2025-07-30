@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArticleCard } from "./article-card";
 import { Check, Calendar, Settings, FileText } from "lucide-react";
+import { toast } from "sonner";
 import type { Article } from "@/types";
 
 interface PublishingPipelineProps {
@@ -46,6 +47,7 @@ export function PublishingPipeline({
 
   const handleBulkPublish = async () => {
     if (selectedArticles.size === 0) return;
+    
     await onBulkPublish(Array.from(selectedArticles));
     setSelectedArticles(new Set());
     setIsBulkMode(false);
@@ -53,6 +55,7 @@ export function PublishingPipeline({
 
   const handleBulkSchedule = async (scheduledAt: string) => {
     if (selectedArticles.size === 0) return;
+    
     await onBulkSchedule(Array.from(selectedArticles), new Date(scheduledAt));
     setSelectedArticles(new Set());
     setIsBulkMode(false);
@@ -165,7 +168,7 @@ export function PublishingPipeline({
                 <Button
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700"
-                  onClick={handleBulkPublish}
+                  onClick={() => onBulkPublish(readyNow.map(a => a.id))}
                 >
                   <Check className="mr-2 h-4 w-4" />
                   Publish All Ready

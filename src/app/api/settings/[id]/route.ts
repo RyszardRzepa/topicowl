@@ -82,7 +82,7 @@ export async function DELETE(
     const [resetSettings] = await db
       .update(articleSettings)
       .set({
-        toneOfVoice: "professional",
+        toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
         articleStructure: "introduction-body-conclusion",
         maxWords: 800,
         updatedAt: new Date(),

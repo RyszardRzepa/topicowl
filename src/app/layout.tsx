@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import { OnboardingChecker } from "@/components/auth/onboarding-checker";
+import { Toaster } from "@/components/ui/sonner";
 
 import { type Metadata } from "next";
 
@@ -66,6 +67,7 @@ export default function RootLayout({
               </div>
             </header>
             {children}
+            <Toaster />
           </OnboardingChecker>
         </body>
       </html>
