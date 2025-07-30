@@ -33,6 +33,7 @@ export type DatabaseArticle = {
   generationScheduledAt: Date | null;
   generationStatus: string | null;
   generationProgress: number | null;
+  generationError: string | null;
 };
 
 export interface KanbanColumn {
@@ -104,6 +105,7 @@ export async function GET(_req: NextRequest) {
         generationScheduledAt: articleGeneration.scheduledAt,
         generationStatus: articleGeneration.status,
         generationProgress: articleGeneration.progress,
+        generationError: articleGeneration.error,
       })
       .from(articles)
       .leftJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))

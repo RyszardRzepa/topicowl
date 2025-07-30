@@ -270,7 +270,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
             placeholder="Describe your desired tone of voice in detail. For example: 'Write in a professional yet approachable tone that speaks directly to small business owners. Use clear, jargon-free language with practical examples. Be encouraging and solution-focused while maintaining credibility through data and expert insights.'"
           />
           <p className="text-sm text-gray-500 mt-1">
-            Describe the writing style, personality, and voice you want for your articles. Be as specific as possible to help the AI understand your brand's communication style.
+            Describe the writing style, personality, and voice you want for your articles. Be as specific as possible to help the AI understand your brands communication style.
           </p>
         </div>
 

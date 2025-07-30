@@ -9,12 +9,13 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { Article } from "@/types";
 import { cn } from "@/lib/utils";
 import type { RunNowResponse } from "@/app/api/articles/[id]/run-now/route";
 import type { CancelScheduleResponse } from "@/app/api/articles/[id]/cancel-schedule/route";
+import type { GenerationStatus } from "@/app/api/articles/[id]/generation-status/route";
 
 interface ArticleGenerationsProps {
   articles: Article[];
@@ -22,6 +23,10 @@ interface ArticleGenerationsProps {
   onRetryGeneration?: (articleId: string) => void;
   onNavigateToArticle?: (articleId: string) => void;
   onRefresh?: () => void;
+  onUpdateArticleStatus?: (
+    articleId: string,
+    updates: Partial<Article>,
+  ) => void;
 }
 
 export function ArticleGenerations({
@@ -30,28 +35,138 @@ export function ArticleGenerations({
   onRetryGeneration,
   onNavigateToArticle,
   onRefresh,
+  onUpdateArticleStatus,
 }: ArticleGenerationsProps) {
-  const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
+  const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>(
+    {},
+  );
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-refresh generation status every 5 seconds for generating articles
+  useEffect(() => {
+    const generatingArticles = articles.filter(
+      (article) => article.status === "generating",
+    );
+
+    if (generatingArticles.length > 0) {
+      // Clear any existing interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+
+      // Set up new interval to fetch status for each generating article
+      intervalRef.current = setInterval(() => {
+        void (async () => {
+          try {
+            // Fetch status for all generating articles in parallel
+            const statusPromises = generatingArticles.map(async (article) => {
+              try {
+                const response = await fetch(
+                  `/api/articles/${article.id}/generation-status`,
+                );
+                if (response.ok) {
+                  const statusData = await response.json() as GenerationStatus;
+                  return { articleId: article.id, statusData };
+                }
+              } catch (error) {
+                console.error(
+                  `Failed to fetch status for article ${article.id}:`,
+                  error,
+                );
+              }
+              return null;
+            });
+
+            const results = await Promise.all(statusPromises);
+
+            // Update local article status and check if we need full refresh
+            let needsFullRefresh = false;
+
+            results.forEach((result) => {
+              if (result?.statusData && onUpdateArticleStatus) {
+                const { articleId, statusData } = result;
+
+                // Map the status data to Article updates
+                const updates: Partial<Article> = {
+                  generationProgress: statusData.progress ?? 0,
+                  generationPhase: statusData.phase as
+                    | "research"
+                    | "writing"
+                    | "validation"
+                    | "optimization"
+                    | undefined,
+                  generationError: statusData.error,
+                };
+
+                // If generation completed or failed, we need a full refresh to update status
+                if (
+                  statusData.status === "completed" ||
+                  statusData.status === "failed"
+                ) {
+                  needsFullRefresh = true;
+                } else {
+                  // Update local state for progress updates
+                  onUpdateArticleStatus(articleId, updates);
+                }
+              }
+            });
+
+            // Full refresh only when articles complete or fail
+            if (needsFullRefresh && onRefresh) {
+              onRefresh();
+            }
+          } catch (error) {
+            console.error("Failed to fetch generation statuses:", error);
+          }
+        })();
+      }, 5000); // 5 seconds
+
+      // Cleanup function
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    } else {
+      // Clear interval if no generating articles
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+  }, [articles, onRefresh, onUpdateArticleStatus]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   // Handler for running scheduled generation immediately
   const handleRunNow = async (articleId: string) => {
-    const article = articles.find(a => a.id === articleId);
-    setLoadingActions(prev => ({ ...prev, [`run-${articleId}`]: true }));
+    const article = articles.find((a) => a.id === articleId);
+    setLoadingActions((prev) => ({ ...prev, [`run-${articleId}`]: true }));
     try {
       const response = await fetch(`/api/articles/${articleId}/run-now`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
 
-      const result = await response.json() as RunNowResponse;
+      const result = (await response.json()) as RunNowResponse;
 
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Failed to start generation");
       }
 
       toast.success("Generation started immediately!", {
-        description: article ? `"${article.title}" is now being generated.` : "Article generation has started.",
+        description: article
+          ? `"${article.title}" is now being generated.`
+          : "Article generation has started.",
       });
 
       // Refresh the articles list
@@ -62,28 +177,33 @@ export function ArticleGenerations({
         description: "Please try again or check your connection.",
       });
     } finally {
-      setLoadingActions(prev => ({ ...prev, [`run-${articleId}`]: false }));
+      setLoadingActions((prev) => ({ ...prev, [`run-${articleId}`]: false }));
     }
   };
 
   // Handler for canceling scheduled generation
   const handleCancelSchedule = async (articleId: string) => {
-    const article = articles.find(a => a.id === articleId);
-    setLoadingActions(prev => ({ ...prev, [`cancel-${articleId}`]: true }));
+    const article = articles.find((a) => a.id === articleId);
+    setLoadingActions((prev) => ({ ...prev, [`cancel-${articleId}`]: true }));
     try {
-      const response = await fetch(`/api/articles/${articleId}/cancel-schedule`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      const response = await fetch(
+        `/api/articles/${articleId}/cancel-schedule`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
-      const result = await response.json() as CancelScheduleResponse;
+      const result = (await response.json()) as CancelScheduleResponse;
 
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Failed to cancel generation");
       }
 
       toast.success("Generation schedule cancelled!", {
-        description: article ? `"${article.title}" will not be generated automatically.` : "Article generation has been cancelled.",
+        description: article
+          ? `"${article.title}" will not be generated automatically.`
+          : "Article generation has been cancelled.",
       });
 
       // Refresh the articles list
@@ -94,18 +214,29 @@ export function ArticleGenerations({
         description: "Please try again or check your connection.",
       });
     } finally {
-      setLoadingActions(prev => ({ ...prev, [`cancel-${articleId}`]: false }));
+      setLoadingActions((prev) => ({
+        ...prev,
+        [`cancel-${articleId}`]: false,
+      }));
     }
   };
 
   // Separate articles by status (mutually exclusive categories)
   const failedArticles = articles.filter((a) => a.generationError);
   const scheduledArticles = articles.filter(
-    (a) => a.generationScheduledAt && a.status === "to_generate" && !a.generationError,
+    (a) =>
+      a.generationScheduledAt &&
+      a.status === "to_generate" &&
+      !a.generationError,
   );
-  const generatingArticles = articles.filter((a) => a.status === "generating" && !a.generationError);
+  const generatingArticles = articles.filter(
+    (a) => a.status === "generating" && !a.generationError,
+  );
   const completedArticles = articles.filter(
-    (a) => a.status === "wait_for_publish" && a.generationCompletedAt && !a.generationError,
+    (a) =>
+      a.status === "wait_for_publish" &&
+      a.generationCompletedAt &&
+      !a.generationError,
   );
 
   const getProgressColor = (progress: number) => {
@@ -342,7 +473,6 @@ export function ArticleGenerations({
           </div>
         </div>
       )}
-
       {/* Scheduled for Generation */}
       {scheduledArticles.length > 0 && (
         <div>
@@ -361,7 +491,6 @@ export function ArticleGenerations({
           </div>
         </div>
       )}
-
       Recently Completed
       {completedArticles.length > 0 && (
         <div>
@@ -380,7 +509,6 @@ export function ArticleGenerations({
           </div>
         </div>
       )}
-
       {/* Failed Generations */}
       {failedArticles.length > 0 && (
         <div>
@@ -390,7 +518,11 @@ export function ArticleGenerations({
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {failedArticles.map((article) => (
-              <ArticleCard key={`failed-${article.id}`} article={article} status="failed" />
+              <ArticleCard
+                key={`failed-${article.id}`}
+                article={article}
+                status="failed"
+              />
             ))}
           </div>
         </div>

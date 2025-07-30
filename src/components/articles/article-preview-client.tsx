@@ -108,7 +108,6 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
       // Update local state
       setArticle(prev => ({ ...prev, ...updatedData }));
       setIsEditing(false);
-      setShowSuccessMessage('Article updated successfully!');
       setTimeout(() => setShowSuccessMessage(null), 3000);
       
       // Refresh the page data

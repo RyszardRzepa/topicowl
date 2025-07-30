@@ -1,21 +1,33 @@
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import { NextResponse } from 'next/server';
-import { prompts } from '@/constants';
-import { MODELS } from '@/constants';
-import { blogPostSchema } from '@/types';
+import { anthropic } from "@ai-sdk/anthropic";
+import { generateObject } from "ai";
+import { NextResponse } from "next/server";
+import { prompts } from "@/constants";
+import { MODELS } from "@/constants";
+import { blogPostSchema } from "@/types";
 
 // Types colocated with this API route
+interface ValidationIssue {
+  fact: string;
+  issue: string;
+  correction: string;
+}
+
 interface Correction {
   fact: string;
   issue: string;
   correction: string;
-  confidence: number;
 }
 
 export interface UpdateRequest {
   article: string;
-  corrections: Correction[];
+  corrections?: Correction[];
+  validationIssues?: ValidationIssue[];
+  validationText?: string; // Raw validation text from validation API
+  settings?: {
+    toneOfVoice?: string;
+    articleStructure?: string;
+    maxWords?: number;
+  };
 }
 
 export interface UpdateResponse {
@@ -24,21 +36,43 @@ export interface UpdateResponse {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as UpdateRequest;
-    
-    if (!body.article || !body.corrections) {
+    const body = (await request.json()) as UpdateRequest;
+
+    if (
+      !body.article ||
+      (!body.corrections && !body.validationIssues && !body.validationText)
+    ) {
       return NextResponse.json(
-        { error: 'Article and corrections are required' },
-        { status: 400 }
+        {
+          error:
+            "Article and either corrections, validationIssues, or validationText are required",
+        },
+        { status: 400 },
       );
     }
 
     const model = anthropic(MODELS.CLAUDE_SONET_4);
 
+    let correctionsOrValidationText: Correction[] | string;
+
+    if (body.validationText) {
+      correctionsOrValidationText = body.validationText;
+    } else {
+      // Convert validationIssues to corrections format if provided
+      correctionsOrValidationText =
+        body.corrections ??
+        body.validationIssues?.map((issue) => ({
+          fact: issue.fact,
+          issue: issue.issue,
+          correction: issue.correction,
+        })) ??
+        [];
+    }
+
     const { object: articleObject } = await generateObject({
       model,
       schema: blogPostSchema,
-      prompt: prompts.update(body.article, body.corrections),
+      prompt: prompts.update(body.article, correctionsOrValidationText, body.settings),
     });
 
     const response: UpdateResponse = {
@@ -50,10 +84,10 @@ export async function POST(request: Request) {
       data: response,
     });
   } catch (error) {
-    console.error('Update endpoint error:', error);
+    console.error("Update endpoint error:", error);
     return NextResponse.json(
-      { error: 'Failed to update article' },
-      { status: 500 }
+      { error: "Failed to update article" },
+      { status: 500 },
     );
   }
 }

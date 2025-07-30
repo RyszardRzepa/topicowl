@@ -1,9 +1,9 @@
-import { google } from '@ai-sdk/google';
-import { generateText, generateObject } from 'ai';
-import { z } from 'zod';
-import { NextResponse } from 'next/server';
-import { prompts } from '@/constants';
-import { MODELS } from '@/constants';
+import { google } from "@ai-sdk/google";
+import { generateText, generateObject } from "ai";
+import { z } from "zod";
+import { NextResponse } from "next/server";
+import { prompts } from "@/constants";
+import { MODELS } from "@/constants";
 
 // Types colocated with this API route
 export interface ValidateRequest {
@@ -16,64 +16,80 @@ export interface ValidateResponse {
     fact: string;
     issue: string;
     correction: string;
-    confidence: number;
-    severity: 'low' | 'medium' | 'high';
   }[];
+  rawValidationText: string;
 }
 
 const validationResponseSchema = z.object({
   isValid: z.boolean(),
-  issues: z.array(z.object({
-    fact: z.string(),
-    issue: z.string(),
-    correction: z.string(),
-    confidence: z.number(),
-    severity: z.enum(['low', 'medium', 'high'])
-  }))
+  issues: z.array(
+    z.object({
+      fact: z.string(),
+      issue: z.string(),
+      correction: z.string(),
+    }),
+  ),
 });
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as ValidateRequest;
-    
+    const body = (await request.json()) as ValidateRequest;
+
     if (!body.article) {
       return NextResponse.json(
-        { error: 'Article content is required' },
-        { status: 400 }
+        { error: "Article content is required" },
+        { status: 400 },
       );
     }
 
-    const { text: validationAnalysis } = await generateText({
+    // First get raw validation text for debugging/update purposes
+    const { text: rawValidationText } = await generateText({
       model: google(MODELS.GEMINI_2_5_FLASH, {
         useSearchGrounding: true,
         dynamicRetrievalConfig: {
-          mode: 'MODE_UNSPECIFIED',
+          mode: "MODE_UNSPECIFIED",
         },
       }),
+      prompt: `
+        You are an expert fact-checker. Analyze this article and identify factual issues.
+        
+        Article: ${body.article}
+        
+        Return results in this format:
+        VALIDATION RESULTS:
+        
+        CLAIM: [Exact text from article]
+        STATUS: [UNVERIFIED or CONTRADICTED]
+        REASON: [One sentence explaining the issue]
+        
+        If no issues: "VALIDATION RESULTS: No factual issues identified."
+      `,
+    });
+
+    // Then get structured validation using the main prompt
+    const { object } = await generateObject({
+      model: google(MODELS.GEMINI_2_5_FLASH, {
+        useSearchGrounding: true,
+        dynamicRetrievalConfig: {
+          mode: "MODE_UNSPECIFIED",
+        },
+      }),
+      schema: validationResponseSchema,
       prompt: prompts.validation(body.article),
     });
 
-    const structurePrompt = `
-      Based on this validation analysis, create a structured validation response:
-      
-      ${validationAnalysis}
-      
-      Return a JSON object with isValid boolean and any issues found.
-      Only include issues with confidence > 0.7.
-    `;
+    // Return both structured data and raw validation text
+    const response: ValidateResponse = {
+      ...object,
+      rawValidationText,
+    };
 
-    const { object } = await generateObject({
-      model: google(MODELS.GEMINI_2_5_FLASH),
-      schema: validationResponseSchema,
-      prompt: structurePrompt,
-    });
-
-    return NextResponse.json(object);
+    return NextResponse.json(response);
   } catch (error) {
-    console.error('Validation endpoint error:', error);
+    console.error("Validation endpoint error:", error);
     return NextResponse.json(
-      { error: 'Failed to validate article' },
-      { status: 500 }
+      { error: "Failed to validate article" },
+      { status: 500 },
     );
   }
 }

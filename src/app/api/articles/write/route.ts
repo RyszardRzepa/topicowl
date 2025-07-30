@@ -5,11 +5,12 @@ import { prompts } from '@/constants';
 import { MODELS } from '@/constants';
 import { db } from '@/server/db';
 import { articleSettings } from '@/server/db/schema';
+import type { OutlineResponse } from '@/app/api/articles/outline/route';
 import { blogPostSchema } from '@/types';
 
 // Types colocated with this API route
 interface WriteRequest {
-  researchData: string;
+  outlineData: OutlineResponse;
   title: string;
   keywords: string[];
   author?: string;
@@ -36,10 +37,27 @@ export interface WriteResponse {
 export async function POST(request: Request) {
   try {
     const body = await request.json() as WriteRequest;
+    console.log("Write API request received", { 
+      title: body.title,
+      hasOutlineData: !!body.outlineData,
+      keyPointsCount: body.outlineData?.keyPoints?.length ?? 0,
+      keywordsCount: body.keywords?.length ?? 0,
+      hasCoverImage: !!body.coverImage
+    });
     
-    if (!body.researchData || !body.title || !body.keywords || body.keywords.length === 0) {
+    if (!body.outlineData || !body.title || !body.keywords || body.keywords.length === 0) {
+      console.log("Invalid request - missing required fields");
       return NextResponse.json(
-        { error: 'Research data, title, and keywords are required' },
+        { error: 'Outline data, title, and keywords are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate outline data structure
+    if (!body.outlineData.keyPoints || !Array.isArray(body.outlineData.keyPoints) || body.outlineData.keyPoints.length !== 5) {
+      console.log("Invalid outline data - expected 5 key points");
+      return NextResponse.json(
+        { error: 'Invalid outline data structure' },
         { status: 400 }
       );
     }
@@ -57,9 +75,10 @@ export async function POST(request: Request) {
         articleStructure: '',
         maxWords: 800,
       };
+      console.log("Article settings loaded", { settingsFound: settings.length > 0 });
     } catch (error) {
       // If there's an error (like missing column), use defaults
-      console.warn('Using default article settings due to database error:', error);
+      console.log('Using default article settings due to database error', error);
       settingsData = {
         toneOfVoice: '',
         articleStructure: '',
@@ -67,12 +86,17 @@ export async function POST(request: Request) {
       };
     }
 
+    console.log("Starting article generation with AI", {
+      model: MODELS.CLAUDE_SONET_4,
+      maxWords: settingsData.maxWords
+    });
+
     const { object: articleObject } = await generateObject({
       model: anthropic(MODELS.CLAUDE_SONET_4),
       schema: blogPostSchema,
       prompt: prompts.writing({
         title: body.title,
-        researchData: body.researchData,
+        outlineData: body.outlineData,
         coverImage: body.coverImage
       }, settingsData, []),
     });
@@ -83,9 +107,15 @@ export async function POST(request: Request) {
       ...(body.coverImage && { coverImage: body.coverImage })
     } as WriteResponse;
 
+    console.log("Article generation completed", {
+      contentLength: responseObject.content?.length ?? 0,
+      hasCoverImage: !!responseObject.coverImage,
+      readingTime: responseObject.readingTime
+    });
+
     return NextResponse.json(responseObject);
   } catch (error) {
-    console.error('Write endpoint error:', error);
+    console.log('Write endpoint error', error);
     return NextResponse.json(
       { error: 'Failed to write article' },
       { status: 500 }

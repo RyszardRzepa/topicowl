@@ -73,6 +73,13 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         ? dbArticle.updatedAt.toISOString()
         : dbArticle.updatedAt,
     generationProgress: typeof dbArticle.generationProgress === 'number' ? dbArticle.generationProgress : 0,
+    // Map generation status to phase for UI display
+    generationPhase: dbArticle.generationStatus === 'researching' ? 'research' :
+                    dbArticle.generationStatus === 'writing' ? 'writing' :
+                    dbArticle.generationStatus === 'validating' ? 'validation' :
+                    dbArticle.generationStatus === 'updating' ? 'optimization' :
+                    undefined,
+    generationError: dbArticle.generationError ?? undefined,
     estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
     views: 0, // Not tracked in database yet
     clicks: 0, // Not tracked in database yet
@@ -219,7 +226,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     onStatusUpdate: (statusData) =>
       handleGenerationStatusUpdate(
         firstGeneratingArticle?.id ?? "",
-        statusData,
+        {
+          progress: statusData.progress,
+          phase: statusData.phase as "research" | "writing" | "validation" | "optimization" | undefined,
+          error: statusData.error,
+        },
       ),
     onComplete: () =>
       handleGenerationComplete(firstGeneratingArticle?.id ?? ""),
@@ -323,7 +334,6 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         ),
       );
       
-      toast.success("Article updated successfully!");
     } catch (error) {
       console.error("Failed to update article:", error);
       toast.error("Failed to update article", {
@@ -674,6 +684,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
             onRetryGeneration={handleGenerateArticle}
             onNavigateToArticle={handleNavigateToArticle}
             onRefresh={fetchArticles}
+            onUpdateArticleStatus={handleUpdateArticle}
           />
         </TabsContent>
 

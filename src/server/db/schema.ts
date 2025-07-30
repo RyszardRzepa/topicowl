@@ -155,7 +155,7 @@ export const articleGeneration = contentMachineSchema.table("article_generation"
   // Phase results
   researchData: jsonb("research_data").default({}).notNull(),
   draftContent: text("draft_content"),
-  validationReport: jsonb("validation_report").default({}).notNull(),
+  validationReport: text("validation_report"),
   seoReport: jsonb("seo_report").default({}).notNull(),
   
   // Image selection tracking
