@@ -336,6 +336,8 @@ async function writeArticle(
   console.log("Write API response", {
     contentLength: writeData.content?.length ?? 0,
     hasMetaDescription: !!writeData.metaDescription,
+    hasSlug: !!writeData.slug,
+    tagsCount: writeData.tags?.length ?? 0,
   });
 
   await updateGenerationProgress(generationId, "validating", 70, {
@@ -400,30 +402,53 @@ async function updateArticleIfNeeded(
 
 async function finalizeArticle(
   articleId: number,
+  writeData: WriteResponse,
   content: string,
-  metaDescription: string,
   coverImageUrl: string,
   coverImageAlt: string,
   generationId: number,
 ): Promise<void> {
   const updateData: {
     draft: string;
+    slug?: string;
     metaDescription: string;
+    metaKeywords?: string[];
     status: "wait_for_publish";
     updatedAt: Date;
     coverImageUrl?: string;
     coverImageAlt?: string;
   } = {
     draft: content,
-    metaDescription,
+    metaDescription: writeData.metaDescription ?? "",
     status: "wait_for_publish",
     updatedAt: new Date(),
   };
 
+  // Save generated slug if available
+  if (writeData.slug) {
+    updateData.slug = writeData.slug;
+    console.log("Saving generated slug", { slug: writeData.slug });
+  }
+
+  // Save generated SEO tags/keywords if available
+  if (writeData.tags && writeData.tags.length > 0) {
+    updateData.metaKeywords = writeData.tags;
+    console.log("Saving generated SEO tags", { tags: writeData.tags });
+  }
+
+  // Save cover image data if available
   if (coverImageUrl) {
     updateData.coverImageUrl = coverImageUrl;
     updateData.coverImageAlt = coverImageAlt;
   }
+
+  console.log("Finalizing article with SEO data", {
+    articleId,
+    hasSlug: !!updateData.slug,
+    hasMetaDescription: !!updateData.metaDescription,
+    metaKeywordsCount: updateData.metaKeywords?.length ?? 0,
+    hasCoverImage: !!coverImageUrl,
+  });
 
   await db.update(articles).set(updateData).where(eq(articles.id, articleId));
 
@@ -599,8 +624,8 @@ async function generateArticle(context: GenerationContext): Promise<void> {
     // Phase 7: Finalize
     await finalizeArticle(
       articleId,
+      writeData,
       finalContent,
-      writeData.metaDescription ?? "",
       coverImageUrl,
       coverImageAlt,
       generationRecord.id,
@@ -609,6 +634,9 @@ async function generateArticle(context: GenerationContext): Promise<void> {
     console.log("Generation completed successfully", {
       finalContentLength: finalContent.length,
       hasCoverImage: !!coverImageUrl,
+      hasSlug: !!writeData.slug,
+      hasMetaDescription: !!writeData.metaDescription,
+      tagsCount: writeData.tags?.length ?? 0,
     });
   } catch (error) {
     await handleGenerationError(

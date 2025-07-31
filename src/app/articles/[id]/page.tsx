@@ -98,7 +98,7 @@ export default async function ArticlePreviewPage({
   // TypeScript assertion: article is guaranteed to be defined here due to notFound() calls above
   return (
     <main className="min-h-screen bg-gray-50">
-      <div className="container mx-auto max-w-4xl p-8">
+      <div className="container mx-auto max-w-7xl p-8">
         {/* Navigation Header */}
         <div className="mb-8">
           <Link href="/" className="inline-block">

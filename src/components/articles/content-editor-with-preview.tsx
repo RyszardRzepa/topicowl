@@ -21,9 +21,7 @@ import { LinkNode, AutoLinkNode } from "@lexical/link";
 import { CodeHighlightNode, CodeNode } from "@lexical/code";
 import { FORMAT_TEXT_COMMAND } from "lexical";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Image from "next/image";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Save,
   Bold,
@@ -147,13 +145,6 @@ interface ContentEditorWithPreviewProps {
   onSave: (content: string) => void;
   isLoading?: boolean;
   placeholder?: string;
-  article?: {
-    status?: string;
-    keywords?: string[];
-    metaDescription?: string;
-    coverImageUrl?: string;
-    coverImageAlt?: string;
-  };
 }
 
 const theme = {
@@ -188,7 +179,6 @@ export function ContentEditorWithPreview({
   onSave,
   isLoading = false,
   placeholder = "Start writing your article...",
-  article,
 }: ContentEditorWithPreviewProps) {
   const [currentContent, setCurrentContent] = useState(initialContent);
   const editorStateRef = useRef<EditorState | null>(null);
@@ -230,27 +220,7 @@ export function ContentEditorWithPreview({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle>Article Content</CardTitle>
-        <div className="flex items-center gap-2">
-          {article?.status && (
-            <Badge
-              variant={
-                article.status === "published"
-                  ? "default"
-                  : article.status === "wait_for_publish"
-                    ? "secondary"
-                    : article.status === "generating"
-                      ? "red"
-                      : "outline"
-              }
-            >
-              {article.status.replace("_", " ").toUpperCase()}
-            </Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         <div className="lexical-editor">
           <LexicalComposer initialConfig={initialConfig}>
             <ToolbarPlugin />

@@ -2,9 +2,9 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArticleActions } from './article-actions';
 import { ArticleMetadata } from './article-metadata';
-import { ArticleMetadataEditor } from './article-metadata-editor';
+import { CoverImageDisplay } from './cover-image-display';
+import { ArticleSidebarEditor } from './article-sidebar-editor';
 import { ContentEditorWithPreview } from './content-editor-with-preview';
 import { GenerationProgress } from './generation-progress';
 import { useGenerationPolling } from '@/hooks/use-generation-polling';
@@ -52,28 +52,6 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
     }
   });
 
-  // Handle status changes from ArticleActions
-  const handleStatusChange = useCallback((newStatus: string) => {
-    setArticle(prev => ({
-      ...prev,
-      status: newStatus as typeof prev.status
-    }));
-    
-    // Show success message
-    setShowSuccessMessage(`Article status updated to ${newStatus}`);
-    setTimeout(() => setShowSuccessMessage(null), 3000);
-    
-    // Refresh the page data
-    router.refresh();
-    
-    // Store status change in sessionStorage to notify kanban board
-    sessionStorage.setItem('articleStatusChanged', JSON.stringify({
-      articleId: article.id,
-      newStatus,
-      timestamp: Date.now()
-    }));
-  }, [router, article.id]);
-
   // Handle article save
   const handleSave = useCallback(async (updatedData: Partial<ArticleDetailResponse['data']>) => {
     setIsSaving(true);
@@ -109,10 +87,10 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
     }
   }, [article.id, router]);
 
-  // Dummy handler since we're always in edit mode
-  const handleEdit = useCallback(() => {
-    // No action needed - we're always in edit mode
-  }, []);
+  // Handle cover image save
+  const handleCoverImageSave = useCallback(async (imageData: { coverImageUrl: string; coverImageAlt: string }) => {
+    await handleSave(imageData);
+  }, [handleSave]);
 
   // Handle content save from Lexical editor
   const handleContentSave = useCallback(async (content: string) => {
@@ -160,29 +138,35 @@ export function ArticlePreviewClient({ initialArticle }: ArticlePreviewClientPro
         <GenerationProgress status={generationStatus} />
       )}
 
-
-      {/* Article Editor - Always in Edit Mode */}
-      <div className="space-y-4">
-        <ArticleMetadataEditor
-          article={article}
-          onSave={handleSave}
-          isLoading={isSaving}
-        />
+      {/* Main Layout - Two Column */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Main Content Area - Cover Image + Content Editor */}
+        <div className="flex-1 space-y-6">
+          {/* Cover Image Display */}
+          <CoverImageDisplay
+            coverImageUrl={article.coverImageUrl ?? undefined}
+            coverImageAlt={article.coverImageAlt ?? undefined}
+            onImageUpdate={handleCoverImageSave}
+            isLoading={isSaving}
+          />
+          
+          {/* Content Editor */}
+          <ContentEditorWithPreview
+            initialContent={(article.optimizedContent ?? article.draft) ?? ''}
+            onSave={handleContentSave}
+            isLoading={isSaving}
+            placeholder="Start writing your article content..."
+          />
+        </div>
         
-        {/* Content Editor Section - Rich text editor with preview */}
-        <ContentEditorWithPreview
-          initialContent={(article.optimizedContent ?? article.draft) ?? ''}
-          onSave={handleContentSave}
-          isLoading={isSaving}
-          placeholder="Start writing your article content..."
-          article={{
-            status: article.status,
-            keywords: Array.isArray(article.keywords) ? article.keywords : [],
-            metaDescription: article.metaDescription ?? undefined,
-            coverImageUrl: article.coverImageUrl ?? undefined,
-            coverImageAlt: article.coverImageAlt ?? undefined,
-          }}
-        />
+        {/* Sidebar - Form Fields */}
+        <div className="w-full lg:w-80 xl:w-96">
+          <ArticleSidebarEditor
+            article={article}
+            onSave={handleSave}
+            isLoading={isSaving}
+          />
+        </div>
       </div>
     </div>
   );

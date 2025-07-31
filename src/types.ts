@@ -22,13 +22,21 @@ export const ogMetadataSchema = z.object({
 
 export type BlogPost = z.infer<typeof ogMetadataSchema>;
 
-// Blog post schema for API routes
+// Blog post schema for AI-generated content - includes all SEO fields
 export const blogPostSchema = z.object({
-  title: z.string(),
-  content: z.string(),
-  description: z.string().optional(),
-  keywords: z.array(z.string()).optional(),
-  status: z.string().optional(),
+  id: z.string().describe("A unique ID for the blog post. A random number as a string is fine."),
+  title: z.string().describe("The title of the blog post."),
+  slug: z.string().describe("A URL-friendly version of the title."),
+  excerpt: z.string().describe("A short, compelling summary (1-2 sentences)."),
+  metaDescription: z.string().describe("An SEO-friendly description for the blog post. Max 160 char."),
+  readingTime: z.string().describe("An estimated reading time, e.g., '5 min read'."),
+  content: z.string().describe("The full article content in Markdown format."),
+  author: z.string().default('Content Team').describe("The author of the blog post."),
+  date: z.string().describe("The publication date."),
+  coverImage: z.string().optional().describe("A placeholder URL for the cover image."),
+  imageCaption: z.string().optional().describe("A placeholder caption for the cover image."),
+  tags: z.array(z.string()).optional().describe("An array of relevant SEO keywords/tags."),
+  relatedPosts: z.array(z.string()).optional().describe("An array of related post slugs."),
 });
 
 // Article status type - imported from database schema
