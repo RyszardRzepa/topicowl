@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The AI SEO Content Machine currently uses a kanban board interface for article management, but users find it complex and unclear for the two main workflows: article planning/generation and scheduling/publishing. This feature will redesign the UX to be clearer and simpler, focusing on making these two distinct flows more intuitive and user-friendly.
+Contentbot currently uses a kanban board interface for article management, but users find it complex and unclear for the two main workflows: article planning/generation and scheduling/publishing. This feature will redesign the UX to be clearer and simpler, focusing on making these two distinct flows more intuitive and user-friendly.
 
 ## Requirements
 

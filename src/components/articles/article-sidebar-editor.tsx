@@ -7,7 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Save } from "lucide-react";
+import { ArticleActionButtons } from "./article-action-buttons";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
+import { ArticleMetadata } from "./article-metadata";
 
 interface ArticleSidebarEditorProps {
   article: ArticleDetailResponse["data"];
@@ -15,6 +17,8 @@ interface ArticleSidebarEditorProps {
     updatedArticle: Partial<ArticleDetailResponse["data"]>,
   ) => Promise<void>;
   isLoading?: boolean;
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
 }
 
 // Article type options - you can expand this based on your needs
@@ -31,6 +35,8 @@ export function ArticleSidebarEditor({
   article,
   onSave,
   isLoading = false,
+  onSuccess,
+  onError,
 }: ArticleSidebarEditorProps) {
   const [formData, setFormData] = useState({
     title: article.title ?? "",
@@ -77,16 +83,23 @@ export function ArticleSidebarEditor({
 
   return (
     <Card className="h-fit">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg">Article Details</CardTitle>
+      <CardHeader>
+        <ArticleMetadata article={article} />
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="border-b pb-4">
+            <ArticleActionButtons
+              article={article}
+              onSuccess={onSuccess}
+              onError={onError}
+            />
+          </div>
           {/* Title */}
           <div>
             <label
               htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1 block text-sm font-medium text-gray-700"
             >
               Title
             </label>
@@ -103,7 +116,7 @@ export function ArticleSidebarEditor({
 
           {/* Keywords */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700">
               Keywords
             </label>
             <div className="mb-2 flex flex-wrap gap-1">
@@ -129,7 +142,7 @@ export function ArticleSidebarEditor({
                 value={newKeyword}
                 onChange={(e) => setNewKeyword(e.target.value)}
                 placeholder="Add keyword"
-                onKeyPress={(e) => {
+                onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     handleAddKeyword();
@@ -151,9 +164,9 @@ export function ArticleSidebarEditor({
 
           {/* Type */}
           <div>
-            <label 
+            <label
               htmlFor="articleType"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1 block text-sm font-medium text-gray-700"
             >
               Type
             </label>
@@ -161,9 +174,12 @@ export function ArticleSidebarEditor({
               id="articleType"
               value={formData.articleType}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, articleType: e.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  articleType: e.target.value,
+                }))
               }
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
               {ARTICLE_TYPES.map((type) => (
                 <option key={type.value} value={type.value}>
@@ -177,7 +193,7 @@ export function ArticleSidebarEditor({
           <div>
             <label
               htmlFor="metaDescription"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1 block text-sm font-medium text-gray-700"
             >
               Meta Description ({formData.metaDescription.length}/160)
             </label>
@@ -193,7 +209,7 @@ export function ArticleSidebarEditor({
               placeholder="SEO meta description"
               rows={3}
               maxLength={160}
-              className="text-sm resize-none"
+              className="resize-none text-sm"
             />
           </div>
 
@@ -201,7 +217,7 @@ export function ArticleSidebarEditor({
           <div>
             <label
               htmlFor="slug"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1 block text-sm font-medium text-gray-700"
             >
               Slug
             </label>
@@ -216,13 +232,10 @@ export function ArticleSidebarEditor({
             />
           </div>
 
-          {/* Save Button */}
-          <div className="pt-4 border-t">
-            <Button 
-              type="submit" 
-              disabled={isLoading}
-              className="w-full"
-            >
+          {/* Action Buttons */}
+          <div className="space-y-3 border-t pt-4">
+            {/* Save Button */}
+            <Button type="submit" disabled={isLoading} className="w-full">
               <Save className="mr-2 h-4 w-4" />
               {isLoading ? "Saving..." : "Save Changes"}
             </Button>

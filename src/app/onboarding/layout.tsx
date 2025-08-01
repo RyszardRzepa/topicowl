@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Getting Started - AI SEO Content Machine",
+  title: "Getting Started - Contentbot",
   description: "Set up your account to start creating SEO-optimized content",
 };
 
@@ -16,7 +16,7 @@ export default function OnboardingLayout({
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Welcome to AI SEO Content Machine
+              Welcome to Contentbot
             </h1>
             <p className="text-gray-600">
               Let&apos;s set up your account to start generating amazing content

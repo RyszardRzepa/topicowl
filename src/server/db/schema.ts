@@ -12,14 +12,14 @@ import { jsonb, pgSchema } from "drizzle-orm/pg-core";
  * @see https://orm.drizzle.team/docs/goodies#multi-project-schema
  */
 
-export const contentMachineSchema = pgSchema("content-machine");
+export const contentbotSchema = pgSchema("contentbot");
 
 export const generatePublicId = customAlphabet(
   "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
   8,
 );
 
-export const users = contentMachineSchema.table("users", {
+export const users = contentbotSchema.table("users", {
   id: text("id").primaryKey().default(generatePublicId()),
   clerk_user_id: text("clerk_user_id").unique().notNull(),
   email: text("email").notNull(),
@@ -58,7 +58,7 @@ export const articleStatusEnum = pgEnum("article_status", [
 ]);
 
 // Articles table for kanban-based workflow
-export const articles = contentMachineSchema.table("articles", {
+export const articles = contentbotSchema.table("articles", {
   id: serial("id").primaryKey(),
   user_id: text("user_id").references(() => users.id),
   title: varchar("title", { length: 255 }).notNull(),
@@ -114,7 +114,7 @@ export const articlesRelations = {
 };
 
 // Generation queue table for tracking articles scheduled for generation
-export const generationQueue = contentMachineSchema.table("generation_queue", {
+export const generationQueue = contentbotSchema.table("generation_queue", {
   id: serial("id").primaryKey(),
   article_id: integer("article_id").references(() => articles.id).notNull(),
   user_id: text("user_id").references(() => users.id).notNull(),
@@ -140,7 +140,7 @@ export const generationQueue = contentMachineSchema.table("generation_queue", {
 });
 
 // Article Generation tracking table for separation of concerns
-export const articleGeneration = contentMachineSchema.table("article_generation", {
+export const articleGeneration = contentbotSchema.table("article_generation", {
   id: serial("id").primaryKey(),
   articleId: integer("article_id").references(() => articles.id).notNull(),
   userId: text("user_id").references(() => users.id).notNull(),
@@ -185,7 +185,7 @@ export const articleGeneration = contentMachineSchema.table("article_generation"
 });
 
 // Article Settings table for global configuration
-export const articleSettings = contentMachineSchema.table("article_settings", {
+export const articleSettings = contentbotSchema.table("article_settings", {
   id: serial("id").primaryKey(),
   user_id: text("user_id").references(() => users.id),
   toneOfVoice: text("tone_of_voice"),
@@ -201,7 +201,7 @@ export const articleSettings = contentMachineSchema.table("article_settings", {
 });
 
 // Webhook delivery tracking table
-export const webhookDeliveries = contentMachineSchema.table("webhook_deliveries", {
+export const webhookDeliveries = contentbotSchema.table("webhook_deliveries", {
   id: serial("id").primaryKey(),
   user_id: text("user_id").references(() => users.id).notNull(),
   article_id: integer("article_id").references(() => articles.id).notNull(),

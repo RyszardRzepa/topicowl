@@ -217,7 +217,7 @@ mode: agent
 
 # Product Overview
 
-## AI SEO Content Machine
+## Contentbot
 
 An automated content creation platform that uses multi-agent AI systems to generate, manage, and publish SEO-optimized articles at scale.
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Hackathon SEO Automation enhancement transforms the existing AI SEO Content Machine into a comprehensive, autonomous SEO campaign system that showcases Kiro's full capabilities. This design leverages the current multi-agent architecture while adding real-time performance tracking, competitor analysis, and automated optimization loops.
+The Hackathon SEO Automation enhancement transforms the existing Contentbot into a comprehensive, autonomous SEO campaign system that showcases Kiro's full capabilities. This design leverages the current multi-agent architecture while adding real-time performance tracking, competitor analysis, and automated optimization loops.
 
 The system demonstrates three key hackathon winning patterns:
 1. **Complete business loop automation**: From opportunity discovery to performance optimization

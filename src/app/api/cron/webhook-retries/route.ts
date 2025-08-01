@@ -97,7 +97,7 @@ export async function POST() {
       // Prepare headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'User-Agent': 'AI-SEO-Content-Machine-Webhook/1.0',
+        'User-Agent': 'Contentbot-Webhook/1.0',
         'X-Webhook-Event': delivery.event_type,
         'X-Webhook-Timestamp': Math.floor(Date.now() / 1000).toString(),
       };

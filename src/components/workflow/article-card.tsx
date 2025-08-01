@@ -327,12 +327,24 @@ export function ArticleCard({
         )}
 
         {article.publishScheduledAt && (
-          <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-            <Calendar className="h-4 w-4" />
-            <span>
-              Publish scheduled:{" "}
+          <div className="rounded-lg bg-blue-50 p-3 text-sm">
+            <div className="flex items-center gap-2 text-blue-700">
+              <Calendar className="h-4 w-4" />
+              <span className="font-medium">Scheduled to publish</span>
+            </div>
+            <div className="mt-1 text-blue-600">
+              {new Date(article.publishScheduledAt).toLocaleString(undefined, {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              })}
+            </div>
+            <div className="mt-1 text-xs text-blue-500">
               {formatRelativeTime(article.publishScheduledAt)}
-            </span>
+            </div>
           </div>
         )}
       </CardContent>
@@ -422,8 +434,8 @@ export function ArticleCard({
             </>
           )}
 
-          {/* Publishing mode actions */}
-          {mode === "publishing" && canPublish && (
+          {/* Publishing mode actions - only show for unscheduled articles */}
+          {mode === "publishing" && canPublish && !article.publishScheduledAt && (
             <>
               {/* Publishing UI */}
               {isScheduling ? (
@@ -478,6 +490,52 @@ export function ArticleCard({
                     Schedule
                   </Button>
                 </div>
+              )}
+            </>
+          )}
+
+          {/* Simple reschedule action for already scheduled articles */}
+          {mode === "publishing" && article.publishScheduledAt && (
+            <>
+              {isScheduling ? (
+                <div className="w-full space-y-3">
+                  <DateTimePicker
+                    value={selectedScheduleTime}
+                    onChange={(date) => {
+                      setSelectedScheduleTime(date);
+                      if (date) {
+                        void handleSchedulePublishing(date);
+                      }
+                    }}
+                    placeholder="Select new publish date and time"
+                    minDate={new Date()}
+                    className="w-full"
+                  />
+                  <Button
+                    onClick={() => {
+                      setIsScheduling(false);
+                      setSelectedScheduleTime(undefined);
+                    }}
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsScheduling(true);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Reschedule
+                </Button>
               )}
             </>
           )}

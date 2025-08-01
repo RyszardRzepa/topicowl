@@ -28,7 +28,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex-1 p-4">
             <Link href="/dashboard" className="block">
               <h2 className="text-lg font-semibold text-stone-900">
-                AI Content Machine
+                Contentbot
               </h2>
             </Link>
             <DashboardNav />
@@ -82,7 +82,7 @@ function MobileDashboardLayout({ children }: DashboardLayoutProps) {
           <div className="mb-6 flex items-center justify-between">
             <Link href="/dashboard" className="block">
               <h2 className="text-lg font-semibold text-stone-900">
-                AI Content Machine
+                Contentbot
               </h2>
             </Link>
             <button

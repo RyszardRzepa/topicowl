@@ -166,8 +166,6 @@ export function ArticlePreviewClient({
         </div>
       )}
 
-      {/* Article Metadata */}
-      <ArticleMetadata article={article} />
 
       {/* Generation Progress - Show when article is generating and we have status */}
       {article.status === "generating" && generationStatus && (
@@ -211,6 +209,14 @@ export function ArticlePreviewClient({
             article={article}
             onSave={handleSave}
             isLoading={isSaving}
+            onSuccess={(message) => {
+              setShowSuccessMessage(message);
+              setTimeout(() => setShowSuccessMessage(null), 5000);
+            }}
+            onError={(message) => {
+              setShowErrorMessage(message);
+              setTimeout(() => setShowErrorMessage(null), 5000);
+            }}
           />
         </div>
       </div>

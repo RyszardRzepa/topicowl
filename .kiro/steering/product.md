@@ -1,23 +1,28 @@
 # Product Overview
 
-Content Machine is an AI-powered content creation and workflow management platform that helps users generate, manage, and publish articles through an automated pipeline.
+## Contentbot - AI SEO Content Platform
 
-## Core Features
+Contentbot is an AI-powered content generation platform that helps businesses create, manage, and publish SEO-optimized articles through automated workflows.
 
-- **AI Article Generation**: Uses Google Gemini and Anthropic Claude APIs to research, write, and optimize articles
-- **Kanban Workflow**: Visual workflow management with phases: Planning → Generations → Publishing
-- **Scheduling System**: Automated article generation and publishing scheduling with cron jobs
-- **User Management**: Clerk-based authentication with onboarding flow
-- **Webhook Integration**: Configurable webhooks for article lifecycle events
-- **Image Integration**: Unsplash API integration for article cover images
+### Core Features
 
-## User Journey
+- **AI Article Generation**: Automated research, outline creation, and content writing using Anthropic Claude and Google Gemini
+- **Kanban Workflow**: Visual article management through status-based workflow (idea → scheduled → generating → published)
+- **YouTube Integration**: Intelligent video embedding in articles for enhanced engagement
+- **SEO Optimization**: Built-in SEO scoring, meta tag generation, and keyword optimization
+- **Scheduling System**: Automated article generation and publishing with flexible scheduling
+- **Webhook Integration**: Real-time notifications for article publishing and status updates
 
-1. **Onboarding**: Users provide website URL, company info, and keywords for AI analysis
-2. **Planning**: Create article ideas, set keywords, and schedule generation
-3. **Generation**: AI researches, writes, validates, and optimizes content
-4. **Publishing**: Review, edit, and publish articles with scheduling options
+### Target Users
 
-## Business Model
+- Content marketing teams
+- SEO agencies
+- Small to medium businesses
+- Solo entrepreneurs managing content strategies
 
-SaaS platform targeting content creators, marketing teams, and businesses needing consistent content production.
+### Key Value Propositions
+
+- Reduces content creation time from hours to minutes
+- Maintains consistent publishing schedules
+- Ensures SEO best practices are followed
+- Provides scalable content production workflows

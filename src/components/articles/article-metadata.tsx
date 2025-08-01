@@ -57,10 +57,7 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
           >
             {statusDisplay.text}
           </span>
-          <span>Created {formatDate(article.createdAt)}</span>
-          {article.updatedAt.getTime() !== article.createdAt.getTime() && (
-            <span>Updated {formatDate(article.updatedAt)}</span>
-          )}
+          
         </div>
       </div>
 

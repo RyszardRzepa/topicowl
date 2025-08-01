@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       event: 'webhook.test',
       timestamp: new Date().toISOString(),
       data: {
-        message: 'This is a test webhook from AI SEO Content Machine',
+        message: 'This is a test webhook from Contentbot',
         userId: userId,
       },
     };
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     // Prepare headers
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'User-Agent': 'AI-SEO-Content-Machine-Webhook/1.0',
+      'User-Agent': 'Contentbot-Webhook/1.0',
       'X-Webhook-Event': 'webhook.test',
       'X-Webhook-Timestamp': Math.floor(Date.now() / 1000).toString(),
     };

@@ -1,25 +1,29 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
   CardDescription,
-  CardFooter 
-} from '@/components/ui/card';
-import { DateTimePicker } from '@/components/ui/date-time-picker';
-import { ArticleCard } from './article-card';
-import { Plus, Play, Calendar, Settings } from 'lucide-react';
-
-import type { Article } from '@/types';
+  CardFooter,
+} from "@/components/ui/card";
+import { ArticleCard } from "./article-card";
+import { Plus } from "lucide-react";
+import type { Article } from "@/types";
 
 interface PlanningHubProps {
   articles: Article[];
-  onCreateArticle: (data: { title: string; keywords?: string[] }) => Promise<void>;
-  onUpdateArticle: (articleId: string, updates: Partial<Article>) => Promise<void>;
+  onCreateArticle: (data: {
+    title: string;
+    keywords?: string[];
+  }) => Promise<void>;
+  onUpdateArticle: (
+    articleId: string,
+    updates: Partial<Article>,
+  ) => Promise<void>;
   onDeleteArticle: (articleId: string) => Promise<void>;
   onGenerateArticle: (articleId: string) => Promise<void>;
   onScheduleGeneration: (articleId: string, scheduledAt: Date) => Promise<void>;
@@ -35,163 +39,62 @@ export function PlanningHub({
   onDeleteArticle,
   onGenerateArticle,
   onScheduleGeneration,
-  onBulkGenerate,
-  onBulkSchedule,
-  onNavigateToArticle
+  onBulkGenerate: _onBulkGenerate,
+  onBulkSchedule: _onBulkSchedule,
+  onNavigateToArticle,
 }: PlanningHubProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newArticleData, setNewArticleData] = useState({
-    title: '',
-    keywords: ''
+    title: "",
+    keywords: "",
   });
-  const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
-  const [isBulkMode, setIsBulkMode] = useState(false);
-  const [isSchedulingBulk, setIsSchedulingBulk] = useState(false);
 
   // Group articles by status for planning phase
   // Filter out articles that are already scheduled for generation
-  const ideaArticles = articles.filter(a => a.status === 'idea' && !a.generationScheduledAt);
-  const readyArticles = articles.filter(a => a.status === 'to_generate' && !a.generationScheduledAt);
-  const generatingArticles = articles.filter(a => a.status === 'generating');
-
-  // Clear selection when articles change (e.g., when they get scheduled and move to another tab)
-  useEffect(() => {
-    const availableArticleIds = new Set([...ideaArticles, ...readyArticles].map(a => a.id));
-    const currentSelection = Array.from(selectedArticles);
-    const validSelection = currentSelection.filter(id => availableArticleIds.has(id));
-    
-    if (validSelection.length !== currentSelection.length) {
-      setSelectedArticles(new Set(validSelection));
-      // If no articles are selected anymore, exit bulk mode
-      if (validSelection.length === 0) {
-        setIsBulkMode(false);
-      }
-    }
-  }, [ideaArticles, readyArticles, selectedArticles]);
+  const ideaArticles = articles.filter(
+    (a) => a.status === "idea" && !a.generationScheduledAt,
+  );
+  const readyArticles = articles.filter(
+    (a) => a.status === "to_generate" && !a.generationScheduledAt,
+  );
+  const generatingArticles = articles.filter((a) => a.status === "generating");
 
   const handleCreateArticle = async () => {
     if (!newArticleData.title.trim()) return;
 
     const keywords = newArticleData.keywords
-      .split(',')
-      .map(k => k.trim())
-      .filter(k => k.length > 0);
+      .split(",")
+      .map((k) => k.trim())
+      .filter((k) => k.length > 0);
 
     await onCreateArticle({
       title: newArticleData.title.trim(),
-      keywords: keywords.length > 0 ? keywords : undefined
+      keywords: keywords.length > 0 ? keywords : undefined,
     });
 
-    setNewArticleData({ title: '', keywords: '' });
+    setNewArticleData({ title: "", keywords: "" });
     setIsCreating(false);
   };
 
-  const handleBulkGenerate = async () => {
-    if (selectedArticles.size === 0) return;
-    
-    await onBulkGenerate(Array.from(selectedArticles));
-    setSelectedArticles(new Set());
-    setIsBulkMode(false);
-  };
-
-  const handleBulkSchedule = async (scheduledAt: string) => {
-    if (selectedArticles.size === 0) return;
-    
-    await onBulkSchedule(Array.from(selectedArticles), new Date(scheduledAt));
-    setSelectedArticles(new Set());
-    setIsBulkMode(false);
-    setIsSchedulingBulk(false);
-  };
-
-  const toggleArticleSelection = (articleId: string) => {
-    const newSelected = new Set(selectedArticles);
-    if (newSelected.has(articleId)) {
-      newSelected.delete(articleId);
-    } else {
-      newSelected.add(articleId);
-    }
-    setSelectedArticles(newSelected);
-  };
-
   return (
-    <div 
-      role="tabpanel" 
-      id="planning-panel" 
+    <div
+      role="tabpanel"
+      id="planning-panel"
       aria-labelledby="planning-tab"
       className="space-y-6"
     >
-      {/* Header with actions */} 
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
+      {/* Header with actions */}
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Article Planning Hub</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Article Planning Hub
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
             Create ideas and manage article generation
           </p>
         </div>
-        
-        <div className="flex gap-2 flex-wrap">
-          {/* Bulk action mode toggle */}
-          {readyArticles.length > 0 && (
-            <Button
-              variant={isBulkMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setIsBulkMode(!isBulkMode);
-                setSelectedArticles(new Set());
-              }}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              {isBulkMode ? 'Exit Bulk Mode' : 'Bulk Actions'}
-            </Button>
-          )}
 
-          {/* Bulk actions */}
-          {isBulkMode && selectedArticles.size > 0 && (
-            <>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={handleBulkGenerate}
-              >
-                <Play className="mr-2 h-4 w-4" />
-                Generate Selected ({selectedArticles.size})
-              </Button>
-              
-              {isSchedulingBulk ? (
-                <div className="flex items-center gap-2">
-                  <DateTimePicker
-                    value={undefined}
-                    onChange={(date) => {
-                      if (date) {
-                        void handleBulkSchedule(date.toISOString());
-                        setIsSchedulingBulk(false);
-                      }
-                    }}
-                    placeholder="Select date and time"
-                    minDate={new Date(Date.now() + 60000)}
-                    className="text-xs"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsSchedulingBulk(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsSchedulingBulk(true)}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Schedule Selected
-                </Button>
-              )}
-            </>
-          )}
-
+        <div className="flex flex-wrap gap-2">
           {/* Create new article */}
           <Button
             onClick={() => setIsCreating(true)}
@@ -214,31 +117,43 @@ export function PlanningHub({
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-stone-700">
                 Article Title *
               </label>
               <input
                 type="text"
                 value={newArticleData.title}
-                onChange={(e) => setNewArticleData({ ...newArticleData, title: e.target.value })}
+                onChange={(e) =>
+                  setNewArticleData({
+                    ...newArticleData,
+                    title: e.target.value,
+                  })
+                }
                 placeholder="Enter your article title..."
-                className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 autoFocus
               />
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-stone-700">
                 Keywords (optional)
               </label>
               <input
                 type="text"
                 value={newArticleData.keywords}
-                onChange={(e) => setNewArticleData({ ...newArticleData, keywords: e.target.value })}
+                onChange={(e) =>
+                  setNewArticleData({
+                    ...newArticleData,
+                    keywords: e.target.value,
+                  })
+                }
                 placeholder="keyword1, keyword2, keyword3..."
-                className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
-              <p className="text-xs text-stone-500 mt-1">Separate keywords with commas</p>
+              <p className="mt-1 text-xs text-stone-500">
+                Separate keywords with commas
+              </p>
             </div>
           </CardContent>
           <CardFooter className="gap-2">
@@ -253,7 +168,7 @@ export function PlanningHub({
               variant="outline"
               onClick={() => {
                 setIsCreating(false);
-                setNewArticleData({ title: '', keywords: '' });
+                setNewArticleData({ title: "", keywords: "" });
               }}
             >
               Cancel
@@ -267,7 +182,7 @@ export function PlanningHub({
         {/* Ideas section */}
         {ideaArticles.length > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900">
                 Ideas ({ideaArticles.length})
               </h3>
@@ -292,35 +207,23 @@ export function PlanningHub({
         {/* Ready to generate section */}
         {readyArticles.length > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900">
                 Ready to Generate ({readyArticles.length})
               </h3>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {readyArticles.map((article) => (
-                <div key={article.id} className="relative">
-                  {isBulkMode && !article.generationScheduledAt && (
-                    <div className="absolute top-2 left-2 z-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedArticles.has(article.id)}
-                        onChange={() => toggleArticleSelection(article.id)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                    </div>
-                  )}
-                  <ArticleCard
-                    article={article}
-                    mode="planning"
-                    onUpdate={onUpdateArticle}
-                    onDelete={onDeleteArticle}
-                    onGenerate={onGenerateArticle}
-                    onScheduleGeneration={onScheduleGeneration}
-                    onNavigate={onNavigateToArticle}
-                    className={isBulkMode && !article.generationScheduledAt ? 'ml-6' : ''}
-                  />
-                </div>
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  mode="planning"
+                  onUpdate={onUpdateArticle}
+                  onDelete={onDeleteArticle}
+                  onGenerate={onGenerateArticle}
+                  onScheduleGeneration={onScheduleGeneration}
+                  onNavigate={onNavigateToArticle}
+                />
               ))}
             </div>
           </section>
@@ -329,7 +232,7 @@ export function PlanningHub({
         {/* Currently generating section */}
         {generatingArticles.length > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900">
                 Generating ({generatingArticles.length})
               </h3>
@@ -350,16 +253,32 @@ export function PlanningHub({
         )}
 
         {/* Scheduled articles section */}
-        {articles.filter(a => a.generationScheduledAt && !['generating', 'published'].includes(a.status)).length > 0 && (
+        {articles.filter(
+          (a) =>
+            a.generationScheduledAt &&
+            !["generating", "published"].includes(a.status),
+        ).length > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900">
-                Scheduled for Generation ({articles.filter(a => a.generationScheduledAt && !['generating', 'published'].includes(a.status)).length})
+                Scheduled for Generation (
+                {
+                  articles.filter(
+                    (a) =>
+                      a.generationScheduledAt &&
+                      !["generating", "published"].includes(a.status),
+                  ).length
+                }
+                )
               </h3>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {articles
-                .filter(a => a.generationScheduledAt && !['generating', 'published'].includes(a.status))
+                .filter(
+                  (a) =>
+                    a.generationScheduledAt &&
+                    !["generating", "published"].includes(a.status),
+                )
                 .map((article) => (
                   <ArticleCard
                     key={article.id}
@@ -374,12 +293,14 @@ export function PlanningHub({
 
         {/* Empty state */}
         {articles.length === 0 && (
-          <div className="text-center py-12">
-            <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gray-100">
               <Plus className="h-8 w-8 text-gray-400" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No articles yet</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="mb-2 text-lg font-medium text-gray-900">
+              No articles yet
+            </h3>
+            <p className="mb-4 text-gray-600">
               Get started by creating your first article idea
             </p>
             <Button

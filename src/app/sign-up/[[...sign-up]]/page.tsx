@@ -9,7 +9,7 @@ export default function SignUpPage() {
             Create your account
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Get started with AI SEO Content Machine
+            Get started with Contentbot
           </p>
         </div>
         <SignUp />

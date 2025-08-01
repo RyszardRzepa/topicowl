@@ -39,7 +39,7 @@ export function DashboardLayoutClient({
           <div className="mb-6 flex items-center justify-between lg:block">
             <Link href="/dashboard" className="block">
               <h2 className="text-lg font-semibold text-stone-900">
-                AI Content Machine
+                Contentbot
               </h2>
             </Link>
             <button

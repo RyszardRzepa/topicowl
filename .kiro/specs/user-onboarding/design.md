@@ -2,7 +2,7 @@
 
 ## Overview
 
-The user onboarding feature provides a seamless registration and setup experience for new users of the AI SEO Content Machine. The system consists of three main components: webhook-based user registration, onboarding flow management, and AI-powered website analysis. The design follows the established architecture principles with self-contained API endpoints and colocated types.
+The user onboarding feature provides a seamless registration and setup experience for new users of Contentbot. The system consists of three main components: webhook-based user registration, onboarding flow management, and AI-powered website analysis. The design follows the established architecture principles with self-contained API endpoints and colocated types.
 
 ## Architecture
 

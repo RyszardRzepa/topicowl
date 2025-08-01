@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The user onboarding feature provides a seamless registration and setup experience for new users of the AI SEO Content Machine. When users sign up through Clerk authentication, their data is automatically saved to the database via webhooks. New users are then guided through a simple onboarding process where they provide their website URL, which is analyzed by AI to understand their product and automatically configure their article generation settings.
+The user onboarding feature provides a seamless registration and setup experience for new users of Contentbot. When users sign up through Clerk authentication, their data is automatically saved to the database via webhooks. New users are then guided through a simple onboarding process where they provide their website URL, which is analyzed by AI to understand their product and automatically configure their article generation settings.
 
 ## Requirements
 

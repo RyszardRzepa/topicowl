@@ -76,6 +76,9 @@ const updateArticleSchema = z.object({
   optimizedContent: z.string().optional(), // Deprecated - for backward compatibility
   coverImageUrl: z.string().optional(),
   coverImageAlt: z.string().optional(),
+  // Add scheduling fields
+  scheduledAt: z.string().datetime().optional(), // For publishing schedule
+  publishScheduledAt: z.string().datetime().optional(), // Frontend compatibility
 });
 
 // GET /api/articles/[id] - Get single article with extended preview data
@@ -390,8 +393,15 @@ export async function PUT(
     // Update the article with only the allowed fields
     const updateData = {
       ...validatedData,
+      // Convert string dates to Date objects for database
+      scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
       updatedAt: new Date(),
     };
+
+    // Handle field mapping for frontend compatibility
+    if (validatedData.publishScheduledAt) {
+      updateData.scheduledAt = new Date(validatedData.publishScheduledAt);
+    }
 
     const [updatedArticle] = await db
       .update(articles)

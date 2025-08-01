@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArticleCard } from "./article-card";
-import { Check, Calendar, Settings, FileText } from "lucide-react";
-import { toast } from "sonner";
+import { FileText, Calendar } from "lucide-react";
 import type { Article } from "@/types";
 
 interface PublishingPipelineProps {
@@ -25,15 +23,11 @@ export function PublishingPipeline({
   onUpdateArticle,
   onPublishArticle,
   onSchedulePublishing,
-  onBulkPublish,
-  onBulkSchedule,
+  onBulkPublish: _onBulkPublish,
+  onBulkSchedule: _onBulkSchedule,
   onNavigateToArticle,
 }: PublishingPipelineProps) {
-  const [selectedArticles, setSelectedArticles] = useState<Set<string>>(
-    new Set(),
-  );
-  const [isBulkMode, setIsBulkMode] = useState(false);
-  const [isSchedulingBulk, setIsSchedulingBulk] = useState(false);
+
 
   // Group articles by status for publishing phase
   const readyToPublish = articles.filter(
@@ -45,32 +39,7 @@ export function PublishingPipeline({
   const readyNow = readyToPublish.filter((a) => !a.publishScheduledAt);
   const scheduledToPublish = readyToPublish.filter((a) => a.publishScheduledAt);
 
-  const handleBulkPublish = async () => {
-    if (selectedArticles.size === 0) return;
-    
-    await onBulkPublish(Array.from(selectedArticles));
-    setSelectedArticles(new Set());
-    setIsBulkMode(false);
-  };
 
-  const handleBulkSchedule = async (scheduledAt: string) => {
-    if (selectedArticles.size === 0) return;
-    
-    await onBulkSchedule(Array.from(selectedArticles), new Date(scheduledAt));
-    setSelectedArticles(new Set());
-    setIsBulkMode(false);
-    setIsSchedulingBulk(false);
-  };
-
-  const toggleArticleSelection = (articleId: string) => {
-    const newSelected = new Set(selectedArticles);
-    if (newSelected.has(articleId)) {
-      newSelected.delete(articleId);
-    } else {
-      newSelected.add(articleId);
-    }
-    setSelectedArticles(newSelected);
-  };
 
   return (
     <div
@@ -90,69 +59,7 @@ export function PublishingPipeline({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {/* Bulk action mode toggle */}
-          {readyNow.length > 0 && (
-            <Button
-              variant={isBulkMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setIsBulkMode(!isBulkMode);
-                setSelectedArticles(new Set());
-              }}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              {isBulkMode ? "Exit Bulk Mode" : "Bulk Actions"}
-            </Button>
-          )}
 
-          {/* Bulk actions */}
-          {isBulkMode && selectedArticles.size > 0 && (
-            <>
-              <Button
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={handleBulkPublish}
-              >
-                <Check className="mr-2 h-4 w-4" />
-                Publish Selected ({selectedArticles.size})
-              </Button>
-
-              {isSchedulingBulk ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="datetime-local"
-                    className="rounded border border-gray-200 px-2 py-1 text-xs"
-                    min={new Date().toISOString().slice(0, 16)}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        void handleBulkSchedule(
-                          new Date(e.target.value).toISOString(),
-                        );
-                      }
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsSchedulingBulk(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsSchedulingBulk(true)}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Schedule Selected
-                </Button>
-              )}
-            </>
-          )}
-        </div>
       </div>
 
       {/* Article sections */}
@@ -164,55 +71,9 @@ export function PublishingPipeline({
               <h3 className="text-lg font-medium text-gray-900">
                 Ready to Publish ({readyNow.length})
               </h3>
-              {!isBulkMode && readyNow.length > 1 && (
-                <Button
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={() => onBulkPublish(readyNow.map(a => a.id))}
-                >
-                  <Check className="mr-2 h-4 w-4" />
-                  Publish All Ready
-                </Button>
-              )}
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {readyNow.map((article) => (
-                <div key={article.id} className="relative">
-                  {isBulkMode && (
-                    <div className="absolute top-2 left-2 z-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedArticles.has(article.id)}
-                        onChange={() => toggleArticleSelection(article.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
-                  <ArticleCard
-                    article={article}
-                    mode="publishing"
-                    onUpdate={onUpdateArticle}
-                    onPublish={onPublishArticle}
-                    onSchedulePublishing={onSchedulePublishing}
-                    onNavigate={onNavigateToArticle}
-                    className={isBulkMode ? "ml-6" : ""}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Scheduled to publish section */}
-        {scheduledToPublish.length > 0 && (
-          <section>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
-                Scheduled to Publish ({scheduledToPublish.length})
-              </h3>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {scheduledToPublish.map((article) => (
                 <ArticleCard
                   key={article.id}
                   article={article}
@@ -223,6 +84,57 @@ export function PublishingPipeline({
                   onNavigate={onNavigateToArticle}
                 />
               ))}
+            </div>
+          </section>
+        )}
+
+        {/* Scheduled to publish section */}
+        {scheduledToPublish.length > 0 && (
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Scheduled Articles ({scheduledToPublish.length})
+                </h3>
+                <div className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-700">
+                  <Calendar className="h-4 w-4" />
+                  <span>Publishing scheduled</span>
+                </div>
+              </div>
+              {scheduledToPublish.length > 0 && (
+                <div className="text-sm text-gray-600">
+                  Next: {new Date(
+                    Math.min(...scheduledToPublish.map(a => new Date(a.publishScheduledAt!).getTime()))
+                  ).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {scheduledToPublish
+                  .sort((a, b) => {
+                    const dateA = new Date(a.publishScheduledAt!).getTime();
+                    const dateB = new Date(b.publishScheduledAt!).getTime();
+                    return dateA - dateB;
+                  })
+                  .map((article) => (
+                    <ArticleCard
+                      key={article.id}
+                      article={article}
+                      mode="publishing"
+                      onUpdate={onUpdateArticle}
+                      onPublish={onPublishArticle}
+                      onSchedulePublishing={onSchedulePublishing}
+                      onNavigate={onNavigateToArticle}
+                      className="border-blue-200 bg-white shadow-sm"
+                    />
+                  ))}
+              </div>
             </div>
           </section>
         )}

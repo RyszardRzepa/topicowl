@@ -11,7 +11,7 @@ export function HeaderLogo() {
       href={isSignedIn ? "/dashboard" : "/"} 
       className="text-xl font-semibold text-stone-900 hover:text-stone-700 transition-colors"
     >
-      AI SEO Content Machine
+      Contentbot
     </Link>
   );
 }

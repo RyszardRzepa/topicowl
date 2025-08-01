@@ -1,92 +1,85 @@
-# Project Structure
+# Project Structure & Architecture
+
+## Directory Organization
+
+### Core Application Structure
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes (colocated types pattern)
+│   ├── dashboard/         # Main application pages
+│   ├── onboarding/        # User onboarding flow
+│   └── settings/          # User settings pages
+├── components/            # React components
+│   ├── articles/          # Article-specific components
+│   ├── ui/               # Reusable UI components (shadcn/ui)
+│   └── workflow/         # Workflow management components
+├── server/               # Server-side code
+│   └── db/              # Database configuration and schema
+├── hooks/               # Custom React hooks
+├── lib/                 # Utility functions
+└── styles/              # Global styles and CSS
+```
+
+### Database Structure
+```
+drizzle/
+├── migrations/          # SQL migration files
+├── meta/               # Migration metadata
+├── schema.ts           # Database schema definitions
+└── relations.ts        # Table relationships
+```
 
 ## Architecture Patterns
 
-### Next.js App Router Structure
-- **Route Handlers**: API routes in `src/app/api/` with colocated types
-- **Page Components**: UI pages in `src/app/` with nested routing
-- **Server Components**: Default server-side rendering with client components marked explicitly
+### API Route Organization
+- **Colocated Types**: Request/response types defined alongside route handlers
+- **RESTful Structure**: Follows REST conventions with nested resources
+- **Route Groups**: Organized by feature (articles, settings, webhooks)
 
-### Database Layer
-- **Schema-first**: Single schema file `src/server/db/schema.ts` with Drizzle ORM
-- **Multi-tenant**: Uses PostgreSQL schema `content-machine` for isolation
-- **Migrations**: Versioned migrations in `drizzle/` directory
+### Component Architecture
+- **Feature-based Organization**: Components grouped by domain (articles, workflow, etc.)
+- **UI Component Library**: Reusable components in `src/components/ui/`
+- **Client/Server Separation**: Clear distinction between client and server components
 
-### Component Organization
-```
-src/components/
-├── ui/           # Reusable UI primitives (shadcn/ui pattern)
-├── articles/     # Article-specific components
-├── workflow/     # Workflow dashboard components
-├── settings/     # Settings page components
-├── onboarding/   # Onboarding flow components
-└── auth/         # Authentication components
-```
+### Database Schema Pattern
+- **Single Schema**: Uses `contentbot` PostgreSQL schema
+- **Enum Types**: Status enums for type safety (articleStatusEnum)
+- **Audit Fields**: Consistent `createdAt`/`updatedAt` timestamps
+- **Public IDs**: Custom nanoid generation for external-facing IDs
+
+## Key Conventions
+
+### File Naming
+- **kebab-case** for files and directories
+- **PascalCase** for React components
+- **camelCase** for functions and variables
+- **SCREAMING_SNAKE_CASE** for constants
+
+### Component Patterns
+- **Server Components by Default**: Use client components only when needed
+- **Props Interface**: Define props interfaces for all components
+- **Error Boundaries**: Implement proper error handling
+- **Loading States**: Include loading and error states
 
 ### API Route Patterns
-```
-src/app/api/
-├── articles/     # Article CRUD and workflow operations
-├── settings/     # User settings and configuration
-├── webhooks/     # External webhook handlers (Clerk, etc.)
-├── cron/         # Scheduled job endpoints
-└── onboarding/   # User onboarding flow
-```
+- **Zod Validation**: Use Zod schemas for request validation
+- **Typed Responses**: Define response interfaces for type safety
+- **Error Handling**: Consistent error response format
+- **Authentication**: Clerk-based auth middleware
 
-## Key Directories
+### Database Conventions
+- **Snake Case**: Database columns use snake_case
+- **Timestamps**: All tables include created_at/updated_at
+- **Foreign Keys**: Consistent naming with _id suffix
+- **JSONB Fields**: Use JSONB for complex data structures
 
-### `/src/app/`
-- **Pages**: React Server Components for UI routes
-- **API Routes**: RESTful endpoints with colocated request/response types
-- **Layouts**: Shared layouts with authentication checks
+## Workflow States
+Articles follow a kanban-style workflow:
+- `idea` → `scheduled` → `queued` → `to_generate` → `generating` → `wait_for_publish` → `published`
 
-### `/src/components/`
-- **Feature-based organization** by domain (articles, workflow, settings)
-- **ui/**: Reusable primitives following shadcn/ui patterns
-- **Client components** explicitly marked with `"use client"`
-
-### `/src/server/`
-- **Database**: Drizzle schema and connection setup
-- **Server-only code**: Database queries and business logic
-
-### `/src/types.ts`
-- **Shared domain types**: Core business entities (Article, BlogPost, etc.)
-- **API types**: Colocated with routes for request/response schemas
-
-## Naming Conventions
-
-### Files & Directories
-- **kebab-case** for directories and files
-- **PascalCase** for React components
-- **camelCase** for TypeScript files and utilities
-
-### Database
-- **snake_case** for table and column names
-- **Descriptive prefixes**: `webhook_`, `generation_`, `scheduling_`
-
-### API Routes
-- **RESTful patterns**: `/api/articles/[id]/action`
-- **Nested resources**: `/api/articles/[id]/schedule`
-- **Bulk operations**: `/api/articles/generate` (POST with array)
-
-## Code Organization Principles
-
-### Type Safety
-- **Zod schemas** for API validation
-- **Colocated types** with API routes
-- **Shared domain types** in `/src/types.ts`
-
-### Error Handling
-- **Consistent API responses** with `ApiResponse<T>` wrapper
-- **Graceful degradation** in UI components
-- **Error boundaries** for React error handling
-
-### State Management
-- **Server state**: React Server Components + database queries
-- **Client state**: React hooks for UI state
-- **URL state**: Search params for navigation state
-
-### Authentication
-- **Clerk integration** with middleware protection
-- **User context** available in all protected routes
-- **Database user mapping** via `clerk_user_id`
+## Integration Points
+- **Clerk Webhooks**: User lifecycle management
+- **AI Services**: Research → Outline → Writing pipeline
+- **External APIs**: Unsplash (images), YouTube (videos)
+- **Webhook Delivery**: Outbound notifications with retry logic

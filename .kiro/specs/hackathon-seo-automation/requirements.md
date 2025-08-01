@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This feature enhances the existing AI SEO Content Machine with a complete autonomous SEO campaign system that demonstrates the full power of Kiro's multi-agent orchestration. The system will automatically discover content opportunities, generate comprehensive SEO campaigns, and provide measurable business impact through automated reporting and optimization.
+This feature enhances the existing Contentbot with a complete autonomous SEO campaign system that demonstrates the full power of Kiro's multi-agent orchestration. The system will automatically discover content opportunities, generate comprehensive SEO campaigns, and provide measurable business impact through automated reporting and optimization.
 
 The enhancement focuses on creating a closed-loop SEO automation system that judges can immediately understand and experience, showcasing Kiro's spec-driven development, agent hooks, and multi-modal capabilities.
 

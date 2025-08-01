@@ -13,9 +13,28 @@ import { type Metadata } from "next";
 // });
 
 export const metadata: Metadata = {
-  title: "AI SEO Content Machine",
+  title: "Contentbot",
   description: "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
+  openGraph: {
+    title: "Contentbot",
+    description: "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
+    images: [
+      {
+        url: "/contentbot-preview.png",
+        width: 1200,
+        height: 630,
+        alt: "Contentbot - AI SEO Content Platform",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Contentbot",
+    description: "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
+    images: ["/contentbot-preview.png"],
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +45,6 @@ export default function RootLayout({
       <html lang="en">
         <body className={`font-sans antialiased bg-white text-stone-700 text-15 leading-relaxed`}>
           <OnboardingChecker>
-            <ConditionalHeader />
             {children}
             <Toaster />
           </OnboardingChecker>

@@ -99,7 +99,8 @@ export interface Article {
   generationCompletedAt?: string;
   
   // Publishing scheduling
-  publishScheduledAt?: string;
+  publishScheduledAt?: string; // Frontend compatibility field
+  scheduledAt?: string; // Database field name
   publishedAt?: string;
 }
 

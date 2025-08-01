@@ -101,9 +101,6 @@ export default async function ArticlePreviewPage({
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="container mx-auto max-w-7xl">
-        {/* Navigation Header */}
-
-        {/* Article Content with Actions */}
         <ArticlePreviewClient initialArticle={article} />
       </div>
     </main>

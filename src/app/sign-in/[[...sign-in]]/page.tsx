@@ -9,7 +9,7 @@ export default function SignInPage() {
             Sign in to your account
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Access your AI SEO Content Machine dashboard
+            Access your Contentbot dashboard
           </p>
         </div>
         <SignIn />

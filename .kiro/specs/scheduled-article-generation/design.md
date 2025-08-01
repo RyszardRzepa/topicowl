@@ -2,7 +2,7 @@
 
 ## Overview
 
-The scheduled article generation system extends the existing AI SEO content machine with automated scheduling capabilities. Users can create article ideas, set scheduling frequencies for when articles should be added to the generation queue, and control the generation pipeline. The system automatically processes articles from the queue one at a time until the queue is empty, generating content and saving it as drafts.
+The scheduled article generation system extends the existing Contentbot with automated scheduling capabilities. Users can create article ideas, set scheduling frequencies for when articles should be added to the generation queue, and control the generation pipeline. The system automatically processes articles from the queue one at a time until the queue is empty, generating content and saving it as drafts.
 
 This feature integrates seamlessly with the existing tab-based workflow, adding new tabs and scheduling controls while maintaining the current interface and generation pipeline.
 

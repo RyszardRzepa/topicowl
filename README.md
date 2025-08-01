@@ -1,6 +1,8 @@
-# Create T3 App
+# Contentbot
 
 This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+
+Contentbot is an AI-powered content generation platform that helps businesses create, manage, and publish SEO-optimized articles through automated workflows.
 
 ## What's next? How do I make an app with this?
 

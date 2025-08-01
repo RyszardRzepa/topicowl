@@ -8,5 +8,5 @@ export default {
   dbCredentials: {
     url: env.DATABASE_URL,
   },
-  tablesFilter: ["content-machine_*"],
+  tablesFilter: ["contentbot_*"],
 } satisfies Config;
