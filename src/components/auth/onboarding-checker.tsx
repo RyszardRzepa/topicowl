@@ -30,6 +30,7 @@ const allowedDuringOnboarding = [
 
 // Routes that don't require onboarding check (public routes)
 const publicRoutes = [
+  "/",
   "/sign-in",
   "/sign-up"
 ];

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   openGraph: {
     title: "Contentbot",
-    description: "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
+    description: " Plan, Generate, Schedule Publishing content for blog, reddit, X.",
     images: [
       {
         url: "/contentbot-preview.png",
