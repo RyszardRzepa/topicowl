@@ -14,11 +14,13 @@ import { type Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Contentbot",
-  description: "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
+  description:
+    "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   openGraph: {
     title: "Contentbot",
-    description: " Plan, Generate, Schedule Publishing content for blog, reddit, X.",
+    description:
+      " Plan, Generate, Schedule Publishing content for blog, reddit, X.",
     images: [
       {
         url: "/contentbot-preview.png",
@@ -32,7 +34,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Contentbot",
-    description: "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
+    description:
+      "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
     images: ["/contentbot-preview.png"],
   },
 };
@@ -43,11 +46,10 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className={`font-sans antialiased bg-white text-stone-700 text-15 leading-relaxed`}>
-          <OnboardingChecker>
-            {children}
-            <Toaster />
-          </OnboardingChecker>
+        <body
+          className={`text-15 bg-white font-sans leading-relaxed text-stone-700 antialiased`}
+        >
+          {children}
         </body>
       </html>
     </ClerkProvider>

@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
+import { OnboardingChecker } from "@/components/auth/onboarding-checker";
+import { Toaster } from "@/components/ui/sonner";
 
 export default async function DashboardLayout({
   children,
@@ -13,5 +15,10 @@ export default async function DashboardLayout({
     redirect("/sign-up");
   }
 
-  return <DashboardLayoutClient>{children}</DashboardLayoutClient>;
+  return (
+    <OnboardingChecker>
+      <DashboardLayoutClient>{children}</DashboardLayoutClient>;
+      <Toaster />
+    </OnboardingChecker>
+  );
 }
