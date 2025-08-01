@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { auth } from "@clerk/nextjs/server";
-import type { ApiResponse } from "@/types";
+import type { ApiResponse, VideoEmbed } from "@/types";
 import { API_BASE_URL } from "@/constants";
 import { fetcher } from "@/lib/utils";
 import { db } from "@/server/db";
@@ -230,12 +230,13 @@ async function createOutline(
   keywords: string[],
   researchData: string,
   generationId: number,
+  videos?: Array<{ title: string; url: string }>,
 ): Promise<OutlineResponse> {
   const outlineResult = await fetcher<ApiResponse<OutlineResponse>>(
     `${API_BASE_URL}/api/articles/outline`,
     {
       method: "POST",
-      body: { title, keywords, researchData },
+      body: { title, keywords, researchData, videos },
     },
   );
 
@@ -304,6 +305,7 @@ async function writeArticle(
   keywords: string[],
   coverImageUrl: string,
   generationId: number,
+  videos?: Array<{ title: string; url: string }>,
 ): Promise<WriteResponse> {
   await updateGenerationProgress(generationId, "writing", 55);
 
@@ -312,16 +314,22 @@ async function writeArticle(
     title: string;
     keywords: string[];
     coverImage?: string;
+    videos?: Array<{ title: string; url: string }>;
   } = { outlineData, title, keywords };
 
   if (coverImageUrl) {
     writeRequestBody.coverImage = coverImageUrl;
   }
 
+  if (videos && videos.length > 0) {
+    writeRequestBody.videos = videos;
+  }
+
   console.log("Calling write API", {
     title,
     keywordsCount: keywords.length,
     hasCoverImage: !!coverImageUrl,
+    videosCount: videos?.length ?? 0,
   });
 
   const writeData = await fetcher<WriteResponse>(
@@ -407,9 +415,11 @@ async function finalizeArticle(
   coverImageUrl: string,
   coverImageAlt: string,
   generationId: number,
+  videos?: VideoEmbed[], // Add videos parameter
 ): Promise<void> {
   const updateData: {
     draft: string;
+    videos?: VideoEmbed[];
     slug?: string;
     metaDescription: string;
     metaKeywords?: string[];
@@ -419,6 +429,7 @@ async function finalizeArticle(
     coverImageAlt?: string;
   } = {
     draft: content,
+    videos: videos ?? [], // Save videos to database
     metaDescription: writeData.metaDescription ?? "",
     status: "wait_for_publish",
     updatedAt: new Date(),
@@ -569,6 +580,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       keywords,
       researchData.researchData ?? "",
       generationRecord.id,
+      researchData.videos,
     );
     console.log("Outline completed", {
       keyPointsCount: outlineData?.keyPoints?.length ?? 0,
@@ -593,6 +605,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       keywords,
       coverImageUrl,
       generationRecord.id,
+      researchData.videos,
     );
     console.log("Writing completed", {
       contentLength: writeData.content?.length ?? 0,
@@ -629,6 +642,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       coverImageUrl,
       coverImageAlt,
       generationRecord.id,
+      researchData.videos, // Pass videos to finalize function
     );
 
     console.log("Generation completed successfully", {

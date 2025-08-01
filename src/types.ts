@@ -22,6 +22,20 @@ export const ogMetadataSchema = z.object({
 
 export type BlogPost = z.infer<typeof ogMetadataSchema>;
 
+// Video embed schema for YouTube integration
+export const videoEmbedSchema = z.object({
+  title: z.string().describe("Video title from research"),
+  url: z.string().url().describe("YouTube video URL"),
+  sectionHeading: z.string().optional().describe("The section heading where this video should be placed"),
+  contextMatch: z.string().optional().describe("Brief explanation of why this video fits this section"),
+  embedCode: z.string().optional().describe("Generated iframe HTML for the video"),
+  thumbnail: z.string().url().optional().describe("Video thumbnail URL"),
+  duration: z.number().optional().describe("Video duration in seconds"),
+  uploadDate: z.string().optional().describe("Video upload date in ISO format"),
+});
+
+export type VideoEmbed = z.infer<typeof videoEmbedSchema>;
+
 // Blog post schema for AI-generated content - includes all SEO fields
 export const blogPostSchema = z.object({
   id: z.string().describe("A unique ID for the blog post. A random number as a string is fine."),
@@ -37,6 +51,12 @@ export const blogPostSchema = z.object({
   imageCaption: z.string().optional().describe("A placeholder caption for the cover image."),
   tags: z.array(z.string()).optional().describe("An array of relevant SEO keywords/tags."),
   relatedPosts: z.array(z.string()).optional().describe("An array of related post slugs."),
+});
+
+// Enhanced blog post schema with optional video integration
+export const enhancedBlogPostSchema = blogPostSchema.extend({
+  videos: z.array(videoEmbedSchema).max(1).describe("Maximum one embedded video per article"),
+  hasVideoIntegration: z.boolean().default(false).describe("Indicates if article includes video content"),
 });
 
 // Article status type - imported from database schema

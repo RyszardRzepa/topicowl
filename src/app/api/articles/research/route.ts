@@ -16,6 +16,10 @@ export interface ResearchResponse {
     url: string;
     title?: string;
   }>;
+  videos?: Array<{
+    title: string;
+    url: string;
+  }>;
 }
 
 export async function POST(request: Request) {
@@ -69,13 +73,26 @@ export async function POST(request: Request) {
       prompt: prompts.research(body.title, body.keywords),
     });
 
+    // Extract YouTube videos from sources
+    const videos = sources
+      ?.filter(source => source.url?.includes('youtube.com') || source.url?.includes('youtu.be'))
+      .map(video => ({
+        title: video.title ?? 'YouTube Video',
+        url: video.url,
+      }))
+      .slice(0, 3) ?? []; // Limit to top 3 videos for AI selection
+
     console.log(
       "[RESEARCH_API] Research completed successfully, sources found:",
       sources?.length ?? 0,
+      "videos found:",
+      videos.length,
     );
+
     return NextResponse.json({
       researchData: text,
       sources: sources ?? [],
+      videos,
     });
   } catch (error) {
     console.error("Research endpoint error:", error);

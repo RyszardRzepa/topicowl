@@ -25,6 +25,10 @@ const outlineSchema = z.object({
         relevantLinks: z
           .array(z.string())
           .describe("Array of relevant URLs from the research data"),
+        videoContext: z
+          .string()
+          .optional()
+          .describe("Keywords/topics that would benefit from video demonstration in this section"),
       }),
     )
     .length(5)
@@ -33,6 +37,10 @@ const outlineSchema = z.object({
     .number()
     .max(300)
     .describe("Total word count of the outline (must be under 300)"),
+  videoMatchingSections: z
+    .array(z.string())
+    .max(1)
+    .describe("Maximum one section should include video content"),
 });
 
 // Types colocated with this API route
@@ -40,6 +48,10 @@ export interface OutlineRequest {
   title: string;
   keywords: string[];
   researchData: string;
+  videos?: Array<{
+    title: string;
+    url: string;
+  }>;
 }
 
 export type OutlineResponse = z.infer<typeof outlineSchema>;
@@ -87,7 +99,7 @@ export async function POST(request: Request) {
       const { object: outlineData } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
         schema: outlineSchema,
-        prompt: prompts.outline(body.title, body.keywords, body.researchData),
+        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos),
         maxRetries: 3,
       });
 
@@ -118,6 +130,10 @@ export async function POST(request: Request) {
               relevantLinks: z
                 .array(z.string())
                 .describe("Array of relevant URLs from the research data"),
+              videoContext: z
+                .string()
+                .optional()
+                .describe("Keywords/topics that would benefit from video demonstration in this section"),
             }),
           )
           .length(5)
@@ -126,12 +142,16 @@ export async function POST(request: Request) {
           .number()
           .max(400)
           .describe("Total word count of the outline"),
+        videoMatchingSections: z
+          .array(z.string())
+          .max(1)
+          .describe("Maximum one section should include video content"),
       });
 
       const { object: outlineData } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
         schema: relaxedOutlineSchema,
-        prompt: prompts.outline(body.title, body.keywords, body.researchData) + 
+        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos) + 
           "\n\nIMPORTANT: Keep summaries under 350 characters to ensure proper formatting.",
         maxRetries: 2,
       });

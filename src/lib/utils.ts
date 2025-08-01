@@ -112,3 +112,49 @@ export async function fetcher<T = unknown>(
     throw error;
   }
 }
+
+// YouTube video utilities
+export function extractYouTubeVideoId(url: string): string | null {
+  // Handle different YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /youtube\.com\/v\/([^&\n?#]+)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+export function generateYouTubeEmbedCode(
+  videoId: string, 
+  title: string, 
+  width = 560, 
+  height = 315
+): string {
+  return `<div class="video-container">
+<iframe width="${width}" height="${height}" src="https://www.youtube.com/embed/${videoId}" 
+        title="${title}" frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>
+</div>`;
+}
+
+// Content access utility for consistent field usage across the application
+export function getArticleContent(article: {
+  status?: string;
+  content?: string | null;
+  draft?: string | null;
+}): string {
+  // During editing: use draft
+  if (article.status !== 'published') {
+    return article.draft ?? '';
+  }
+  // After publishing: use content (fallback to draft)
+  return article.content ?? article.draft ?? '';
+}

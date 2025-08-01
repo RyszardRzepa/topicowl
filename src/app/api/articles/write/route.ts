@@ -6,7 +6,7 @@ import { MODELS } from '@/constants';
 import { db } from '@/server/db';
 import { articleSettings } from '@/server/db/schema';
 import type { OutlineResponse } from '@/app/api/articles/outline/route';
-import { blogPostSchema } from '@/types';
+import { blogPostSchema, enhancedBlogPostSchema, videoEmbedSchema } from '@/types';
 
 // Types colocated with this API route
 interface WriteRequest {
@@ -16,6 +16,10 @@ interface WriteRequest {
   author?: string;
   publicationName?: string;
   coverImage?: string; // URL of the selected cover image
+  videos?: Array<{
+    title: string;
+    url: string;
+  }>;
 }
 
 export interface WriteResponse {
@@ -32,6 +36,13 @@ export interface WriteResponse {
   imageCaption?: string;
   tags?: string[];
   relatedPosts?: string[];
+  videos?: Array<{
+    title: string;
+    url: string;
+    sectionHeading: string;
+    contextMatch: string;
+  }>;
+  hasVideoIntegration?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -88,18 +99,31 @@ export async function POST(request: Request) {
 
     console.log("Starting article generation with AI", {
       model: MODELS.CLAUDE_SONET_4,
-      maxWords: settingsData.maxWords
+      maxWords: settingsData.maxWords,
+      hasVideos: !!body.videos && body.videos.length > 0
     });
+
+    // Check if videos are available for enhanced generation
+    const hasVideos = body.videos && body.videos.length > 0;
+    const schemaToUse = hasVideos ? enhancedBlogPostSchema : blogPostSchema;
 
     const { object: articleObject } = await generateObject({
       model: anthropic(MODELS.CLAUDE_SONET_4),
-      schema: blogPostSchema,
+      schema: schemaToUse,
       prompt: prompts.writing({
         title: body.title,
         outlineData: body.outlineData,
-        coverImage: body.coverImage
+        coverImage: body.coverImage,
+        videos: body.videos ?? []
       }, settingsData, []),
     });
+
+    // Log video usage for analytics
+    if (hasVideos) {
+      const videoCount = 'videos' in articleObject ? 
+        (articleObject as { videos?: Array<unknown> }).videos?.length ?? 0 : 0;
+      console.log(`Article generated with ${videoCount} videos embedded`);
+    }
 
     // Include the cover image in the response if provided
     const responseObject = {

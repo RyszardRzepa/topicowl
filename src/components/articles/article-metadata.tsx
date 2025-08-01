@@ -51,9 +51,6 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
     <div className="space-y-6">
       {/* Article Header with Status */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          {article.title}
-        </h1>
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span
             className={`px-2 py-1 rounded-full text-xs font-medium ${statusDisplay.color}`}

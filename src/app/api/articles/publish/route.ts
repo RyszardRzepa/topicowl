@@ -22,7 +22,9 @@ type ArticleData = {
   metaDescription: string | null;
   outline: unknown;
   draft: string | null;
-  optimizedContent: string | null;
+  content: string | null; // Final published content
+  videos: unknown; // YouTube video embeds
+  optimizedContent: string | null; // Deprecated
   factCheckReport: unknown;
   seoScore: number | null;
   internalLinks: unknown;
@@ -152,6 +154,7 @@ export async function POST(req: NextRequest) {
           .update(articles)
           .set({
             status: 'published',
+            content: article.draft, // Freeze draft as published content
             updatedAt: new Date(),
             // Set publishedAt if not already set
             ...((!article.publishedAt) && { publishedAt: new Date() })

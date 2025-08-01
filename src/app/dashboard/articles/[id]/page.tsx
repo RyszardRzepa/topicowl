@@ -100,16 +100,8 @@ export default async function ArticlePreviewPage({
   // TypeScript assertion: article is guaranteed to be defined here due to notFound() calls above
   return (
     <main className="min-h-screen bg-gray-50">
-      <div className="container mx-auto max-w-7xl p-8">
+      <div className="container mx-auto max-w-7xl">
         {/* Navigation Header */}
-        <div className="mb-8">
-          <Link href="/" className="inline-block">
-            <Button variant="ghost" className="mb-4 hover:bg-gray-100">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-          </Link>
-        </div>
 
         {/* Article Content with Actions */}
         <ArticlePreviewClient initialArticle={article} />

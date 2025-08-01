@@ -103,18 +103,20 @@ function ToolbarPlugin() {
   );
 }
 
-// Plugin to auto-focus the editor when it loads
-function AutoFocusPlugin() {
+// Plugin to auto-focus the editor when it loads (disabled to prevent auto-scroll)
+function AutoFocusPlugin({ disabled = false }: { disabled?: boolean }) {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
+    if (disabled) return;
+    
     // Small delay to ensure the editor is fully rendered
     const timer = setTimeout(() => {
       editor.focus();
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [editor]);
+  }, [editor, disabled]);
 
   return null;
 }
@@ -246,7 +248,7 @@ export function ContentEditorWithPreview({
               <HistoryPlugin />
               <LinkPlugin />
               <ListPlugin />
-              <AutoFocusPlugin />
+              <AutoFocusPlugin disabled={true} />
               <InitializeMarkdownPlugin initialMarkdown={initialContent} />
             </div>
 

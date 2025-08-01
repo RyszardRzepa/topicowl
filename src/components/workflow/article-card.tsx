@@ -16,7 +16,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { StatusIndicator, formatRelativeTime } from "./status-indicator";
 import { Play, Calendar, Edit3, Trash2, Check, X, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+
 import type { Article, WorkflowPhase } from "@/types";
 
 interface ArticleCardProps {

@@ -319,10 +319,16 @@ export const prompts = {
           heading: string;
           summary: string;
           relevantLinks: string[];
+          videoContext?: string;
         }>;
         totalWords: number;
+        videoMatchingSections?: string[];
       };
       coverImage?: string;
+      videos?: Array<{
+        title: string;
+        url: string;
+      }>;
     },
     settings?: {
       toneOfVoice?: string;
@@ -400,6 +406,55 @@ Total Outline Words: ${data.outlineData.totalWords ?? 0}
 - Ensure each section provides actionable insights and practical information
 - Use the outline's keywords strategically throughout the article
 </writing_instructions>
+
+${data.videos && data.videos.length > 0 ? `
+<video_integration_mandatory>
+OPTIONAL ENHANCEMENT: If available videos are highly relevant, include ONE embedded YouTube video in the most contextually appropriate section.
+
+Video Integration Instructions:
+1. Analyze available videos for topic relevance to each section
+2. Select the SINGLE BEST video that matches article content
+3. Choose the MOST APPROPRIATE section for video placement
+4. Embed video using this exact format:
+
+## [Section Heading]
+
+[Lead-in content explaining the topic...]
+
+### Video: [Video Title]
+
+[1-2 sentences explaining why this video is valuable for this section]
+
+<div class="video-container">
+<iframe width="560" height="315" src="https://www.youtube.com/embed/[VIDEO_ID]" 
+        title="[VIDEO_TITLE]" frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>
+</div>
+
+[Content that references or builds upon the video content...]
+
+Video Selection Strategy:
+- Select ONLY the most relevant video from available options
+- Choose the section where video provides maximum educational impact
+- Ensure video complements rather than duplicates written content
+- Only include video if it genuinely enhances the article
+
+Quality Threshold:
+- Only embed video if it's highly relevant to the content
+- Video should demonstrate concepts discussed in the text
+- Video should be from a credible source
+- Video should add clear value to the reader's understanding
+
+Available Videos:
+${data.videos.map(v => `- ${v.title}: ${v.url}`).join('\n')}
+
+Section Context Hints:
+${data.outlineData.keyPoints?.map(point => 
+  point.videoContext ? `- "${point.heading}": Look for videos about ${point.videoContext}` : ''
+).filter(Boolean).join('\n')}
+</video_integration_mandatory>
+` : ''}
 
 <output_format>
 Return EXACT JSON complying with blogPostSchema (id, title, slug, excerpt, metaDescription, readingTime, content, author, date, coverImage, imageCaption, tags, relatedPosts).
@@ -615,7 +670,7 @@ Focus solely on factual corrections. Do not rewrite, restructure, or add new inf
   },
 
 
-  outline: (title: string, keywords: string[], researchData: string) => `
+  outline: (title: string, keywords: string[], researchData: string, videos?: Array<{ title: string; url: string }>) => `
 <role>
 You are an expert content strategist and outline creator. Your task is to transform comprehensive research data into a focused, actionable article outline.
 </role>
@@ -625,6 +680,29 @@ You are an expert content strategist and outline creator. Your task is to transf
 <keywords>${keywords.join(", ")}</keywords>
 <max_words>300</max_words>
 </article_parameters>
+
+${videos && videos.length > 0 ? `
+<video_integration_requirements>
+OPTIONAL: Identify ONE section that would benefit most from video demonstration or explanation.
+
+Video Context Analysis:
+- Look for the single most complex concept that benefits from visual explanation
+- Identify the primary tutorial, how-to step, or demonstration section
+- Consider the most important tool, software, or process discussion
+- Select the key practical example or case study that needs visual support
+
+Available Videos from Research:
+${videos.map(v => `- ${v.title}: ${v.url}`).join('\n')}
+
+Selection Criteria:
+- Choose only ONE section that would benefit most from video demonstration
+- Prioritize sections where visual explanation adds maximum value
+- Consider sections where expert explanation via video adds most credibility
+- Focus on concepts that text alone cannot convey effectively
+
+Mark the single best section in videoContext field with relevant keywords/topics.
+</video_integration_requirements>
+` : ''}
 
 <task>
 Create a concise article outline with exactly 5 key points that will serve as the foundation for article generation. Each key point should be substantial enough to form a major section of the article.
@@ -643,6 +721,7 @@ ${researchData}
 6. Focus on practical, valuable information that readers can act upon
 7. Total outline length must not exceed 300 words
 8. CRITICAL: Each summary MUST be between 150-350 characters (count characters, not words!)
+${videos && videos.length > 0 ? '9. OPTIONAL: For ONE key point that would benefit most from video demonstration, add videoContext field with relevant keywords/topics' : ''}
 </outline_requirements>
 
 <character_counting_guide>
@@ -661,30 +740,30 @@ Return a JSON object with this exact structure:
     {
       "heading": "Clear, descriptive heading for key point 1",
       "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1", "url2"]
+      "relevantLinks": ["url1", "url2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
     },
     {
       "heading": "Clear, descriptive heading for key point 2", 
       "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1"]
+      "relevantLinks": ["url1"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
     },
     {
       "heading": "Clear, descriptive heading for key point 3",
       "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important", 
-      "relevantLinks": ["url1", "url2"]
+      "relevantLinks": ["url1", "url2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
     },
     {
       "heading": "Clear, descriptive heading for key point 4",
       "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1"]
+      "relevantLinks": ["url1"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
     },
     {
       "heading": "Clear, descriptive heading for key point 5",
       "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1", "url2"]
+      "relevantLinks": ["url1", "url2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
     }
   ],
-  "totalWords": 250
+  "totalWords": 250${videos && videos.length > 0 ? ',\n  "videoMatchingSections": ["heading of section that would benefit from video demonstration"]' : ''}
 }
 </output_format>
 
@@ -698,10 +777,11 @@ Before finalizing, ensure:
 ✅ Outline provides comprehensive topic coverage
 ✅ Information is practical and actionable
 ✅ Character count verified for each summary (not word count!)
+${videos && videos.length > 0 ? '✅ Maximum ONE section identified for video integration (if beneficial)' : ''}
 </quality_checklist>
 
 <instruction>
-Analyze the research data and create a focused outline that distills the most valuable information into 5 key points. Pay special attention to character limits for summaries. Return only the JSON object.
+Analyze the research data and create a focused outline that distills the most valuable information into 5 key points. Pay special attention to character limits for summaries. ${videos && videos.length > 0 ? 'Consider if any section would benefit from video demonstration and mark it accordingly.' : ''} Return only the JSON object.
 </instruction>
   `,
 };

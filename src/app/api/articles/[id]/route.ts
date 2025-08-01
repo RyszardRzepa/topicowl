@@ -5,6 +5,7 @@ import { articles, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { ArticleStatus } from "@/types";
+import { videoEmbedSchema } from "@/types";
 
 // Types colocated with this API route
 export interface SEOAnalysis {
@@ -40,7 +41,9 @@ type ArticleData = {
   metaKeywords: unknown;
   outline: unknown;
   draft: string | null;
-  optimizedContent: string | null;
+  content: string | null; // Final published content
+  videos: unknown; // YouTube video embeds
+  optimizedContent: string | null; // Deprecated - will be removed in Phase 4
   factCheckReport: unknown;
   seoScore: number | null;
   internalLinks: unknown;
@@ -67,7 +70,10 @@ const updateArticleSchema = z.object({
   slug: z.string().optional(),
   metaDescription: z.string().optional(),
   metaKeywords: z.array(z.string()).optional(),
-  optimizedContent: z.string().optional(),
+  draft: z.string().optional(), // Save edits to draft
+  content: z.string().optional(), // Only set on publish
+  videos: z.array(videoEmbedSchema).optional(), // Video embeds
+  optimizedContent: z.string().optional(), // Deprecated - for backward compatibility
   coverImageUrl: z.string().optional(),
   coverImageAlt: z.string().optional(),
 });

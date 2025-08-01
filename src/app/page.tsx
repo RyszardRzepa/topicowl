@@ -1,5 +1,5 @@
-import { WorkflowDashboard } from "@/components/workflow/workflow-dashboard";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
   return (
@@ -30,9 +30,7 @@ export default function HomePage() {
     </SignedOut>
 
     <SignedIn>
-      <div className="container mx-auto p-8">
-        <WorkflowDashboard />
-      </div>
+      {redirect("/dashboard")}
     </SignedIn>
   </main>
   );

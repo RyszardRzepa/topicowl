@@ -214,7 +214,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const firstGeneratingArticle = generatingArticles[0];
   
   // Don't poll if user is on an article page (to avoid duplicate polling)
-  const isOnArticlePage = pathname.startsWith('/articles/');
+  const isOnArticlePage = pathname.startsWith('/articles/') || pathname.startsWith('/dashboard/articles/');
   
   useGenerationPolling({
     articleId: firstGeneratingArticle?.id ?? "",
@@ -605,7 +605,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   };
 
   const handleNavigateToArticle = (articleId: string) => {
-    router.push(`/articles/${articleId}`);
+    router.push(`/dashboard/articles/${articleId}`);
   };
 
   // Count articles for each phase
