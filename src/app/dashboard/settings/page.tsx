@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ArticleSettingsForm } from "@/components/settings/article-settings-form";
 import { WebhookSettings } from "@/components/settings/webhook-settings";
@@ -49,17 +47,10 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Article Settings
-            </h1>
-            <p className="mt-2 text-gray-600">
-              Configure how your articles are generated
-            </p>
-          </div>
-          <div className="animate-pulse">
+        <div className="mx-auto max-w-6xl">
+          <div className="animate-pulse space-y-8">
             <div className="h-96 rounded-lg bg-gray-200"></div>
+            <div className="h-64 rounded-lg bg-gray-200"></div>
           </div>
         </div>
       </div>
@@ -69,15 +60,7 @@ export default function SettingsPage() {
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Article Settings
-            </h1>
-            <p className="mt-2 text-gray-600">
-              Configure how your articles are generated
-            </p>
-          </div>
+        <div className="mx-auto max-w-6xl">
           <Card className="p-6">
             <div className="text-center">
               <div className="mb-4 text-red-600">
@@ -114,39 +97,15 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex items-center space-x-4">
-          <Link
-            href="/"
-            className="flex items-center space-x-2 text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
+      <div className="mx-auto max-w-6xl space-y-8">
+        {settings && (
+          <ArticleSettingsForm
+            initialSettings={settings}
+            onSettingsUpdate={handleSettingsUpdate}
+          />
+        )}
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-2 text-gray-600">
-            Configure your article generation settings and webhook integrations.
-          </p>
-        </div>
-
-        <div className="space-y-8">
-          <Card className="p-6">
-            <h2 className="mb-6 text-xl font-semibold text-gray-900">
-              Article Generation
-            </h2>
-            {settings && (
-              <ArticleSettingsForm
-                initialSettings={settings}
-                onSettingsUpdate={handleSettingsUpdate}
-              />
-            )}
-          </Card>
-
-          <WebhookSettings />
-        </div>
+        <WebhookSettings />
       </div>
     </div>
   );

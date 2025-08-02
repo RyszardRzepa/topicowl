@@ -17,7 +17,7 @@ export default async function DashboardLayout({
 
   return (
     <OnboardingChecker>
-      <DashboardLayoutClient>{children}</DashboardLayoutClient>;
+      <DashboardLayoutClient>{children}</DashboardLayoutClient>
       <Toaster />
     </OnboardingChecker>
   );

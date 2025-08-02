@@ -89,7 +89,6 @@ export const articles = contentbotSchema.table("articles", {
   draft: text("draft"),
   content: text("content"), // Final published content
   videos: jsonb("videos").default([]).notNull(), // YouTube video embeds
-  optimizedContent: text("optimized_content"), // Deprecated - will be removed in Phase 4
   factCheckReport: jsonb("fact_check_report").default({}).notNull(),
   seoScore: integer("seo_score"),
   internalLinks: jsonb("internal_links").default([]).notNull(),

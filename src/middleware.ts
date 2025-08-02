@@ -9,35 +9,19 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks/clerk",
 ]);
 
-// Define onboarding route
-const isOnboardingRoute = createRouteMatcher(["/onboarding"]);
-
 export default clerkMiddleware(async (auth, req) => {
   // Allow public routes to pass through without authentication
   if (isPublicRoute(req)) {
     return;
   }
 
-  // For API routes that use auth(), we need to let clerkMiddleware handle them
-  // but not redirect if user is not authenticated - let the API route handle it
+  // For API routes, let them handle their own auth
   if (req.nextUrl.pathname.startsWith("/api/")) {
     return;
   }
 
   // For all other routes, require authentication
-  const { userId } = await auth();
-  
-  if (!userId) {
-    // Redirect to sign-in if not authenticated
-    const signInUrl = new URL("/sign-in", req.url);
-    return Response.redirect(signInUrl);
-  }
-
-  // Allow onboarding routes to pass through
-  // Onboarding check will be handled in the app pages themselves
-  if (isOnboardingRoute(req)) {
-    return;
-  }
+  await auth.protect();
 });
 
 export const config = {

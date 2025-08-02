@@ -21,7 +21,7 @@ export type DatabaseArticle = {
   metaDescription: string | null;
   outline: unknown;
   draft: string | null;
-  optimizedContent: string | null;
+  content: string | null;
   factCheckReport: unknown;
   seoScore: number | null;
   internalLinks: unknown;
@@ -93,7 +93,7 @@ export async function GET(_req: NextRequest) {
         metaDescription: articles.metaDescription,
         outline: articles.outline,
         draft: articles.draft,
-        optimizedContent: articles.optimizedContent,
+        content: articles.content,
         factCheckReport: articles.factCheckReport,
         seoScore: articles.seoScore,
         internalLinks: articles.internalLinks,
@@ -117,6 +117,16 @@ export async function GET(_req: NextRequest) {
         )
       )
       .orderBy(articles.kanbanPosition, articles.createdAt);
+
+    // Sanitize the articles to ensure JSON fields have proper defaults
+    const sanitizedArticles = allArticles.map(article => ({
+      ...article,
+      keywords: article.keywords ?? [],
+      outline: article.outline ?? null,
+      factCheckReport: article.factCheckReport ?? {},
+      internalLinks: article.internalLinks ?? [],
+      sources: article.sources ?? [],
+    }));
 
     // Define kanban columns
     const columns: KanbanColumn[] = [
@@ -172,7 +182,7 @@ export async function GET(_req: NextRequest) {
     ];
 
     // Organize articles by status
-    allArticles.forEach(article => {
+    sanitizedArticles.forEach(article => {
       const column = columns.find(col => col.status === article.status);
       if (column) {
         column.articles.push(article);

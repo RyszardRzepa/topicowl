@@ -164,7 +164,7 @@ export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Webhook Settings</CardTitle>
+          <CardTitle>Webhook Integration</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
@@ -179,7 +179,7 @@ export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Webhook Settings</CardTitle>
+        <CardTitle>Webhook Integration</CardTitle>
         <p className="text-sm text-muted-foreground">
           Configure webhooks to receive notifications when articles are published
         </p>

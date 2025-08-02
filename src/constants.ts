@@ -457,7 +457,7 @@ ${data.outlineData.keyPoints?.map(point =>
 ` : ''}
 
 <output_format>
-Return EXACT JSON complying with blogPostSchema (id, title, slug, excerpt, metaDescription, readingTime, content, author, date, coverImage, imageCaption, tags, relatedPosts).
+Return EXACT JSON complying with blogPostSchema.
 </output_format>
 
 <final_reminder>
@@ -467,93 +467,377 @@ Ensure the article follows the structure and SEO rules above before providing th
   },
 
   validation: (article: string) => `
-    <system_prompt>
-      <role_definition>
-      You are an expert fact-checker. Your task is to identify factual claims in the article, search for verification, and return a structured validation response.
-      </role_definition>
+<system_prompt>
+<role_definition>
+You are an expert fact-checker and verification analyst. Your task is to systematically identify factual claims in the article, conduct comprehensive web searches for verification, and return a structured validation response. You MUST follow each phase sequentially and provide detailed verification for every claim.
+</role_definition>
 
-      <article_content>
-      ${article}
-      </article_content>
-    </system_prompt>
+<analysis_target>
+<article_content>
+${article}
+</article_content>
+<verification_objective>Identify and verify all factual claims with mandatory cross-referencing</verification_objective>
+<accuracy_standard>Every claim must be verified through minimum 2 independent credible sources</accuracy_standard>
+</analysis_target>
+</system_prompt>
 
-    <execution_steps>
+<execution_sequence>
 
-    <step_1>
-    <title>IDENTIFY FACTUAL CLAIMS</title>
-    <task>Extract all verifiable factual claims from the article, focusing on:</task>
-    <priority_claims>
-    - Addresses, locations, and contact information
-    - Operating hours, schedules, and availability
-    - Prices, costs, and financial information
-    - Statistics, numbers, and data points
-    - Names of people, places, and organizations
-    - Historical facts and dates
-    </priority_claims>
-    </step_1>
+<phase_1>
+<title>SYSTEMATIC CLAIM EXTRACTION</title>
+<requirements>
+Extract ALL verifiable factual claims and categorize by verification priority
+Create minimum 2 search queries per claim
+Document extraction rationale for each category
+</requirements>
 
-    <step_2>
-    <title>CREATE SEARCH QUERIES</title>
-    <task>For each claim, create 2 search queries:</task>
-    <query_types>
-    - Direct search: Verify the exact claim with specific terms
-    - Contextual search: Cross-reference with broader context or official sources
-    </query_types>
-    <search_tips>
-    - Use site:official-domain.com for authoritative sources
-    - Include current year (2024-2025) for time-sensitive information
-    - Use exact names and terminology from the article
-    </search_tips>
-    </step_2>
+<claim_categories>
+<category_1>
+<name>Contact and Location Information</name>
+<priority>CRITICAL - High impact if incorrect</priority>
+<claim_types>Addresses, phone numbers, email addresses, website URLs, physical locations</claim_types>
+</category_1>
 
-    <step_3>
-    <title>EXECUTE WEB SEARCHES</title>
-    <task>Search for each claim using both queries and evaluate results based on:</task>
-    <source_credibility>
-    - HIGH: Official websites, government sources, established media, academic institutions
-    - MEDIUM: Industry publications, verified business listings, professional organizations  
-    - LOW: User-generated content, unverified listings, outdated information
-    </source_credibility>
-    </step_3>
+<category_2>
+<name>Operational Details</name>
+<priority>HIGH - Directly affects user actions</priority>
+<claim_types>Operating hours, schedules, availability, service times, appointment procedures</claim_types>
+</category_2>
 
-    <step_4>
-    <title>DETERMINE VERIFICATION STATUS</title>
-    <verification_levels>
-    - VERIFIED: Confirmed by multiple high-credibility sources
-    - PARTIALLY VERIFIED: Some credible confirmation but with minor discrepancies
-    - UNVERIFIED: Insufficient evidence to confirm or deny
-    - CONTRADICTED: Disputed by credible sources with clear contradictory evidence
-    </verification_levels>
-    </step_4>
+<category_3>
+<name>Financial Information</name>
+<priority>HIGH - Legal and consumer protection implications</priority>
+<claim_types>Prices, costs, fees, discounts, payment methods, financial data</claim_types>
+</category_3>
 
-    </execution_steps>
+<category_4>
+<name>Quantitative Data</name>
+<priority>MEDIUM - Statistical accuracy important</priority>
+<claim_types>Statistics, percentages, numbers, measurements, data points, research findings</claim_types>
+</category_4>
 
-    <output_requirements>
-    <critical_instruction>
-    Return a structured JSON object with the validation results. Do not include search documentation or analysis details.
-    </critical_instruction>
+<category_5>
+<name>People and Organizations</name>
+<priority>MEDIUM - Identity verification important</priority>
+<claim_types>Names of people, organizations, companies, titles, affiliations, credentials</claim_types>
+</category_5>
 
-    <output_format>
-    Return a JSON object with this exact structure:
+<category_6>
+<name>Historical and Factual Context</name>
+<priority>LOW - Background verification</priority>
+<claim_types>Historical facts, dates, events, background information, general knowledge claims</claim_types>
+</category_6>
+</claim_categories>
+
+<output_format_phase_1>
+For each category, provide:
+<category_template>
+CATEGORY [N]: [Category Name]
+<priority_level>CRITICAL/HIGH/MEDIUM/LOW</priority_level>
+<extracted_claims>
+Claim 1: "Exact text from article"
+Claim 2: "Exact text from article"
+[Continue for all claims in category]
+</extracted_claims>
+<search_queries>
+For each claim, provide:
+- Direct Query: "exact search terms for verification"
+- Contextual Query: "broader verification search terms"
+</search_queries>
+</category_template>
+</output_format_phase_1>
+</phase_1>
+
+<phase_2>
+<title>SYSTEMATIC VERIFICATION EXECUTION</title>
+<requirements>Execute comprehensive searches for all claims with mandatory information verification</requirements>
+
+<search_execution_protocol>
+<mandatory_steps>
+For EACH claim identified:
+<step_1>Execute both direct and contextual search queries</step_1>
+<step_2>Evaluate source credibility using established criteria</step_2>
+<step_3>Extract verification data from multiple sources</step_3>
+<step_4>CROSS-REFERENCE information across minimum 2 independent sources</step_4>
+<step_5>Document specific findings with complete citations</step_5>
+<step_6>Determine final verification status</step_6>
+</mandatory_steps>
+</search_execution_protocol>
+
+<source_credibility_assessment>
+<verification_protocol>
+For EVERY source consulted, assess credibility using these criteria:
+<credibility_factors>
+✅ HIGH CREDIBILITY:
+- Official company websites and verified business listings
+- Government agencies and regulatory bodies
+- Established news organizations (Reuters, AP, major newspapers)
+- Academic institutions and peer-reviewed sources
+- Professional organizations and industry authorities
+- Verified social media accounts of organizations
+
+✅ MEDIUM CREDIBILITY:
+- Industry publications and trade magazines
+- Verified business directories (Google Business, Yelp with multiple reviews)
+- Local media outlets with editorial standards
+- Professional networking sites with verification
+- Specialized databases and directories
+
+❌ LOW CREDIBILITY/EXCLUDE:
+- Unverified user-generated content
+- Anonymous sources or unclear authorship
+- Outdated information (>2 years for current operational data)
+- Sources with clear bias or commercial interest
+- Social media posts from unverified accounts
+- Wikipedia or other editable sources (use only for initial leads)
+</credibility_factors>
+</verification_protocol>
+</source_credibility_assessment>
+
+<information_verification_requirements>
+<verification_standards>
+<contact_information>
+Phone numbers: Verify through official websites + directory listings
+Addresses: Confirm through official sources + mapping services
+Email/websites: Check official domain registration + direct verification
+</contact_information>
+
+<operational_data>
+Hours/schedules: Verify through official website + phone confirmation if needed
+Prices/costs: Cross-check official website + current promotional materials
+Services offered: Confirm through official descriptions + customer resources
+</operational_data>
+
+<quantitative_claims>
+Statistics: Verify through original research sources + recent publications
+Financial data: Confirm through official reports + regulatory filings
+Measurements/numbers: Cross-reference through authoritative sources
+</quantitative_claims>
+
+<identity_verification>
+Person names/titles: Verify through official bios + professional profiles
+Organization names: Confirm through official registration + public records
+Credentials/qualifications: Check through issuing institutions + professional bodies
+</identity_verification>
+</verification_standards>
+</information_verification_requirements>
+
+<verification_documentation_format>
+For each claim, document:
+<verification_template>
+<claim_text>Exact text from article being verified</claim_text>
+<search_queries_executed>
+- Direct: "[exact query used]"
+- Contextual: "[exact query used]"
+</search_queries_executed>
+<sources_found>
+<source_1>
+<title>Source name and type</title>
+<url>Complete URL</url>
+<credibility_level>HIGH/MEDIUM/LOW</credibility_level>
+<relevant_information>Specific data found</relevant_information>
+<publication_date>Date if available</publication_date>
+</source_1>
+<source_2>
+[Same format for verification source]
+</source_2>
+[Additional sources as needed]
+</sources_found>
+<verification_status>VERIFIED/PARTIALLY VERIFIED/UNVERIFIED/CONTRADICTED</verification_status>
+<confidence_level>HIGH/MEDIUM/LOW confidence in accuracy</confidence_level>
+<discrepancies_found>Any conflicting information discovered</discrepancies_found>
+</verification_template>
+</verification_documentation_format>
+</phase_2>
+
+<phase_3>
+<title>VERIFICATION STATUS DETERMINATION</title>
+<requirements>Assign final verification status to each claim based on evidence quality and consistency</requirements>
+
+<verification_criteria>
+<status_definitions>
+<verified>
+<requirements>
+- Confirmed by minimum 2 independent HIGH credibility sources
+- No contradictory information from credible sources
+- Information is current and relevant
+- Sources are authoritative for the type of claim
+</requirements>
+<confidence_threshold>HIGH confidence required</confidence_threshold>
+</verified>
+
+<partially_verified>
+<requirements>
+- Confirmed by 1 HIGH credibility source OR 2+ MEDIUM credibility sources
+- Minor discrepancies in non-essential details (e.g., slightly different hours)
+- Core claim is accurate but some details may vary
+- Sources are generally reliable but limited
+</requirements>
+<confidence_threshold>MEDIUM confidence acceptable</confidence_threshold>
+</partially_verified>
+
+<unverified>
+<requirements>
+- Insufficient credible sources to confirm claim
+- Only LOW credibility sources available
+- Information too recent for verification
+- Sources exist but are unclear or ambiguous
+</requirements>
+<action_required>Flag for manual verification or removal</action_required>
+</unverified>
+
+<contradicted>
+<requirements>
+- Multiple HIGH credibility sources dispute the claim
+- Clear evidence that contradicts the article's assertion
+- Official sources provide different information
+- Factual errors confirmed through authoritative sources
+</requirements>
+<action_required>Require correction or removal</action_required>
+</contradicted>
+</status_definitions>
+</verification_criteria>
+
+<quality_control_checklist>
+Before finalizing verification status:
+<verification_checklist>
+✅ Minimum 2 search queries executed per claim
+✅ Source credibility assessed using established criteria
+✅ Cross-referencing completed across multiple sources
+✅ Verification status assigned based on evidence quality
+✅ Confidence levels documented for all claims
+✅ Discrepancies and contradictions noted
+✅ Current information prioritized over outdated sources
+✅ Authoritative sources prioritized for each claim type
+</verification_checklist>
+</quality_control_checklist>
+</phase_3>
+
+</execution_sequence>
+
+<output_requirements>
+
+<structured_validation_output>
+<critical_instruction>
+Return a structured JSON object with comprehensive validation results. Include only claims with UNVERIFIED or CONTRADICTED status in the issues array.
+</critical_instruction>
+
+<json_structure>
+{
+  "isValid": boolean, // false if any UNVERIFIED or CONTRADICTED claims exist
+  "totalClaimsChecked": number, // total factual claims identified and verified
+  "verificationSummary": {
+    "verified": number, // count of VERIFIED claims
+    "partiallyVerified": number, // count of PARTIALLY VERIFIED claims  
+    "unverified": number, // count of UNVERIFIED claims
+    "contradicted": number // count of CONTRADICTED claims
+  },
+  "issues": [
     {
-      "isValid": boolean, // true if no issues found, false if issues exist
-      "issues": [
-        {
-          "fact": "Exact text from article that has an issue",
-          "issue": "Brief description of what's wrong",
-          "correction": "Suggested correction or 'Needs verification'"
-        }
-      ]
+      "claim": "Exact text from article that has an issue",
+      "category": "Contact Info/Operational/Financial/Quantitative/Identity/Historical",
+      "verificationStatus": "UNVERIFIED" or "CONTRADICTED",
+      "issue": "Brief description of what's wrong or couldn't be verified",
+      "correction": "Suggested correction" or "Needs verification" or "Remove claim",
+      "confidenceLevel": "HIGH/MEDIUM/LOW confidence in the issue assessment",
+      "sourcesChecked": number // how many sources were consulted
     }
+  ]
+}
+</json_structure>
 
-    Only include issues with UNVERIFIED or CONTRADICTED status.
-    If no issues found, return: {"isValid": true, "issues": []}
-    </output_format>
-    </output_requirements>
+<issue_inclusion_criteria>
+Only include in issues array:
+- Claims with UNVERIFIED status (insufficient evidence to confirm)
+- Claims with CONTRADICTED status (evidence disputes the claim)
+- VERIFIED and PARTIALLY VERIFIED claims should NOT be included in issues
+</issue_inclusion_criteria>
 
-    <execution_command>
-    Execute all steps systematically, then return ONLY the structured JSON validation results.
-    </execution_command>
+<validation_response_examples>
+<no_issues_example>
+json
+{
+  "isValid": true,
+  "totalClaimsChecked": 12,
+  "verificationSummary": {
+    "verified": 8,
+    "partiallyVerified": 4,
+    "unverified": 0,
+    "contradicted": 0
+  },
+  "issues": []
+}
+</no_issues_example>
+
+<issues_found_example>
+{
+  "isValid": false,
+  "totalClaimsChecked": 15,
+  "verificationSummary": {
+    "verified": 10,
+    "partiallyVerified": 2,
+    "unverified": 2,
+    "contradicted": 1
+  },
+  "issues": [
+    {
+      "claim": "Open 24/7 including holidays",
+      "category": "Operational",
+      "verificationStatus": "CONTRADICTED",
+      "issue": "Official website shows closed on Christmas and New Year's Day",
+      "correction": "Open 24/7 except Christmas Day and New Year's Day",
+      "confidenceLevel": "HIGH",
+      "sourcesChecked": 3
+    },
+    {
+      "claim": "Contact us at info@example.com",
+      "category": "Contact Info",
+      "verificationStatus": "UNVERIFIED",
+      "issue": "Email address not found on official website or directory listings",
+      "correction": "Needs verification - use official contact methods",
+      "confidenceLevel": "MEDIUM",
+      "sourcesChecked": 4
+    }
+  ]
+}
+</issues_found_example>
+</validation_response_examples>
+</structured_validation_output>
+
+</output_requirements>
+
+<quality_control>
+
+<mandatory_verification_standards>
+<final_verification_requirement>
+NO CLAIM should be marked as VERIFIED unless it meets these standards:
+<minimum_standards>
+✅ Confirmed by minimum 2 independent, HIGH credibility sources
+✅ Sources assessed for credibility using established criteria
+✅ Information is current and relevant to the claim type
+✅ No contradictory evidence from credible sources
+✅ Cross-referencing completed across multiple source types
+✅ Verification confidence level documented
+</minimum_standards>
+</final_verification_requirement>
+
+<error_prevention_protocol>
+<common_verification_errors>
+❌ Accepting single source verification
+❌ Using low-credibility sources for critical claims  
+❌ Ignoring contradictory evidence
+❌ Failing to check information currency
+❌ Not cross-referencing across source types
+❌ Assuming official-looking sites are authoritative
+</common_verification_errors>
+</error_prevention_protocol>
+</mandatory_verification_standards>
+
+</quality_control>
+
+<execution_command>
+<instruction>EXECUTE SYSTEMATIC FACT-CHECKING WITH PHASE 1 - CLAIM EXTRACTION, THEN PROCEED THROUGH ALL PHASES TO DELIVER STRUCTURED JSON VALIDATION RESULTS</instruction>
+</execution_command>
   `,
 
   update: (
@@ -671,117 +955,445 @@ Focus solely on factual corrections. Do not rewrite, restructure, or add new inf
 
 
   outline: (title: string, keywords: string[], researchData: string, videos?: Array<{ title: string; url: string }>) => `
-<role>
-You are an expert content strategist and outline creator. Your task is to transform comprehensive research data into a focused, actionable article outline.
-</role>
+<system_prompt>
+<role_definition>
+You are an expert content strategist and outline creator with advanced research analysis capabilities. Your task is to systematically process comprehensive research data into a focused, actionable article outline. You MUST follow each phase sequentially and provide detailed verification for all extracted information.
+</role_definition>
 
+<analysis_target>
 <article_parameters>
 <title>${title}</title>
 <keywords>${keywords.join(", ")}</keywords>
 <max_words>300</max_words>
 </article_parameters>
 
-${videos && videos.length > 0 ? `
-<video_integration_requirements>
-OPTIONAL: Identify ONE section that would benefit most from video demonstration or explanation.
-
-Video Context Analysis:
-- Look for the single most complex concept that benefits from visual explanation
-- Identify the primary tutorial, how-to step, or demonstration section
-- Consider the most important tool, software, or process discussion
-- Select the key practical example or case study that needs visual support
-
-Available Videos from Research:
-${videos.map(v => `- ${v.title}: ${v.url}`).join('\n')}
-
-Selection Criteria:
-- Choose only ONE section that would benefit most from video demonstration
-- Prioritize sections where visual explanation adds maximum value
-- Consider sections where expert explanation via video adds most credibility
-- Focus on concepts that text alone cannot convey effectively
-
-Mark the single best section in videoContext field with relevant keywords/topics.
-</video_integration_requirements>
-` : ''}
-
-<task>
-Create a concise article outline with exactly 5 key points that will serve as the foundation for article generation. Each key point should be substantial enough to form a major section of the article.
-</task>
-
 <research_data>
 ${researchData}
 </research_data>
 
-<outline_requirements>
-1. Extract the 5 most important and actionable key points from the research data
-2. Each key point should directly relate to the article title and target keywords
-3. Provide a concise summary (150-350 characters) for each key point that captures the essential information
-4. Include 1-2 relevant links per key point from the research data (when available)
-5. Ensure the outline flows logically and covers the topic comprehensively
-6. Focus on practical, valuable information that readers can act upon
-7. Total outline length must not exceed 300 words
-8. CRITICAL: Each summary MUST be between 150-350 characters (count characters, not words!)
-${videos && videos.length > 0 ? '9. OPTIONAL: For ONE key point that would benefit most from video demonstration, add videoContext field with relevant keywords/topics' : ''}
-</outline_requirements>
+${videos && videos.length > 0 ? `
+<available_videos>
+${videos.map(v => `- ${v.title}: ${v.url}`).join('\n')}
+</available_videos>
+` : ''}
 
-<character_counting_guide>
-Count characters, not words. For reference:
-- 150 characters ≈ "This is a medium-length summary that provides sufficient detail about the topic while staying concise and actionable for readers."
-- 350 characters ≈ "This is a longer summary that provides comprehensive detail about the topic while still maintaining readability and staying within the specified character limit. It includes enough information to be valuable to readers seeking actionable insights and practical guidance."
-</character_counting_guide>
+<outline_objective>Transform research data into 5 focused key points with mandatory verification and optimization</outline_objective>
+<content_standard>Every key point must be verified against research data and optimized for reader value</content_standard>
+</analysis_target>
+</system_prompt>
 
-<output_format>
-Return a JSON object with this exact structure:
+<execution_sequence>
 
+<phase_1>
+<title>SYSTEMATIC RESEARCH DATA ANALYSIS</title>
+<requirements>
+Analyze all research data systematically to identify key themes and actionable insights
+Create minimum 10 potential key points before narrowing to final 5
+Document analysis rationale for each theme identified
+</requirements>
+
+<research_analysis_categories>
+<category_1>
+<name>Primary Topic Focus</name>
+<objective>Identify core concepts directly related to article title and primary keywords</objective>
+<extraction_focus>Main themes, central ideas, fundamental concepts, primary solutions</extraction_focus>
+</category_1>
+
+<category_2>
+<name>Actionable Information</name>
+<objective>Extract practical steps, tutorials, how-to guidance, and implementation strategies</objective>
+<extraction_focus>Step-by-step processes, practical tips, actionable advice, implementation guides</extraction_focus>
+</category_2>
+
+<category_3>
+<name>Supporting Evidence and Data</name>
+<objective>Identify statistics, examples, case studies, and credible supporting information</objective>
+<extraction_focus>Research findings, statistics, expert quotes, real-world examples, case studies</extraction_focus>
+</category_3>
+
+<category_4>
+<name>Tools and Resources</name>
+<objective>Extract mentions of tools, software, platforms, and resources referenced in research</objective>
+<extraction_focus>Software recommendations, tool comparisons, resource lists, platform features</extraction_focus>
+</category_4>
+
+<category_5>
+<name>Common Challenges and Solutions</name>
+<objective>Identify problems, obstacles, and their corresponding solutions from research</objective>
+<extraction_focus>Pain points, common mistakes, troubleshooting, solution frameworks</extraction_focus>
+</category_5>
+
+<category_6>
+<name>Advanced Strategies and Insights</name>
+<objective>Extract expert-level information, advanced techniques, and unique insights</objective>
+<extraction_focus>Advanced methods, expert insights, unique approaches, competitive advantages</extraction_focus>
+</category_6>
+</research_analysis_categories>
+
+<output_format_phase_1>
+For each category, provide:
+<category_template>
+CATEGORY [N]: [Category Name]
+<research_findings>
+Finding 1: "Specific insight or information from research data"
+Finding 2: "Specific insight or information from research data"
+Finding 3: "Specific insight or information from research data"
+[Continue for all relevant findings in category]
+</research_findings>
+<supporting_sources>
+For each finding, note:
+- Source reference or URL from research data
+- Credibility level (High/Medium/Low based on source type)
+- Relevance to target keywords (Direct/Indirect/Supporting)
+</supporting_sources>
+<keyword_alignment>
+How findings align with target keywords: ${keywords.join(", ")}
+</keyword_alignment>
+</category_template>
+</output_format_phase_1>
+</phase_1>
+
+<phase_2>
+<title>KEY POINT IDENTIFICATION AND PRIORITIZATION</title>
+<requirements>Generate comprehensive list of potential key points and systematically evaluate for final selection</requirements>
+
+<key_point_generation_protocol>
+<mandatory_steps>
+<step_1>Generate 10-15 potential key points from research analysis</step_1>
+<step_2>Evaluate each potential key point against selection criteria</step_2>
+<step_3>Score each key point for relevance, actionability, and value</step_3>
+<step_4>Verify information accuracy and completeness</step_4>
+<step_5>Select top 5 key points based on systematic scoring</step_5>
+<step_6>Ensure logical flow and comprehensive topic coverage</step_6>
+</mandatory_steps>
+</key_point_generation_protocol>
+
+<key_point_selection_criteria>
+<evaluation_framework>
+For EACH potential key point, assess:
+<relevance_score>
+<primary_keyword_match>Direct alignment with primary keywords (0-3 points)</primary_keyword_match>
+<title_alignment>How well it supports the article title (0-3 points)</title_alignment>
+<topic_centrality>Centrality to main topic (0-2 points)</topic_centrality>
+<maximum_relevance_score>8 points</maximum_relevance_score>
+</relevance_score>
+
+<actionability_score>
+<practical_value>Provides actionable steps or advice (0-3 points)</practical_value>
+<implementation_clarity>Clear guidance for readers (0-2 points)</implementation_clarity>
+<immediate_applicability>Can be applied immediately (0-2 points)</immediate_applicability>
+<maximum_actionability_score>7 points</maximum_actionability_score>
+</actionability_score>
+
+<content_value_score>
+<uniqueness>Provides unique insights or information (0-2 points)</uniqueness>
+<comprehensiveness>Thorough coverage of subtopic (0-2 points)</comprehensiveness>
+<reader_interest>Likely to engage target audience (0-2 points)</reader_interest>
+<supporting_evidence>Backed by credible research data (0-2 points)</supporting_evidence>
+<maximum_value_score>8 points</maximum_value_score>
+</content_value_score>
+
+<total_maximum_score>23 points per key point</total_maximum_score>
+</evaluation_framework>
+</key_point_selection_criteria>
+
+<scoring_documentation_format>
+For each potential key point:
+<scoring_template>
+<potential_key_point>"Proposed heading for key point"</potential_key_point>
+<research_basis>Supporting information from research data</research_basis>
+<scoring_breakdown>
+<relevance>
+- Primary keyword match: [0-3]/3
+- Title alignment: [0-3]/3  
+- Topic centrality: [0-2]/2
+- Subtotal: [X]/8
+</relevance>
+<actionability>
+- Practical value: [0-3]/3
+- Implementation clarity: [0-2]/2
+- Immediate applicability: [0-2]/2
+- Subtotal: [X]/7
+</actionability>
+<content_value>
+- Uniqueness: [0-2]/2
+- Comprehensiveness: [0-2]/2
+- Reader interest: [0-2]/2
+- Supporting evidence: [0-2]/2
+- Subtotal: [X]/8
+</content_value>
+<total_score>[X]/23</total_score>
+</scoring_breakdown>
+<selection_status>SELECTED/NOT SELECTED</selection_status>
+<selection_rationale>Why this key point was/wasn't included in final 5</selection_rationale>
+</scoring_template>
+</scoring_documentation_format>
+</phase_2>
+
+<phase_3>
+<title>OUTLINE OPTIMIZATION AND VIDEO INTEGRATION</title>
+<requirements>Optimize selected key points for maximum impact and identify optimal video integration opportunities</requirements>
+
+<outline_optimization_protocol>
+<content_optimization>
+<heading_refinement>
+Create compelling, descriptive headings that:
+- Include target keywords naturally
+- Promise specific value to readers
+- Are scannable and engaging
+- Differentiate each section clearly
+</heading_refinement>
+
+<summary_optimization>
+Craft 150-350 character summaries that:
+- Capture essential information concisely
+- Include actionable language
+- Highlight unique value proposition
+- Maintain reader engagement
+- CRITICAL: Count characters, not words!
+</summary_optimization>
+
+<link_integration>
+Select 1-2 most relevant and credible links per key point:
+- Prioritize authoritative sources
+- Ensure links directly support the key point
+- Verify link accuracy and accessibility
+- Balance official sources with practical resources
+</link_integration>
+</content_optimization>
+
+${videos && videos.length > 0 ? `
+<video_integration_analysis>
+<integration_requirements>
+Systematically evaluate each key point for video integration potential:
+</integration_requirements>
+
+<video_selection_criteria>
+<visual_complexity>
+- Concepts that benefit from visual demonstration (0-3 points)
+- Step-by-step processes that need visual guidance (0-3 points)
+- Technical procedures requiring visual clarity (0-2 points)
+</visual_complexity>
+
+<expert_credibility>
+- Topics where expert video explanation adds authority (0-2 points)
+- Complex subjects requiring professional demonstration (0-2 points)
+</expert_credibility>
+
+<learning_enhancement>
+- Content where video significantly improves comprehension (0-3 points)
+- Practical examples best shown rather than described (0-2 points)
+</learning_enhancement>
+
+<maximum_video_score>15 points per key point</maximum_video_score>
+</video_selection_criteria>
+
+<video_matching_protocol>
+<available_video_analysis>
+For each available video, assess:
+- Primary topics covered
+- Demonstration type (tutorial, explanation, example, etc.)
+- Complexity level (beginner, intermediate, advanced)
+- Content quality and production value
+- Relevance to article keywords
+</available_video_analysis>
+
+<optimal_integration_identification>
+Select the SINGLE key point with:
+- Highest video integration score
+- Best match with available video content
+- Maximum learning enhancement potential
+- Clear alignment between video content and key point focus
+</optimal_integration_identification>
+</video_matching_protocol>
+</video_integration_analysis>
+` : ''}
+
+<character_count_verification>
+<counting_protocol>
+For EACH summary, manually verify character count:
+<verification_steps>
+<step_1>Write the complete summary</step_1>
+<step_2>Count every character including spaces and punctuation</step_2>
+<step_3>Ensure count is between 150-350 characters</step_3>
+<step_4>Revise if outside acceptable range</step_4>
+<step_5>Re-verify final character count</step_5>
+</verification_steps>
+
+<character_count_examples>
+150 characters: "This comprehensive guide covers essential strategies and practical tips for implementation, providing readers with actionable insights."
+350 characters: "This comprehensive section explores advanced strategies and practical implementation techniques, providing readers with actionable insights, real-world examples, and expert recommendations for achieving measurable results in their specific context and achieving long-term success."
+</character_count_examples>
+</character_count_verification>
+</phase_3>
+
+</execution_sequence>
+
+<output_requirements>
+
+<structured_outline_output>
+<critical_instruction>
+Return a comprehensive JSON object with the optimized outline based on systematic analysis and verification.
+</critical_instruction>
+
+<json_structure>
 {
   "title": "${title}",
   "keywords": [${keywords.map((k) => `"${k}"`).join(", ")}],
+  "researchAnalysisSummary": {
+    "totalSourcesAnalyzed": number,
+    "keyThemesIdentified": number,
+    "potentialKeyPointsGenerated": number,
+    "averageSelectionScore": number
+  },
   "keyPoints": [
     {
-      "heading": "Clear, descriptive heading for key point 1",
-      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1", "url2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
+      "heading": "Optimized, keyword-rich heading for key point 1",
+      "summary": "Precisely crafted summary (150-350 characters) with verified character count",
+      "characterCount": number,
+      "relevantLinks": ["verified_url1", "verified_url2"],
+      "selectionScore": number,
+      "primaryKeywords": ["keyword1", "keyword2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: specific topics/keywords for video demonstration",\n      "videoIntegrationScore": number' : ''}
     },
     {
-      "heading": "Clear, descriptive heading for key point 2", 
-      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
+      "heading": "Optimized, keyword-rich heading for key point 2",
+      "summary": "Precisely crafted summary (150-350 characters) with verified character count", 
+      "characterCount": number,
+      "relevantLinks": ["verified_url1"],
+      "selectionScore": number,
+      "primaryKeywords": ["keyword1", "keyword2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: specific topics/keywords for video demonstration",\n      "videoIntegrationScore": number' : ''}
     },
     {
-      "heading": "Clear, descriptive heading for key point 3",
-      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important", 
-      "relevantLinks": ["url1", "url2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
+      "heading": "Optimized, keyword-rich heading for key point 3",
+      "summary": "Precisely crafted summary (150-350 characters) with verified character count",
+      "characterCount": number,
+      "relevantLinks": ["verified_url1", "verified_url2"],
+      "selectionScore": number,
+      "primaryKeywords": ["keyword1", "keyword2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: specific topics/keywords for video demonstration",\n      "videoIntegrationScore": number' : ''}
     },
     {
-      "heading": "Clear, descriptive heading for key point 4",
-      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
+      "heading": "Optimized, keyword-rich heading for key point 4",
+      "summary": "Precisely crafted summary (150-350 characters) with verified character count",
+      "characterCount": number,
+      "relevantLinks": ["verified_url1"],
+      "selectionScore": number,
+      "primaryKeywords": ["keyword1", "keyword2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: specific topics/keywords for video demonstration",\n      "videoIntegrationScore": number' : ''}
     },
     {
-      "heading": "Clear, descriptive heading for key point 5",
-      "summary": "Concise summary (150-350 characters) explaining what this section covers and why it's important",
-      "relevantLinks": ["url1", "url2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: keywords/topics for video demonstration"' : ''}
+      "heading": "Optimized, keyword-rich heading for key point 5",
+      "summary": "Precisely crafted summary (150-350 characters) with verified character count",
+      "characterCount": number,
+      "relevantLinks": ["verified_url1", "verified_url2"],
+      "selectionScore": number,
+      "primaryKeywords": ["keyword1", "keyword2"]${videos && videos.length > 0 ? ',\n      "videoContext": "Optional: specific topics/keywords for video demonstration",\n      "videoIntegrationScore": number' : ''}
     }
   ],
-  "totalWords": 250${videos && videos.length > 0 ? ',\n  "videoMatchingSections": ["heading of section that would benefit from video demonstration"]' : ''}
+  "totalWords": number,
+  "outlineOptimization": {
+    "keywordDensity": "percentage of target keywords naturally integrated",
+    "actionabilityScore": "average actionability score across all key points",
+    "contentValueScore": "average content value score across all key points"
+  }${videos && videos.length > 0 ? ',\n  "videoIntegration": {\n    "optimalSection": "heading of section selected for video integration",\n    "integrationRationale": "why this section was selected for video demonstration",\n    "matchedVideo": "title and URL of best matching video"\n  }' : ''}
 }
-</output_format>
+</json_structure>
 
-<quality_checklist>
-Before finalizing, ensure:
-✅ Each key point has a unique, descriptive heading
-✅ Summaries are 150-350 characters each
-✅ All key points relate to the title and keywords
-✅ Relevant links are included where available from research
-✅ Total word count is under 300 words
-✅ Outline provides comprehensive topic coverage
-✅ Information is practical and actionable
-✅ Character count verified for each summary (not word count!)
-${videos && videos.length > 0 ? '✅ Maximum ONE section identified for video integration (if beneficial)' : ''}
-</quality_checklist>
+<quality_validation_requirements>
+<mandatory_checks>
+For each key point, verify:
+✅ Heading includes target keywords naturally
+✅ Summary is exactly 150-350 characters (verified by manual count)
+✅ Character count field matches actual summary length
+✅ Links are verified and directly relevant
+✅ Selection score documented and justified
+✅ Primary keywords identified and integrated
+✅ Content flows logically from point to point
+✅ All information traceable to research data
+${videos && videos.length > 0 ? '✅ Video integration analysis completed for all sections\n✅ Maximum ONE section selected for video integration\n✅ Video selection justified by scoring criteria' : ''}
+</mandatory_checks>
 
-<instruction>
-Analyze the research data and create a focused outline that distills the most valuable information into 5 key points. Pay special attention to character limits for summaries. ${videos && videos.length > 0 ? 'Consider if any section would benefit from video demonstration and mark it accordingly.' : ''} Return only the JSON object.
-</instruction>
+<content_quality_standards>
+<information_accuracy>
+All claims and information must be:
+- Directly supported by research data provided
+- Verified for accuracy and currency
+- Cross-referenced when possible
+- Clearly attributed to credible sources
+</information_accuracy>
+
+<actionability_requirements>
+Each key point must provide:
+- Specific, implementable guidance
+- Clear value proposition for readers
+- Practical steps or frameworks
+- Measurable outcomes or benefits
+</actionability_requirements>
+
+<keyword_optimization>
+Target keywords must be:
+- Integrated naturally into headings and summaries
+- Distributed appropriately across all key points
+- Used in context that enhances rather than forces readability
+- Balanced with semantic variations and related terms
+</keyword_optimization>
+</content_quality_standards>
+</quality_validation_requirements>
+</structured_outline_output>
+
+</output_requirements>
+
+<quality_control>
+
+<systematic_verification_checklist>
+<research_analysis_verification>
+✅ All research data systematically categorized and analyzed
+✅ Key themes identified and documented with supporting evidence
+✅ Minimum 10 potential key points generated before selection
+✅ Source credibility assessed for all referenced information
+✅ Keyword alignment verified for all extracted insights
+</research_analysis_verification>
+
+<key_point_selection_verification>
+✅ Systematic scoring applied to all potential key points
+✅ Selection criteria consistently applied across all candidates
+✅ Top 5 key points selected based on documented scoring
+✅ Final selection provides comprehensive topic coverage
+✅ Logical flow and progression verified across selected points
+</key_point_selection_verification>
+
+<outline_optimization_verification>
+✅ All headings optimized for keywords and reader engagement
+✅ Every summary manually verified for 150-350 character count
+✅ Character count fields accurately reflect actual summary lengths
+✅ Links verified for relevance, accuracy, and accessibility
+✅ Content quality standards met for all key points
+${videos && videos.length > 0 ? '✅ Video integration analysis completed with systematic scoring\n✅ Optimal video integration identified and justified\n✅ Video content alignment verified with selected key point' : ''}
+</outline_optimization_verification>
+
+<final_output_verification>
+✅ JSON structure exactly matches specified format
+✅ All required fields populated with accurate information
+✅ Total word count under 300 words as specified
+✅ Quality validation requirements met for all elements
+✅ Content strategically optimized for target audience and keywords
+</final_output_verification>
+</systematic_verification_checklist>
+
+<error_prevention_protocol>
+<common_outline_errors>
+❌ Character counts based on word counts instead of actual characters
+❌ Generic headings that don't include target keywords
+❌ Summaries that exceed 350 characters or fall below 150
+❌ Links that don't directly support the key point content
+❌ Key points that overlap significantly in coverage
+❌ Information not traceable to provided research data
+${videos && videos.length > 0 ? '❌ Multiple sections selected for video integration\n❌ Video integration without systematic evaluation' : ''}
+</common_outline_errors>
+</error_prevention_protocol>
+
+</quality_control>
+
+<execution_command>
+<instruction>EXECUTE SYSTEMATIC OUTLINE CREATION WITH PHASE 1 - RESEARCH ANALYSIS, THEN PROCEED THROUGH ALL PHASES TO DELIVER OPTIMIZED JSON OUTLINE WITH VERIFIED CHARACTER COUNTS AND SYSTEMATIC KEY POINT SELECTION</instruction>
+</execution_command>
   `,
 };

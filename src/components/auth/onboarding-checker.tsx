@@ -21,25 +21,18 @@ interface OnboardingStatusResponse {
 }
 
 // Routes that should be accessible during onboarding
-const allowedDuringOnboarding = [
-  "/onboarding",
-  "/sign-in",
-  "/sign-up",
-  "/api"
-];
+const allowedDuringOnboarding = ["/onboarding", "/sign-in", "/sign-up", "/api"];
 
 // Routes that don't require onboarding check (public routes)
-const publicRoutes = [
-  "/",
-  "/sign-in",
-  "/sign-up"
-];
+const publicRoutes = ["/sign-in", "/sign-up"];
 
 export function OnboardingChecker({ children }: OnboardingCheckerProps) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [onboardingStatus, setOnboardingStatus] = useState<boolean | null>(null);
+  const [onboardingStatus, setOnboardingStatus] = useState<boolean | null>(
+    null,
+  );
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
@@ -48,7 +41,7 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
       if (!isLoaded) return;
 
       // Don't check for public routes
-      if (publicRoutes.some(route => pathname.startsWith(route))) {
+      if (publicRoutes.some((route) => pathname.startsWith(route))) {
         setIsChecking(false);
         return;
       }
@@ -62,17 +55,21 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
       try {
         setIsChecking(true);
         const response = await fetch("/api/onboarding/status");
-        
+
         if (response.ok) {
-          const data = await response.json() as OnboardingStatusResponse;
-          
+          const data = (await response.json()) as OnboardingStatusResponse;
+
           if (data.success) {
             setOnboardingStatus(data.onboarding_completed);
-            
+
             // Redirect logic based on onboarding status and current route
             if (!data.onboarding_completed) {
               // User hasn't completed onboarding
-              if (!allowedDuringOnboarding.some(route => pathname.startsWith(route))) {
+              if (
+                !allowedDuringOnboarding.some((route) =>
+                  pathname.startsWith(route),
+                )
+              ) {
                 // Redirect to onboarding if trying to access protected routes
                 router.push("/onboarding");
                 return;
@@ -81,20 +78,24 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
               // User has completed onboarding
               if (pathname === "/onboarding") {
                 // Redirect away from onboarding if already completed
-                router.push("/");
+                router.push("/dashboard");
                 return;
               }
             }
           } else {
             // Handle API errors gracefully
             console.error("Error checking onboarding status:", data.error);
-            
+
             // If error indicates user record creation is pending, assume not onboarded
-            if (data.error?.includes('pending')) {
+            if (data.error?.includes("pending")) {
               setOnboardingStatus(false);
-              
+
               // Redirect to onboarding if not already there
-              if (!allowedDuringOnboarding.some(route => pathname.startsWith(route))) {
+              if (
+                !allowedDuringOnboarding.some((route) =>
+                  pathname.startsWith(route),
+                )
+              ) {
                 router.push("/onboarding");
                 return;
               }
@@ -107,8 +108,10 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
           // User not found in database - assume not onboarded and redirect to onboarding
           console.warn("User not found in database, redirecting to onboarding");
           setOnboardingStatus(false);
-          
-          if (!allowedDuringOnboarding.some(route => pathname.startsWith(route))) {
+
+          if (
+            !allowedDuringOnboarding.some((route) => pathname.startsWith(route))
+          ) {
             router.push("/onboarding");
             return;
           }
@@ -132,21 +135,21 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
   // Show loading state while checking authentication or onboarding status
   if (!isLoaded || (user && isChecking)) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-gray-600">Loading...</div>
       </div>
     );
   }
 
   // For public routes or when user is not signed in, render children normally
-  if (!user || publicRoutes.some(route => pathname.startsWith(route))) {
+  if (!user || publicRoutes.some((route) => pathname.startsWith(route))) {
     return <>{children}</>;
   }
 
   // For signed-in users, only render children after onboarding status is determined
   if (onboardingStatus === null && isChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-gray-600">Loading...</div>
       </div>
     );

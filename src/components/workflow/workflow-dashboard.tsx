@@ -59,7 +59,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const transformDatabaseArticle = (dbArticle: DatabaseArticle): Article => ({
     id: dbArticle.id.toString(),
     title: dbArticle.title,
-    content: dbArticle.optimizedContent ?? dbArticle.draft ?? undefined,
+    content: dbArticle.content ?? dbArticle.draft ?? undefined,
     status: dbArticle.status,
     keywords: Array.isArray(dbArticle.keywords)
       ? (dbArticle.keywords as string[])

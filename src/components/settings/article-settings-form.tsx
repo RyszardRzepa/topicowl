@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ArticleSettingsRequest, ArticleSettingsResponse } from '@/app/api/settings/route';
 
 // Form-specific type for component state
@@ -140,13 +141,16 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Company Information Section */}
-      <div className="border-b border-gray-200 pb-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Company Information</h3>
+      <Card>
+        <CardHeader>
+          <CardTitle>Company & Brand Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
         
-        {/* Company Name */}
-        <div className="mb-4">
+          {/* Company Name */}
+          <div>
           <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-2">
             Company Name
           </label>
@@ -163,8 +167,8 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
           </p>
         </div>
 
-        {/* Product Description */}
-        <div className="mb-4">
+          {/* Product Description */}
+          <div>
           <label htmlFor="productDescription" className="block text-sm font-medium text-gray-700 mb-2">
             Product/Service Description
           </label>
@@ -181,8 +185,8 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
           </p>
         </div>
 
-        {/* Keywords */}
-        <div className="mb-4">
+          {/* Keywords */}
+          <div>
           <label htmlFor="keywords" className="block text-sm font-medium text-gray-700 mb-2">
             Target Keywords
           </label>
@@ -199,8 +203,8 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
           </p>
         </div>
 
-        {/* Industry Category */}
-        <div className="mb-4">
+          {/* Industry Category */}
+          <div>
           <label htmlFor="industryCategory" className="block text-sm font-medium text-gray-700 mb-2">
             Industry Category
           </label>
@@ -233,8 +237,8 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
           </p>
         </div>
 
-        {/* Target Audience */}
-        <div>
+          {/* Target Audience */}
+          <div>
           <label htmlFor="targetAudience" className="block text-sm font-medium text-gray-700 mb-2">
             Target Audience
           </label>
@@ -250,14 +254,18 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
             Who your articles are primarily written for
           </p>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Article Generation Settings Section */}
-      <div className="border-b border-gray-200 pb-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Article Generation Settings</h3>
+      <Card>
+        <CardHeader>
+          <CardTitle>Article Generation Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
 
         {/* Tone of Voice */}
-        <div className="mb-4">
+        <div>
           <label htmlFor="toneOfVoice" className="block text-sm font-medium text-gray-700 mb-2">
             Tone of Voice
           </label>
@@ -275,7 +283,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         </div>
 
         {/* Article Structure */}
-        <div className="mb-4">
+        <div>
           <label htmlFor="articleStructure" className="block text-sm font-medium text-gray-700 mb-2">
             Article Structure
           </label>
@@ -293,7 +301,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         </div>
 
         {/* Max Words */}
-        <div className="mb-4">
+        <div>
           <label htmlFor="maxWords" className="block text-sm font-medium text-gray-700 mb-2">
             Maximum Words
           </label>
@@ -331,7 +339,8 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
             How often you plan to publish new articles
           </p>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Save Message */}
       {saveMessage && (
