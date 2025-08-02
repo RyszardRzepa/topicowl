@@ -283,6 +283,8 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const handleCreateArticle = async (data: {
     title: string;
     keywords?: string[];
+    description?: string;
+    targetAudience?: string;
   }) => {
     try {
       const response = await fetch("/api/articles", {
@@ -290,8 +292,9 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: data.title,
-          description: "Click to edit this article idea",
+          description: data.description ?? "Click to edit this article idea",
           keywords: data.keywords ?? [],
+          targetAudience: data.targetAudience,
         }),
       });
 

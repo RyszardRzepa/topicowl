@@ -11,14 +11,18 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { ArticleCard } from "./article-card";
-import { Plus } from "lucide-react";
+import { ArticleIdeasGenerator } from "@/components/articles/article-ideas-generator";
+import { Plus, Sparkles } from "lucide-react";
 import type { Article } from "@/types";
+import type { ArticleIdea } from "@/app/api/articles/generate-ideas/route";
 
 interface PlanningHubProps {
   articles: Article[];
   onCreateArticle: (data: {
     title: string;
     keywords?: string[];
+    description?: string;
+    targetAudience?: string;
   }) => Promise<void>;
   onUpdateArticle: (
     articleId: string,
@@ -44,6 +48,7 @@ export function PlanningHub({
   onNavigateToArticle,
 }: PlanningHubProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [showIdeasGenerator, setShowIdeasGenerator] = useState(false);
   const [newArticleData, setNewArticleData] = useState({
     title: "",
     keywords: "",
@@ -76,6 +81,15 @@ export function PlanningHub({
     setIsCreating(false);
   };
 
+  const handleIdeaAdded = async (idea: ArticleIdea) => {
+    await onCreateArticle({
+      title: idea.title,
+      description: idea.description,
+      keywords: idea.keywords,
+      targetAudience: idea.targetAudience,
+    });
+  };
+
   return (
     <div
       role="tabpanel"
@@ -95,6 +109,15 @@ export function PlanningHub({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {/* Generate AI ideas */}
+          <Button
+            onClick={() => setShowIdeasGenerator(true)}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Generate Ideas
+          </Button>
+          
           {/* Create new article */}
           <Button
             onClick={() => setIsCreating(true)}
@@ -313,6 +336,14 @@ export function PlanningHub({
           </div>
         )}
       </div>
+
+      {/* Article Ideas Generator Modal */}
+      {showIdeasGenerator && (
+        <ArticleIdeasGenerator
+          onIdeaAdded={handleIdeaAdded}
+          onClose={() => setShowIdeasGenerator(false)}
+        />
+      )}
     </div>
   );
 }
