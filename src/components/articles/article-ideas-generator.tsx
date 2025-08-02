@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -41,6 +41,9 @@ interface GenerationState {
   requiresOnboarding: boolean;
 }
 
+// Local storage key for persisting generated ideas
+const STORAGE_KEY = "contentbot-generated-ideas";
+
 export function ArticleIdeasGenerator({
   onIdeaAdded,
   onClose,
@@ -56,6 +59,39 @@ export function ArticleIdeasGenerator({
 
   const [selectedIdeas, setSelectedIdeas] = useState<Set<number>>(new Set());
   const [isBulkAdding, setIsBulkAdding] = useState(false);
+
+  // Load previously generated ideas from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedIdeas = localStorage.getItem(STORAGE_KEY);
+      if (savedIdeas) {
+        const parsedIdeas = JSON.parse(savedIdeas) as ArticleIdea[];
+        if (Array.isArray(parsedIdeas) && parsedIdeas.length > 0) {
+          setState((prev) => ({
+            ...prev,
+            ideas: parsedIdeas,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load saved ideas from localStorage:", error);
+      // Clear corrupted data
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, []);
+
+  // Save ideas to localStorage whenever ideas change
+  const saveIdeasToStorage = useCallback((ideas: ArticleIdea[]) => {
+    try {
+      if (ideas.length > 0) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(ideas));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (error) {
+      console.error("Failed to save ideas to localStorage:", error);
+    }
+  }, []);
 
   const generateIdeas = useCallback(async () => {
     setState((prev) => ({
@@ -96,8 +132,10 @@ export function ArticleIdeasGenerator({
         ...prev,
         isGenerating: false,
         ideas: data.ideas,
-
       }));
+
+      // Save new ideas to localStorage
+      saveIdeasToStorage(data.ideas);
 
       // Clear any previous selections
       setSelectedIdeas(new Set());
@@ -111,7 +149,7 @@ export function ArticleIdeasGenerator({
             : "An unexpected error occurred",
       }));
     }
-  }, []);
+  }, [saveIdeasToStorage]);
 
   const handleIdeaSelection = useCallback(
     (index: number, selected: boolean) => {
@@ -178,22 +216,11 @@ export function ArticleIdeasGenerator({
       requiresOnboarding: false,
     }));
     setSelectedIdeas(new Set());
-  }, []);
+    // Clear saved ideas from localStorage
+    saveIdeasToStorage([]);
+  }, [saveIdeasToStorage]);
 
-  const formatRateLimitReset = (resetTime: number) => {
-    const resetDate = new Date(resetTime);
-    const now = new Date();
-    const diffMinutes = Math.ceil(
-      (resetDate.getTime() - now.getTime()) / (1000 * 60),
-    );
 
-    if (diffMinutes <= 0) return "now";
-    if (diffMinutes < 60) return `${diffMinutes}m`;
-
-    const hours = Math.floor(diffMinutes / 60);
-    const minutes = diffMinutes % 60;
-    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

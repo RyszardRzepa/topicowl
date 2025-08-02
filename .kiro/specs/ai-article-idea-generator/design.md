@@ -98,6 +98,22 @@ interface ArticleIdeasGeneratorState {
   error: string | null;
   rateLimitInfo: RateLimitInfo | null;
 }
+
+interface CachedIdeasData {
+  ideas: ArticleIdea[];
+  timestamp: number;
+  userId: string; // Ensure cache is user-specific
+}
+```
+
+**Local Storage Management**:
+```typescript
+interface LocalStorageManager {
+  saveIdeas: (ideas: ArticleIdea[], userId: string) => void;
+  loadIdeas: (userId: string) => ArticleIdea[] | null;
+  clearIdeas: (userId: string) => void;
+  isExpired: (timestamp: number) => boolean;
+}
 ```
 
 **Integration with Planning Hub**:

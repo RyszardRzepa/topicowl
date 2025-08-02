@@ -60,6 +60,19 @@ The AI Article Idea Generator feature will provide users with intelligent articl
 
 ### Requirement 5
 
+**User Story:** As a user, I want my generated article ideas to persist in local state when I close and reopen the modal, so that I don't lose my previous results and can continue working with them without regenerating.
+
+#### Acceptance Criteria
+
+1. WHEN I generate article ideas THEN the system SHALL store the results in local browser storage
+2. WHEN I close the modal after generating ideas THEN the system SHALL preserve the generated ideas data
+3. WHEN I reopen the Generate Ideas modal THEN the system SHALL display my previously generated ideas if they exist
+4. WHEN I have cached ideas and click "Generate Ideas" again THEN the system SHALL replace the cached results with new ones
+5. WHEN I dismiss the results THEN the system SHALL clear the cached ideas from local storage
+6. WHEN the cached ideas are older than 24 hours THEN the system SHALL automatically clear them and show the initial state
+
+### Requirement 6
+
 **User Story:** As a system administrator, I want the article idea generation to be rate-limited and cost-controlled, so that we manage API usage and prevent abuse.
 
 #### Acceptance Criteria
