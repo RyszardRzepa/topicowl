@@ -293,14 +293,14 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     }
   };
 
-  // New scheduling function for automatic recurring schedules
+  // New scheduling function for generation scheduling
   const scheduleArticle = async (
     articleId: number,
     scheduledAt: string,
-    frequency: "once" | "daily" | "weekly" | "monthly" = "once",
+    _frequency: "once" | "daily" | "weekly" | "monthly" = "once",
   ) => {
     try {
-      const response = await fetch("/api/articles/schedule", {
+      const response = await fetch("/api/articles/schedule-generation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -308,8 +308,6 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         body: JSON.stringify({
           articleId,
           scheduledAt,
-          schedulingType: frequency === "once" ? "manual" : "automatic",
-          frequency,
         }),
       });
 

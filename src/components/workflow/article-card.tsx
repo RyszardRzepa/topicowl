@@ -441,7 +441,7 @@ export function ArticleCard({
                         className="flex-1"
                       >
                         <Calendar className="mr-2 h-4 w-4" />
-                        Schedule
+                        Schedule Generation
                       </Button>
                     </div>
                   )}
@@ -505,7 +505,7 @@ export function ArticleCard({
                       className="flex-1"
                     >
                       <Calendar className="mr-2 h-4 w-4" />
-                      Schedule
+                      Schedule Publishing
                     </Button>
                   </div>
                 )}
@@ -525,7 +525,7 @@ export function ArticleCard({
                         void handleSchedulePublishing(date);
                       }
                     }}
-                    placeholder="Select new publish date and time"
+                    placeholder="Select new publishing date and time"
                     minDate={new Date()}
                     className="w-full"
                   />

@@ -17,6 +17,7 @@ import type {
   KanbanColumn,
 } from "@/app/api/articles/board/route";
 import type { ScheduleGenerationResponse } from "@/app/api/articles/schedule-generation/route";
+import type { SchedulePublishingResponse } from "@/app/api/articles/schedule-publishing/route";
 
 interface WorkflowDashboardProps {
   className?: string;
@@ -495,10 +496,38 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   ) => {
     try {
       const article = articles.find(a => a.id === articleId);
-      // Update article with scheduled publish time
-      await handleUpdateArticle(articleId, {
-        publishScheduledAt: scheduledAt.toISOString(),
+      
+      // Use the new dedicated publishing endpoint
+      const response = await fetch("/api/articles/schedule-publishing", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          articleId: parseInt(articleId),
+          publishAt: scheduledAt.toISOString(),
+        }),
       });
+
+      const result = await response.json() as SchedulePublishingResponse | { error: string };
+
+      if (!response.ok) {
+        const errorMessage = 'error' in result ? result.error : "Failed to schedule publishing";
+        throw new Error(errorMessage);
+      }
+
+      if (!('success' in result) || !result.success) {
+        throw new Error("Failed to schedule publishing");
+      }
+
+      // Update local state optimistically
+      setArticles((prev) =>
+        prev.map((a) =>
+          a.id === articleId
+            ? { ...a, publishScheduledAt: scheduledAt.toISOString() }
+            : a,
+        ),
+      );
       
       const formattedDate = scheduledAt.toLocaleDateString('en-US', {
         month: 'short',

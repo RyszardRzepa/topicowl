@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Edit, RefreshCw, Calendar, Trash2 } from 'lucide-react';
+import { Calendar, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 // Import colocated types from API routes for type safety
-import type { ArticleGenerationRequest } from '@/app/api/articles/generate/route';
 import type { ArticleScheduleRequest } from '@/app/api/articles/[id]/schedule/route';
 import type { ArticleDetailResponse } from '@/app/api/articles/[id]/route';
 
@@ -20,51 +19,16 @@ interface ArticleActionsProps {
 
 export function ArticleActions({ 
   article, 
-  onEdit, 
+  onEdit: _onEdit, 
   onStatusChange,
   className = '' 
 }: ArticleActionsProps) {
-  const [isRegenerating, setIsRegenerating] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const router = useRouter();
-
-  const handleRegenerate = async () => {
-    if (!confirm('Are you sure you want to regenerate this article? This will overwrite the current content.')) {
-      return;
-    }
-
-    setIsRegenerating(true);
-    try {
-      const response = await fetch(`/api/articles/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          articleId: article.id.toString(),
-          forceRegenerate: true,
-        } as ArticleGenerationRequest),
-      });
-
-      const result = await response.json() as { success: boolean; error?: string };
-      
-      if (result.success) {
-        onStatusChange?.('generating');
-        toast.success('Article regeneration started successfully!');
-      } else {
-        throw new Error(result.error ?? 'Failed to regenerate article');
-      }
-    } catch (error) {
-      console.error('Regeneration error:', error);
-      toast.error('Failed to regenerate article. Please try again.');
-    } finally {
-      setIsRegenerating(false);
-    }
-  };
 
   const handleSchedule = async () => {
     if (!scheduledDate) {
@@ -128,8 +92,6 @@ export function ArticleActions({
     }
   };
 
-  const canEdit = article.status !== 'generating';
-  const canRegenerate = article.status !== 'generating';
   const canSchedule = article.status === 'wait_for_publish' || (article.draft && article.status !== 'generating');
 
   return (

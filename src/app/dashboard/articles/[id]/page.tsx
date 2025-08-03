@@ -1,10 +1,7 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { db } from "@/server/db";
 import { articles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { Button } from "@/components/ui/button";
 import { ArticlePreviewClient } from "@/components/articles/article-preview-client";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 
@@ -60,7 +57,7 @@ export default async function ArticlePreviewPage({
       draft: articleData.draft,
       content: articleData.content, // Final published content
       videos: articleData.videos, // YouTube video embeds
-      optimizedContent: articleData.optimizedContent, // Deprecated
+      optimizedContent: null, // Deprecated field - always null now
       factCheckReport: articleData.factCheckReport,
       seoScore: articleData.seoScore,
       internalLinks: articleData.internalLinks,
@@ -76,8 +73,8 @@ export default async function ArticlePreviewPage({
       researchSources: Array.isArray(articleData.sources)
         ? (articleData.sources as string[])
         : [],
-      wordCount: articleData.optimizedContent
-        ? articleData.optimizedContent.split(/\s+/).length
+      wordCount: articleData.content
+        ? articleData.content.split(/\s+/).length
         : articleData.draft
           ? articleData.draft.split(/\s+/).length
           : 0,

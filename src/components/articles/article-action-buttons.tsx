@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Send, RotateCcw, Clock } from "lucide-react";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
+import type { ScheduleGenerationResponse } from "@/app/api/articles/schedule-generation/route";
+import type { SchedulePublishingResponse } from "@/app/api/articles/schedule-publishing/route";
 
 interface ArticleActionButtonsProps {
   article: ArticleDetailResponse["data"];
@@ -19,25 +22,56 @@ export function ArticleActionButtons({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showSchedulingUI, setShowSchedulingUI] = useState(false);
+  const [selectedScheduleTime, setSelectedScheduleTime] = useState<Date | undefined>(undefined);
+
+  // Make button text context-aware based on article status
+  const getScheduleButtonText = () => {
+    if (article.status === "idea" || article.status === "to_generate") {
+      return "Schedule Generation";
+    }
+    if (article.status === "wait_for_publish") {
+      return "Schedule Publishing";
+    }
+    return "Schedule";
+  };
 
   const handleSchedule = async () => {
+    setShowSchedulingUI(true);
+  };
+
+  const handleConfirmSchedule = async () => {
+    if (!selectedScheduleTime) return;
+    
     setIsScheduling(true);
     try {
-      // For now, schedule for 1 hour from now as a simple implementation
-      const scheduledAt = new Date();
-      scheduledAt.setHours(scheduledAt.getHours() + 1);
+      let endpoint: string;
+      let body: object;
 
-      const response = await fetch("/api/articles/schedule", {
+      if (article.status === "idea" || article.status === "to_generate") {
+        // Use generation scheduling endpoint
+        endpoint = "/api/articles/schedule-generation";
+        body = {
+          articleId: article.id,
+          scheduledAt: selectedScheduleTime.toISOString(),
+        };
+      } else if (article.status === "wait_for_publish") {
+        // Use publishing scheduling endpoint
+        endpoint = "/api/articles/schedule-publishing";
+        body = {
+          articleId: article.id,
+          publishAt: selectedScheduleTime.toISOString(),
+        };
+      } else {
+        throw new Error("Cannot schedule article in current status");
+      }
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          articleId: article.id,
-          scheduledAt: scheduledAt.toISOString(),
-          schedulingType: "manual",
-          frequency: "once",
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -45,8 +79,24 @@ export function ArticleActionButtons({
         throw new Error(errorData.error ?? "Failed to schedule article");
       }
 
-      const result = (await response.json()) as { message?: string };
+      let result: ScheduleGenerationResponse | SchedulePublishingResponse;
+      if (article.status === "idea" || article.status === "to_generate") {
+        result = (await response.json()) as ScheduleGenerationResponse;
+        if (!result.success) {
+          throw new Error(result.error ?? "Failed to schedule generation");
+        }
+      } else {
+        result = (await response.json()) as SchedulePublishingResponse;
+        if (!result.success) {
+          throw new Error("Failed to schedule publishing");
+        }
+      }
+
       onSuccess?.(result.message ?? "Article scheduled successfully");
+
+      // Reset scheduling UI
+      setShowSchedulingUI(false);
+      setSelectedScheduleTime(undefined);
 
       // Refresh the page to show updated status
       window.location.reload();
@@ -128,7 +178,9 @@ export function ArticleActionButtons({
   // Determine which buttons to show based on article status
   const canSchedule = ["idea", "wait_for_publish"].includes(article.status);
   const canPublish = article.status === "wait_for_publish";
-  const canRegenerate = !["generating", "published"].includes(article.status);
+  // Only show regenerate for articles that have been generated before (have content)
+  const canRegenerate = !["generating", "published", "idea", "to_generate"].includes(article.status) && 
+                       (article.content ?? article.draft);
 
   // Don't show buttons if article is currently generating
   if (article.status === "generating") {
@@ -143,44 +195,88 @@ export function ArticleActionButtons({
   }
 
   return (
-    <div className="flex gap-1.5">
-      {canSchedule && (
-        <Button
-          onClick={handleSchedule}
-          disabled={isScheduling}
-          variant="outline"
-          size="sm"
-          className="flex h-7 items-center gap-1 px-2 py-1 text-xs"
-        >
-          <Calendar className="h-3 w-3" />
-          {isScheduling ? "..." : "Schedule"}
-        </Button>
+    <div className="space-y-3">
+      {/* Scheduling UI */}
+      {showSchedulingUI && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div className="space-y-3">
+            <div className="text-sm font-medium text-gray-700">
+              {article.status === "idea" || article.status === "to_generate" 
+                ? "Schedule Generation" 
+                : "Schedule Publishing"}
+            </div>
+            <DateTimePicker
+              value={selectedScheduleTime}
+              onChange={setSelectedScheduleTime}
+              placeholder="Select date and time"
+              minDate={new Date(Date.now() + 60000)} // 1 minute from now
+              className="w-full"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setShowSchedulingUI(false);
+                  setSelectedScheduleTime(undefined);
+                }}
+                size="sm"
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmSchedule}
+                size="sm"
+                disabled={!selectedScheduleTime || isScheduling}
+                className="flex-1"
+              >
+                {isScheduling ? "Scheduling..." : "Confirm"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
-      {canRegenerate && (
-        <Button
-          onClick={handleRegenerate}
-          disabled={isRegenerating}
-          variant="outline"
-          size="sm"
-          className="flex h-7 items-center gap-1 px-2 py-1 text-xs"
-        >
-          <RotateCcw className="h-3 w-3" />
-          {isRegenerating ? "..." : "Regenerate"}
-        </Button>
-      )}
+      {/* Action buttons */}
+      <div className="flex gap-1.5">
+        {canSchedule && !showSchedulingUI && (
+          <Button
+            onClick={handleSchedule}
+            disabled={isScheduling}
+            variant="outline"
+            size="sm"
+            className="flex h-7 items-center gap-1 px-2 py-1 text-xs"
+          >
+            <Calendar className="h-3 w-3" />
+            {getScheduleButtonText()}
+          </Button>
+        )}
 
-      {canPublish && (
-        <Button
-          onClick={handlePublish}
-          disabled={isPublishing}
-          size="sm"
-          className="flex h-7 items-center gap-1 px-2 py-1 text-xs"
-        >
-          <Send className="h-3 w-3" />
-          {isPublishing ? "..." : "Publish"}
-        </Button>
-      )}
+        {canRegenerate && (
+          <Button
+            onClick={handleRegenerate}
+            disabled={isRegenerating}
+            variant="outline"
+            size="sm"
+            className="flex h-7 items-center gap-1 px-2 py-1 text-xs"
+          >
+            <RotateCcw className="h-3 w-3" />
+            {isRegenerating ? "..." : "Regenerate"}
+          </Button>
+        )}
+
+        {canPublish && (
+          <Button
+            onClick={handlePublish}
+            disabled={isPublishing}
+            size="sm"
+            className="flex h-7 items-center gap-1 px-2 py-1 text-xs"
+          >
+            <Send className="h-3 w-3" />
+            {isPublishing ? "..." : "Publish"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
