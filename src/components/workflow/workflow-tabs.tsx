@@ -1,6 +1,7 @@
 "use client";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import type { WorkflowPhase } from "@/types";
 
 interface WorkflowTabsProps {
@@ -24,32 +25,28 @@ export function WorkflowTabs({
         value={activeTab}
         onValueChange={onTabChange as (value: string) => void}
       >
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="planning" className="flex items-center gap-2">
-            Article Planning
-            {planningCount > 0 && (
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                {planningCount}
-              </span>
-            )}
+        <TabsList className="bg-muted/20 h-auto w-fit gap-1 rounded-lg border-0 p-1">
+          <TabsTrigger
+            value="planning"
+            className="data-[state=inactive]:text-muted-foreground flex items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-all data-[state=active]:border-orange-200 data-[state=active]:bg-orange-100 data-[state=active]:text-orange-500"
+          >
+            Planning
           </TabsTrigger>
 
-          <TabsTrigger value="generations" className="flex items-center gap-2">
-            Article Generations
-            {generationsCount > 0 && (
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
-                {generationsCount}
-              </span>
-            )}
+          <TabsTrigger
+            value="generations"
+            className="data-[state=inactive]:text-muted-foreground flex items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-all data-[state=active]:border-orange-200 data-[state=active]:bg-orange-100 data-[state=active]:text-orange-500"
+          >
+            Generations
+          
           </TabsTrigger>
 
-          <TabsTrigger value="publishing" className="flex items-center gap-2">
-            Publishing Pipeline
-            {publishingCount > 0 && (
-              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                {publishingCount}
-              </span>
-            )}
+          <TabsTrigger
+            value="publishing"
+            className="data-[state=inactive]:text-muted-foreground flex items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-all data-[state=active]:border-orange-200 data-[state=active]:bg-orange-100 data-[state=active]:text-orange-500"
+          >
+            Publishing
+            
           </TabsTrigger>
         </TabsList>
       </Tabs>

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { WorkflowTabs } from "./workflow-tabs";
 import { PlanningHub } from "./planning-hub";
 import { ArticleGenerations } from "./article-generations";
@@ -633,15 +635,14 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   if (error) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="text-center">
-          <p className="mb-4 text-red-600">{error}</p>
-          <button
-            onClick={fetchArticles}
-            className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
+        <Alert variant="destructive" className="max-w-md">
+          <AlertDescription className="mb-4">
+            {error}
+          </AlertDescription>
+          <Button onClick={fetchArticles} variant="outline" size="sm">
             Retry
-          </button>
-        </div>
+          </Button>
+        </Alert>
       </div>
     );
   }
@@ -649,8 +650,8 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   return (
     <div className={className}>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Content Workflow</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <h1 className="text-2xl font-bold">Content Workflow</h1>
+        <p className="mt-1 text-sm">
           Manage your article creation and publishing pipeline
         </p>
       </div>

@@ -9,7 +9,7 @@ export function HeaderLogo() {
   return (
     <Link 
       href={isSignedIn ? "/dashboard" : "/"} 
-      className="text-xl font-semibold text-stone-900 hover:text-stone-700 transition-colors"
+      className="text-xl font-semibold text-brand-white hover:text-brand-orange transition-colors"
     >
       Contentbot
     </Link>

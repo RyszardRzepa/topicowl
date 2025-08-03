@@ -11,6 +11,35 @@ module.exports = {
         inter: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
+        // Brand colors - Light theme optimized
+        brand: {
+          green: {
+            50: '#f0f9f7',   // Very light green background
+            100: '#d1f2e8',  // Light green background  
+            500: '#016251',  // Primary green (unchanged)
+            600: '#014c3f',  // Darker green for hover states
+            900: '#002f29',  // Dark green for text on light
+          },
+          orange: {
+            50: '#fff7ed',   // Very light orange background
+            100: '#ffedd5',  // Light orange background
+            500: 'rgba(255, 102, 26, 1)', // Primary orange (unchanged)
+            600: '#ea580c',  // Darker orange for hover
+            900: '#9a3412',  // Dark orange for text
+          },
+          gray: {
+            50: '#f9fafb',   // Light page background
+            100: '#f3f4f6',  // Card backgrounds
+            200: '#e5e7eb',  // Borders
+            500: '#6b7280',  // Muted text
+            900: '#111827',  // Dark text
+          },
+          // Legacy single colors for backward compatibility
+          'green-legacy': '#016251',     // Primary button color
+          'orange-legacy': 'rgba(255, 102, 26, 1)', // Text accent color
+          'dark-gray': '#2b2823', // Page background
+          white: '#ffffff',     // White
+        },
         // Notion-inspired color system
         stone: {
           700: '#373530', // default text

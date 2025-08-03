@@ -13,7 +13,9 @@ import {
   CheckSquare,
   Target
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { ArticleStatus } from '@/types';
 
 type GenerationPhase = 'research' | 'writing' | 'validation' | 'optimization';
@@ -43,28 +45,28 @@ export function StatusIndicator({
         return {
           icon: Search,
           label: 'Researching',
-          color: 'text-blue-600',
+          color: 'text-brand-green',
           description: 'Gathering information and sources'
         };
       case 'writing':
         return {
           icon: PenTool,
           label: 'Writing',
-          color: 'text-green-600',
+          color: 'text-brand-green',
           description: 'Creating content'
         };
       case 'validation':
         return {
           icon: CheckSquare,
           label: 'Validating',
-          color: 'text-yellow-600',
+          color: 'text-brand-orange',
           description: 'Fact-checking and reviewing'
         };
       case 'optimization':
         return {
           icon: Target,
           label: 'Optimizing',
-          color: 'text-purple-600',
+          color: 'text-brand-orange',
           description: 'SEO optimization and final touches'
         };
     }
@@ -76,42 +78,42 @@ export function StatusIndicator({
         return {
           icon: Lightbulb,
           label: 'Idea',
-          color: 'bg-yellow-100 text-yellow-800',
+          badgeVariant: 'orange' as const,
           description: 'Ready to generate'
         };
       case 'to_generate':
         return {
           icon: isScheduled ? Calendar : Clock,
           label: isScheduled ? 'Scheduled' : 'Ready',
-          color: isScheduled ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800',
+          badgeVariant: isScheduled ? 'green' : 'orange',
           description: isScheduled ? 'Generation scheduled' : 'Ready to generate'
         };
       case 'generating':
         return {
           icon: Zap,
           label: phase ? getPhaseConfig(phase).label : 'Generating',
-          color: 'bg-blue-100 text-blue-800',
+          badgeVariant: 'green' as const,
           description: phase ? getPhaseConfig(phase).description : 'AI writing content'
         };
       case 'wait_for_publish':
         return {
           icon: CheckCircle,
           label: 'Ready to Publish',
-          color: 'bg-green-100 text-green-800',
+          badgeVariant: 'green' as const,
           description: 'Content generated successfully'
         };
       case 'published':
         return {
           icon: CheckCircle,
           label: 'Published',
-          color: 'bg-gray-100 text-gray-800',
+          badgeVariant: 'default' as const,
           description: 'Live on website'
         };
       default:
         return {
           icon: AlertCircle,
           label: 'Unknown',
-          color: 'bg-red-100 text-red-800',
+          badgeVariant: 'red' as const,
           description: 'Unknown status'
         };
     }
@@ -123,10 +125,9 @@ export function StatusIndicator({
   return (
     <div className={cn("space-y-2", className)}>
       <Badge 
-        variant="secondary" 
+        variant={config.badgeVariant as 'default' | 'secondary' | 'outline' | 'gray' | 'brown' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink' | 'red'}
         className={cn(
           "flex items-center gap-1.5 w-fit", 
-          config.color,
           status === 'generating' && "animate-pulse"
         )}
       >
@@ -136,25 +137,23 @@ export function StatusIndicator({
       
       {/* Error display */}
       {error && (
-        <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
-          <div className="flex items-center gap-1 mb-1">
-            <AlertCircle className="h-3 w-3" />
-            <span className="font-medium">Generation Failed</span>
-          </div>
-          <p>{error}</p>
-        </div>
+        <Alert variant="destructive" className="text-xs">
+          <AlertCircle className="h-3 w-3" />
+          <AlertDescription>
+            <div className="font-medium mb-1">Generation Failed</div>
+            <p>{error}</p>
+          </AlertDescription>
+        </Alert>
       )}
       
       {/* Progress display for generating articles */}
       {status === 'generating' && typeof progress === 'number' && !error && (
         <div className="space-y-1">
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-in-out" 
-              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-xs text-gray-600">
+          <Progress 
+            value={progress} 
+            className="h-2 bg-brand-white/20 [&>div]:bg-brand-green" 
+          />
+          <div className="flex justify-between text-xs text-brand-white/70">
             <span>{progress}% complete</span>
             {estimatedCompletion && (
               <span>Est. {estimatedCompletion}</span>
@@ -176,7 +175,7 @@ export function StatusIndicator({
         </div>
       )}
       
-      <p className="text-xs text-gray-500">{config.description}</p>
+      <p className="text-xs text-brand-white/60">{config.description}</p>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import type { Article } from "@/types";
 import { cn } from "@/lib/utils";
 import type { RunNowResponse } from "@/app/api/articles/[id]/run-now/route";
@@ -240,9 +241,9 @@ export function ArticleGenerations({
   );
 
   const getProgressColor = (progress: number) => {
-    if (progress < 30) return "bg-red-500";
-    if (progress < 70) return "bg-yellow-500";
-    return "bg-green-500";
+    if (progress < 30) return "bg-red-400";
+    if (progress < 70) return "bg-brand-orange";
+    return "bg-brand-green";
   };
 
   const getPhaseLabel = (phase?: string) => {
@@ -281,12 +282,12 @@ export function ArticleGenerations({
   }) => (
     <div
       className={cn(
-        "group relative rounded-lg border bg-white p-4 transition-shadow hover:shadow-md",
+        "group relative rounded-lg border bg-brand-white/5 p-4 transition-shadow hover:shadow-md",
         {
-          "border-orange-200": status === "scheduled",
-          "border-blue-200": status === "generating",
-          "border-green-200": status === "completed",
-          "border-red-200": status === "failed",
+          "border-brand-orange/30": status === "scheduled",
+          "border-brand-green/30": status === "generating",
+          "border-brand-green/30": status === "completed",
+          "border-red-400/30": status === "failed",
         },
       )}
       onMouseEnter={() => setHoveredCard(article.id)}
@@ -296,37 +297,37 @@ export function ArticleGenerations({
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex items-center gap-2">
             {status === "scheduled" && (
-              <Clock className="h-4 w-4 text-orange-500" />
+              <Clock className="h-4 w-4 text-brand-orange" />
             )}
             {status === "generating" && (
-              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              <Loader2 className="h-4 w-4 animate-spin text-brand-green" />
             )}
             {status === "completed" && (
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <CheckCircle className="h-4 w-4 text-brand-green" />
             )}
             {status === "failed" && (
-              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertCircle className="h-4 w-4 text-red-400" />
             )}
 
-            <h3 className="truncate text-sm font-medium text-gray-900">
+            <h3 className="truncate text-sm font-medium text-brand-white">
               {article.title}
             </h3>
           </div>
 
           {/* Status-specific content */}
           {status === "scheduled" && article.generationScheduledAt && (
-            <p className="mb-2 text-xs text-gray-500">
+            <p className="mb-2 text-xs text-brand-white/60">
               Scheduled: {formatScheduledTime(article.generationScheduledAt)}
             </p>
           )}
 
           {status === "generating" && (
             <div className="mb-2">
-              <div className="mb-1 flex items-center justify-between text-xs text-gray-600">
+              <div className="mb-1 flex items-center justify-between text-xs text-brand-white/70">
                 <span>{getPhaseLabel(article.generationPhase)}</span>
                 <span>{article.generationProgress ?? 0}%</span>
               </div>
-              <div className="h-1.5 w-full rounded-full bg-gray-200">
+              <div className="h-1.5 w-full rounded-full bg-brand-white/20">
                 <div
                   className={cn(
                     "h-1.5 rounded-full transition-all duration-300",
@@ -339,14 +340,14 @@ export function ArticleGenerations({
           )}
 
           {status === "completed" && article.generationCompletedAt && (
-            <p className="mb-2 text-xs text-gray-500">
+            <p className="mb-2 text-xs text-brand-white/60">
               Completed:{" "}
               {new Date(article.generationCompletedAt).toLocaleString()}
             </p>
           )}
 
           {status === "failed" && article.generationError && (
-            <p className="mb-2 text-xs text-red-600">
+            <p className="mb-2 text-xs text-red-400">
               Error: {article.generationError}
             </p>
           )}
@@ -357,13 +358,13 @@ export function ArticleGenerations({
               {article.keywords.slice(0, 3).map((keyword, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800"
+                  className="inline-flex items-center rounded bg-brand-white/10 px-2 py-0.5 text-xs font-medium text-brand-white/80"
                 >
                   {keyword}
                 </span>
               ))}
               {article.keywords.length > 3 && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-brand-white/60">
                   +{article.keywords.length - 3} more
                 </span>
               )}
@@ -376,10 +377,11 @@ export function ArticleGenerations({
           {/* Scheduled article actions - show on hover */}
           {status === "scheduled" && hoveredCard === article.id && (
             <>
-              <button
+              <Button
                 onClick={() => handleRunNow(article.id)}
                 disabled={loadingActions[`run-${article.id}`]}
-                className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                size="sm"
+                className="text-xs"
                 title="Run generation now"
               >
                 {loadingActions[`run-${article.id}`] ? (
@@ -388,11 +390,13 @@ export function ArticleGenerations({
                   <Play className="h-3 w-3" />
                 )}
                 Run Now
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => handleCancelSchedule(article.id)}
                 disabled={loadingActions[`cancel-${article.id}`]}
-                className="flex items-center gap-1 rounded bg-gray-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+                variant="outline"
+                size="sm"
+                className="text-xs"
                 title="Cancel scheduled generation"
               >
                 {loadingActions[`cancel-${article.id}`] ? (
@@ -401,7 +405,7 @@ export function ArticleGenerations({
                   <X className="h-3 w-3" />
                 )}
                 Cancel
-              </button>
+              </Button>
             </>
           )}
 

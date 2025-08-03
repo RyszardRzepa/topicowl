@@ -33,13 +33,13 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
   // Get status display text and color
   const getStatusDisplay = (status: ArticleMetadataData['status']) => {
     const statusMap = {
-      idea: { text: 'Idea', color: 'text-gray-600 bg-gray-100' },
-      scheduled: { text: 'Scheduled', color: 'text-indigo-600 bg-indigo-100' },
-      queued: { text: 'Queued', color: 'text-orange-600 bg-orange-100' },
-      to_generate: { text: 'To Generate', color: 'text-blue-600 bg-blue-100' },
-      generating: { text: 'Generating', color: 'text-yellow-600 bg-yellow-100' },
-      wait_for_publish: { text: 'Wait for Publish', color: 'text-purple-600 bg-purple-100' },
-      published: { text: 'Published', color: 'text-green-600 bg-green-100' },
+      idea: { text: 'Idea', color: 'text-brand-white bg-brand-white/10' },
+      scheduled: { text: 'Scheduled', color: 'text-brand-green bg-brand-green/10' },
+      queued: { text: 'Queued', color: 'text-brand-orange bg-brand-orange/10' },
+      to_generate: { text: 'To Generate', color: 'text-brand-green bg-brand-green/10' },
+      generating: { text: 'Generating', color: 'text-brand-orange bg-brand-orange/10' },
+      wait_for_publish: { text: 'Wait for Publish', color: 'text-brand-green bg-brand-green/10' },
+      published: { text: 'Published', color: 'text-brand-green bg-brand-green/20' },
       deleted: { text: 'Deleted', color: 'text-red-600 bg-red-100' },
     };
     return statusMap[status];

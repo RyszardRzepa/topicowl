@@ -15,6 +15,7 @@ import { ArticleIdeasGenerator } from "@/components/articles/article-ideas-gener
 import { Plus, Sparkles } from "lucide-react";
 import type { Article } from "@/types";
 import type { ArticleIdea } from "@/app/api/articles/generate-ideas/route";
+import { Input } from "../ui/input";
 
 interface PlanningHubProps {
   articles: Article[];
@@ -100,10 +101,10 @@ export function PlanningHub({
       {/* Header with actions */}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold">
             Article Planning Hub
           </h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Create ideas and manage article generation
           </p>
         </div>
@@ -112,7 +113,7 @@ export function PlanningHub({
           {/* Generate AI ideas */}
           <Button
             onClick={() => setShowIdeasGenerator(true)}
-            className="bg-purple-600 hover:bg-purple-700"
+            variant="accent"
           >
             <Sparkles className="mr-2 h-4 w-4" />
             Generate Ideas
@@ -121,7 +122,6 @@ export function PlanningHub({
           {/* Create new article */}
           <Button
             onClick={() => setIsCreating(true)}
-            className="bg-blue-600 hover:bg-blue-700"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Article Idea
@@ -131,7 +131,7 @@ export function PlanningHub({
 
       {/* Create article form */}
       {isCreating && (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-accent bg-accent">
           <CardHeader>
             <CardTitle>Create New Article Idea</CardTitle>
             <CardDescription>
@@ -140,10 +140,10 @@ export function PlanningHub({
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-medium text-stone-700">
+              <label className="mb-2 block text-sm font-medium text-foreground">
                 Article Title *
               </label>
-              <input
+              <Input
                 type="text"
                 value={newArticleData.title}
                 onChange={(e) =>
@@ -153,16 +153,15 @@ export function PlanningHub({
                   })
                 }
                 placeholder="Enter your article title..."
-                className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-stone-700">
+              <label className="mb-2 block text-sm font-medium text-foreground">
                 Keywords (optional)
               </label>
-              <input
+              <Input
                 type="text"
                 value={newArticleData.keywords}
                 onChange={(e) =>
@@ -172,9 +171,8 @@ export function PlanningHub({
                   })
                 }
                 placeholder="keyword1, keyword2, keyword3..."
-                className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Separate keywords with commas
               </p>
             </div>
@@ -183,7 +181,6 @@ export function PlanningHub({
             <Button
               onClick={handleCreateArticle}
               disabled={!newArticleData.title.trim()}
-              className="bg-green-600 hover:bg-green-700"
             >
               Create Article
             </Button>
@@ -206,7 +203,7 @@ export function PlanningHub({
         {ideaArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
+              <h3 className="text-lg font-medium text-foreground">
                 Ideas ({ideaArticles.length})
               </h3>
             </div>
@@ -231,7 +228,7 @@ export function PlanningHub({
         {readyArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
+              <h3 className="text-lg font-medium text-foreground">
                 Ready to Generate ({readyArticles.length})
               </h3>
             </div>
@@ -256,7 +253,7 @@ export function PlanningHub({
         {generatingArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
+              <h3 className="text-lg font-medium text-foreground">
                 Generating ({generatingArticles.length})
               </h3>
             </div>
@@ -283,7 +280,7 @@ export function PlanningHub({
         ).length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
+              <h3 className="text-lg font-medium text-foreground">
                 Scheduled for Generation (
                 {
                   articles.filter(
@@ -317,18 +314,17 @@ export function PlanningHub({
         {/* Empty state */}
         {articles.length === 0 && (
           <div className="py-12 text-center">
-            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gray-100">
-              <Plus className="h-8 w-8 text-gray-400" />
+            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+              <Plus className="h-8 w-8" />
             </div>
-            <h3 className="mb-2 text-lg font-medium text-gray-900">
+            <h3 className="mb-2 text-lg font-medium">
               No articles yet
             </h3>
-            <p className="mb-4 text-gray-600">
+            <p className="mb-4">
               Get started by creating your first article idea
             </p>
             <Button
               onClick={() => setIsCreating(true)}
-              className="bg-blue-600 hover:bg-blue-700"
             >
               <Plus className="mr-2 h-4 w-4" />
               Create Your First Article

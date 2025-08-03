@@ -78,8 +78,20 @@ export function DashboardLayoutClient({
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 lg:p-6">
-          {children}
+        <main className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 lg:p-6 relative">
+          {/* Pattern Background */}
+          <div 
+            className="absolute inset-0 opacity-30"
+            style={{
+              backgroundImage: `
+                radial-gradient(circle at 1px 1px, rgb(156 163 175) 1px, transparent 0)
+              `,
+              backgroundSize: '20px 20px'
+            }}
+          />
+          <div className="relative z-10">
+            {children}
+          </div>
         </main>
       </div>
     </div>

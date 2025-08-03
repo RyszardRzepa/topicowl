@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ArticleCard } from "./article-card";
 import { FileText, Calendar } from "lucide-react";
 import type { Article } from "@/types";
@@ -96,10 +97,10 @@ export function PublishingPipeline({
                 <h3 className="text-lg font-medium text-gray-900">
                   Scheduled Articles ({scheduledToPublish.length})
                 </h3>
-                <div className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-700">
+                <Badge variant="blue" className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
                   <span>Publishing scheduled</span>
-                </div>
+                </Badge>
               </div>
               {scheduledToPublish.length > 0 && (
                 <div className="text-sm text-gray-600">

@@ -544,8 +544,8 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     return (
       <div className="flex h-96 items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-gray-600">Loading kanban board...</p>
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-brand-green"></div>
+          <p className="mt-2 text-brand-white/70">Loading kanban board...</p>
         </div>
       </div>
     );
@@ -566,8 +566,8 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     <div className="h-full">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Article Pipeline</h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <h2 className="text-2xl font-bold text-brand-white">Article Pipeline</h2>
+          <p className="mt-1 text-sm text-brand-white/70">
             Drag articles forward through the workflow: Ideas → To Generate →
             Generating → Wait for Publish → Published
           </p>
@@ -603,7 +603,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={`min-h-[200px] flex-1 overflow-hidden rounded-lg p-2 transition-colors ${
-                      snapshot.isDraggingOver ? "bg-gray-100" : "bg-gray-50"
+                      snapshot.isDraggingOver ? "bg-brand-white/10" : "bg-brand-white/5"
                     }`}
                   >
                     {column.articles.map((article, index) => (
@@ -834,7 +834,7 @@ function ArticleCard({
               onChange={(e) =>
                 setEditData({ ...editData, title: e.target.value })
               }
-              className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full rounded-md border border-brand-white/20 bg-brand-white/10 px-3 py-2 focus:ring-2 focus:ring-brand-green focus:outline-none text-brand-white placeholder:text-brand-white/50"
               placeholder="Article title..."
               disabled={isUpdating || !canEdit}
               autoFocus
@@ -847,7 +847,7 @@ function ArticleCard({
                 className={cn(
                   "line-clamp-2 min-w-0 flex-1 transition-colors",
                   canEdit
-                    ? "cursor-pointer hover:text-blue-600"
+                    ? "cursor-pointer hover:text-brand-green"
                     : "cursor-default",
                 )}
                 onClick={(e) => {
@@ -889,13 +889,13 @@ function ArticleCard({
                 <Badge
                   variant="secondary"
                   className={cn("text-xs", {
-                    "bg-yellow-100 text-yellow-800":
+                    "bg-brand-orange/20 text-brand-orange":
                       article.status === "to_generate",
-                    "bg-blue-100 text-blue-800":
+                    "bg-brand-green/20 text-brand-green":
                       article.status === "generating",
-                    "bg-purple-100 text-purple-800":
+                    "bg-brand-green/30 text-brand-green":
                       article.status === "wait_for_publish",
-                    "bg-green-100 text-green-800":
+                    "bg-brand-green/40 text-brand-green":
                       article.status === "published",
                   })}
                 >
@@ -937,13 +937,13 @@ function ArticleCard({
         {/* Status indicator for generating articles */}
         {isGenerating && (
           <div className="mb-3">
-            <div className="h-2 w-full rounded-full bg-gray-200">
+            <div className="h-2 w-full rounded-full bg-brand-white/20">
               <div
-                className="h-2 animate-pulse rounded-full bg-blue-600"
+                className="h-2 animate-pulse rounded-full bg-brand-green"
                 style={{ width: "60%" }}
               />
             </div>
-            <p className="mt-1 text-xs font-medium text-blue-600">
+            <p className="mt-1 text-xs font-medium text-brand-green">
               Generating content...
             </p>
           </div>
@@ -952,7 +952,7 @@ function ArticleCard({
         {/* Show completion indicator for published articles */}
         {isCompleted && (
           <div className="mb-3">
-            <div className="rounded bg-green-50 p-2 text-xs font-medium text-green-600">
+            <div className="rounded bg-brand-green/20 p-2 text-xs font-medium text-brand-green">
               ✓ Published successfully
             </div>
           </div>

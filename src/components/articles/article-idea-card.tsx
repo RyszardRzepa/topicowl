@@ -73,7 +73,7 @@ export function ArticleIdeaCard({
       className={cn(
         "transition-all duration-200 hover:shadow-md",
         {
-          "ring-2 ring-blue-500 ring-offset-2": isSelected,
+          "ring-2 ring-brand-green ring-offset-2": isSelected,
         },
         className,
       )}
@@ -107,7 +107,7 @@ export function ArticleIdeaCard({
                 type="checkbox"
                 checked={isSelected}
                 onChange={handleSelectionChange}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="h-4 w-4 rounded border-gray-300 text-brand-green focus:ring-brand-green"
               />
             </div>
           )}
@@ -158,7 +158,7 @@ export function ArticleIdeaCard({
           onClick={handleAddToPipeline}
           disabled={isAdding}
           size="sm"
-          className="w-full bg-blue-600 hover:bg-blue-700"
+          className="w-full bg-brand-green hover:bg-brand-green/90"
         >
           <Plus className="mr-2 h-4 w-4" />
           {isAdding ? "Adding..." : "Add to Pipeline"}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FileText, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const navigationItems = [
   {
@@ -33,21 +34,24 @@ export function DashboardNav() {
           (item.href === "/dashboard/articles" && pathname === "/dashboard");
         
         return (
-          <Link
+          <Button
             key={item.href}
-            href={item.href}
+            asChild
+            variant={isActive ? "default" : "ghost"}
             className={cn(
-              "flex items-center px-3 py-2.5 sm:py-2 rounded-md transition-colors text-sm sm:text-base",
-              isActive
-                ? "bg-stone-100 text-stone-900 font-medium"
-                : "text-stone-600 hover:bg-stone-50 hover:text-stone-900"
+              "w-full justify-start text-sm sm:text-base h-auto py-2.5 sm:py-2",
+              isActive 
+                ? "font-medium" 
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <div className="mr-3 flex-shrink-0">
-              {item.icon}
-            </div>
-            <span className="truncate">{item.label}</span>
-          </Link>
+            <Link href={item.href}>
+              <div className="mr-3 flex-shrink-0">
+                {item.icon}
+              </div>
+              <span className="truncate">{item.label}</span>
+            </Link>
+          </Button>
         );
       })}
     </nav>

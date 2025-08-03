@@ -6,12 +6,12 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardFooter,
-  CardAction,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { StatusIndicator, formatRelativeTime } from "./status-indicator";
 import { Play, Calendar, Edit3, Trash2, Check, X, Clock } from "lucide-react";
@@ -170,10 +170,10 @@ export function ArticleCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all duration-200 hover:shadow-md",
+        "cursor-pointer transition-all duration-200 relative group",
         {
-          "border-blue-200 bg-blue-50": isGenerating,
-          "border-green-200 bg-green-50": isPublished,
+          "border-primary/20 bg-primary/5": isGenerating,
+          "border-accent bg-accent/50": isPublished,
         },
         className,
       )}
@@ -181,66 +181,50 @@ export function ArticleCard({
     >
       <CardHeader>
         {isEditing ? (
-          <div className="space-y-3">
-            <input
-              value={editData.title}
-              onChange={(e) =>
-                setEditData({ ...editData, title: e.target.value })
-              }
-              className="w-full rounded border border-gray-200 bg-transparent px-3 py-2 text-lg font-semibold outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Article title..."
-              disabled={isUpdating}
-              autoFocus
-            />
-            <input
-              value={editData.keywords}
-              onChange={(e) =>
-                setEditData({ ...editData, keywords: e.target.value })
-              }
-              className="w-full rounded border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="keyword1, keyword2, keyword3..."
-              disabled={isUpdating}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Article Title
+              </label>
+              <Input
+                value={editData.title}
+                onChange={(e) =>
+                  setEditData({ ...editData, title: e.target.value })
+                }
+                className="text-base"
+                placeholder="Enter article title..."
+                disabled={isUpdating}
+                autoFocus
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Keywords
+              </label>
+              <Input
+                value={editData.keywords}
+                onChange={(e) =>
+                  setEditData({ ...editData, keywords: e.target.value })
+                }
+                className="text-sm"
+                placeholder="keyword1, keyword2, keyword3..."
+                disabled={isUpdating}
+              />
+              <p className="text-xs text-muted-foreground">
+                Separate keywords with commas
+              </p>
+            </div>
           </div>
         ) : (
           <>
-            <div className="flex items-start justify-between gap-2">
-              <CardTitle className="line-clamp-2 min-w-0 flex-1">
-                {article.title}
-              </CardTitle>
-              <CardAction>
-                {canEdit && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsEditing(true);
-                    }}
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Button>
-                )}
-                {canDelete && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleDelete();
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                )}
-              </CardAction>
-            </div>
+            <CardTitle className="line-clamp-2 min-w-0">
+              {article.title}
+            </CardTitle>
 
-            {/* Keywords as description */}
+            {/* Keywords displayed directly under title */}
             {article.keywords && article.keywords.length > 0 && (
-              <CardDescription>
+              <div className="mt-2">
                 <div className="flex flex-wrap gap-1">
                   {article.keywords.slice(0, 3).map((keyword, index) => (
                     <Badge key={index} variant="outline" className="text-xs">
@@ -253,14 +237,14 @@ export function ArticleCard({
                     </Badge>
                   )}
                 </div>
-              </CardDescription>
+              </div>
             )}
           </>
         )}
 
-        {/* Edit action buttons in header when editing */}
+        {/* Edit action buttons when editing */}
         {isEditing && (
-          <CardAction className="justify-end gap-2">
+          <div className="flex justify-end gap-2 pt-2 border-t">
             <Button
               variant="outline"
               size="sm"
@@ -276,11 +260,43 @@ export function ArticleCard({
               disabled={isUpdating || !editData.title.trim()}
             >
               <Check className="mr-2 h-4 w-4" />
-              Save
+              {isUpdating ? "Saving..." : "Save"}
             </Button>
-          </CardAction>
+          </div>
         )}
       </CardHeader>
+
+      {/* Hover action buttons - positioned absolutely in top-right corner */}
+      {!isEditing && (canEdit || canDelete) && (
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1 z-10">
+          {canEdit && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditing(true);
+              }}
+            >
+              <Edit3 className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleDelete();
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
 
       <CardContent>
         {/* Status indicator - only show for generating articles or if there's an error */}
@@ -309,7 +325,7 @@ export function ArticleCard({
             )}
 
             {article.generationCompletedAt && (
-              <div className="text-sm text-stone-600">
+              <div className="text-sm">
                 Generated: {formatRelativeTime(article.generationCompletedAt)}
               </div>
             )}
@@ -318,31 +334,31 @@ export function ArticleCard({
 
         {/* Show scheduled times */}
         {article.generationScheduledAt && (
-          <div className="flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
+          <Alert className="border-primary/20 bg-primary/5 text-primary-foreground">
             <Calendar className="h-4 w-4" />
-            <span>
+            <AlertDescription>
               Scheduled: {formatRelativeTime(article.generationScheduledAt)}
-            </span>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
 
         {article.publishScheduledAt && (
-          <div className="rounded-lg bg-blue-50 p-3 text-sm">
-            <div className="flex items-center gap-2 text-blue-700">
+          <div className="rounded-lg bg-accent p-3 text-sm">
+            <div className="flex items-center gap-2 text-accent-foreground">
               <Calendar className="h-4 w-4" />
               <span className="font-medium">Scheduled to publish</span>
             </div>
-            <div className="mt-1 text-blue-600">
+            <div className="mt-1 text-accent-foreground/80">
               {new Date(article.publishScheduledAt).toLocaleString(undefined, {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
               })}
             </div>
-            <div className="mt-1 text-xs text-blue-500">
+            <div className="mt-1 text-xs text-muted-foreground">
               {formatRelativeTime(article.publishScheduledAt)}
             </div>
           </div>
@@ -397,7 +413,8 @@ export function ArticleCard({
                         void handleGenerate();
                       }}
                       size="sm"
-                      className="w-full bg-red-600 text-white hover:bg-red-700"
+                      variant="destructive"
+                      className="w-full"
                     >
                       <Play className="mr-2 h-4 w-4" />
                       Retry Generation
@@ -410,7 +427,6 @@ export function ArticleCard({
                           void handleGenerate();
                         }}
                         size="sm"
-                        className="flex-1 bg-green-600 text-white hover:bg-green-700"
                       >
                         <Play className="mr-2 h-4 w-4" />
                         Generate
@@ -435,64 +451,66 @@ export function ArticleCard({
           )}
 
           {/* Publishing mode actions - only show for unscheduled articles */}
-          {mode === "publishing" && canPublish && !article.publishScheduledAt && (
-            <>
-              {/* Publishing UI */}
-              {isScheduling ? (
-                <div className="w-full space-y-3">
-                  <DateTimePicker
-                    value={selectedScheduleTime}
-                    onChange={(date) => {
-                      setSelectedScheduleTime(date);
-                      if (date) {
-                        void handleSchedulePublishing(date);
-                      }
-                    }}
-                    placeholder="Select publish date and time"
-                    minDate={new Date()}
-                    className="w-full"
-                  />
-                  <Button
-                    onClick={() => {
-                      setIsScheduling(false);
-                      setSelectedScheduleTime(undefined);
-                    }}
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex w-full gap-2">
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handlePublish();
-                    }}
-                    size="sm"
-                    className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    <Check className="mr-2 h-4 w-4" />
-                    Publish
-                  </Button>
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsScheduling(true);
-                    }}
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    Schedule
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+          {mode === "publishing" &&
+            canPublish &&
+            !article.publishScheduledAt && (
+              <>
+                {/* Publishing UI */}
+                {isScheduling ? (
+                  <div className="w-full space-y-3">
+                    <DateTimePicker
+                      value={selectedScheduleTime}
+                      onChange={(date) => {
+                        setSelectedScheduleTime(date);
+                        if (date) {
+                          void handleSchedulePublishing(date);
+                        }
+                      }}
+                      placeholder="Select publish date and time"
+                      minDate={new Date()}
+                      className="w-full"
+                    />
+                    <Button
+                      onClick={() => {
+                        setIsScheduling(false);
+                        setSelectedScheduleTime(undefined);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex w-full gap-2">
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handlePublish();
+                      }}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      <Check className="mr-2 h-4 w-4" />
+                      Publish
+                    </Button>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsScheduling(true);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Schedule
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
 
           {/* Simple reschedule action for already scheduled articles */}
           {mode === "publishing" && article.publishScheduledAt && (

@@ -9,13 +9,13 @@ function Badge({ className, variant = 'default', ...props }: BadgeProps) {
   const getVariantClasses = () => {
     switch (variant) {
       case 'default':
-        return "bg-stone-100 text-stone-700 border-stone-200";
+        return "bg-brand-white/10 text-brand-white border-brand-white/20";
       case 'secondary':
-        return "bg-stone-50 text-stone-600 border-stone-100";
+        return "bg-brand-white/5 text-brand-white/70 border-brand-white/10";
       case 'outline':
-        return "bg-transparent text-stone-700 border-stone-200";
+        return "bg-transparent text-brand-white border-brand-white/20";
       case 'gray':
-        return "bg-stone-100 text-stone-500 border-stone-200";
+        return "bg-brand-white/10 text-brand-white/60 border-brand-white/20";
       case 'brown':
         return "text-notion-brown-text bg-notion-brown-bg border-notion-brown-bg";
       case 'orange':
