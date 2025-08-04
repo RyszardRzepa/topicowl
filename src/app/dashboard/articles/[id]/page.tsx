@@ -57,7 +57,6 @@ export default async function ArticlePreviewPage({
       draft: articleData.draft,
       content: articleData.content, // Final published content
       videos: articleData.videos, // YouTube video embeds
-      optimizedContent: null, // Deprecated field - always null now
       factCheckReport: articleData.factCheckReport,
       seoScore: articleData.seoScore,
       internalLinks: articleData.internalLinks,

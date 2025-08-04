@@ -485,11 +485,36 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const handlePublishArticle = async (articleId: string) => {
     try {
       const article = articles.find(a => a.id === articleId);
-      // Update article status to published
-      await handleUpdateArticle(articleId, {
-        status: "published",
-        publishedAt: new Date().toISOString(),
+      
+      // Call the dedicated publish API endpoint
+      const response = await fetch("/api/articles/publish", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          articleId: articleId,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json() as { error?: string };
+        throw new Error(errorData.error ?? "Failed to publish article");
+      }
+      
+      // Optimistic update - the publish API handles database updates
+      setArticles((prev) =>
+        prev.map((a) =>
+          a.id === articleId
+            ? {
+                ...a,
+                status: "published",
+                publishedAt: new Date().toISOString(),
+                publishScheduledAt: undefined, // Clear scheduled time
+              }
+            : a,
+        ),
+      );
       
       toast.success("Article published successfully!", {
         description: article ? `"${article.title}" is now live.` : "Your article is now live.",
@@ -500,6 +525,8 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         description: "Please try again or check your connection.",
       });
       setError("Failed to publish article");
+      // Revert optimistic update on error
+      await fetchArticles();
     }
   };
 

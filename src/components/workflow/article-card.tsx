@@ -183,7 +183,6 @@ export function ArticleCard({
         "cursor-pointer transition-all duration-200 relative group",
         {
           "border-primary/20 bg-primary/5": isGenerating,
-          "border-accent bg-accent/50": isPublished,
         },
         className,
       )}
@@ -389,7 +388,7 @@ export function ArticleCard({
       </CardContent>
 
       {/* Action buttons in footer */}
-      {!isEditing && (
+      {!isEditing && !isPublished && (
         <CardFooter className="flex-col gap-2">
           {/* Planning mode actions */}
           {mode === "planning" && canGenerate && (

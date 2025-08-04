@@ -57,9 +57,6 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
 
     // Prepare webhook payload
     const payload = {
-      event: 'article.published',
-      timestamp: new Date().toISOString(),
-      article: {
         id: article.id,
         title: article.title,
         slug: article.slug,
@@ -77,7 +74,6 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
         internalLinks: Array.isArray(article.internalLinks) ? article.internalLinks : [],
         createdAt: article.createdAt.toISOString(),
         updatedAt: article.updatedAt.toISOString(),
-      }
     };
 
     const payloadString = JSON.stringify(payload);
@@ -158,6 +154,7 @@ export async function POST(req: NextRequest) {
           .set({
             status: 'published',
             content: article.draft, // Freeze draft as published content
+            scheduledAt: null, // Clear scheduled time when publishing
             updatedAt: new Date(),
             // Set publishedAt if not already set
             ...((!article.publishedAt) && { publishedAt: new Date() })

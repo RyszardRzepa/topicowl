@@ -36,7 +36,7 @@ export function ArticleEditor({
     metaKeywords: Array.isArray(article.metaKeywords)
       ? (article.metaKeywords as string[])
       : [],
-    optimizedContent: article.optimizedContent ?? "",
+    optimizedContent: article.draft ?? "",
     coverImageUrl: article.coverImageUrl ?? "",
     coverImageAlt: article.coverImageAlt ?? "",
   });

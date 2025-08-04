@@ -23,6 +23,7 @@ export interface GenerationLog {
 }
 
 // Type for the raw article data from database
+// Type for the raw article data from database
 type ArticleData = {
   id: number;
   user_id: string | null;
@@ -43,7 +44,6 @@ type ArticleData = {
   draft: string | null;
   content: string | null; // Final published content
   videos: unknown; // YouTube video embeds
-  optimizedContent: string | null; // Deprecated - will be removed in Phase 4
   factCheckReport: unknown;
   seoScore: number | null;
   internalLinks: unknown;
@@ -78,7 +78,10 @@ const updateArticleSchema = z.object({
   coverImageAlt: z.string().optional(),
   // Add scheduling fields
   scheduledAt: z.string().datetime().optional(), // For publishing schedule
-  publishScheduledAt: z.string().datetime().optional(), // Frontend compatibility
+  publishScheduledAt: z.string().datetime().optional().or(z.undefined()), // Frontend compatibility
+  // Add status and publication fields
+  status: z.enum(['idea', 'scheduled', 'queued', 'to_generate', 'generating', 'wait_for_publish', 'published', 'deleted']).optional(),
+  publishedAt: z.string().datetime().optional(), // When article was published
 });
 
 // GET /api/articles/[id] - Get single article with extended preview data
@@ -163,7 +166,7 @@ export async function GET(
     const generationLogs: GenerationLog[] = generateGenerationLogs(articleData);
 
     // Calculate word count from content
-    const wordCount = calculateWordCount(articleData.optimizedContent ?? articleData.draft);
+    const wordCount = calculateWordCount(articleData.draft);
 
     // Extract target keywords from keywords field
     const targetKeywords = Array.isArray(articleData.keywords) 
@@ -213,7 +216,7 @@ function generateSEORecommendations(article: ArticleData): string[] {
     recommendations.push('Add target keywords to improve SEO ranking');
   }
   
-  if (!article.optimizedContent && !article.draft) {
+  if (!article.draft) {
     recommendations.push('Generate content to analyze SEO performance');
   }
   
@@ -225,7 +228,7 @@ function generateSEORecommendations(article: ArticleData): string[] {
 }
 
 function calculateKeywordDensity(article: ArticleData): Record<string, number> {
-  const content = article.optimizedContent ?? article.draft ?? '';
+  const content = article.draft ?? '';
   const keywords = Array.isArray(article.keywords) ? (article.keywords as string[]) : [];
   const density: Record<string, number> = {};
   
@@ -245,7 +248,7 @@ function calculateKeywordDensity(article: ArticleData): Record<string, number> {
 }
 
 function calculateReadabilityScore(article: ArticleData): number {
-  const content = article.optimizedContent ?? article.draft ?? '';
+  const content = article.draft ?? '';
   
   if (!content) {
     return 0;
@@ -306,7 +309,7 @@ function generateGenerationLogs(article: ArticleData): GenerationLog[] {
     });
   }
   
-  if (article.optimizedContent) {
+  if (article.draft) {
     logs.push({
       phase: 'optimization',
       status: 'completed',
@@ -395,12 +398,13 @@ export async function PUT(
       ...validatedData,
       // Convert string dates to Date objects for database
       scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
+      publishedAt: validatedData.publishedAt ? new Date(validatedData.publishedAt) : undefined,
       updatedAt: new Date(),
     };
 
     // Handle field mapping for frontend compatibility
-    if (validatedData.publishScheduledAt) {
-      updateData.scheduledAt = new Date(validatedData.publishScheduledAt);
+    if (validatedData.publishScheduledAt !== undefined) {
+      updateData.scheduledAt = validatedData.publishScheduledAt ? new Date(validatedData.publishScheduledAt) : undefined;
     }
 
     const [updatedArticle] = await db
