@@ -2,6 +2,13 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Calendar, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -125,81 +132,80 @@ export function ArticleActions({
       </div>
 
       {/* Delete Confirmation Dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-notion border border-stone-200 p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-stone-700 mb-4">
-              Delete Article
-            </h3>
-            <p className="text-stone-600 mb-6">
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Article</DialogTitle>
+            <DialogDescription>
               Are you sure you want to delete &ldquo;{article.title}&rdquo;? This action cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                onClick={() => setShowDeleteConfirm(false)}
-                variant="outline"
-                size="sm"
-                disabled={isDeleting}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDelete}
-                variant="destructive"
-                size="sm"
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Deleting...' : 'Delete'}
-              </Button>
-            </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 justify-end mt-6">
+            <Button
+              onClick={() => setShowDeleteConfirm(false)}
+              variant="outline"
+              size="sm"
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDelete}
+              variant="destructive"
+              size="sm"
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Schedule Dialog */}
-      {showScheduleDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-notion border border-stone-200 p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-stone-700 mb-4">
-              Schedule Article
-            </h3>
-            <div className="mb-6">
-              <label htmlFor="scheduledDate" className="block text-sm font-medium text-stone-700 mb-2">
-                Publication Date & Time
-              </label>
-              <input
-                id="scheduledDate"
-                type="datetime-local"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full px-3 py-2 border border-stone-200 rounded-notion focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                min={new Date().toISOString().slice(0, 16)}
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Button
-                onClick={() => {
-                  setShowScheduleDialog(false);
-                  setScheduledDate('');
-                }}
-                variant="outline"
-                size="sm"
-                disabled={isScheduling}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSchedule}
-                variant="default"
-                size="sm"
-                disabled={isScheduling || !scheduledDate}
-              >
-                {isScheduling ? 'Scheduling...' : 'Schedule'}
-              </Button>
-            </div>
+      <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Schedule Article</DialogTitle>
+            <DialogDescription>
+              Choose when you want this article to be published.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mb-6">
+            <label htmlFor="scheduledDate" className="block text-sm font-medium mb-2">
+              Publication Date & Time
+            </label>
+            <input
+              id="scheduledDate"
+              type="datetime-local"
+              value={scheduledDate}
+              onChange={(e) => setScheduledDate(e.target.value)}
+              className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              min={new Date().toISOString().slice(0, 16)}
+            />
           </div>
-        </div>
-      )}
+          <div className="flex gap-3 justify-end">
+            <Button
+              onClick={() => {
+                setShowScheduleDialog(false);
+                setScheduledDate('');
+              }}
+              variant="outline"
+              size="sm"
+              disabled={isScheduling}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSchedule}
+              variant="default"
+              size="sm"
+              disabled={isScheduling || !scheduledDate}
+            >
+              {isScheduling ? 'Scheduling...' : 'Schedule'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

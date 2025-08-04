@@ -14,17 +14,18 @@ type ArticleData = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
+  status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published" | "deleted";
   scheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
   kanbanPosition: number;
+  slug: string | null;
   metaDescription: string | null;
+  metaKeywords: unknown;
   outline: unknown;
   draft: string | null;
   content: string | null; // Final published content
   videos: unknown; // YouTube video embeds
-  optimizedContent: string | null; // Deprecated
   factCheckReport: unknown;
   seoScore: number | null;
   internalLinks: unknown;
@@ -62,7 +63,7 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
         id: article.id,
         title: article.title,
         description: article.description,
-        content: article.optimizedContent ?? article.draft ?? '',
+        content: article.content ?? article.draft ?? '',
         keywords: Array.isArray(article.keywords) ? article.keywords : [],
         targetAudience: article.targetAudience,
         metaDescription: article.metaDescription,
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
         .where(
           and(
             eq(articles.status, 'wait_for_publish'),
-            lte(articles.publishedAt, now)
+            lte(articles.scheduledAt, now)
           )
         );
     }
@@ -167,7 +168,7 @@ export async function POST(req: NextRequest) {
           
           // Send webhook directly if user has one configured
           if (updatedArticle.user_id) {
-            void sendWebhookAsync(updatedArticle.user_id, updatedArticle as ArticleData).catch((error: unknown) => {
+            void sendWebhookAsync(updatedArticle.user_id, updatedArticle).catch((error: unknown) => {
               console.error('Failed to send webhook for article', updatedArticle.id, ':', error);
             });
           }

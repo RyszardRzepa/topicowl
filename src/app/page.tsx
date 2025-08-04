@@ -17,50 +17,51 @@ export default function HomePage() {
       {/* Background decorative elements */}
       <div className="absolute inset-0">
         {/* Left side dots */}
-        <div className="absolute top-20 left-10 h-2 w-2 rounded-full bg-brand-orange opacity-60"></div>
-        <div className="absolute bottom-40 left-20 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-50"></div>
-        <div className="absolute top-96 left-16 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-55"></div>
-        <div className="absolute bottom-32 left-8 h-2 w-2 rounded-full bg-brand-orange opacity-40"></div>
-        <div className="absolute top-44 left-8 h-1 w-1 rounded-full bg-brand-orange opacity-50"></div>
-        <div className="absolute top-84 left-32 h-1 w-1 rounded-full bg-brand-orange opacity-25"></div>
-        <div className="absolute top-60 left-24 h-1 w-1 rounded-full bg-brand-orange opacity-30"></div>
-        <div className="absolute bottom-80 left-12 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-45"></div>
-        <div className="absolute top-32 left-28 h-1 w-1 rounded-full bg-brand-orange opacity-35"></div>
-        <div className="absolute bottom-60 left-36 h-1 w-1 rounded-full bg-brand-orange opacity-40"></div>
-        
+        <div className="bg-brand-orange absolute top-20 left-10 h-2 w-2 rounded-full opacity-60"></div>
+        <div className="bg-brand-orange absolute bottom-40 left-20 h-1.5 w-1.5 rounded-full opacity-50"></div>
+        <div className="bg-brand-orange absolute top-96 left-16 h-1.5 w-1.5 rounded-full opacity-55"></div>
+        <div className="bg-brand-orange absolute bottom-32 left-8 h-2 w-2 rounded-full opacity-40"></div>
+        <div className="bg-brand-orange absolute top-44 left-8 h-1 w-1 rounded-full opacity-50"></div>
+        <div className="bg-brand-orange absolute top-84 left-32 h-1 w-1 rounded-full opacity-25"></div>
+        <div className="bg-brand-orange absolute top-60 left-24 h-1 w-1 rounded-full opacity-30"></div>
+        <div className="bg-brand-orange absolute bottom-80 left-12 h-1.5 w-1.5 rounded-full opacity-45"></div>
+        <div className="bg-brand-orange absolute top-32 left-28 h-1 w-1 rounded-full opacity-35"></div>
+        <div className="bg-brand-orange absolute bottom-60 left-36 h-1 w-1 rounded-full opacity-40"></div>
+
         {/* Right side dots */}
-        <div className="absolute top-40 right-20 h-1 w-1 rounded-full bg-brand-orange opacity-40"></div>
-        <div className="absolute right-10 bottom-20 h-2 w-2 rounded-full bg-brand-orange opacity-60"></div>
-        <div className="absolute top-80 right-32 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-45"></div>
-        <div className="absolute bottom-60 right-16 h-1 w-1 rounded-full bg-brand-orange opacity-40"></div>
-        <div className="absolute top-72 right-20 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-35"></div>
-        <div className="absolute top-88 right-8 h-1 w-1 rounded-full bg-brand-orange opacity-55"></div>
-        <div className="absolute bottom-16 right-24 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-35"></div>
-        <div className="absolute bottom-52 right-32 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-40"></div>
-        <div className="absolute top-16 right-28 h-1.5 w-1.5 rounded-full bg-brand-orange opacity-30"></div>
-        <div className="absolute bottom-96 right-36 h-1 w-1 rounded-full bg-brand-orange opacity-45"></div>
+        <div className="bg-brand-orange absolute top-40 right-20 h-1 w-1 rounded-full opacity-40"></div>
+        <div className="bg-brand-orange absolute right-10 bottom-20 h-2 w-2 rounded-full opacity-60"></div>
+        <div className="bg-brand-orange absolute top-80 right-32 h-1.5 w-1.5 rounded-full opacity-45"></div>
+        <div className="bg-brand-orange absolute right-16 bottom-60 h-1 w-1 rounded-full opacity-40"></div>
+        <div className="bg-brand-orange absolute top-72 right-20 h-1.5 w-1.5 rounded-full opacity-35"></div>
+        <div className="bg-brand-orange absolute top-88 right-8 h-1 w-1 rounded-full opacity-55"></div>
+        <div className="bg-brand-orange absolute right-24 bottom-16 h-1.5 w-1.5 rounded-full opacity-35"></div>
+        <div className="bg-brand-orange absolute right-32 bottom-52 h-1.5 w-1.5 rounded-full opacity-40"></div>
+        <div className="bg-brand-orange absolute top-16 right-28 h-1.5 w-1.5 rounded-full opacity-30"></div>
+        <div className="bg-brand-orange absolute right-36 bottom-96 h-1 w-1 rounded-full opacity-45"></div>
       </div>
 
       {/* Main Content */}
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
         <div className="mx-auto max-w-4xl text-center">
           {/* Badge */}
-          <div className="mb-8 flex justify-center">
-              <span>🧠 </span>
-              Powered by Google Search & Top AI Models
-          </div>
+          {/* <div className="mb-8 flex justify-center">
+            <span>🧠 </span>
+            Powered by Google Search & Top AI Models
+          </div> */}
 
           {/* Main Headline */}
-          <h1 className="mb-6 text-4xl font-bold leading-tight tracking-tight md:text-6xl lg:text-7xl">
-            Contentbot <br />
-            <span className="text-gray-200">Plan → Generate → Schedule Publishing</span>
+          <h1 className="mb-6 text-4xl leading-tight font-bold tracking-tight md:text-6xl lg:text-7xl">
+            <span className="text-gray-200">
+              Ship content that ranks and converts on autopilot.
+            </span>
           </h1>
 
           {/* Subheadline */}
           <p className="mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-gray-300 md:text-xl">
-            Contentbot streamlines your entire content workflow. Plan your
-            content strategy, generate high-quality posts, let you schedule them
-            perfectly, and publish automatically to your blog, Reddit, and X.
+            For lean B2B SaaS teams and SEO agencies, Contentbot plans your
+            calendar from live search data, generates on-brand drafts, schedules
+            distribution, and refreshes under-performers automatically.
           </p>
 
           {/* Join Waitlist Button */}
@@ -68,9 +69,9 @@ export default function HomePage() {
             <Button
               onClick={openModal}
               size="lg"
-              className="bg-white px-8 py-6 text-lg font-semibold text-black hover:bg-gray-100 shadow-lg"
+              className="bg-white px-8 py-6 text-lg font-semibold text-black shadow-lg hover:bg-gray-100"
             >
-              Join Waitlist!
+              Get early access
             </Button>
           </div>
 
@@ -109,11 +110,7 @@ export default function HomePage() {
                 <h2 className="text-xl font-semibold text-gray-900">
                   Join Contentbot Waitlist
                 </h2>
-                <Button
-                  onClick={closeModal}
-                  variant="ghost"
-                  size="icon"
-                >
+                <Button onClick={closeModal} variant="ghost" size="icon">
                   <X className="h-5 w-5 text-gray-500" />
                 </Button>
               </div>

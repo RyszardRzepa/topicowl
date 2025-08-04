@@ -334,12 +334,11 @@ export function PlanningHub({
       </div>
 
       {/* Article Ideas Generator Modal */}
-      {showIdeasGenerator && (
-        <ArticleIdeasGenerator
-          onIdeaAdded={handleIdeaAdded}
-          onClose={() => setShowIdeasGenerator(false)}
-        />
-      )}
+      <ArticleIdeasGenerator
+        open={showIdeasGenerator}
+        onOpenChange={setShowIdeasGenerator}
+        onIdeaAdded={handleIdeaAdded}
+      />
     </div>
   );
 }

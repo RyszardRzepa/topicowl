@@ -2,13 +2,12 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArticleIdeaCard } from "./article-idea-card";
@@ -21,16 +20,15 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type {
   ArticleIdea,
   GenerateIdeasResponse,
 } from "@/app/api/articles/generate-ideas/route";
 
 interface ArticleIdeasGeneratorProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onIdeaAdded: (idea: ArticleIdea) => Promise<void>;
-  onClose: () => void;
-  className?: string;
 }
 
 interface GenerationState {
@@ -45,9 +43,9 @@ interface GenerationState {
 const STORAGE_KEY = "contentbot-generated-ideas";
 
 export function ArticleIdeasGenerator({
+  open,
+  onOpenChange,
   onIdeaAdded,
-  onClose,
-  className,
 }: ArticleIdeasGeneratorProps) {
   const [state, setState] = useState<GenerationState>({
     isGenerating: false,
@@ -220,41 +218,21 @@ export function ArticleIdeasGenerator({
     saveIdeasToStorage([]);
   }, [saveIdeasToStorage]);
 
-
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <Card
-        className={cn(
-          "max-h-[90vh] w-full max-w-6xl overflow-hidden",
-          className,
-        )}
-      >
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-blue-600" />
-              <CardTitle>AI Article Ideas Generator</CardTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <CardDescription>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] min-w-4/6 overflow-auto">
+        <DialogHeader className="p-2">
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-blue-600" />
+            AI Article Ideas Generator
+          </DialogTitle>
+          <DialogDescription>
             Generate personalized article ideas based on your business profile
             and keywords
-          </CardDescription>
+          </DialogDescription>
+        </DialogHeader>
 
-
-        </CardHeader>
-
-        <CardContent className="overflow-y-auto">
+        <div className="overflow-y-auto p-2">
           {/* Initial state - no ideas generated yet */}
           {!state.isGenerating &&
             state.ideas.length === 0 &&
@@ -413,7 +391,7 @@ export function ArticleIdeasGenerator({
               </div>
 
               {/* Ideas grid */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pb-2">
+              <div className="grid gap-4 pb-2 md:grid-cols-2 lg:grid-cols-3">
                 {state.ideas.map((idea, index) => (
                   <ArticleIdeaCard
                     key={index}
@@ -428,19 +406,8 @@ export function ArticleIdeasGenerator({
               </div>
             </div>
           )}
-        </CardContent>
-
-        {/* Footer with close action */}
-        {(state.ideas.length > 0 || state.error) && (
-          <CardFooter className="border-t">
-            <div className="flex w-full justify-end">
-              <Button onClick={onClose} variant="outline">
-                Close
-              </Button>
-            </div>
-          </CardFooter>
-        )}
-      </Card>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
