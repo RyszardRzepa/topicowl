@@ -690,7 +690,7 @@ Video Integration Instructions:
 [1-2 sentences explaining why this video is valuable for this section]
 
 <div class="video-container">
-<iframe width="560" height="315" src="https://www.youtube.com/embed/[VIDEO_ID]" 
+<iframe width="560" height="315" src="youtube video url" 
         title="[VIDEO_TITLE]" frameborder="0" 
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
         allowfullscreen></iframe>

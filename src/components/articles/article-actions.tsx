@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 // Import colocated types from API routes for type safety
-import type { ArticleScheduleRequest } from '@/app/api/articles/[id]/schedule/route';
+import type { SchedulePublishingRequest } from '@/app/api/articles/schedule-publishing/route';
 import type { ArticleDetailResponse } from '@/app/api/articles/[id]/route';
 
 interface ArticleActionsProps {
@@ -45,15 +45,15 @@ export function ArticleActions({
 
     setIsScheduling(true);
     try {
-      const response = await fetch(`/api/articles/${article.id}/schedule`, {
+      const response = await fetch('/api/articles/schedule-publishing', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          scheduledAt: scheduledDate,
-          status: 'wait_for_publish',
-        } as ArticleScheduleRequest),
+          articleId: article.id,
+          publishAt: scheduledDate,
+        } as SchedulePublishingRequest),
       });
 
       const result = await response.json() as { success: boolean; error?: string };

@@ -483,10 +483,8 @@ stateDiagram-v2
 
 #### Article Scheduling API (Reuses existing schedule logic)
 
-- **POST /api/articles/[id]/schedule** - Schedule article for publishing
-  - Uses SchedulingService (reuses `/schedule` route logic)
-- **PUT /api/articles/[id]/schedule** - Update scheduled publish time
-- **DELETE /api/articles/[id]/schedule** - Remove scheduled publish time
+- **POST /api/articles/schedule-publishing** - Schedule article for publishing
+  - Uses existing `schedule-publishing` route logic
 - **GET /api/articles/scheduled** - Get all scheduled articles
 
 #### Publishing Cron Job API

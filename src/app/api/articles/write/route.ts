@@ -6,7 +6,7 @@ import { MODELS } from '@/constants';
 import { db } from '@/server/db';
 import { articleSettings } from '@/server/db/schema';
 import type { OutlineResponse } from '@/app/api/articles/outline/route';
-import { blogPostSchema, enhancedBlogPostSchema, videoEmbedSchema } from '@/types';
+import { blogPostSchema, enhancedBlogPostSchema } from '@/types';
 
 // Types colocated with this API route
 interface WriteRequest {
@@ -97,12 +97,6 @@ export async function POST(request: Request) {
       };
     }
 
-    console.log("Starting article generation with AI", {
-      model: MODELS.CLAUDE_SONET_4,
-      maxWords: settingsData.maxWords,
-      hasVideos: !!body.videos && body.videos.length > 0
-    });
-
     // Check if videos are available for enhanced generation
     const hasVideos = body.videos && body.videos.length > 0;
     const schemaToUse = hasVideos ? enhancedBlogPostSchema : blogPostSchema;
@@ -125,17 +119,17 @@ export async function POST(request: Request) {
       console.log(`Article generated with ${videoCount} videos embedded`);
     }
 
+    // Ensure excerpt is included as the first paragraph of the content
+    const contentWithExcerpt = articleObject.excerpt 
+      ? `${articleObject.excerpt}\n\n${articleObject.content}`
+      : articleObject.content;
+
     // Include the cover image in the response if provided
     const responseObject = {
       ...articleObject,
+      content: contentWithExcerpt,
       ...(body.coverImage && { coverImage: body.coverImage })
     } as WriteResponse;
-
-    console.log("Article generation completed", {
-      contentLength: responseObject.content?.length ?? 0,
-      hasCoverImage: !!responseObject.coverImage,
-      readingTime: responseObject.readingTime
-    });
 
     return NextResponse.json(responseObject);
   } catch (error) {
