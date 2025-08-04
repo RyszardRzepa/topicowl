@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, users } from "@/server/db/schema";
+import { articles, users, articleGeneration } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
@@ -59,8 +59,18 @@ export async function POST(req: NextRequest) {
 
     // Validate that the article exists and belongs to the user
     const [existingArticle] = await db
-      .select()
+      .select({
+        id: articles.id,
+        user_id: articles.user_id,
+        title: articles.title,
+        status: articles.status,
+        scheduledAt: articles.scheduledAt,
+        // Include generation status to check if article is ready
+        generationStatus: articleGeneration.status,
+        generationProgress: articleGeneration.progress,
+      })
       .from(articles)
+      .leftJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
       .where(eq(articles.id, articleId))
       .limit(1);
 
@@ -79,10 +89,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Only allow scheduling for articles that are ready to publish
-    if (existingArticle.status !== "wait_for_publish") {
+    // Allow scheduling for articles that are ready to publish:
+    // 1. Articles with "wait_for_publish" status
+    // 2. Articles with completed generation (status="scheduled" + generationStatus="completed")
+    const isReadyForPublishing = 
+      existingArticle.status === "wait_for_publish" ||
+      (existingArticle.status === "scheduled" && 
+       existingArticle.generationStatus === "completed" && 
+       existingArticle.generationProgress === 100);
+
+    if (!isReadyForPublishing) {
       return NextResponse.json(
-        { error: 'Only articles in "Wait for Publish" status can be scheduled for publishing' },
+        { error: 'Only articles with completed generation can be scheduled for publishing' },
         { status: 400 }
       );
     }
@@ -102,8 +120,8 @@ export async function POST(req: NextRequest) {
       .update(articles)
       .set({
         scheduledAt: publishDate,
+        status: "wait_for_publish", // Ensure status is correct
         updatedAt: new Date(),
-        // Keep existing status as "wait_for_publish"
       })
       .where(eq(articles.id, articleId))
       .returning();

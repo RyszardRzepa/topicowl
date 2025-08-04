@@ -203,8 +203,8 @@ export function PlanningHub({
         {ideaArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-foreground">
-                Ideas ({ideaArticles.length})
+                                          <h3 className="text-lg font-medium">
+                Idea Collection ({ideaArticles.length})
               </h3>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -228,7 +228,7 @@ export function PlanningHub({
         {readyArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-foreground">
+              <h3 className="text-lg font-medium">
                 Ready to Generate ({readyArticles.length})
               </h3>
             </div>
@@ -280,16 +280,12 @@ export function PlanningHub({
         ).length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-foreground">
-                Scheduled for Generation (
-                {
-                  articles.filter(
-                    (a) =>
-                      a.generationScheduledAt &&
-                      !["generating", "published"].includes(a.status),
-                  ).length
-                }
-                )
+                            <h3 className="text-lg font-medium">
+                Scheduled for Generation ({articles.filter(
+                  (a) =>
+                    a.generationScheduledAt &&
+                    !["generating", "published"].includes(a.status),
+                ).length})
               </h3>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

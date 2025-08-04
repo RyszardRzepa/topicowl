@@ -148,6 +148,12 @@ export function ArticleCard({
     }
   };
 
+  const handleConfirmPublishingSchedule = async () => {
+    if (selectedScheduleTime) {
+      await handleSchedulePublishing(selectedScheduleTime);
+    }
+  };
+
   // Determine what actions are available based on mode and status
   const canEdit =
     mode === "planning" &&
@@ -162,6 +168,10 @@ export function ArticleCard({
     mode === "planning" &&
     article.status === "generating" &&
     article.generationError;
+  const canReschedule =
+    mode === "generations" &&
+    article.status === "to_generate" &&
+    article.generationScheduledAt;
   const canPublish =
     mode === "publishing" && article.status === "wait_for_publish";
   const isGenerating = article.status === "generating";
@@ -298,7 +308,7 @@ export function ArticleCard({
         </div>
       )}
 
-      <CardContent>
+      <CardContent className="space-y-3">
         {/* Status indicator - only show for generating articles or if there's an error */}
         {(isGenerating || article.generationError) && (
           <StatusIndicator
@@ -310,22 +320,22 @@ export function ArticleCard({
             estimatedCompletion={
               isGenerating && article.generationStartedAt ? "5 min" : undefined
             }
-            className="mb-4"
           />
         )}
 
-        {/* Publishing mode metadata */}
-        {mode === "publishing" && (
-          <div className="space-y-2">
+        {/* Article metadata - consistent across all modes */}
+        {(article.estimatedReadTime ?? article.generationCompletedAt) && (
+          <div className="space-y-2 text-sm text-muted-foreground">
             {article.estimatedReadTime && (
-              <div className="flex items-center gap-2 text-sm text-stone-600">
+              <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 {article.estimatedReadTime} min read
               </div>
             )}
 
             {article.generationCompletedAt && (
-              <div className="text-sm">
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4" />
                 Generated: {formatRelativeTime(article.generationCompletedAt)}
               </div>
             )}
@@ -334,21 +344,34 @@ export function ArticleCard({
 
         {/* Show scheduled times */}
         {article.generationScheduledAt && (
-          <Alert className="border-primary/20 bg-primary/5 text-primary-foreground">
-            <Calendar className="h-4 w-4" />
-            <AlertDescription>
-              Scheduled: {formatRelativeTime(article.generationScheduledAt)}
-            </AlertDescription>
-          </Alert>
+          <div className="rounded-lg border p-3 text-sm">
+            <div className="flex items-center gap-2 text-foreground">
+              <Calendar className="h-4 w-4" />
+              <span className="font-medium">Scheduled to generate</span>
+            </div>
+            <div className="mt-1 text-muted-foreground">
+              {new Date(article.generationScheduledAt).toLocaleString(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {formatRelativeTime(article.generationScheduledAt)}
+            </div>
+          </div>
         )}
 
         {article.publishScheduledAt && (
-          <div className="rounded-lg bg-accent p-3 text-sm">
-            <div className="flex items-center gap-2 text-accent-foreground">
+          <div className="rounded-lg border p-3 text-sm">
+            <div className="flex items-center gap-2 text-foreground">
               <Calendar className="h-4 w-4" />
               <span className="font-medium">Scheduled to publish</span>
             </div>
-            <div className="mt-1 text-accent-foreground/80">
+            <div className="mt-1 text-muted-foreground">
               {new Date(article.publishScheduledAt).toLocaleString(undefined, {
                 weekday: "short",
                 month: "short",
@@ -450,6 +473,58 @@ export function ArticleCard({
             </>
           )}
 
+          {/* Generations mode actions - reschedule for scheduled articles */}
+          {mode === "generations" && canReschedule && (
+            <>
+              {/* Rescheduling UI */}
+              {isScheduling ? (
+                <div className="w-full space-y-3">
+                  <DateTimePicker
+                    value={selectedScheduleTime}
+                    onChange={setSelectedScheduleTime}
+                    placeholder="Select new date and time"
+                    minDate={new Date(Date.now() + 60000)} // 1 minute from now
+                    className="w-full"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setIsScheduling(false);
+                        setSelectedScheduleTime(undefined);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleConfirmSchedule}
+                      size="sm"
+                      disabled={!selectedScheduleTime}
+                      className="flex-1"
+                    >
+                      Reschedule
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsScheduling(true);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Reschedule Generation
+                </Button>
+              )}
+            </>
+          )}
+
           {/* Publishing mode actions - only show for unscheduled articles */}
           {mode === "publishing" &&
             canPublish &&
@@ -462,25 +537,32 @@ export function ArticleCard({
                       value={selectedScheduleTime}
                       onChange={(date) => {
                         setSelectedScheduleTime(date);
-                        if (date) {
-                          void handleSchedulePublishing(date);
-                        }
                       }}
                       placeholder="Select publish date and time"
                       minDate={new Date()}
                       className="w-full"
                     />
-                    <Button
-                      onClick={() => {
-                        setIsScheduling(false);
-                        setSelectedScheduleTime(undefined);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="w-full"
-                    >
-                      Cancel
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleConfirmPublishingSchedule}
+                        disabled={!selectedScheduleTime}
+                        size="sm"
+                        className="flex-1"
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Schedule Publishing
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsScheduling(false);
+                          setSelectedScheduleTime(undefined);
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex w-full gap-2">
@@ -521,39 +603,59 @@ export function ArticleCard({
                     value={selectedScheduleTime}
                     onChange={(date) => {
                       setSelectedScheduleTime(date);
-                      if (date) {
-                        void handleSchedulePublishing(date);
-                      }
                     }}
                     placeholder="Select new publishing date and time"
                     minDate={new Date()}
                     className="w-full"
                   />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleConfirmPublishingSchedule}
+                      disabled={!selectedScheduleTime}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Update Schedule
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setIsScheduling(false);
+                        setSelectedScheduleTime(undefined);
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex w-full gap-2">
                   <Button
-                    onClick={() => {
-                      setIsScheduling(false);
-                      setSelectedScheduleTime(undefined);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handlePublish();
+                    }}
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Publish Now
+                  </Button>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsScheduling(true);
                     }}
                     size="sm"
                     variant="outline"
-                    className="w-full"
+                    className="flex-1"
                   >
-                    Cancel
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Reschedule
                   </Button>
                 </div>
-              ) : (
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsScheduling(true);
-                  }}
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Reschedule
-                </Button>
               )}
             </>
           )}

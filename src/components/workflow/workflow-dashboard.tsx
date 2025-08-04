@@ -59,54 +59,67 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   }, [searchParams, activeTab]);
 
   // Transform database article to domain Article type
-  const transformDatabaseArticle = (dbArticle: DatabaseArticle): Article => ({
-    id: dbArticle.id.toString(),
-    title: dbArticle.title,
-    content: dbArticle.content ?? dbArticle.draft ?? undefined,
-    status: dbArticle.status,
-    keywords: Array.isArray(dbArticle.keywords)
-      ? (dbArticle.keywords as string[])
-      : [],
-    createdAt:
-      dbArticle.createdAt instanceof Date
-        ? dbArticle.createdAt.toISOString()
-        : dbArticle.createdAt,
-    updatedAt:
-      dbArticle.updatedAt instanceof Date
-        ? dbArticle.updatedAt.toISOString()
-        : dbArticle.updatedAt,
-    generationProgress: typeof dbArticle.generationProgress === 'number' ? dbArticle.generationProgress : 0,
-    // Map generation status to phase for UI display
-    generationPhase: dbArticle.generationStatus === 'researching' ? 'research' :
-                    dbArticle.generationStatus === 'writing' ? 'writing' :
-                    dbArticle.generationStatus === 'validating' ? 'validation' :
-                    dbArticle.generationStatus === 'updating' ? 'optimization' :
-                    undefined,
-    generationError: dbArticle.generationError ?? undefined,
-    estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
-    views: 0, // Not tracked in database yet
-    clicks: 0, // Not tracked in database yet
-    generationScheduledAt:
-      dbArticle.generationScheduledAt instanceof Date
-        ? dbArticle.generationScheduledAt.toISOString()
-        : typeof dbArticle.generationScheduledAt === "string"
-          ? dbArticle.generationScheduledAt
-          : undefined,
-    generationStartedAt: undefined, // Will be populated when generation tracking is added
-    generationCompletedAt: undefined, // Will be populated when generation tracking is added
-    publishScheduledAt:
-      dbArticle.scheduledAt instanceof Date
-        ? dbArticle.scheduledAt.toISOString()
-        : typeof dbArticle.scheduledAt === "string"
-          ? dbArticle.scheduledAt
-          : undefined,
-    publishedAt:
-      dbArticle.publishedAt instanceof Date
-        ? dbArticle.publishedAt.toISOString()
-        : typeof dbArticle.publishedAt === "string"
-          ? dbArticle.publishedAt
-          : undefined,
-  });
+  const transformDatabaseArticle = (dbArticle: DatabaseArticle): Article => {
+    // Auto-correct status for completed generations that should be in publishing pipeline
+    let correctedStatus = dbArticle.status;
+    if (
+      dbArticle.generationStatus === 'completed' &&
+      dbArticle.generationProgress === 100 &&
+      (dbArticle.status === 'scheduled' || dbArticle.status === 'generating')
+    ) {
+      correctedStatus = 'wait_for_publish';
+      console.log(`Auto-correcting article ${dbArticle.id} status from ${dbArticle.status} to wait_for_publish`);
+    }
+
+    return {
+      id: dbArticle.id.toString(),
+      title: dbArticle.title,
+      content: dbArticle.content ?? dbArticle.draft ?? undefined,
+      status: correctedStatus,
+      keywords: Array.isArray(dbArticle.keywords)
+        ? (dbArticle.keywords as string[])
+        : [],
+      createdAt:
+        dbArticle.createdAt instanceof Date
+          ? dbArticle.createdAt.toISOString()
+          : dbArticle.createdAt,
+      updatedAt:
+        dbArticle.updatedAt instanceof Date
+          ? dbArticle.updatedAt.toISOString()
+          : dbArticle.updatedAt,
+      generationProgress: typeof dbArticle.generationProgress === 'number' ? dbArticle.generationProgress : 0,
+      // Map generation status to phase for UI display
+      generationPhase: dbArticle.generationStatus === 'researching' ? 'research' :
+                      dbArticle.generationStatus === 'writing' ? 'writing' :
+                      dbArticle.generationStatus === 'validating' ? 'validation' :
+                      dbArticle.generationStatus === 'updating' ? 'optimization' :
+                      undefined,
+      generationError: dbArticle.generationError ?? undefined,
+      estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
+      views: 0, // Not tracked in database yet
+      clicks: 0, // Not tracked in database yet
+      generationScheduledAt:
+        dbArticle.generationScheduledAt instanceof Date
+          ? dbArticle.generationScheduledAt.toISOString()
+          : typeof dbArticle.generationScheduledAt === "string"
+            ? dbArticle.generationScheduledAt
+            : undefined,
+      generationStartedAt: undefined, // Will be populated when generation tracking is added
+      generationCompletedAt: undefined, // Will be populated when generation tracking is added
+      publishScheduledAt:
+        dbArticle.scheduledAt instanceof Date
+          ? dbArticle.scheduledAt.toISOString()
+          : typeof dbArticle.scheduledAt === "string"
+            ? dbArticle.scheduledAt
+            : undefined,
+      publishedAt:
+        dbArticle.publishedAt instanceof Date
+          ? dbArticle.publishedAt.toISOString()
+          : typeof dbArticle.publishedAt === "string"
+            ? dbArticle.publishedAt
+            : undefined,
+    };
+  };
 
   // Fetch articles from API
   const fetchArticles = useCallback(async () => {
@@ -655,8 +668,21 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       Boolean(a.generationError),
   );
   const publishingArticles = articles.filter(
-    (a) => a.status === "wait_for_publish" || a.status === "published",
+    (a) => 
+      a.status === "wait_for_publish" || 
+      a.status === "published" ||
+      // Include articles with completed generation that should be in publishing pipeline
+      (a.generationProgress === 100 && a.generationPhase === undefined && !a.generationError),
   );
+
+  // Debug: Log article statuses to help with troubleshooting
+  console.log("Article distribution:", {
+    total: articles.length,
+    planning: planningArticles.length,
+    generations: generationsArticles.length,
+    publishing: publishingArticles.length,
+    statuses: articles.map(a => ({ id: a.id, title: a.title, status: a.status }))
+  });
 
   // Don't show loading indicator to prevent flickering on tab changes
   // Just show empty content until data arrives
@@ -715,6 +741,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           <ArticleGenerations
             articles={generationsArticles}
             onRetryGeneration={handleGenerateArticle}
+            onScheduleGeneration={handleScheduleGeneration}
             onNavigateToArticle={handleNavigateToArticle}
             onRefresh={fetchArticles}
             onUpdateArticleStatus={handleUpdateArticle}

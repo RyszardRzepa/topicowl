@@ -35,8 +35,8 @@ const contentAngleIcons = {
 } as const;
 
 const difficultyColors = {
-  beginner: "bg-green-100 text-green-800 border-green-200",
-  intermediate: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  beginner: "bg-brand-green/10 text-brand-green border-brand-green/20",
+  intermediate: "bg-brand-orange/10 text-brand-orange border-brand-orange/20",
   advanced: "bg-red-100 text-red-800 border-red-200",
 } as const;
 
@@ -87,7 +87,7 @@ export function ArticleIdeaCard({
             
             {/* Content angle and difficulty indicators */}
             <div className="flex items-center gap-2 mt-2">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
+              <div className="flex items-center gap-1 text-sm text-stone-600">
                 <ContentAngleIcon className="h-4 w-4" />
                 <span className="capitalize">{idea.contentAngle.replace('-', ' ')}</span>
               </div>
@@ -107,7 +107,7 @@ export function ArticleIdeaCard({
                 type="checkbox"
                 checked={isSelected}
                 onChange={handleSelectionChange}
-                className="h-4 w-4 rounded border-gray-300 text-brand-green focus:ring-brand-green"
+                className="h-4 w-4 rounded border-stone-300 text-brand-green focus:ring-brand-green"
               />
             </div>
           )}
@@ -122,29 +122,29 @@ export function ArticleIdeaCard({
         {/* Target audience */}
         {idea.targetAudience && (
           <div className="mb-3">
-            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+            <div className="flex items-center gap-1 text-xs text-stone-500 mb-1">
               <Users className="h-3 w-3" />
               Target Audience
             </div>
-            <p className="text-sm text-gray-700">{idea.targetAudience}</p>
+            <p className="text-sm text-stone-700">{idea.targetAudience}</p>
           </div>
         )}
 
         {/* Keywords */}
         {idea.keywords && idea.keywords.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-xs text-gray-500 mb-2">
+            <div className="flex items-center gap-1 text-xs text-stone-500 mb-2">
               <TrendingUp className="h-3 w-3" />
               Keywords
             </div>
             <div className="flex flex-wrap gap-1">
               {idea.keywords.slice(0, 4).map((keyword, index) => (
-                <Badge key={index} variant="secondary" className="text-xs">
+                <Badge key={index} variant="secondary" className="text-xs bg-stone-100 text-stone-700 border-stone-200">
                   {keyword}
                 </Badge>
               ))}
               {idea.keywords.length > 4 && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs bg-stone-100 text-stone-700 border-stone-200">
                   +{idea.keywords.length - 4} more
                 </Badge>
               )}
@@ -158,7 +158,7 @@ export function ArticleIdeaCard({
           onClick={handleAddToPipeline}
           disabled={isAdding}
           size="sm"
-          className="w-full bg-brand-green hover:bg-brand-green/90"
+          className="w-full bg-brand-green hover:bg-brand-green/90 text-white"
         >
           <Plus className="mr-2 h-4 w-4" />
           {isAdding ? "Adding..." : "Add to Pipeline"}

@@ -220,13 +220,13 @@ export function ArticleIdeasGenerator({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] min-w-4/6 overflow-auto">
+      <DialogContent className="max-h-[90vh] min-w-4/6 overflow-auto bg-white border-stone-200">
         <DialogHeader className="p-2">
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-blue-600" />
+          <DialogTitle className="flex items-center gap-2 text-stone-900">
+            <Sparkles className="h-5 w-5 text-brand-green" />
             AI Article Ideas Generator
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-stone-600">
             Generate personalized article ideas based on your business profile
             and keywords
           </DialogDescription>
@@ -239,19 +239,19 @@ export function ArticleIdeasGenerator({
             !state.error &&
             !state.requiresOnboarding && (
               <div className="py-12 text-center">
-                <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-blue-100">
-                  <Sparkles className="h-8 w-8 text-blue-600" />
+                <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-brand-green/10">
+                  <Sparkles className="h-8 w-8 text-brand-green" />
                 </div>
-                <h3 className="mb-2 text-lg font-medium text-gray-900">
+                <h3 className="mb-2 text-lg font-medium text-stone-900">
                   Ready to Generate Ideas
                 </h3>
-                <p className="mx-auto mb-6 max-w-md text-gray-600">
+                <p className="mx-auto mb-6 max-w-md text-stone-600">
                   Click the button below to generate 5 personalized article
                   ideas based on your business profile and keywords.
                 </p>
                 <Button
                   onClick={generateIdeas}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-brand-green hover:bg-brand-green/90 text-white"
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
                   Generate Article Ideas
@@ -262,13 +262,13 @@ export function ArticleIdeasGenerator({
           {/* Loading state */}
           {state.isGenerating && (
             <div className="py-12 text-center">
-              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-blue-100">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-brand-green/10">
+                <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
               </div>
-              <h3 className="mb-2 text-lg font-medium text-gray-900">
+              <h3 className="mb-2 text-lg font-medium text-stone-900">
                 Generating Ideas...
               </h3>
-              <p className="text-gray-600">
+              <p className="text-stone-600">
                 Analyzing your business profile and generating personalized
                 article suggestions
               </p>
@@ -278,29 +278,29 @@ export function ArticleIdeasGenerator({
           {/* Error state */}
           {state.error && (
             <div className="py-12 text-center">
-              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-red-100">
+              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-red-50">
                 <AlertCircle className="h-8 w-8 text-red-600" />
               </div>
-              <h3 className="mb-2 text-lg font-medium text-gray-900">
+              <h3 className="mb-2 text-lg font-medium text-stone-900">
                 {state.requiresOnboarding
                   ? "Profile Setup Required"
                   : "Generation Failed"}
               </h3>
-              <p className="mx-auto mb-6 max-w-md text-gray-600">
+              <p className="mx-auto mb-6 max-w-md text-stone-600">
                 {state.error}
               </p>
               <div className="flex justify-center gap-2">
                 {state.requiresOnboarding ? (
                   <Button
                     onClick={() => (window.location.href = "/onboarding")}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-brand-green hover:bg-brand-green/90 text-white"
                   >
                     Complete Profile Setup
                   </Button>
                 ) : (
                   <Button
                     onClick={generateIdeas}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-brand-green hover:bg-brand-green/90 text-white"
                   >
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Try Again
@@ -326,7 +326,7 @@ export function ArticleIdeasGenerator({
               {/* Bulk actions header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <h3 className="text-lg font-medium text-gray-900">
+                  <h3 className="text-lg font-medium text-stone-900">
                     Generated Ideas ({state.ideas.length})
                   </h3>
 
@@ -335,7 +335,7 @@ export function ArticleIdeasGenerator({
                     variant="outline"
                     size="sm"
                     onClick={handleSelectAll}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 border-stone-200 text-stone-700 hover:bg-stone-50"
                   >
                     {selectedIdeas.size === state.ideas.length ? (
                       <CheckSquare className="h-4 w-4" />
@@ -349,7 +349,7 @@ export function ArticleIdeasGenerator({
 
                   {/* Selection count */}
                   {selectedIdeas.size > 0 && (
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className="bg-stone-100 text-stone-700 border-stone-200">
                       {selectedIdeas.size} selected
                     </Badge>
                   )}
@@ -362,7 +362,7 @@ export function ArticleIdeasGenerator({
                       onClick={handleBulkAddToPipeline}
                       disabled={isBulkAdding}
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-brand-green hover:bg-brand-green/90 text-white"
                     >
                       {isBulkAdding ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -378,12 +378,18 @@ export function ArticleIdeasGenerator({
                     disabled={state.isGenerating}
                     size="sm"
                     variant="outline"
+                    className="border-stone-200 text-stone-700 hover:bg-stone-50"
                   >
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Regenerate
                   </Button>
 
-                  <Button onClick={handleDismiss} size="sm" variant="outline">
+                  <Button 
+                    onClick={handleDismiss} 
+                    size="sm" 
+                    variant="outline"
+                    className="border-stone-200 text-stone-700 hover:bg-stone-50"
+                  >
                     <X className="mr-2 h-4 w-4" />
                     Dismiss
                   </Button>
@@ -391,7 +397,7 @@ export function ArticleIdeasGenerator({
               </div>
 
               {/* Ideas grid */}
-              <div className="grid gap-4 pb-2 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-6 pb-2 md:grid-cols-2 lg:grid-cols-3">
                 {state.ideas.map((idea, index) => (
                   <ArticleIdeaCard
                     key={index}
@@ -401,6 +407,7 @@ export function ArticleIdeasGenerator({
                     onSelectionChange={(selected) =>
                       handleIdeaSelection(index, selected)
                     }
+                    className="border-stone-200 hover:border-brand-green/20 hover:shadow-lg"
                   />
                 ))}
               </div>

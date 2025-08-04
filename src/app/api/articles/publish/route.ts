@@ -62,6 +62,7 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
       article: {
         id: article.id,
         title: article.title,
+        slug: article.slug,
         description: article.description,
         content: article.content ?? article.draft ?? '',
         keywords: Array.isArray(article.keywords) ? article.keywords : [],
@@ -80,9 +81,10 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
     };
 
     const payloadString = JSON.stringify(payload);
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'User-Agent': 'ContentMachine-Webhook/1.0',
+      'User-Agent': 'Contentbot-Webhook/1.0',
     };
 
     // Generate HMAC signature if secret is provided

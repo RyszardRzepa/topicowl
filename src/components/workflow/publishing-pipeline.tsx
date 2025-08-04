@@ -52,15 +52,13 @@ export function PublishingPipeline({
       {/* Header with actions */}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold">
             Publishing Pipeline
           </h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Schedule and publish completed articles
           </p>
         </div>
-
-
       </div>
 
       {/* Article sections */}
@@ -69,7 +67,7 @@ export function PublishingPipeline({
         {readyNow.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
+              <h3 className="text-lg font-medium">
                 Ready to Publish ({readyNow.length})
               </h3>
             </div>
@@ -92,9 +90,9 @@ export function PublishingPipeline({
         {/* Scheduled to publish section */}
         {scheduledToPublish.length > 0 && (
           <section>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg font-medium">
                   Scheduled Articles ({scheduledToPublish.length})
                 </h3>
                 <Badge variant="blue" className="flex items-center gap-1">
@@ -103,7 +101,7 @@ export function PublishingPipeline({
                 </Badge>
               </div>
               {scheduledToPublish.length > 0 && (
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Next: {new Date(
                     Math.min(...scheduledToPublish.map(a => new Date(a.publishScheduledAt!).getTime()))
                   ).toLocaleDateString(undefined, {
@@ -115,27 +113,24 @@ export function PublishingPipeline({
                 </div>
               )}
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {scheduledToPublish
-                  .sort((a, b) => {
-                    const dateA = new Date(a.publishScheduledAt!).getTime();
-                    const dateB = new Date(b.publishScheduledAt!).getTime();
-                    return dateA - dateB;
-                  })
-                  .map((article) => (
-                    <ArticleCard
-                      key={article.id}
-                      article={article}
-                      mode="publishing"
-                      onUpdate={onUpdateArticle}
-                      onPublish={onPublishArticle}
-                      onSchedulePublishing={onSchedulePublishing}
-                      onNavigate={onNavigateToArticle}
-                      className="border-blue-200 bg-white shadow-sm"
-                    />
-                  ))}
-              </div>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {scheduledToPublish
+                .sort((a, b) => {
+                  const dateA = new Date(a.publishScheduledAt!).getTime();
+                  const dateB = new Date(b.publishScheduledAt!).getTime();
+                  return dateA - dateB;
+                })
+                .map((article) => (
+                  <ArticleCard
+                    key={article.id}
+                    article={article}
+                    mode="publishing"
+                    onUpdate={onUpdateArticle}
+                    onPublish={onPublishArticle}
+                    onSchedulePublishing={onSchedulePublishing}
+                    onNavigate={onNavigateToArticle}
+                  />
+                ))}
             </div>
           </section>
         )}
@@ -144,7 +139,7 @@ export function PublishingPipeline({
         {publishedArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
+              <h3 className="text-lg font-medium">
                 Published ({publishedArticles.length})
               </h3>
             </div>
@@ -177,16 +172,18 @@ export function PublishingPipeline({
 
         {/* Empty state */}
         {readyToPublish.length === 0 && publishedArticles.length === 0 && (
-          <div className="py-12 text-center">
-            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gray-100">
-              <FileText className="h-8 w-8 text-gray-400" />
+          <div className="flex h-96 items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-muted">
+                <FileText className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="mb-2 text-lg font-medium">
+                No articles ready for publishing
+              </h3>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Generate some articles first in the Planning Hub
+              </p>
             </div>
-            <h3 className="mb-2 text-lg font-medium text-gray-900">
-              No articles ready for publishing
-            </h3>
-            <p className="mb-4 text-gray-600">
-              Generate some articles first in the Planning Hub
-            </p>
           </div>
         )}
       </div>
