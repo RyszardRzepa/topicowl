@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Waitlist } from "@clerk/nextjs";
 import { X } from "lucide-react";
+import Image from "next/image";
 
 export default function HomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -13,7 +14,18 @@ export default function HomePage() {
   const closeModal = () => setIsModalOpen(false);
 
   return (
-    <main className="bg-brand-green relative min-h-screen overflow-hidden text-white">
+    <main className="bg-white relative min-h-screen overflow-hidden text-gray-900">
+      {/* Logo in top left */}
+      <div className="absolute top-6 left-6 z-20">
+        <Image
+          src="/logo.svg"
+          alt="Contentbot"
+          width={120}
+          height={40}
+          className="h-10 w-auto"
+        />
+      </div>
+
       {/* Background decorative elements */}
       <div className="absolute inset-0">
         {/* Left side dots */}
@@ -22,11 +34,6 @@ export default function HomePage() {
         <div className="bg-brand-orange absolute top-96 left-16 h-1.5 w-1.5 rounded-full opacity-55"></div>
         <div className="bg-brand-orange absolute bottom-32 left-8 h-2 w-2 rounded-full opacity-40"></div>
         <div className="bg-brand-orange absolute top-44 left-8 h-1 w-1 rounded-full opacity-50"></div>
-        <div className="bg-brand-orange absolute top-84 left-32 h-1 w-1 rounded-full opacity-25"></div>
-        <div className="bg-brand-orange absolute top-60 left-24 h-1 w-1 rounded-full opacity-30"></div>
-        <div className="bg-brand-orange absolute bottom-80 left-12 h-1.5 w-1.5 rounded-full opacity-45"></div>
-        <div className="bg-brand-orange absolute top-32 left-28 h-1 w-1 rounded-full opacity-35"></div>
-        <div className="bg-brand-orange absolute bottom-60 left-36 h-1 w-1 rounded-full opacity-40"></div>
 
         {/* Right side dots */}
         <div className="bg-brand-orange absolute top-40 right-20 h-1 w-1 rounded-full opacity-40"></div>
@@ -34,11 +41,6 @@ export default function HomePage() {
         <div className="bg-brand-orange absolute top-80 right-32 h-1.5 w-1.5 rounded-full opacity-45"></div>
         <div className="bg-brand-orange absolute right-16 bottom-60 h-1 w-1 rounded-full opacity-40"></div>
         <div className="bg-brand-orange absolute top-72 right-20 h-1.5 w-1.5 rounded-full opacity-35"></div>
-        <div className="bg-brand-orange absolute top-88 right-8 h-1 w-1 rounded-full opacity-55"></div>
-        <div className="bg-brand-orange absolute right-24 bottom-16 h-1.5 w-1.5 rounded-full opacity-35"></div>
-        <div className="bg-brand-orange absolute right-32 bottom-52 h-1.5 w-1.5 rounded-full opacity-40"></div>
-        <div className="bg-brand-orange absolute top-16 right-28 h-1.5 w-1.5 rounded-full opacity-30"></div>
-        <div className="bg-brand-orange absolute right-36 bottom-96 h-1 w-1 rounded-full opacity-45"></div>
       </div>
 
       {/* Main Content */}
@@ -52,16 +54,15 @@ export default function HomePage() {
 
           {/* Main Headline */}
           <h1 className="mb-6 text-4xl leading-tight font-bold tracking-tight md:text-6xl lg:text-7xl">
-            <span className="text-gray-200">
+            <span className="text-gray-900">
               Ship content that ranks and converts on autopilot.
             </span>
           </h1>
 
           {/* Subheadline */}
-          <p className="mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-gray-300 md:text-xl">
-            For lean B2B SaaS teams and SEO agencies, Contentbot plans your
-            calendar from live search data, generates on-brand drafts, schedules
-            distribution, and refreshes under-performers automatically.
+          <p className="mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-gray-600 md:text-xl">
+            For B2B teams and SEO agencies, Contentbot plans topics for
+            you, drafts them on time, and publishes to your blog, X, and Reddit.
           </p>
 
           {/* Join Waitlist Button */}
@@ -69,7 +70,7 @@ export default function HomePage() {
             <Button
               onClick={openModal}
               size="lg"
-              className="bg-white px-8 py-6 text-lg font-semibold text-black shadow-lg hover:bg-gray-100"
+              className="bg-brand-orange px-8 py-6 text-lg font-semibold text-white shadow-lg hover:bg-brand-orange/90"
             >
               Get early access
             </Button>
@@ -91,7 +92,7 @@ export default function HomePage() {
       </div>
 
       {/* Bottom decorative elements */}
-      <div className="absolute right-0 bottom-0 left-0 h-32 bg-gradient-to-t from-gray-900/20 to-transparent"></div>
+      <div className="absolute right-0 bottom-0 left-0 h-32 bg-gradient-to-t from-gray-100/20 to-transparent"></div>
 
       {/* Modal */}
       {isModalOpen && (

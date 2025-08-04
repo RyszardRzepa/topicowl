@@ -13,12 +13,12 @@ import { type Metadata } from "next";
 // });
 
 export const metadata: Metadata = {
-  title: "Contentbot",
+  title: "Ship content that ranks and converts on autopilot",
   description:
-    "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
+    "For B2B teams and SEO agencies, Contentbot plans topics for you, drafts them on time, and publishes to your blog, X, and Reddit",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   openGraph: {
-    title: "Contentbot",
+    title: "Ship content that ranks and converts on autopilot",
     description:
       " Plan, Generate, Schedule Publishing content for blog, reddit, X.",
     images: [
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Contentbot",
+    title: "Ship content that ranks and converts on autopilot",
     description:
-      "Create, manage, and publish SEO-optimized articles with AI-powered workflows",
+      "For B2B teams and SEO agencies, Contentbot plans topics for you, drafts them on time, and publishes X account",
     images: ["/contentbot-preview.png"],
   },
 };
