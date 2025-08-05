@@ -1,7 +1,8 @@
 import { google } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { NextResponse } from "next/server";
-import { prompts, MODELS } from "@/constants";
+import { MODELS } from "@/constants";
+import { prompts } from "@/prompts";
 import type { ApiResponse } from "@/types";
 import { z } from "zod";
 

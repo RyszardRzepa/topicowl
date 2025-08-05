@@ -6,7 +6,8 @@ import { eq } from "drizzle-orm";
 import { google } from "@ai-sdk/google";
 import { generateText, generateObject } from "ai";
 import { z } from "zod";
-import { MODELS, prompts } from "@/constants";
+import { MODELS } from "@/constants";
+import { prompts } from "@/prompts";
 
 // Types colocated with this API route
 export interface ArticleIdea {

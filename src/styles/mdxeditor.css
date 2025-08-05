@@ -1,0 +1,209 @@
+/* MDXEditor styles override */
+.mdx-editor {
+  /* Ensure container doesn't interfere with popups */
+  position: relative;
+  z-index: 1;
+}
+
+.mdx-editor .mdxeditor {
+  /* Editor-specific styling */
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  position: relative;
+  z-index: 1;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable {
+  /* Content editable area styling */
+  padding: 1.5rem !important;
+  min-height: 400px !important;
+  font-size: 1.125rem !important;
+  line-height: 1.75 !important;
+  color: rgb(55, 65, 81) !important;
+  font-family: inherit !important;
+  max-width: none !important;
+}
+
+/* Typography styling for better markdown rendering */
+.mdx-editor .mdxeditor-root-contenteditable * {
+  max-width: none !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable h1 {
+  font-size: 2rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 1rem !important;
+  margin-top: 1.5rem !important;
+  color: rgb(17, 24, 39) !important;
+  line-height: 1.25 !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable h2 {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.75rem !important;
+  margin-top: 1.25rem !important;
+  color: rgb(17, 24, 39) !important;
+  line-height: 1.25 !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable h3 {
+  font-size: 1.25rem !important;
+  font-weight: 500 !important;
+  margin-bottom: 0.5rem !important;
+  margin-top: 1rem !important;
+  color: rgb(17, 24, 39) !important;
+  line-height: 1.25 !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable h4,
+.mdx-editor .mdxeditor-root-contenteditable h5,
+.mdx-editor .mdxeditor-root-contenteditable h6 {
+  font-weight: 500 !important;
+  margin-bottom: 0.5rem !important;
+  margin-top: 0.75rem !important;
+  color: rgb(17, 24, 39) !important;
+  line-height: 1.25 !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable p {
+  margin-bottom: 1rem !important;
+  color: rgb(55, 65, 81) !important;
+  line-height: 1.75 !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable ul,
+.mdx-editor .mdxeditor-root-contenteditable ol {
+  margin-bottom: 1rem !important;
+  padding-left: 1.5rem !important;
+  list-style-position: outside !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable ul {
+  list-style-type: disc !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable ol {
+  list-style-type: decimal !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable li {
+  margin-bottom: 0.25rem !important;
+  color: rgb(55, 65, 81) !important;
+  display: list-item !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable li p {
+  margin-bottom: 0.5rem !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable a {
+  color: rgb(59, 130, 246) !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable a:hover {
+  color: rgb(37, 99, 235) !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable strong {
+  font-weight: 600 !important;
+  color: rgb(17, 24, 39) !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable em {
+  font-style: italic !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable blockquote {
+  border-left: 4px solid rgb(209, 213, 219) !important;
+  padding-left: 1rem !important;
+  margin: 1rem 0 !important;
+  font-style: italic !important;
+  color: rgb(107, 114, 128) !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable code {
+  background-color: rgb(243, 244, 246) !important;
+  padding: 0.125rem 0.25rem !important;
+  border-radius: 0.25rem !important;
+  font-size: 0.875em !important;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable pre {
+  background-color: rgb(243, 244, 246) !important;
+  padding: 1rem !important;
+  border-radius: 0.5rem !important;
+  overflow-x: auto !important;
+  margin: 1rem 0 !important;
+}
+
+.mdx-editor .mdxeditor-root-contenteditable pre code {
+  background-color: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: inherit !important;
+}
+
+.mdx-editor .mdxeditor-toolbar {
+  /* Toolbar styling */
+  border-bottom: 1px solid rgb(229, 231, 235) !important;
+  background: rgb(249, 250, 251) !important;
+  padding: 0.75rem 1rem !important;
+}
+
+/* Fix for any layout issues */
+.mdx-editor .mdxeditor-root-contenteditable > * + * {
+  margin-top: 0 !important;
+}
+
+/* Ensure first element doesn't have top margin */
+.mdx-editor .mdxeditor-root-contenteditable > *:first-child {
+  margin-top: 0 !important;
+}
+
+/* Fix z-index issues for dialogs and popups */
+.mdxeditor-popup-container {
+  z-index: 9999 !important;
+}
+
+.mdxeditor-dialog {
+  z-index: 9999 !important;
+}
+
+.mdxeditor-link-dialog {
+  z-index: 9999 !important;
+}
+
+.mdxeditor-tooltip {
+  z-index: 9998 !important;
+}
+
+/* Ensure all modal/popup elements appear above editor */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* MDXEditor specific popup containers */
+.mdxeditor [role="dialog"] {
+  z-index: 9999 !important;
+}
+
+.mdxeditor [role="tooltip"] {
+  z-index: 9998 !important;
+}
+
+.mdxeditor .floating-ui-portal {
+  z-index: 9999 !important;
+}
+
+/* Additional overrides for common popup patterns */
+.mdxeditor-popup,
+.mdxeditor-modal,
+.mdxeditor-overlay {
+  z-index: 9999 !important;
+}

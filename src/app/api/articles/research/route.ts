@@ -1,7 +1,7 @@
 import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
-import { prompts } from "@/constants";
+import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 
 // Types colocated with this API route

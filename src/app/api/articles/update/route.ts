@@ -1,7 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { NextResponse } from "next/server";
-import { prompts } from "@/constants";
+import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { blogPostSchema } from "@/types";
 
