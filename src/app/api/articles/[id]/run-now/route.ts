@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { articles, users, articleGeneration } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 
 // API types for this endpoint
@@ -19,7 +19,7 @@ export interface RunNowResponse {
 
 // POST /api/articles/[id]/run-now - Start generation immediately for scheduled article
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -86,57 +86,32 @@ export async function POST(
       );
     }
 
-    // Update article status to generating
-    const [updatedArticle] = await db
+    // Update article status to generating to trigger immediate processing
+    await db
       .update(articles)
       .set({
         status: "generating",
         updatedAt: new Date(),
       })
-      .where(eq(articles.id, articleId))
-      .returning();
+      .where(eq(articles.id, articleId));
 
-    // Update or create generation record
-    const [existingGeneration] = await db
-      .select()
-      .from(articleGeneration)
-      .where(
-        and(
-          eq(articleGeneration.articleId, articleId),
-          eq(articleGeneration.userId, userRecord.id)
-        )
-      )
-      .limit(1);
-
-    if (existingGeneration) {
-      // Update existing generation record
-      await db
-        .update(articleGeneration)
-        .set({
-          status: "researching",
-          progress: 0,
-          startedAt: new Date(),
-          scheduledAt: null, // Clear scheduled time since we're running now
-          updatedAt: new Date(),
-        })
-        .where(eq(articleGeneration.id, existingGeneration.id));
-    } else {
-      // Create new generation record
-      await db.insert(articleGeneration).values({
-        articleId: articleId,
-        userId: userRecord.id,
-        status: "researching",
-        progress: 0,
-        startedAt: new Date(),
-      });
-    }
-
-    // Here you would typically trigger the actual generation process
-    // For now, we'll just update the status and let the polling handle the rest
+    // Update the generation record to indicate immediate processing
+    await db
+      .update(articleGeneration)
+      .set({
+        scheduledAt: null, // Clear scheduled time to indicate immediate processing
+        updatedAt: new Date(),
+      })
+      .where(eq(articleGeneration.articleId, articleId));
     
     return NextResponse.json({
       success: true,
-      article: updatedArticle,
+      article: {
+        id: articleId,
+        title: existingArticle.title,
+        status: "generating",
+        updatedAt: new Date(),
+      },
       message: "Article generation started immediately",
     } as RunNowResponse);
   } catch (error) {

@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { StatusIndicator, formatRelativeTime } from "./status-indicator";
 import { Play, Calendar, Edit3, Trash2, Check, X, Clock } from "lucide-react";
@@ -154,6 +153,16 @@ export function ArticleCard({
     }
   };
 
+  const handleRemoveSchedule = async () => {
+    if (!onUpdate) return;
+    if (window.confirm("Are you sure you want to remove the schedule and move this article back to ideas?")) {
+      await onUpdate(article.id, {
+        status: "idea",
+        generationScheduledAt: undefined,
+      });
+    }
+  };
+
   // Determine what actions are available based on mode and status
   const canEdit =
     mode === "planning" &&
@@ -172,17 +181,31 @@ export function ArticleCard({
     mode === "generations" &&
     article.status === "to_generate" &&
     article.generationScheduledAt;
+  const canRemoveSchedule =
+    mode === "generations" &&
+    article.status === "to_generate" &&
+    article.generationScheduledAt;
   const canPublish =
     mode === "publishing" && article.status === "wait_for_publish";
   const isGenerating = article.status === "generating";
   const isPublished = article.status === "published";
+
+  // Debug logging for generating articles
+  if (isGenerating) {
+    console.log("ArticleCard: Generating article detected", {
+      id: article.id,
+      title: article.title,
+      status: article.status,
+      isGenerating,
+    });
+  }
 
   return (
     <Card
       className={cn(
         "cursor-pointer transition-all duration-200 relative group",
         {
-          "border-primary/20 bg-primary/5": isGenerating,
+          "border-blue-200 bg-blue-50": isGenerating,
         },
         className,
       )}
@@ -276,7 +299,7 @@ export function ArticleCard({
       </CardHeader>
 
       {/* Hover action buttons - positioned absolutely in top-right corner */}
-      {!isEditing && (canEdit || canDelete) && (
+      {!isEditing && (canEdit || canDelete || canRemoveSchedule) && (
         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1 z-10">
           {canEdit && (
             <Button
@@ -302,6 +325,19 @@ export function ArticleCard({
               }}
             >
               <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+          {canRemoveSchedule && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleRemoveSchedule();
+              }}
+            >
+              <X className="h-4 w-4" />
             </Button>
           )}
         </div>
@@ -342,7 +378,7 @@ export function ArticleCard({
         )}
 
         {/* Show scheduled times */}
-        {article.generationScheduledAt && (
+        {article.generationScheduledAt && !isGenerating && (
           <div className="rounded-lg border p-3 text-sm">
             <div className="flex items-center gap-2 text-foreground">
               <Calendar className="h-4 w-4" />
@@ -508,18 +544,31 @@ export function ArticleCard({
                   </div>
                 </div>
               ) : (
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsScheduling(true);
-                  }}
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Reschedule Generation
-                </Button>
+                <div className="flex w-full gap-2">
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleGenerate();
+                    }}
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    Generate Now
+                  </Button>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsScheduling(true);
+                    }}
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Reschedule Generation
+                  </Button>
+                </div>
               )}
             </>
           )}

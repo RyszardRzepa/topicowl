@@ -1,3 +1,7 @@
+---
+applyTo: "**"             
+description: Global repo standards
+---
 # Tech Stack
 
 ## Framework & Runtime

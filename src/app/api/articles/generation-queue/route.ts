@@ -364,21 +364,18 @@ export async function DELETE(req: NextRequest) {
       .select({
         id: articles.id,
         title: articles.title,
-        scheduling_type: articles.scheduling_type,
-        next_schedule_at: articles.next_schedule_at,
+        status: articles.status,
       })
       .from(articles)
       .where(eq(articles.id, existingQueueItem.articleId))
       .limit(1);
 
     if (article) {
-      // If it has a next schedule, put it back to scheduled, otherwise to idea
-      const newStatus = article.next_schedule_at ? 'scheduled' : 'idea';
-      
+      // Put article back to idea status since generation was cancelled
       await db
         .update(articles)
         .set({
-          status: newStatus,
+          status: "idea",
           updatedAt: new Date(),
         })
         .where(eq(articles.id, article.id));

@@ -29,6 +29,20 @@ export function ArticleGenerations({
 }: ArticleGenerationsProps) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Wrapper function to convert onUpdateArticleStatus to the format expected by ArticleCard
+  const handleUpdateArticle = async (articleId: string, updates: Partial<Article>) => {
+    if (onUpdateArticleStatus) {
+      onUpdateArticleStatus(articleId, updates);
+    }
+  };
+
+  // Wrapper function to convert onRetryGeneration to the format expected by ArticleCard  
+  const handleGenerateArticle = async (articleId: string) => {
+    if (_onRetryGeneration) {
+      _onRetryGeneration(articleId);
+    }
+  };
+
   // Auto-refresh generation status every 5 seconds for generating articles
   useEffect(() => {
     const generatingArticles = articles.filter(
@@ -205,6 +219,8 @@ export function ArticleGenerations({
                   key={`scheduled-${article.id}`}
                   article={article}
                   mode="generations"
+                  onUpdate={handleUpdateArticle}
+                  onGenerate={handleGenerateArticle}
                   onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
                 />

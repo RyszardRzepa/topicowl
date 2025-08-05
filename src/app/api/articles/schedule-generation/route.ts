@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, articleGeneration, users, generationQueue } from "@/server/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
 
@@ -122,17 +122,47 @@ export async function POST(req: NextRequest) {
       .where(eq(articles.id, articleId))
       .returning();
 
-    // Insert into articleGeneration table
-    const [generationRecord] = await db
-      .insert(articleGeneration)
-      .values({
-        articleId: articleId,
-        userId: userRecord.id,
-        status: "pending",
-        progress: 0,
-        scheduledAt: scheduledDate,
-      })
-      .returning();
+    // Check for existing generation record and update it, or create new one
+    const [existingRecord] = await db
+      .select()
+      .from(articleGeneration)
+      .where(eq(articleGeneration.articleId, articleId))
+      .orderBy(desc(articleGeneration.createdAt))
+      .limit(1);
+
+    // Clean up orphaned queue records for this article when rescheduling
+    await db
+      .delete(generationQueue)
+      .where(eq(generationQueue.article_id, articleId));
+
+    let generationRecord;
+    if (existingRecord) {
+      // Update existing record
+      [generationRecord] = await db
+        .update(articleGeneration)
+        .set({
+          status: "pending",
+          progress: 0,
+          scheduledAt: scheduledDate,
+          error: null,
+          errorDetails: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(articleGeneration.id, existingRecord.id))
+        .returning();
+    } else {
+      // Create new record only if none exists
+      [generationRecord] = await db
+        .insert(articleGeneration)
+        .values({
+          articleId: articleId,
+          userId: userRecord.id,
+          status: "pending",
+          progress: 0,
+          scheduledAt: scheduledDate,
+        })
+        .returning();
+    }
 
     return NextResponse.json({
       success: true,

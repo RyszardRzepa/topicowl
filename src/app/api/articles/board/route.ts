@@ -14,7 +14,8 @@ export type DatabaseArticle = {
   keywords: unknown;
   targetAudience: string | null;
   status: ArticleStatus;
-  scheduledAt: Date | null;
+  scheduledAt?: Date | null; // For backward compatibility
+  publishScheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
   kanbanPosition: number;
@@ -86,7 +87,7 @@ export async function GET(_req: NextRequest) {
         keywords: articles.keywords,
         targetAudience: articles.targetAudience,
         status: articles.status,
-        scheduledAt: articles.scheduledAt,
+        publishScheduledAt: articles.publishScheduledAt,
         publishedAt: articles.publishedAt,
         estimatedReadTime: articles.estimatedReadTime,
         kanbanPosition: articles.kanbanPosition,
@@ -126,6 +127,7 @@ export async function GET(_req: NextRequest) {
       factCheckReport: article.factCheckReport ?? {},
       internalLinks: article.internalLinks ?? [],
       sources: article.sources ?? [],
+      scheduledAt: article.publishScheduledAt, // Backward compatibility mapping
     }));
 
     // Define kanban columns

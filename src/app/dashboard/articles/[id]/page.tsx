@@ -45,7 +45,8 @@ export default async function ArticlePreviewPage({
         : [],
       targetAudience: articleData.targetAudience,
       status: articleData.status,
-      scheduledAt: articleData.scheduledAt,
+      scheduledAt: articleData.publishScheduledAt, // Map for compatibility
+      publishScheduledAt: articleData.publishScheduledAt,
       publishedAt: articleData.publishedAt,
 
       estimatedReadTime: articleData.estimatedReadTime,

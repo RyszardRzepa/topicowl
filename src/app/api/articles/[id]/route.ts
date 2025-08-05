@@ -32,7 +32,8 @@ type ArticleData = {
   keywords: unknown;
   targetAudience: string | null;
   status: ArticleStatus;
-  scheduledAt: Date | null;
+  scheduledAt?: Date | null; // For backward compatibility, maps to publishScheduledAt
+  publishScheduledAt: Date | null;
   publishedAt: Date | null;
 
   estimatedReadTime: number | null;
@@ -397,14 +398,14 @@ export async function PUT(
     const updateData = {
       ...validatedData,
       // Convert string dates to Date objects for database
-      scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
+      publishScheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
       publishedAt: validatedData.publishedAt ? new Date(validatedData.publishedAt) : undefined,
       updatedAt: new Date(),
     };
 
     // Handle field mapping for frontend compatibility
     if (validatedData.publishScheduledAt !== undefined) {
-      updateData.scheduledAt = validatedData.publishScheduledAt ? new Date(validatedData.publishScheduledAt) : undefined;
+      updateData.publishScheduledAt = validatedData.publishScheduledAt ? new Date(validatedData.publishScheduledAt) : undefined;
     }
 
     const [updatedArticle] = await db

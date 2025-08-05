@@ -1,3 +1,7 @@
+---
+applyTo: "**"             
+description: Global repo standards
+---
 # Product Overview
 
 **Contentbot** is an AI-powered content generation platform that helps businesses create, manage, and publish SEO-optimized articles through automated workflows.

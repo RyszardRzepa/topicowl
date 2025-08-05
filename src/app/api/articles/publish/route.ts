@@ -15,7 +15,7 @@ type ArticleData = {
   keywords: unknown;
   targetAudience: string | null;
   status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published" | "deleted";
-  scheduledAt: Date | null;
+  publishScheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
   kanbanPosition: number;
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
         .where(
           and(
             eq(articles.status, 'wait_for_publish'),
-            lte(articles.scheduledAt, now)
+            lte(articles.publishScheduledAt, now)
           )
         );
     }
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
           .set({
             status: 'published',
             content: article.draft, // Freeze draft as published content
-            scheduledAt: null, // Clear scheduled time when publishing
+            publishScheduledAt: null, // Clear scheduled time when publishing
             updatedAt: new Date(),
             // Set publishedAt if not already set
             ...((!article.publishedAt) && { publishedAt: new Date() })

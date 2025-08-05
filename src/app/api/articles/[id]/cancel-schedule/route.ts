@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users } from "@/server/db/schema";
+import { articles, articleGeneration, users, generationQueue } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 
@@ -105,6 +105,11 @@ export async function POST(
           eq(articleGeneration.userId, userRecord.id)
         )
       );
+
+    // Clean up orphaned queue records for this article
+    await db
+      .delete(generationQueue)
+      .where(eq(generationQueue.article_id, articleId));
 
     return NextResponse.json({
       success: true,

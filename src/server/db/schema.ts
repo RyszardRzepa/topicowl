@@ -66,17 +66,10 @@ export const articles = contentbotSchema.table("articles", {
   keywords: jsonb("keywords").default([]).notNull(),
   targetAudience: varchar("target_audience", { length: 255 }),
   status: articleStatusEnum("status").default("idea").notNull(),
-  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  
+  // Publishing scheduling (separate from generation scheduling)
+  publishScheduledAt: timestamp("publish_scheduled_at", { withTimezone: true }),
   publishedAt: timestamp("published_at", { withTimezone: true }),
-
-  // Scheduling fields for automated generation
-  scheduling_type: varchar("scheduling_type", { length: 20 }).default("manual"), // 'manual', 'automatic'
-  scheduling_frequency: varchar("scheduling_frequency", { length: 20 }), // 'once', 'daily', 'weekly', 'monthly'
-  scheduling_frequency_config: jsonb("scheduling_frequency_config"), // Store frequency details
-  next_schedule_at: timestamp("next_schedule_at", { withTimezone: true }), // Next time to add to queue
-  last_scheduled_at: timestamp("last_scheduled_at", { withTimezone: true }), // Last time added to queue
-  schedule_count: integer("schedule_count").default(0), // How many times scheduled
-  is_recurring_schedule: boolean("is_recurring_schedule").default(false),
 
   estimatedReadTime: integer("estimated_read_time"),
   kanbanPosition: integer("kanban_position").default(0).notNull(),

@@ -197,28 +197,28 @@ export async function POST() {
     let addedToQueue = 0;
     let processedFromQueue = 0;
 
-    // Phase 1: Add scheduled articles to queue
+    // Phase 1: Process articles with scheduled generation times
     console.log("Phase 1: Processing scheduled articles...");
 
     const now = new Date();
+    
+    // Find articles that are scheduled for generation via articleGeneration table
     const scheduledArticles = await db
       .select({
         id: articles.id,
         user_id: articles.user_id,
         title: articles.title,
-        scheduling_type: articles.scheduling_type,
-        scheduling_frequency: articles.scheduling_frequency,
-        scheduling_frequency_config: articles.scheduling_frequency_config,
-        next_schedule_at: articles.next_schedule_at,
-        is_recurring_schedule: articles.is_recurring_schedule,
-        schedule_count: articles.schedule_count,
+        status: articles.status,
+        generationId: articleGeneration.id,
+        scheduledAt: articleGeneration.scheduledAt,
       })
       .from(articles)
+      .innerJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
       .where(
         and(
-          eq(articles.status, "scheduled"),
-          eq(articles.scheduling_type, "automatic"),
-          lte(articles.next_schedule_at, now),
+          eq(articles.status, "to_generate"),
+          eq(articleGeneration.status, "pending"),
+          lte(articleGeneration.scheduledAt, now),
         ),
       );
 
@@ -235,9 +235,9 @@ export async function POST() {
         await db.insert(generationQueue).values({
           article_id: article.id,
           user_id: article.user_id!,
-          scheduled_for_date: article.next_schedule_at,
+          scheduled_for_date: article.scheduledAt,
           queue_position: queuePosition,
-          scheduling_type: "automatic",
+          scheduling_type: "manual", // Since automatic scheduling was removed
           status: "queued",
         });
 
@@ -246,34 +246,18 @@ export async function POST() {
           .update(articles)
           .set({
             status: "queued",
-            last_scheduled_at: new Date(),
-            schedule_count: (article.schedule_count ?? 0) + 1,
             updatedAt: new Date(),
           })
           .where(eq(articles.id, article.id));
 
-        // Calculate next schedule time for recurring schedules
-        if (article.is_recurring_schedule && article.scheduling_frequency) {
-          const nextScheduleTime = calculateNextScheduleTime(
-            article.next_schedule_at!,
-            article.scheduling_frequency,
-            article.scheduling_frequency_config as
-              | Record<string, unknown>
-              | undefined,
-          );
-
-          if (nextScheduleTime) {
-            // Update next schedule time and keep status as scheduled for next occurrence
-            await db
-              .update(articles)
-              .set({
-                status: "scheduled", // Keep it scheduled for the next occurrence
-                next_schedule_at: nextScheduleTime,
-                updatedAt: new Date(),
-              })
-              .where(eq(articles.id, article.id));
-          }
-        }
+        // Update generation record to indicate it's been queued
+        await db
+          .update(articleGeneration)
+          .set({
+            status: "queued",
+            updatedAt: new Date(),
+          })
+          .where(eq(articleGeneration.id, article.generationId));
 
         addedToQueue++;
         console.log(`Added article "${article.title}" to generation queue`);

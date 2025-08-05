@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         user_id: articles.user_id,
         title: articles.title,
         status: articles.status,
-        scheduledAt: articles.scheduledAt,
+        scheduledAt: articles.publishScheduledAt,
         // Include generation status to check if article is ready
         generationStatus: articleGeneration.status,
         generationProgress: articleGeneration.progress,
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     const [updatedArticle] = await db
       .update(articles)
       .set({
-        scheduledAt: publishDate,
+        publishScheduledAt: publishDate,
         status: "wait_for_publish", // Ensure status is correct
         updatedAt: new Date(),
       })
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
         id: updatedArticle.id,
         title: updatedArticle.title,
         status: updatedArticle.status,
-        publishScheduledAt: updatedArticle.scheduledAt?.toISOString() ?? "",
+        publishScheduledAt: updatedArticle.publishScheduledAt?.toISOString() ?? "",
       },
       message: "Article scheduled for publishing successfully",
     } as SchedulePublishingResponse);

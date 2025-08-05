@@ -8,7 +8,7 @@ interface ArticleMetadataData {
   id: number;
   title: string;
   status: ArticleStatus,
-  scheduledAt: Date | null;
+  scheduledAt?: Date | null;
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
