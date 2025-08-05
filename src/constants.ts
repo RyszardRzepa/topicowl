@@ -282,6 +282,10 @@ Provide your analysis and article ideas in the following JSON structure:
       You are an expert content researcher and SEO specialist. You MUST follow each step sequentially and provide detailed outputs for verification.
       </role_definition>
 
+      <critical_link_validation_requirement>
+      ⚠️ EXTREMELY IMPORTANT: All links and URLs you provide MUST be valid and lead to existing pages. Before including any link in your research, you must verify that the page exists and is accessible. Do not include broken links, non-existent URLs, or placeholder links. This is a critical requirement that cannot be overlooked.
+      </critical_link_validation_requirement>
+
       <project_parameters>
       <article_title>${title}</article_title>
       <target_keywords>${keywords.join(", ")}</target_keywords>
@@ -552,6 +556,7 @@ Provide your analysis and article ideas in the following JSON structure:
       Formatted citations correctly
       Organized information hierarchically
       Added entity relationships and context
+      VERIFIED ALL PROVIDED LINKS ARE VALID AND PAGES EXIST - It is CRITICAL that all URLs and links provided in the research are functional and lead to existing pages. Do not include broken links or non-existent URLs.
       </checklist_items>
       </completion_checklist>
 
@@ -576,16 +581,28 @@ Provide your analysis and article ideas in the following JSON structure:
   writing: (
     data: {
       title: string;
+      audience?: string;
+      searchIntent?: "informational" | "commercial" | "transactional" | "navigational" | "investigational";
       outlineData: {
         title: string;
         keywords: string[];
+        researchAnalysisSummary: {
+          totalSourcesAnalyzed: number;
+          keyThemesIdentified: number;
+        };
         keyPoints: Array<{
           heading: string;
           summary: string;
           relevantLinks: string[];
+          primaryKeywords: string[];
           videoContext?: string;
         }>;
         totalWords: number;
+        videoIntegration?: {
+          optimalSection: string;
+          integrationRationale: string;
+          matchedVideo: string;
+        };
         videoMatchingSections?: string[];
       };
       coverImage?: string;
@@ -593,6 +610,7 @@ Provide your analysis and article ideas in the following JSON structure:
         title: string;
         url: string;
       }>;
+      researchData?: string; // Add research data for context
     },
     settings?: {
       toneOfVoice?: string;
@@ -603,129 +621,157 @@ Provide your analysis and article ideas in the following JSON structure:
   ) => {
     const currentDate = new Date().toISOString().split("T")[0];
 
-    const toneOfVoice = settings?.toneOfVoice;
-    const articleStructure = settings?.articleStructure;
-    const maxWords = settings?.maxWords;
-
     return `
 <role>
-You are senior content writer and editor. Write an original article titled "${data.title}".
+You are a senior content strategist, editor, and SEO specialist. Write an original, people-first article titled "${data.title}" that is easy to scan, genuinely helpful, and aligned with HubSpot-style best practices (skimmable sections, clear definitions, examples/templates, internal linking, and practical takeaways).
 </role>
 
-<guidelines>
-- Follow this structure exactly: ${articleStructure}
-- Tone of voice: ${toneOfVoice}
-- Length: around ${maxWords} words
-- Date: ${currentDate}
-</guidelines>
+<context>
+Audience: ${data.audience ?? "General business/marketing readers"}
+Primary intent: ${data.searchIntent ?? "informational"}
+Date: ${currentDate}
+</context>
+
+<style_guide>
+- Tone: ${settings?.toneOfVoice ?? "expert, clear, no fluff, direct, friendly"}
+- Conform to the exact structure: ${settings?.articleStructure ?? "H1, short Intro, TOC, H2 sections with H3s as needed, Summary/Conclusion, FAQ"}
+- Short paragraphs (≤3 lines), meaningful subheads, bullets, numbered steps, and callouts.
+- Active voice, concrete examples, specific, verifiable claims.
+- Accessibility: descriptive link text, informative alt text for images, logical heading hierarchy (one H1 only).
+</style_guide>
+
+<eeat_and_helpful_content>
+- Demonstrate E‑E‑A‑T: reputable sources, brief author expertise, date, and last updated.
+- Solve reader's task quickly; front-load value; include TL;DR box after intro.
+- Add reusable assets: checklists, templates, tables, formulas, snippets.
+</eeat_and_helpful_content>
 
 <seo_best_practices>
-- Primary keyword from the title appears in the H1 and first 100 words
-- Include 3-5 semantically related keywords in the body
-- Meta title ≤ 60 characters and metaDescription 150–160 characters with a call to action
-- Slug must be kebab-case without stop words
-- Generate FAQPage schema with 2-4 Q&A
+- Primary keyword in H1, first sentence, and within first 100 words.
+- Keyword density for primary keyword: 2-3 keywords.
+- 3–8 semantically related keywords naturally from outline.
+- metaTitle ≤60 chars, metaDescription 150–160 chars with CTA.
+- Slug kebab-case without stop words.
+- FAQPage schema: 2–4 genuine intent Q&A.
+- Article schema: author, datePublished=${currentDate}, dateModified=${currentDate}, headline, wordCount, image, mainEntityOfPage.
+- OG/Twitter Card values: title, description, image.
+- Featured snippet: concise definition/answer paragraph (<50 words) after H1 or first H2.
+- Internal links: ${relatedPosts?.length ?? 0} posts, descriptive anchors; 2–4 external citations (source name, year).
 </seo_best_practices>
 
-<related_posts>
-${relatedPosts && relatedPosts.length > 0 ? relatedPosts.join(", ") : ""}
-</related_posts>
+<outline_contract>
+RESEARCH ANALYSIS CONTEXT:
+- Sources Analyzed: ${data.outlineData.researchAnalysisSummary?.totalSourcesAnalyzed ?? 'Not available'}
+- Key Themes Identified: ${data.outlineData.researchAnalysisSummary?.keyThemesIdentified ?? 'Not available'}
 
-${
-  data.coverImage
-    ? `<cover_image>
-A cover image has been selected for this article: ${data.coverImage}
-This image should complement the article content and be referenced appropriately in the imageCaption field.
-</cover_image>`
-    : ""
-}
-
-<article_outline>
-Use this structured outline to write the article. Each key point should become a major section:
-
+ARTICLE STRUCTURE:
 Title: ${data.outlineData.title}
-Keywords: ${data.outlineData.keywords?.join(", ") ?? ""}
+Target Keywords: ${data.outlineData.keywords?.join(", ") ?? 'None specified'}
 
-Key Points to Cover:
-${
-  data.outlineData.keyPoints
-    ?.map(
-      (point, index: number) => `
-${index + 1}. ${point.heading}
+KEY POINTS (Each becomes an H2 section):
+${data.outlineData.keyPoints?.map((point,i)=>`${i+1}. ${point.heading}
    Summary: ${point.summary}
-   ${point.relevantLinks?.length > 0 ? `Relevant Links: ${point.relevantLinks.join(", ")}` : ""}
-`,
-    )
-    .join("") ?? ""
-}
+   Section Keywords: ${point.primaryKeywords?.join(", ") ?? 'None specified'}
+   VERIFIED Links: ${point.relevantLinks?.length ? point.relevantLinks.join(", ") : 'No links provided - DO NOT invent links'}${point.videoContext ? `\n   Video Context: ${point.videoContext}` : ''}`).join("\n\n")}
 
-Total Outline Words: ${data.outlineData.totalWords ?? 0}
-</article_outline>
-
-<writing_instructions>
-- Use the outline as your content structure - each key point should be a major section
-- Expand each key point summary into detailed, valuable content
-- Incorporate the relevant links naturally within the content
-- Maintain the logical flow established in the outline
-- Ensure each section provides actionable insights and practical information
-- Use the outline's keywords strategically throughout the article
-</writing_instructions>
-
-${data.videos && data.videos.length > 0 ? `
-<video_integration_mandatory>
-OPTIONAL ENHANCEMENT: If available videos are highly relevant, include ONE embedded YouTube video in the most contextually appropriate section.
-
-Video Integration Instructions:
-1. Analyze available videos for topic relevance to each section
-2. Select the SINGLE BEST video that matches article content
-3. Choose the MOST APPROPRIATE section for video placement
-4. Embed video using this exact format:
-
-## [Section Heading]
-
-[Lead-in content explaining the topic...]
-
-### Video: [Video Title]
-
-[1-2 sentences explaining why this video is valuable for this section]
-
-<div class="video-container">
-<iframe width="560" height="315" src="youtube video url" 
-        title="[VIDEO_TITLE]" frameborder="0" 
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-        allowfullscreen></iframe>
-</div>
-
-[Content that references or builds upon the video content...]
-
-Video Selection Strategy:
-- Select ONLY the most relevant video from available options
-- Choose the section where video provides maximum educational impact
-- Ensure video complements rather than duplicates written content
-- Only include video if it genuinely enhances the article
-
-Quality Threshold:
-- Only embed video if it's highly relevant to the content
-- Video should demonstrate concepts discussed in the text
-- Video should be from a credible source
-- Video should add clear value to the reader's understanding
-
-Available Videos:
-${data.videos.map(v => `- ${v.title}: ${v.url}`).join('\n')}
-
-Section Context Hints:
-${data.outlineData.keyPoints?.map(point => 
-  point.videoContext ? `- "${point.heading}": Look for videos about ${point.videoContext}` : ''
-).filter(Boolean).join('\n')}
-</video_integration_mandatory>
+${data.outlineData.videoIntegration ? `
+VIDEO INTEGRATION PLAN:
+- Optimal Section: ${data.outlineData.videoIntegration.optimalSection}
+- Integration Rationale: ${data.outlineData.videoIntegration.integrationRationale}
+- Matched Video: ${data.outlineData.videoIntegration.matchedVideo}
 ` : ''}
 
+CRITICAL CONTENT CONSTRAINTS:
+- Total Outline Words: ${data.outlineData.totalWords ?? 'Not specified'}
+- ONLY use links provided in relevantLinks arrays above
+- NEVER invent URLs, statistics, or specific data not provided
+- If specific data is missing, use general principles instead
+- All factual claims must be supportable by provided research context
+
+${data.researchData ? `
+RESEARCH DATA SUMMARY:
+The following research data was analyzed to create this outline. Use this context to support your writing but do NOT extract specific URLs, prices, addresses, or contact information unless explicitly provided in the key points above:
+
+${data.researchData.substring(0, 2000)}...
+` : 'No additional research context provided.'}
+</outline_contract>
+
+<content_requirements>
+- H1 matches article title.
+- Intro: 3–5 sentences clearly stating the problem, outcome, audience.
+- TL;DR: 3–5 bullet takeaways.
+- TOC: auto-generated from H2s.
+- H2 sections:
+  * "Why this matters" lead, summary expansion, actionable guidance.
+  * Cite claims with external sources (name, year).
+  * End H2 with one-sentence "Bottom line".
+- One real-world example/template/table.
+- Conclusion: recap and CTA.
+- FAQ: 2–4 high-intent Q&A.
+</content_requirements>
+
+<on_page_formatting>
+- Semantic HTML: headings, lists, tables, blockquotes, code.
+- Sentences ≤24 words average; avoid undefined jargon.
+- Complex comparisons as tables.
+- Images with purpose-descriptive alt text.
+</on_page_formatting>
+
+${data.coverImage ? `
+<cover_image>
+A cover image has been selected for this article: ${data.coverImage}
+This image should complement the article content and be referenced appropriately in the imageCaption field.
+</cover_image>
+` : ""}
+
+${data.videos?.length ? `
+<video_integration>
+OPTIONAL: Embed one highly relevant YouTube video.
+Format provided, explain relevance briefly.
+Available videos: ${data.videos.map(v=>`${v.title}: ${v.url}`).join("; ")}
+Section hints: ${data.outlineData.keyPoints.map(p=>p.videoContext?`${p.heading}: ${p.videoContext}`:"").filter(Boolean).join("; ")}
+</video_integration>
+` : ''}
+
+<quality_gates>
+Check and fix:
+1) Structure: One H1, correct H2–H4 hierarchy.
+2) SEO: Primary keyword early, correct meta lengths, 1–2% keyword density.
+3) Link Integrity: ONLY use URLs provided in outline's relevantLinks arrays.
+4) Citations: ≥2 credible external links from provided sources.
+5) Originality: Unique examples, no plagiarism.
+6) Factuality: No hallucinations, state unknown data clearly.
+7) Internal links: Include relevant posts.
+8) Word count ±10%.
+9) Data Accuracy: No invented statistics, prices, addresses, or contact details.
+10) Source Verification: All claims must be supportable by provided research context.
+</quality_gates>
+
+<anti_hallucination_rules>
+STRICTLY FORBIDDEN:
+❌ Inventing specific URLs not provided in relevantLinks
+❌ Creating fake statistics or data points
+❌ Fabricating prices, costs, or financial information
+❌ Making up company names, addresses, or contact information
+❌ Citing sources not provided in the research context
+❌ Claiming specific features or capabilities without verification
+❌ Using placeholder text like "contact them at..." without actual contact info
+
+REQUIRED APPROACH:
+✅ Use only verified information from outline and research context
+✅ Speak in general terms when specific data is unavailable
+✅ Focus on principles and best practices rather than specific examples when data is limited
+✅ Use conditional language ("typically," "often," "generally") for unverified claims
+✅ Direct readers to official sources using provided links
+✅ Acknowledge limitations: "specific pricing varies" instead of inventing numbers
+</anti_hallucination_rules>
+
 <output_format>
-Return EXACT JSON complying with blogPostSchema.
+JSON matching blogPostSchema exactly.
 </output_format>
 
 <final_reminder>
-Ensure the article follows the structure and SEO rules above before providing the JSON only.
+Return ONLY JSON.
 </final_reminder>
     `;
   },
@@ -1224,6 +1270,10 @@ Focus solely on factual corrections. Do not rewrite, restructure, or add new inf
 You are an expert content strategist and outline creator with advanced research analysis capabilities. Your task is to systematically process comprehensive research data into a focused, actionable article outline. You MUST follow each phase sequentially and provide detailed verification for all extracted information.
 </role_definition>
 
+<critical_link_validation_requirement>
+⚠️ EXTREMELY IMPORTANT: All links and URLs you provide MUST be valid and lead to existing pages. Before including any link in your outline, you must verify that the page exists and is accessible. Do not include broken links, non-existent URLs, or placeholder links. This is a critical requirement that cannot be overlooked.
+</critical_link_validation_requirement>
+
 <analysis_target>
 <article_parameters>
 <title>${title}</title>
@@ -1568,6 +1618,7 @@ For each key point, verify:
 ✅ Summary is exactly 150-350 characters (verified by manual count)
 ✅ Character count field matches actual summary length
 ✅ Links are verified and directly relevant
+✅ ALL PROVIDED LINKS ARE VALID AND PAGES EXIST - It is CRITICAL that all URLs and links provided are functional and lead to existing pages. Do not include broken links or non-existent URLs.
 ✅ Selection score documented and justified
 ✅ Primary keywords identified and integrated
 ✅ Content flows logically from point to point
@@ -1629,6 +1680,7 @@ Target keywords must be:
 ✅ Every summary manually verified for 150-350 character count
 ✅ Character count fields accurately reflect actual summary lengths
 ✅ Links verified for relevance, accuracy, and accessibility
+✅ ALL LINKS VALIDATED TO ENSURE PAGES EXIST AND ARE ACCESSIBLE - Critical verification that all provided URLs are functional
 ✅ Content quality standards met for all key points
 ${videos && videos.length > 0 ? '✅ Video integration analysis completed with systematic scoring\n✅ Optimal video integration identified and justified\n✅ Video content alignment verified with selected key point' : ''}
 </outline_optimization_verification>

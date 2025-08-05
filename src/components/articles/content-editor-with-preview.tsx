@@ -19,89 +19,13 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { LinkNode, AutoLinkNode } from "@lexical/link";
 import { CodeHighlightNode, CodeNode } from "@lexical/code";
-import { FORMAT_TEXT_COMMAND } from "lexical";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Save,
-  Bold,
-  Italic,
-  List,
-  Link2,
-  Quote,
-  Heading1,
-  Heading2,
+  Copy,
 } from "lucide-react";
 import type { EditorState } from "lexical";
-
-// Toolbar component for formatting options
-function ToolbarPlugin() {
-  const [editor] = useLexicalComposerContext();
-
-  const formatText = (format: "bold" | "italic" | "underline") => {
-    editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
-  };
-
-  return (
-    <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 p-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => formatText("bold")}
-        className="h-8 w-8 p-0"
-        title="Bold"
-      >
-        <Bold className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => formatText("italic")}
-        className="h-8 w-8 p-0"
-        title="Italic"
-      >
-        <Italic className="h-4 w-4" />
-      </Button>
-      <div className="mx-2 h-6 w-px bg-gray-300" />
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0"
-        title="Heading 1"
-      >
-        <Heading1 className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0"
-        title="Heading 2"
-      >
-        <Heading2 className="h-4 w-4" />
-      </Button>
-      <div className="mx-2 h-6 w-px bg-gray-300" />
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0"
-        title="Bullet List"
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Quote">
-        <Quote className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0"
-        title="Insert Link"
-      >
-        <Link2 className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
 
 // Plugin to auto-focus the editor when it loads (disabled to prevent auto-scroll)
 function AutoFocusPlugin({ disabled = false }: { disabled?: boolean }) {
@@ -220,12 +144,20 @@ export function ContentEditorWithPreview({
     }
   };
 
+  const handleCopyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(currentContent);
+      // You might want to add a toast notification here
+    } catch (err) {
+      console.error("Failed to copy markdown:", err);
+    }
+  };
+
   return (
     <Card>
       <CardContent className="p-0">
         <div className="lexical-editor">
           <LexicalComposer initialConfig={initialConfig}>
-            <ToolbarPlugin />
             <div className="relative">
               <RichTextPlugin
                 contentEditable={
@@ -262,6 +194,14 @@ export function ContentEditorWithPreview({
                 words
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleCopyMarkdown}
+                  className="flex items-center gap-2"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy as markdown
+                </Button>
                 <Button
                   onClick={handleSave}
                   disabled={isLoading}

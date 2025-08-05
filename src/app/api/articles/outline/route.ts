@@ -9,6 +9,10 @@ import { z } from "zod";
 const outlineSchema = z.object({
   title: z.string().describe("The article title"),
   keywords: z.array(z.string()).describe("Array of target keywords"),
+  researchAnalysisSummary: z.object({
+    totalSourcesAnalyzed: z.number().describe("Number of sources analyzed from research data"),
+    keyThemesIdentified: z.number().describe("Number of key themes identified"),
+  }).describe("Summary of research analysis process"),
   keyPoints: z
     .array(
       z.object({
@@ -25,6 +29,9 @@ const outlineSchema = z.object({
         relevantLinks: z
           .array(z.string())
           .describe("Array of relevant URLs from the research data"),
+        primaryKeywords: z
+          .array(z.string())
+          .describe("Primary keywords naturally integrated into this key point"),
         videoContext: z
           .string()
           .optional()
@@ -37,6 +44,11 @@ const outlineSchema = z.object({
     .number()
     .max(300)
     .describe("Total word count of the outline (must be under 300)"),
+  videoIntegration: z.object({
+    optimalSection: z.string().describe("Heading of section selected for video integration"),
+    integrationRationale: z.string().describe("Why this section was selected for video demonstration"),
+    matchedVideo: z.string().describe("Title and URL of best matching video"),
+  }).optional().describe("Video integration details when videos are available"),
   videoMatchingSections: z
     .array(z.string())
     .max(1)
@@ -48,6 +60,7 @@ export interface OutlineRequest {
   title: string;
   keywords: string[];
   researchData: string;
+  generationId?: number; // Optional for backward compatibility
   videos?: Array<{
     title: string;
     url: string;
@@ -130,6 +143,9 @@ export async function POST(request: Request) {
               relevantLinks: z
                 .array(z.string())
                 .describe("Array of relevant URLs from the research data"),
+              primaryKeywords: z
+                .array(z.string())
+                .describe("Primary keywords naturally integrated into this key point"),
               videoContext: z
                 .string()
                 .optional()

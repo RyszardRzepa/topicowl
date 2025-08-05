@@ -20,7 +20,6 @@ export type DatabaseArticle = {
   estimatedReadTime: number | null;
   kanbanPosition: number;
   metaDescription: string | null;
-  outline: unknown;
   draft: string | null;
   content: string | null;
   factCheckReport: unknown;
@@ -92,7 +91,6 @@ export async function GET(_req: NextRequest) {
         estimatedReadTime: articles.estimatedReadTime,
         kanbanPosition: articles.kanbanPosition,
         metaDescription: articles.metaDescription,
-        outline: articles.outline,
         draft: articles.draft,
         content: articles.content,
         factCheckReport: articles.factCheckReport,
@@ -123,7 +121,6 @@ export async function GET(_req: NextRequest) {
     const sanitizedArticles = allArticles.map(article => ({
       ...article,
       keywords: article.keywords ?? [],
-      outline: article.outline ?? null,
       factCheckReport: article.factCheckReport ?? {},
       internalLinks: article.internalLinks ?? [],
       sources: article.sources ?? [],

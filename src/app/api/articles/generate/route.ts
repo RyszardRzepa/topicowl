@@ -245,7 +245,10 @@ async function createOutline(
   }
 
   const outlineData = outlineResult.data!;
-  await updateGenerationProgress(generationId, "outlining", 40);
+  await db
+    .update(articleGeneration)
+    .set({ outline: outlineData, status: "outlining", progress: 40 })
+    .where(eq(articleGeneration.id, generationId));
 
   return outlineData;
 }

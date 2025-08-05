@@ -101,8 +101,9 @@ export async function fetcher<T = unknown>(
       console.log(`API call headers timeout: ${method} ${url}`, {
         timeout: `${timeout}ms`,
         responseTime: `${responseTime}ms`,
+        originalError: error.message,
       });
-      throw new Error(`Request headers timeout after ${responseTime}ms`);
+      throw new Error(`Request failed due to headers timeout (elapsed: ${responseTime}ms, limit: ${timeout}ms)`);
     }
 
     console.log(`API call error: ${method} ${url}`, {
