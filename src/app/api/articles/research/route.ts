@@ -8,6 +8,7 @@ import { MODELS } from "@/constants";
 export interface ResearchRequest {
   title: string;
   keywords: string[];
+  notes?: string;
 }
 
 export interface ResearchResponse {
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
           mode: "MODE_UNSPECIFIED", // Always trigger grounding
         },
       }),
-      prompt: prompts.research(body.title, body.keywords),
+      prompt: prompts.research(body.title, body.keywords, body.notes),
     });
 
     // Extract YouTube videos from sources

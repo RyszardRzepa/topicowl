@@ -176,6 +176,13 @@
       "when": 1754382562505,
       "tag": "0024_great_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1754392036757,
+      "tag": "0025_mute_caretaker",
+      "breakpoints": true
     }
   ]
 }

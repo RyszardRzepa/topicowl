@@ -20,6 +20,7 @@ interface WriteRequest {
     title: string;
     url: string;
   }>;
+  notes?: string; // User-provided context and requirements
 }
 
 export interface WriteResponse {
@@ -108,7 +109,8 @@ export async function POST(request: Request) {
         title: body.title,
         outlineData: body.outlineData,
         coverImage: body.coverImage,
-        videos: body.videos ?? []
+        videos: body.videos ?? [],
+        notes: body.notes
       }, settingsData, []),
     });
 

@@ -82,6 +82,7 @@ export interface Article {
   keywords?: string[];
   targetWordCount?: number;
   publishDate?: string;
+  notes?: string; // User-provided context and requirements for AI guidance
   createdAt: string;
   updatedAt: string;
   

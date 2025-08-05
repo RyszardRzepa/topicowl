@@ -16,6 +16,7 @@ import { Plus, Sparkles } from "lucide-react";
 import type { Article } from "@/types";
 import type { ArticleIdea } from "@/app/api/articles/generate-ideas/route";
 import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
 
 interface PlanningHubProps {
   articles: Article[];
@@ -24,6 +25,7 @@ interface PlanningHubProps {
     keywords?: string[];
     description?: string;
     targetAudience?: string;
+    notes?: string;
   }) => Promise<void>;
   onUpdateArticle: (
     articleId: string,
@@ -53,6 +55,7 @@ export function PlanningHub({
   const [newArticleData, setNewArticleData] = useState({
     title: "",
     keywords: "",
+    notes: "",
   });
 
   // Group articles by status for planning phase
@@ -76,9 +79,10 @@ export function PlanningHub({
     await onCreateArticle({
       title: newArticleData.title.trim(),
       keywords: keywords.length > 0 ? keywords : undefined,
+      notes: newArticleData.notes.trim() || undefined,
     });
 
-    setNewArticleData({ title: "", keywords: "" });
+    setNewArticleData({ title: "", keywords: "", notes: "" });
     setIsCreating(false);
   };
 
@@ -176,6 +180,27 @@ export function PlanningHub({
                 Separate keywords with commas
               </p>
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Article Notes (optional)
+              </label>
+              <Textarea
+                value={newArticleData.notes}
+                onChange={(e) =>
+                  setNewArticleData({
+                    ...newArticleData,
+                    notes: e.target.value,
+                  })
+                }
+                placeholder="Add specific requirements, context, or information you want the AI to consider when generating this article..."
+                rows={4}
+                className="resize-none"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                These notes will guide the AI throughout research, outlining, and writing phases.
+              </p>
+            </div>
           </CardContent>
           <CardFooter className="gap-2">
             <Button
@@ -188,7 +213,7 @@ export function PlanningHub({
               variant="outline"
               onClick={() => {
                 setIsCreating(false);
-                setNewArticleData({ title: "", keywords: "" });
+                setNewArticleData({ title: "", keywords: "", notes: "" });
               }}
             >
               Cancel

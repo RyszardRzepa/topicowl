@@ -102,6 +102,9 @@ export const articles = contentbotSchema.table("articles", {
   coverImageUrl: text("cover_image_url"),
   coverImageAlt: text("cover_image_alt"),
 
+  // User-provided notes for AI guidance
+  notes: text("notes"),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),

@@ -12,6 +12,7 @@ export interface CreateArticleRequest {
   description?: string;
   keywords?: string[];
   targetAudience?: string;
+  notes?: string;
 }
 
 const createArticleSchema = z.object({
@@ -19,6 +20,7 @@ const createArticleSchema = z.object({
   description: z.string().optional(),
   keywords: z.array(z.string()).default([]),
   targetAudience: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 // POST /api/articles - Create new article

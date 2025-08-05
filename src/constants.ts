@@ -276,7 +276,7 @@ Provide your analysis and article ideas in the following JSON structure:
 </execution_command>
   `,
 
-  research: (title: string, keywords: string[]) => `
+  research: (title: string, keywords: string[], notes?: string) => `
     <system_prompt>
       <role_definition>
       You are an expert content researcher and SEO specialist. You MUST follow each step sequentially and provide detailed outputs for verification.
@@ -291,6 +291,17 @@ Provide your analysis and article ideas in the following JSON structure:
       <target_keywords>${keywords.join(", ")}</target_keywords>
       <research_objective>Gather comprehensive, citation-ready data optimized for both traditional SEO and modern AI platforms</research_objective>
       </project_parameters>
+
+      ${notes ? `
+      <user_context>
+      <article_notes>
+      The user has provided the following specific context and requirements for this article:
+      ${notes}
+
+      Please prioritize research that addresses these specific points and requirements. Use this context to guide your search queries and focus areas.
+      </article_notes>
+      </user_context>
+      ` : ''}
       </system_prompt>
 
       <execution_sequence>
@@ -611,6 +622,7 @@ Provide your analysis and article ideas in the following JSON structure:
         url: string;
       }>;
       researchData?: string; // Add research data for context
+      notes?: string; // User-provided context and requirements
     },
     settings?: {
       toneOfVoice?: string;
@@ -695,6 +707,24 @@ The following research data was analyzed to create this outline. Use this contex
 ${data.researchData.substring(0, 2000)}...
 ` : 'No additional research context provided.'}
 </outline_contract>
+
+${data.notes ? `
+<user_guidance>
+<article_notes>
+The user has provided specific guidance for this article:
+${data.notes}
+
+Incorporate this information and context throughout the article while maintaining quality and flow. Use these notes to:
+- Guide the tone and style of the content
+- Include specific facts, examples, or case studies mentioned
+- Address particular requirements or preferences
+- Tailor the content to the specified audience or use case
+- Ensure the article meets the user's specific objectives
+
+The notes should influence the content naturally without disrupting the article's structure or readability.
+</article_notes>
+</user_guidance>
+` : ''}
 
 <content_requirements>
 - H1 matches article title.
@@ -1264,7 +1294,7 @@ Focus solely on factual corrections. Do not rewrite, restructure, or add new inf
   },
 
 
-  outline: (title: string, keywords: string[], researchData: string, videos?: Array<{ title: string; url: string }>) => `
+  outline: (title: string, keywords: string[], researchData: string, videos?: Array<{ title: string; url: string }>, notes?: string) => `
 <system_prompt>
 <role_definition>
 You are an expert content strategist and outline creator with advanced research analysis capabilities. Your task is to systematically process comprehensive research data into a focused, actionable article outline. You MUST follow each phase sequentially and provide detailed verification for all extracted information.
@@ -1284,6 +1314,15 @@ You are an expert content strategist and outline creator with advanced research 
 <research_data>
 ${researchData}
 </research_data>
+
+${notes ? `
+<user_requirements>
+The user has provided specific requirements for this article:
+${notes}
+
+Ensure the outline structure and key points address these requirements and incorporate this context throughout the outline creation process.
+</user_requirements>
+` : ''}
 
 ${videos && videos.length > 0 ? `
 <available_videos>

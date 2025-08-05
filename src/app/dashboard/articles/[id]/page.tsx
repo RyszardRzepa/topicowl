@@ -54,7 +54,6 @@ export default async function ArticlePreviewPage({
       slug: articleData.slug,
       metaDescription: articleData.metaDescription,
       metaKeywords: articleData.metaKeywords,
-      outline: articleData.outline,
       draft: articleData.draft,
       content: articleData.content, // Final published content
       videos: articleData.videos, // YouTube video embeds
@@ -64,6 +63,7 @@ export default async function ArticlePreviewPage({
       sources: articleData.sources,
       coverImageUrl: articleData.coverImageUrl,
       coverImageAlt: articleData.coverImageAlt,
+      notes: articleData.notes,
       createdAt: articleData.createdAt,
       updatedAt: articleData.updatedAt,
       // Extended fields that are expected by ArticleDetailResponse['data']

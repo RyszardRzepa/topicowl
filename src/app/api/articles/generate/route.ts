@@ -198,16 +198,17 @@ async function performResearch(
   title: string,
   keywords: string[],
   generationId: number,
+  notes?: string,
 ): Promise<ResearchResponse> {
   await updateGenerationProgress(generationId, "researching", 10);
 
-  console.log("Calling research API", { title, keywords });
+  console.log("Calling research API", { title, keywords, hasNotes: !!notes });
 
   const researchData = await fetcher<ResearchResponse>(
     `${API_BASE_URL}/api/articles/research`,
     {
       method: "POST",
-      body: { title, keywords },
+      body: { title, keywords, notes },
       timeout: 10 * 60 * 1000, // 10 minutes for research operations
     },
   );
@@ -231,12 +232,13 @@ async function createOutline(
   researchData: string,
   generationId: number,
   videos?: Array<{ title: string; url: string }>,
+  notes?: string,
 ): Promise<OutlineResponse> {
   const outlineResult = await fetcher<ApiResponse<OutlineResponse>>(
     `${API_BASE_URL}/api/articles/outline`,
     {
       method: "POST",
-      body: { title, keywords, researchData, videos },
+      body: { title, keywords, researchData, videos, notes },
     },
   );
 
@@ -571,6 +573,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       article.title,
       keywords,
       generationRecord.id,
+      article.notes ?? undefined,
     );
     console.log("Research completed", {
       dataLength: researchData?.researchData?.length ?? 0,
@@ -584,6 +587,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       researchData.researchData ?? "",
       generationRecord.id,
       researchData.videos,
+      article.notes ?? undefined,
     );
     console.log("Outline completed", {
       keyPointsCount: outlineData?.keyPoints?.length ?? 0,

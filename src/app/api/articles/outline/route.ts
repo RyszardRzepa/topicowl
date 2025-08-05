@@ -65,6 +65,7 @@ export interface OutlineRequest {
     title: string;
     url: string;
   }>;
+  notes?: string; // User-provided context and requirements
 }
 
 export type OutlineResponse = z.infer<typeof outlineSchema>;
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
       const { object: outlineData } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
         schema: outlineSchema,
-        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos),
+        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos, body.notes),
         maxRetries: 3,
       });
 
@@ -167,7 +168,7 @@ export async function POST(request: Request) {
       const { object: outlineData } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
         schema: relaxedOutlineSchema,
-        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos) + 
+        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos, body.notes) + 
           "\n\nIMPORTANT: Keep summaries under 350 characters to ensure proper formatting.",
         maxRetries: 2,
       });

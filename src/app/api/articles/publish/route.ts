@@ -22,7 +22,6 @@ type ArticleData = {
   slug: string | null;
   metaDescription: string | null;
   metaKeywords: unknown;
-  outline: unknown;
   draft: string | null;
   content: string | null; // Final published content
   videos: unknown; // YouTube video embeds

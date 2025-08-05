@@ -41,7 +41,6 @@ type ArticleData = {
   slug: string | null;
   metaDescription: string | null;
   metaKeywords: unknown;
-  outline: unknown;
   draft: string | null;
   content: string | null; // Final published content
   videos: unknown; // YouTube video embeds
@@ -51,6 +50,7 @@ type ArticleData = {
   sources: unknown;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -83,6 +83,12 @@ const updateArticleSchema = z.object({
   // Add status and publication fields
   status: z.enum(['idea', 'scheduled', 'queued', 'to_generate', 'generating', 'wait_for_publish', 'published', 'deleted']).optional(),
   publishedAt: z.string().datetime().optional(), // When article was published
+  // Add basic article fields
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  targetAudience: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 // GET /api/articles/[id] - Get single article with extended preview data
