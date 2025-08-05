@@ -54,10 +54,13 @@ export async function fetcher<T = unknown>(
       const error = new Error(
         `API call failed: ${response.status} ${errorText}`,
       );
-      console.log(`API call failed: ${method} ${url}`, {
+      console.error(`API call failed: ${method} ${url}`, {
         status: response.status,
+        statusText: response.statusText,
         errorText,
         responseTime: `${responseTime}ms`,
+        requestBody: body ? JSON.stringify(body).slice(0, 500) + '...' : 'none',
+        timestamp: new Date().toISOString(),
       });
       throw error;
     }

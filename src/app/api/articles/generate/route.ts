@@ -220,7 +220,7 @@ async function performResearch(
   });
 
   await updateGenerationProgress(generationId, "researching", 25, {
-    researchData: researchData.researchData ?? {},
+    researchData: researchData
   });
 
   return researchData;
@@ -230,6 +230,7 @@ async function createOutline(
   title: string,
   keywords: string[],
   researchData: string,
+  sources: Array<{ url: string; title?: string }>,
   generationId: number,
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
@@ -238,7 +239,7 @@ async function createOutline(
     `${API_BASE_URL}/api/articles/outline`,
     {
       method: "POST",
-      body: { title, keywords, researchData, videos, notes },
+      body: { title, keywords, researchData, sources, videos, notes },
     },
   );
 
@@ -585,6 +586,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       article.title,
       keywords,
       researchData.researchData ?? "",
+      researchData.sources ?? [],
       generationRecord.id,
       researchData.videos,
       article.notes ?? undefined,

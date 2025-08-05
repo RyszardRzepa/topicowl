@@ -47,8 +47,9 @@ export interface WriteResponse {
 }
 
 export async function POST(request: Request) {
+  let body: WriteRequest | undefined;
   try {
-    const body = await request.json() as WriteRequest;
+    body = await request.json() as WriteRequest;
     console.log("Write API request received", { 
       title: body.title,
       hasOutlineData: !!body.outlineData,
@@ -102,23 +103,71 @@ export async function POST(request: Request) {
     const hasVideos = body.videos && body.videos.length > 0;
     const schemaToUse = hasVideos ? enhancedBlogPostSchema : blogPostSchema;
 
-    const { object: articleObject } = await generateObject({
-      model: anthropic(MODELS.CLAUDE_SONET_4),
-      schema: schemaToUse,
-      prompt: prompts.writing({
-        title: body.title,
-        outlineData: body.outlineData,
-        coverImage: body.coverImage,
-        videos: body.videos ?? [],
-        notes: body.notes
-      }, settingsData, []),
+    console.log("Starting AI content generation", {
+      model: MODELS.CLAUDE_SONET_4,
+      hasVideos,
+      schemaType: hasVideos ? 'enhanced' : 'basic',
+      settingsData: {
+        toneOfVoice: settingsData.toneOfVoice?.slice(0, 50) + '...',
+        maxWords: settingsData.maxWords
+      }
     });
+
+    let articleObject;
+    try {
+      const result = await generateObject({
+        model: anthropic(MODELS.CLAUDE_SONET_4),
+        schema: schemaToUse,
+        prompt: prompts.writing({
+          title: body.title,
+          outlineData: body.outlineData,
+          coverImage: body.coverImage,
+          videos: body.videos ?? [],
+          notes: body.notes
+        }, settingsData, []),
+      });
+      articleObject = result.object;
+      console.log("AI content generation completed successfully", {
+        contentLength: articleObject.content?.length ?? 0,
+        hasSlug: !!articleObject.slug,
+        hasExcerpt: !!articleObject.excerpt
+      });
+    } catch (aiError) {
+      console.error("AI content generation failed", {
+        error: aiError instanceof Error ? {
+          name: aiError.name,
+          message: aiError.message,
+          stack: aiError.stack?.slice(0, 500)
+        } : aiError,
+        model: MODELS.CLAUDE_SONET_4,
+        hasVideos,
+        promptLength: prompts.writing({
+          title: body.title,
+          outlineData: body.outlineData,
+          coverImage: body.coverImage,
+          videos: body.videos ?? [],
+          notes: body.notes
+        }, settingsData, []).length
+      });
+      throw aiError;
+    }
 
     // Log video usage for analytics
     if (hasVideos) {
       const videoCount = 'videos' in articleObject ? 
         (articleObject as { videos?: Array<unknown> }).videos?.length ?? 0 : 0;
       console.log(`Article generated with ${videoCount} videos embedded`);
+    }
+
+    // Validate the AI response has required fields
+    if (!articleObject.content || !articleObject.title || !articleObject.slug) {
+      console.error("AI generated invalid article object", {
+        hasContent: !!articleObject.content,
+        hasTitle: !!articleObject.title,
+        hasSlug: !!articleObject.slug,
+        articleObject: JSON.stringify(articleObject).slice(0, 500) + '...'
+      });
+      throw new Error("AI generated article is missing required fields (content, title, or slug)");
     }
 
     // Ensure excerpt is included as the first paragraph of the content
@@ -133,11 +182,37 @@ export async function POST(request: Request) {
       ...(body.coverImage && { coverImage: body.coverImage })
     } as WriteResponse;
 
+    console.log("Article write completed successfully", {
+      finalContentLength: responseObject.content.length,
+      hasMetaDescription: !!responseObject.metaDescription,
+      tagsCount: responseObject.tags?.length ?? 0
+    });
+
     return NextResponse.json(responseObject);
   } catch (error) {
-    console.log('Write endpoint error', error);
+    console.error('Write endpoint error - Full details:', {
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      } : error,
+      timestamp: new Date().toISOString(),
+      request: {
+        title: body?.title ?? 'unknown',
+        hasOutlineData: !!body?.outlineData,
+        keywordsCount: body?.keywords?.length ?? 0,
+        keyPointsCount: body?.outlineData?.keyPoints?.length ?? 0,
+      }
+    });
+    
+    // Return more specific error information for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Failed to write article' },
+      { 
+        error: 'Failed to write article',
+        details: errorMessage,
+        timestamp: new Date().toISOString()
+      },
       { status: 500 }
     );
   }

@@ -61,6 +61,10 @@ export interface OutlineRequest {
   title: string;
   keywords: string[];
   researchData: string;
+  sources?: Array<{
+    url: string;
+    title?: string;
+  }>;
   generationId?: number; // Optional for backward compatibility
   videos?: Array<{
     title: string;
@@ -114,7 +118,7 @@ export async function POST(request: Request) {
       const { object: outlineData } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
         schema: outlineSchema,
-        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos, body.notes),
+        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos, body.notes, body.sources),
         maxRetries: 3,
       });
 
@@ -169,7 +173,7 @@ export async function POST(request: Request) {
       const { object: outlineData } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
         schema: relaxedOutlineSchema,
-        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos, body.notes) + 
+        prompt: prompts.outline(body.title, body.keywords, body.researchData, body.videos, body.notes, body.sources) + 
           "\n\nIMPORTANT: Keep summaries under 350 characters to ensure proper formatting.",
         maxRetries: 2,
       });

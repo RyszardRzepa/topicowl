@@ -1,4 +1,7 @@
-import { google } from "@ai-sdk/google";
+import {
+  google,
+  type GoogleGenerativeAIProviderMetadata,
+} from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { prompts } from "@/prompts";
@@ -21,6 +24,13 @@ export interface ResearchResponse {
     title: string;
     url: string;
   }>;
+}
+
+// Types colocated with this API route
+export interface ResearchRequest {
+  title: string;
+  keywords: string[];
+  notes?: string;
 }
 
 export async function POST(request: Request) {
@@ -62,37 +72,94 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("[RESEARCH_API] Validation passed, proceeding with research");
+    // Retry logic for when sources are empty or not returned
+    let text: string;
+    let providerMetadata: GoogleGenerativeAIProviderMetadata | undefined;
+    let sources: Array<{
+      sourceType: string;
+      url: string;
+      title?: string;
+    }> = [];
+    let attempt = 1;
+    const maxAttempts = 3; // Initial attempt + 2 retries
 
-    const { text, sources } = await generateText({
-      model: google(MODELS.GEMINI_2_5_FLASH, {
-        useSearchGrounding: true,
-        dynamicRetrievalConfig: {
-          mode: "MODE_UNSPECIFIED", // Always trigger grounding
+    do {
+      console.log(`[RESEARCH_API] Attempt ${attempt}/${maxAttempts}`);
+      
+      const result = await generateText({
+        model: google(MODELS.GEMINI_2_5_FLASH),
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          },
         },
-      }),
-      prompt: prompts.research(body.title, body.keywords, body.notes),
-    });
+        tools: {
+          google_search: google.tools.googleSearch({}),
+        },
+        toolChoice: { type: "tool", toolName: "google_search" }, // force it
+        system:
+          "Always call tool google_search for web search.",
+        prompt: prompts.research(body.title, body.keywords, body.notes),
+      });
 
-    // Extract YouTube videos from sources
+      text = result.text;
+      providerMetadata = result.providerMetadata?.google as unknown as GoogleGenerativeAIProviderMetadata;
+      sources = (result.sources ?? []) as Array<{
+        sourceType: string;
+        url: string;
+        title?: string;
+      }>;
+
+      console.log(`[RESEARCH_API] Attempt ${attempt} - sources count:`, sources.length);
+
+      // Break if we have sources or reached max attempts
+      if (sources.length > 0 || attempt >= maxAttempts) {
+        break;
+      }
+
+      attempt++;
+    } while (attempt <= maxAttempts);
+
+    // Throw error if no sources found after all attempts
+    if (sources.length === 0) {
+      console.error("[RESEARCH_API] No sources found after all attempts");
+      return NextResponse.json(
+        { error: "Failed to find any sources for research after multiple attempts" },
+        { status: 500 }
+      );
+    }
+
+    console.log("[RESEARCH_API] Final sources:", sources);
+
+    // For now, return empty sources array since the AI SDK sources structure is complex
+    // The main research data (text) already contains the information with proper citations
+
+    // Extract YouTube videos from resolved sources
     const videos = sources
-      ?.filter(source => source.url?.includes('youtube.com') || source.url?.includes('youtu.be'))
-      .map(video => ({
-        title: video.title ?? 'YouTube Video',
+      .filter(
+        (source): source is { sourceType: string; url: string; title?: string } =>
+          source.sourceType === "url" &&
+          (source.url.includes("youtube.com") ||
+            source.url.includes("youtu.be")),
+      )
+      .map((video) => ({
+        title: video.title ?? "YouTube Video",
         url: video.url,
       }))
-      .slice(0, 3) ?? []; // Limit to top 3 videos for AI selection
+      .slice(0, 3); // Limit to top 3 videos for AI selection
 
     console.log(
-      "[RESEARCH_API] Research completed successfully, sources found:",
-      sources?.length ?? 0,
+      "[RESEARCH_API] Valid sources processed:",
+      sources,
       "videos found:",
       videos.length,
     );
 
     return NextResponse.json({
       researchData: text,
-      sources: sources ?? [],
+      sources: sources,
       videos,
     });
   } catch (error) {

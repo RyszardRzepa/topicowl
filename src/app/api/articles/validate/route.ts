@@ -42,25 +42,30 @@ export async function POST(request: Request) {
       );
     }
 
-    // First get raw validation text for debugging/update purposes
-    const { text: rawValidationText } = await generateText({
-      model: google(MODELS.GEMINI_2_5_FLASH, {
-        useSearchGrounding: true,
-        dynamicRetrievalConfig: {
-          mode: "MODE_UNSPECIFIED",
+    const {
+      text: rawValidationText,
+    } = await generateText({
+      model: google(MODELS.GEMINI_2_5_FLASH),
+      providerOptions: {
+        google: {
+          thinkingConfig: {
+            thinkingBudget: 10000,
+            includeThoughts: false,
+          },
         },
-      }),
+      },
+      tools: {
+        google_search: google.tools.googleSearch({}),
+      },
+      toolChoice: { type: "tool", toolName: "google_search" }, // force it
+      system: "Use Google Search to answer. Include citations.",
       prompt: prompts.validation(body.article),
     });
 
+
     // Then extract structured data from validation text - only claims that are not valid or partially true
     const { object } = await generateObject({
-      model: google(MODELS.GEMINI_2_5_FLASH, {
-        useSearchGrounding: true,
-        dynamicRetrievalConfig: {
-          mode: "MODE_UNSPECIFIED",
-        },
-      }),
+      model: google(MODELS.GEMINI_2_5_FLASH),
       schema: validationResponseSchema,
       prompt: `
         Extract structured validation data from the following fact-checking results.
