@@ -183,6 +183,13 @@
       "when": 1754392036757,
       "tag": "0025_mute_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1754470726231,
+      "tag": "0026_large_red_ghost",
+      "breakpoints": true
     }
   ]
 }

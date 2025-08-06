@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { articleSettings, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { validateDomains } from "@/lib/utils/domain";
 
 // Types colocated with this API route
 export interface ArticleSettingsRequest {
@@ -12,6 +13,7 @@ export interface ArticleSettingsRequest {
   toneOfVoice?: string;
   articleStructure?: string;
   maxWords?: number;
+  excluded_domains?: string[];
   // Company/business settings
   companyName?: string;
   productDescription?: string;
@@ -27,6 +29,7 @@ export interface ArticleSettingsResponse {
   toneOfVoice: string | null;
   articleStructure: string | null;
   maxWords: number | null;
+  excluded_domains: string[];
   createdAt: Date;
   updatedAt: Date;
   // Company settings from users table
@@ -44,6 +47,7 @@ const articleSettingsSchema = z.object({
   toneOfVoice: z.string().optional(),
   articleStructure: z.string().optional(),
   maxWords: z.number().min(100).max(5000).optional(),
+  excluded_domains: z.array(z.string()).max(100).optional(),
   // Company/business settings
   companyName: z.string().min(1).max(255).optional(),
   productDescription: z.string().max(1000).optional(),
@@ -99,6 +103,7 @@ export async function GET() {
         toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
         articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
         maxWords: 800,
+        excluded_domains: [],
         createdAt: new Date(),
         updatedAt: new Date(),
         companyName: userRecord.company_name ?? undefined,
@@ -116,6 +121,7 @@ export async function GET() {
       toneOfVoice: articleSettingsRecord.toneOfVoice,
       articleStructure: articleSettingsRecord.articleStructure,
       maxWords: articleSettingsRecord.maxWords,
+      excluded_domains: Array.isArray(articleSettingsRecord.excluded_domains) ? articleSettingsRecord.excluded_domains : [],
       createdAt: articleSettingsRecord.createdAt,
       updatedAt: articleSettingsRecord.updatedAt,
       companyName: userRecord.company_name ?? undefined,
@@ -148,6 +154,24 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json() as unknown;
     const validatedData = articleSettingsSchema.parse(body);
+    
+    // Validate excluded domains if provided
+    if (validatedData.excluded_domains) {
+      const domainValidation = validateDomains(validatedData.excluded_domains);
+      
+      if (domainValidation.invalidDomains.length > 0) {
+        return NextResponse.json(
+          { 
+            error: 'Invalid domains provided', 
+            details: domainValidation.invalidDomains 
+          },
+          { status: 400 }
+        );
+      }
+      
+      // Use normalized domains for storage
+      validatedData.excluded_domains = domainValidation.normalizedDomains;
+    }
     
     // Get user record
     const [userRecord] = await db
@@ -240,6 +264,7 @@ export async function POST(req: NextRequest) {
       // Combine for response
       const combinedResponse: ArticleSettingsResponse = {
         ...updatedArticleSettings,
+        excluded_domains: Array.isArray(updatedArticleSettings.excluded_domains) ? updatedArticleSettings.excluded_domains : [],
         companyName: updatedUser?.company_name ?? undefined,
         productDescription: updatedUser?.product_description ?? undefined,
         keywords: Array.isArray(updatedUser?.keywords) ? updatedUser.keywords as string[] : [],

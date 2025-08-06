@@ -7,7 +7,7 @@ import { MODELS } from "@/constants";
 
 // Types colocated with this API route
 export interface ValidateRequest {
-  article: string;
+  content: string;
 }
 
 export interface ValidateResponse {
@@ -31,72 +31,81 @@ const validationResponseSchema = z.object({
   ),
 });
 
+// Extracted validate logic that can be called directly
+export async function performValidateLogic(article: string): Promise<ValidateResponse> {
+  console.log("[VALIDATE_LOGIC] Starting validation", { contentLength: article.length });
+
+  if (!article) {
+    throw new Error("Article content is required");
+  }
+
+  const {
+    text: rawValidationText,
+  } = await generateText({
+    model: google(MODELS.GEMINI_2_5_FLASH),
+    providerOptions: {
+      google: {
+        thinkingConfig: {
+          thinkingBudget: 10000,
+          includeThoughts: false,
+        },
+      },
+    },
+    tools: {
+      google_search: google.tools.googleSearch({}),
+    },
+    toolChoice: { type: "tool", toolName: "google_search" }, // force it
+    system: "Use Google Search to answer. Include citations.",
+    prompt: prompts.validation(article),
+  });
+
+  // Then extract structured data from validation text - only claims that are not valid or partially true
+  const { object } = await generateObject({
+    model: google(MODELS.GEMINI_2_5_FLASH),
+    schema: validationResponseSchema,
+    prompt: `
+      Extract structured validation data from the following fact-checking results.
+      
+      Focus ONLY on claims that are FALSE, UNVERIFIED or CONTRADICTED. Do not include verified claims.
+      
+      Validation Results:
+      ${rawValidationText}
+      
+      Extract and return a JSON object with:
+      - isValid: false if any issues are found, true if no issues
+      - issues: array of only the problematic claims with:
+        - fact: exact text from article that has an issue
+        - issue: brief description of what's wrong
+        - correction: suggested correction or "Needs verification"
+      
+      If no issues are found in the validation results, return: {"isValid": true, "issues": []}
+    `,
+  });
+
+  // Return both structured data and raw validation text
+  const response: ValidateResponse = {
+    ...object,
+    rawValidationText,
+  };
+
+  console.log("[VALIDATE_LOGIC] Validation completed", {
+    isValid: response.isValid,
+    issuesCount: response.issues.length,
+  });
+
+  return response;
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ValidateRequest;
-
-    if (!body.article) {
-      return NextResponse.json(
-        { error: "Article content is required" },
-        { status: 400 },
-      );
-    }
-
-    const {
-      text: rawValidationText,
-    } = await generateText({
-      model: google(MODELS.GEMINI_2_5_FLASH),
-      providerOptions: {
-        google: {
-          thinkingConfig: {
-            thinkingBudget: 10000,
-            includeThoughts: false,
-          },
-        },
-      },
-      tools: {
-        google_search: google.tools.googleSearch({}),
-      },
-      toolChoice: { type: "tool", toolName: "google_search" }, // force it
-      system: "Use Google Search to answer. Include citations.",
-      prompt: prompts.validation(body.article),
-    });
-
-
-    // Then extract structured data from validation text - only claims that are not valid or partially true
-    const { object } = await generateObject({
-      model: google(MODELS.GEMINI_2_5_FLASH),
-      schema: validationResponseSchema,
-      prompt: `
-        Extract structured validation data from the following fact-checking results.
-        
-        Focus ONLY on claims that are FALSE, UNVERIFIED or CONTRADICTED. Do not include verified claims.
-        
-        Validation Results:
-        ${rawValidationText}
-        
-        Extract and return a JSON object with:
-        - isValid: false if any issues are found, true if no issues
-        - issues: array of only the problematic claims with:
-          - fact: exact text from article that has an issue
-          - issue: brief description of what's wrong
-          - correction: suggested correction or "Needs verification"
-        
-        If no issues are found in the validation results, return: {"isValid": true, "issues": []}
-      `,
-    });
-
-    // Return both structured data and raw validation text
-    const response: ValidateResponse = {
-      ...object,
-      rawValidationText,
-    };
-
-    return NextResponse.json(response);
+    const result = await performValidateLogic(body.content);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Validation endpoint error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to validate article";
     return NextResponse.json(
-      { error: "Failed to validate article" },
+      { error: errorMessage },
       { status: 500 },
     );
   }

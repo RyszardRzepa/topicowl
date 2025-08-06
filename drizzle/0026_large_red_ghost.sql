@@ -1,0 +1,2 @@
+ALTER TABLE "contentbot"."users" ALTER COLUMN "id" SET DEFAULT 'STHJPEQ5';--> statement-breakpoint
+ALTER TABLE "contentbot"."article_settings" ADD COLUMN "excluded_domains" jsonb DEFAULT '[]'::jsonb NOT NULL;

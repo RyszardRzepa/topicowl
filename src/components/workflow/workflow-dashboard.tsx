@@ -79,6 +79,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       keywords: Array.isArray(dbArticle.keywords)
         ? (dbArticle.keywords as string[])
         : [],
+      notes: dbArticle.notes ?? undefined,
       createdAt:
         dbArticle.createdAt instanceof Date
           ? dbArticle.createdAt.toISOString()
@@ -301,6 +302,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     keywords?: string[];
     description?: string;
     targetAudience?: string;
+    notes?: string;
   }) => {
     try {
       const response = await fetch("/api/articles", {
@@ -311,6 +313,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           description: data.description ?? "Click to edit this article idea",
           keywords: data.keywords ?? [],
           targetAudience: data.targetAudience,
+          notes: data.notes,
         }),
       });
 

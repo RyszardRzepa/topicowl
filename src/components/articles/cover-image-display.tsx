@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { X, ImageIcon, Edit3 } from "lucide-react";
+import { X, ImageIcon, Edit3, Link, Search } from "lucide-react";
 import Image from "next/image";
+import { UnsplashImagePicker } from "./unsplash-image-picker";
+import type { UnsplashImage } from "@/app/api/articles/images/search/route";
 
 interface CoverImageDisplayProps {
   coverImageUrl?: string;
@@ -23,6 +25,8 @@ export function CoverImageDisplay({
   const [isEditing, setIsEditing] = useState(false);
   const [tempImageUrl, setTempImageUrl] = useState(coverImageUrl);
   const [tempImageAlt, setTempImageAlt] = useState(coverImageAlt);
+  const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
+  const [selectedUnsplashImage, setSelectedUnsplashImage] = useState<UnsplashImage | null>(null);
 
   const handleSave = () => {
     onImageUpdate({
@@ -36,6 +40,8 @@ export function CoverImageDisplay({
     setTempImageUrl(coverImageUrl);
     setTempImageAlt(coverImageAlt);
     setIsEditing(false);
+    setImageInputMode("url");
+    setSelectedUnsplashImage(null);
   };
 
   const handleRemove = () => {
@@ -46,6 +52,12 @@ export function CoverImageDisplay({
     setTempImageUrl("");
     setTempImageAlt("");
     setIsEditing(false);
+  };
+
+  const handleUnsplashImageSelect = (image: UnsplashImage) => {
+    setSelectedUnsplashImage(image);
+    setTempImageUrl(image.urls.regular);
+    setTempImageAlt(image.altDescription ?? image.description ?? `Photo by ${image.user.name} on Unsplash`);
   };
 
   if (!coverImageUrl && !isEditing) {
@@ -80,36 +92,90 @@ export function CoverImageDisplay({
     return (
       <Card>
         <CardContent className="p-6 space-y-4">
-          <div>
-            <label
-              htmlFor="coverImageUrl"
-              className="block text-sm font-medium text-gray-700 mb-2"
+          {/* Mode Toggle */}
+          <div className="flex justify-center gap-2 mb-4">
+            <Button
+              type="button"
+              variant={imageInputMode === "url" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setImageInputMode("url")}
             >
-              Image URL
-            </label>
-            <Input
-              id="coverImageUrl"
-              type="url"
-              value={tempImageUrl}
-              onChange={(e) => setTempImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-            />
-          </div>
-          
-          <div>
-            <label
-              htmlFor="coverImageAlt"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              <Link className="mr-1 h-4 w-4" />
+              URL
+            </Button>
+            <Button
+              type="button"
+              variant={imageInputMode === "search" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setImageInputMode("search")}
             >
-              Alt Text
-            </label>
-            <Input
-              id="coverImageAlt"
-              value={tempImageAlt}
-              onChange={(e) => setTempImageAlt(e.target.value)}
-              placeholder="Describe the image for accessibility"
-            />
+              <Search className="mr-1 h-4 w-4" />
+              Search
+            </Button>
           </div>
+
+          {imageInputMode === "url" ? (
+            <>
+              <div>
+                <label
+                  htmlFor="coverImageUrl"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Image URL
+                </label>
+                <Input
+                  id="coverImageUrl"
+                  type="url"
+                  value={tempImageUrl}
+                  onChange={(e) => setTempImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
+              
+              <div>
+                <label
+                  htmlFor="coverImageAlt"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Alt Text
+                </label>
+                <Input
+                  id="coverImageAlt"
+                  value={tempImageAlt}
+                  onChange={(e) => setTempImageAlt(e.target.value)}
+                  placeholder="Describe the image for accessibility"
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Search Unsplash Images
+              </label>
+              <UnsplashImagePicker
+                onImageSelect={handleUnsplashImageSelect}
+                selectedImageId={selectedUnsplashImage?.id}
+              />
+              
+              {/* Show alt text input for selected Unsplash image */}
+              {selectedUnsplashImage && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="coverImageAlt"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Alt Text
+                  </label>
+                  <Input
+                    id="coverImageAlt"
+                    value={tempImageAlt}
+                    onChange={(e) => setTempImageAlt(e.target.value)}
+                    placeholder="Describe the image for accessibility"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {tempImageUrl && (
             <div className="rounded-lg overflow-hidden border">

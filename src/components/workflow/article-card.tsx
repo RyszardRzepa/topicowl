@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { StatusIndicator, formatRelativeTime } from "./status-indicator";
 import { Play, Calendar, Edit3, Trash2, Check, X, Clock } from "lucide-react";
@@ -57,6 +58,7 @@ export function ArticleCard({
   const [editData, setEditData] = useState({
     title: article.title,
     keywords: article.keywords?.join(", ") ?? "",
+    notes: article.notes ?? "",
   });
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -89,6 +91,7 @@ export function ArticleCard({
       await onUpdate(article.id, {
         title: editData.title.trim(),
         keywords: keywords.length > 0 ? keywords : [],
+        notes: editData.notes.trim() || undefined,
       });
       setIsEditing(false);
     } catch (error) {
@@ -102,6 +105,7 @@ export function ArticleCard({
     setEditData({
       title: article.title,
       keywords: article.keywords?.join(", ") ?? "",
+      notes: article.notes ?? "",
     });
     setIsEditing(false);
   };
@@ -155,7 +159,11 @@ export function ArticleCard({
 
   const handleRemoveSchedule = async () => {
     if (!onUpdate) return;
-    if (window.confirm("Are you sure you want to remove the schedule and move this article back to ideas?")) {
+    if (
+      window.confirm(
+        "Are you sure you want to remove the schedule and move this article back to ideas?",
+      )
+    ) {
       await onUpdate(article.id, {
         status: "idea",
         generationScheduledAt: undefined,
@@ -203,7 +211,7 @@ export function ArticleCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all duration-200 relative group",
+        "group relative cursor-pointer transition-all duration-200",
         {
           "border-blue-200 bg-blue-50": isGenerating,
         },
@@ -215,7 +223,7 @@ export function ArticleCard({
         {isEditing ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
+              <label className="text-foreground text-sm font-medium">
                 Article Title
               </label>
               <Input
@@ -229,9 +237,9 @@ export function ArticleCard({
                 autoFocus
               />
             </div>
-            
+
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
+              <label className="text-foreground text-sm font-medium">
                 Keywords
               </label>
               <Input
@@ -243,8 +251,27 @@ export function ArticleCard({
                 placeholder="keyword1, keyword2, keyword3..."
                 disabled={isUpdating}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Separate keywords with commas
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-foreground text-sm font-medium">
+                Notes
+              </label>
+              <Textarea
+                value={editData.notes}
+                onChange={(e) =>
+                  setEditData({ ...editData, notes: e.target.value })
+                }
+                className="min-h-[80px] resize-none text-sm"
+                placeholder="Add notes, context, or specific requirements for this article..."
+                disabled={isUpdating}
+              />
+              <p className="text-muted-foreground text-xs">
+                Provide additional context or requirements to guide AI
+                generation
               </p>
             </div>
           </div>
@@ -276,7 +303,7 @@ export function ArticleCard({
 
         {/* Edit action buttons when editing */}
         {isEditing && (
-          <div className="flex justify-end gap-2 pt-2 border-t">
+          <div className="flex justify-end gap-2 border-t pt-2">
             <Button
               variant="outline"
               size="sm"
@@ -300,7 +327,7 @@ export function ArticleCard({
 
       {/* Hover action buttons - positioned absolutely in top-right corner */}
       {!isEditing && (canEdit || canDelete || canRemoveSchedule) && (
-        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1 z-10">
+        <div className="absolute top-3 right-3 z-10 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           {canEdit && (
             <Button
               variant="secondary"
@@ -360,7 +387,7 @@ export function ArticleCard({
 
         {/* Article metadata - consistent across all modes */}
         {(article.estimatedReadTime ?? article.generationCompletedAt) && (
-          <div className="space-y-2 text-sm text-muted-foreground">
+          <div className="text-muted-foreground space-y-2 text-sm">
             {article.estimatedReadTime && (
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
@@ -380,21 +407,24 @@ export function ArticleCard({
         {/* Show scheduled times */}
         {article.generationScheduledAt && !isGenerating && (
           <div className="rounded-lg border p-3 text-sm">
-            <div className="flex items-center gap-2 text-foreground">
+            <div className="text-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               <span className="font-medium">Scheduled to generate</span>
             </div>
-            <div className="mt-1 text-muted-foreground">
-              {new Date(article.generationScheduledAt).toLocaleString(undefined, {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true,
-              })}
+            <div className="text-muted-foreground mt-1">
+              {new Date(article.generationScheduledAt).toLocaleString(
+                undefined,
+                {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                },
+              )}
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground mt-1 text-xs">
               {formatRelativeTime(article.generationScheduledAt)}
             </div>
           </div>
@@ -402,11 +432,11 @@ export function ArticleCard({
 
         {article.publishScheduledAt && (
           <div className="rounded-lg border p-3 text-sm">
-            <div className="flex items-center gap-2 text-foreground">
+            <div className="text-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               <span className="font-medium">Scheduled to publish</span>
             </div>
-            <div className="mt-1 text-muted-foreground">
+            <div className="text-muted-foreground mt-1">
               {new Date(article.publishScheduledAt).toLocaleString(undefined, {
                 weekday: "short",
                 month: "short",
@@ -416,7 +446,7 @@ export function ArticleCard({
                 hour12: true,
               })}
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground mt-1 text-xs">
               {formatRelativeTime(article.publishScheduledAt)}
             </div>
           </div>

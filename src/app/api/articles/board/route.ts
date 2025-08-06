@@ -28,6 +28,7 @@ export type DatabaseArticle = {
   sources: unknown;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
   // Generation tracking fields
@@ -99,6 +100,7 @@ export async function GET(_req: NextRequest) {
         sources: articles.sources,
         coverImageUrl: articles.coverImageUrl,
         coverImageAlt: articles.coverImageAlt,
+        notes: articles.notes,
         createdAt: articles.createdAt,
         updatedAt: articles.updatedAt,
         // Generation tracking fields

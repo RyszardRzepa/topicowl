@@ -207,6 +207,13 @@ export const articleSettings = contentbotSchema.table("article_settings", {
   toneOfVoice: text("tone_of_voice"),
   articleStructure: text("article_structure"),
   maxWords: integer("max_words").default(800),
+  
+  // Competitor domain exclusion
+  excluded_domains: jsonb("excluded_domains")
+    .default([])
+    .notNull()
+    .$type<string[]>(),
+    
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),

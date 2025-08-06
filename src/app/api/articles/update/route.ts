@@ -34,6 +34,44 @@ export interface UpdateResponse {
   updatedContent: string;
 }
 
+// Extracted update logic that can be called directly
+export async function performUpdateLogic(
+  article: string,
+  validationText: string,
+  settings?: {
+    toneOfVoice?: string;
+    articleStructure?: string;
+    maxWords?: number;
+  },
+): Promise<UpdateResponse> {
+  console.log("[UPDATE_LOGIC] Starting update", { 
+    contentLength: article.length,
+    validationTextLength: validationText.length,
+  });
+
+  if (!article || !validationText) {
+    throw new Error("Article and validationText are required");
+  }
+
+  const model = anthropic(MODELS.CLAUDE_SONET_4);
+
+  const { object: articleObject } = await generateObject({
+    model,
+    schema: blogPostSchema,
+    prompt: prompts.update(article, validationText, settings),
+  });
+
+  const response: UpdateResponse = {
+    updatedContent: articleObject.content,
+  };
+
+  console.log("[UPDATE_LOGIC] Update completed", {
+    updatedContentLength: response.updatedContent.length,
+  });
+
+  return response;
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as UpdateRequest;
@@ -85,8 +123,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Update endpoint error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to update article";
     return NextResponse.json(
-      { error: "Failed to update article" },
+      { error: errorMessage },
       { status: 500 },
     );
   }

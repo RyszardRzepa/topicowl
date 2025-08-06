@@ -263,7 +263,14 @@ export const prompts = {
   </execution_command>
     `,
 
-  research: (title: string, keywords: string[], notes?: string) => `
+  research: (
+    title: string,
+    keywords: string[],
+    notes?: string,
+    excludedDomains?: string[],
+  ) => `
+  As of ${new Date().toISOString()} verify every factual claim using Google Search. For each claim, attach at least 2 grounding supports (with URL and title) drawn from groundingChunks and include a “Sources” section at the end listing those URLs.
+  
       <system_prompt>
         <role_definition>
         You are an expert content researcher and SEO specialist tasked with analyzing grounded search results and organizing them into structured research data.
@@ -275,6 +282,17 @@ export const prompts = {
         - At the end, output a "Sources" list by copying URLs verbatim from attributions.
         - If a needed source has no attribution URL, write "MISSING SOURCE" and stop rather than fabricating.
         - Never create, modify, or guess URLs - only use what is provided in the grounding data.
+        
+        ${
+          excludedDomains && excludedDomains.length > 0
+            ? `
+        ⚠️ EXCLUDED DOMAINS: Do not include any information or links from the following domains: ${excludedDomains.join(", ")}
+        - These domains should be completely avoided in your research analysis
+        - If any of these domains appear in your grounding data, do not cite them or include them in your sources list
+        - Focus on alternative sources and avoid mentioning these competitor domains in your research findings
+        `
+            : ""
+        }
         </critical_link_handling_requirement>
   
         <project_parameters>
@@ -531,6 +549,7 @@ export const prompts = {
       maxWords?: number;
     },
     relatedPosts?: string[],
+    excludedDomains?: string[],
   ) => {
     const currentDate = new Date().toISOString().split("T")[0];
 
@@ -738,6 +757,7 @@ export const prompts = {
   ❌ Claiming specific features or capabilities without verification
   ❌ Using placeholder text like "contact them at..." without actual contact info
   ❌ Creating external links beyond the provided verified sources
+  ${excludedDomains && excludedDomains.length > 0 ? `❌ Linking to or referencing the following excluded domains: ${excludedDomains.join(", ")}` : ""}
   
   REQUIRED APPROACH:
   ✅ Use only verified sources from the provided list for external citations
@@ -748,6 +768,7 @@ export const prompts = {
   ✅ Direct readers to official sources using only provided links
   ✅ Acknowledge limitations: "specific pricing varies" instead of inventing numbers
   ✅ Integrate source citations naturally with descriptive anchor text
+  ${excludedDomains && excludedDomains.length > 0 ? `✅ Completely avoid mentioning or linking to excluded competitor domains: ${excludedDomains.join(", ")}` : ""}
   </anti_hallucination_rules>
   
   <output_format>
@@ -1266,6 +1287,7 @@ export const prompts = {
     videos?: Array<{ title: string; url: string }>,
     notes?: string,
     sources?: Array<{ url: string; title?: string }>,
+    excludedDomains?: string[],
   ) => `
   <system_prompt>
   You are an expert content strategist creating a focused, actionable article outline from research data.
@@ -1275,6 +1297,17 @@ export const prompts = {
   - If sources parameter is provided: Use ONLY those exact URLs in relevantLinks arrays
   - If no sources parameter: Leave relevantLinks arrays empty
   - Never fabricate, modify, or extract URLs from research content
+  
+  ${
+    excludedDomains && excludedDomains.length > 0
+      ? `
+  ⚠️ EXCLUDED DOMAINS: Do not include any links to the following domains in your outline: ${excludedDomains.join(", ")}
+  - These domains should be completely avoided in all relevantLinks arrays
+  - If any of these domains appear in your source material, do not reference them
+  - Focus on alternative sources and avoid mentioning these competitor domains
+  `
+      : ""
+  }
   </critical_requirements>
   
   <target_article>
@@ -1282,21 +1315,33 @@ export const prompts = {
   Keywords: ${keywords.join(", ")}
   Max Words: 300
   
-  ${notes ? `
+  ${
+    notes
+      ? `
   User Requirements: ${notes}
-  ` : ""}
+  `
+      : ""
+  }
   
-  ${videos && videos.length > 0 ? `
+  ${
+    videos && videos.length > 0
+      ? `
   Available Videos:
   ${videos.map((v) => `- ${v.title}: ${v.url}`).join("\n")}
-  ` : ""}
+  `
+      : ""
+  }
   
-  ${sources && sources.length > 0 ? `
+  ${
+    sources && sources.length > 0
+      ? `
   Verified Sources (use ONLY these URLs):
   ${sources.map((source, index) => `[S${index + 1}] ${source.url}${source.title ? ` - ${source.title}` : ""}`).join("\n")}
-  ` : `
+  `
+      : `
   No source URLs provided - leave all relevantLinks arrays empty.
-  `}
+  `
+  }
   </target_article>
   
   <research_data>
@@ -1334,12 +1379,16 @@ export const prompts = {
   - Add relevant links ONLY from sources parameter (if provided)
   - Include primary keywords for the section
   
-  ${videos && videos.length > 0 ? `
+  ${
+    videos && videos.length > 0
+      ? `
   Video Integration:
   - Score each key point for video integration potential (max 15 pts)
   - Select ONE optimal section for video integration
   - Match with best available video from provided list
-  ` : ""}
+  `
+      : ""
+  }
   </step_3_optimization>
   
   </task_execution>
@@ -1361,7 +1410,7 @@ export const prompts = {
         "heading": "Keyword-rich heading",
         "summary": "150-350 character summary",
         "characterCount": number,
-        "relevantLinks": [${sources && sources.length > 0 ? '"source_url_only_from_sources_param"' : ''}],
+        "relevantLinks": [${sources && sources.length > 0 ? '"source_url_only_from_sources_param"' : ""}],
         "selectionScore": number,
         "primaryKeywords": ["keyword1", "keyword2"]${videos && videos.length > 0 ? ',\n        "videoContext": "optional video topics",\n        "videoIntegrationScore": number' : ""}
       }

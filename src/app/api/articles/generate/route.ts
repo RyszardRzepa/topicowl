@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import type { ApiResponse, VideoEmbed } from "@/types";
 import { API_BASE_URL } from "@/constants";
 import { fetcher } from "@/lib/utils";
+import { getUserExcludedDomains } from "@/lib/utils/article-generation";
 import { db } from "@/server/db";
 import { articles, articleGeneration, users } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -198,18 +199,27 @@ async function performResearch(
   title: string,
   keywords: string[],
   generationId: number,
+  userId: string,
   notes?: string,
 ): Promise<ResearchResponse> {
   await updateGenerationProgress(generationId, "researching", 10);
 
   console.log("Calling research API", { title, keywords, hasNotes: !!notes });
 
+  // Get the Clerk user ID to retrieve excluded domains
+  const { userId: clerkUserId } = await auth();
+  const excludedDomains = clerkUserId ? await getUserExcludedDomains(clerkUserId) : [];
+
   const researchData = await fetcher<ResearchResponse>(
     `${API_BASE_URL}/api/articles/research`,
     {
       method: "POST",
-      body: { title, keywords, notes },
-      timeout: 10 * 60 * 1000, // 10 minutes for research operations
+      body: {
+        title,
+        keywords,
+        notes,
+        excludedDomains,
+      },
     },
   );
 
@@ -220,7 +230,7 @@ async function performResearch(
   });
 
   await updateGenerationProgress(generationId, "researching", 25, {
-    researchData: researchData
+    researchData: researchData,
   });
 
   return researchData;
@@ -232,22 +242,38 @@ async function createOutline(
   researchData: string,
   sources: Array<{ url: string; title?: string }>,
   generationId: number,
+  userId: string,
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
 ): Promise<OutlineResponse> {
+  console.log("Calling outline API", { title, keywords });
+
+  // Get excluded domains for the user
+  const excludedDomains = await getUserExcludedDomains(userId);
+
   const outlineResult = await fetcher<ApiResponse<OutlineResponse>>(
     `${API_BASE_URL}/api/articles/outline`,
     {
       method: "POST",
-      body: { title, keywords, researchData, sources, videos, notes },
+      body: {
+        title,
+        keywords,
+        researchData,
+        sources,
+        videos,
+        notes,
+        userId, // Pass the clerk user ID
+        excludedDomains, // Pass excluded domains so outline API doesn't need to fetch them
+      },
     },
   );
 
-  if (!outlineResult.success) {
-    throw new Error(outlineResult.error ?? "Outline API call failed");
+  if (!outlineResult.success || !outlineResult.data) {
+    throw new Error("Failed to generate outline");
   }
 
-  const outlineData = outlineResult.data!;
+  const outlineData = outlineResult.data;
+
   await db
     .update(articleGeneration)
     .set({ outline: outlineData, status: "outlining", progress: 40 })
@@ -311,25 +337,10 @@ async function writeArticle(
   keywords: string[],
   coverImageUrl: string,
   generationId: number,
+  userId: string,
   videos?: Array<{ title: string; url: string }>,
 ): Promise<WriteResponse> {
   await updateGenerationProgress(generationId, "writing", 55);
-
-  const writeRequestBody: {
-    outlineData: OutlineResponse;
-    title: string;
-    keywords: string[];
-    coverImage?: string;
-    videos?: Array<{ title: string; url: string }>;
-  } = { outlineData, title, keywords };
-
-  if (coverImageUrl) {
-    writeRequestBody.coverImage = coverImageUrl;
-  }
-
-  if (videos && videos.length > 0) {
-    writeRequestBody.videos = videos;
-  }
 
   console.log("Calling write API", {
     title,
@@ -342,8 +353,14 @@ async function writeArticle(
     `${API_BASE_URL}/api/articles/write`,
     {
       method: "POST",
-      body: writeRequestBody,
-      timeout: 8 * 60 * 1000, // 8 minutes for writing operations
+      body: {
+        outlineData: outlineData,
+        title,
+        keywords,
+        coverImage: coverImageUrl || undefined,
+        videos,
+        userId
+      },
     },
   );
 
@@ -373,8 +390,9 @@ async function validateArticle(
     `${API_BASE_URL}/api/articles/validate`,
     {
       method: "POST",
-      body: { article: content },
-      timeout: 6 * 60 * 1000, // 6 minutes for validation operations
+      body: {
+        content,
+      },
     },
   );
 
@@ -399,19 +417,20 @@ async function updateArticleIfNeeded(
     return content;
   }
 
-  const updateResult = await fetcher<ApiResponse<UpdateResponse>>(
+  console.log("Calling update API");
+
+  const updateResult = await fetcher<UpdateResponse>(
     `${API_BASE_URL}/api/articles/update`,
     {
       method: "POST",
-      body: { article: content, validationText },
+      body: {
+        article: content,
+        validationText,
+      },
     },
   );
 
-  if (!updateResult.success) {
-    throw new Error(updateResult.error ?? "Update API call failed");
-  }
-
-  return updateResult.data!.updatedContent ?? content;
+  return updateResult.updatedContent ?? content;
 }
 
 async function finalizeArticle(
@@ -574,6 +593,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       article.title,
       keywords,
       generationRecord.id,
+      userId,
       article.notes ?? undefined,
     );
     console.log("Research completed", {
@@ -588,6 +608,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       researchData.researchData ?? "",
       researchData.sources ?? [],
       generationRecord.id,
+      userId,
       researchData.videos,
       article.notes ?? undefined,
     );
@@ -614,6 +635,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       keywords,
       coverImageUrl,
       generationRecord.id,
+      userId,
       researchData.videos,
     );
     console.log("Writing completed", {
@@ -675,6 +697,7 @@ export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
 
+    console.log("userId!!!", userId);
     if (!userId) {
       console.log("Unauthorized request - no user ID");
       return NextResponse.json(

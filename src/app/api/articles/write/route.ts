@@ -4,9 +4,10 @@ import { NextResponse } from 'next/server';
 import { prompts } from "@/prompts";
 import { MODELS } from '@/constants';
 import { db } from '@/server/db';
-import { articleSettings } from '@/server/db/schema';
+import { articleSettings, users } from '@/server/db/schema';
 import type { OutlineResponse } from '@/app/api/articles/outline/route';
-import { blogPostSchema, enhancedBlogPostSchema } from '@/types';
+import { blogPostSchema } from '@/types';
+import { eq } from 'drizzle-orm';
 
 // Types colocated with this API route
 interface WriteRequest {
@@ -25,6 +26,7 @@ interface WriteRequest {
     title?: string;
   }>;
   notes?: string; // User-provided context and requirements
+  userId: string
 }
 
 export interface WriteResponse {
@@ -50,152 +52,251 @@ export interface WriteResponse {
   hasVideoIntegration?: boolean;
 }
 
-export async function POST(request: Request) {
-  let body: WriteRequest | undefined;
+// Extracted write logic that can be called directly
+export async function performWriteLogic(
+  outlineData: OutlineResponse,
+  title: string,
+  keywords: string[],
+  userId: string,
+  coverImage?: string,
+  videos?: Array<{ title: string; url: string }>,
+  sources?: Array<{ url: string; title?: string }>,
+  notes?: string,
+): Promise<WriteResponse> {
+  console.log("[WRITE_LOGIC] Starting write generation", { 
+    title,
+    hasOutlineData: !!outlineData,
+    keyPointsCount: outlineData?.keyPoints?.length ?? 0,
+    keywordsCount: keywords?.length ?? 0,
+    hasCoverImage: !!coverImage,
+    sourcesCount: sources?.length ?? 0
+  });
+  
+  if (!outlineData || !title || !keywords || keywords.length === 0) {
+    throw new Error("Outline data, title, and keywords are required");
+  }
+
+  // Validate outline data structure
+  if (!outlineData.keyPoints || !Array.isArray(outlineData.keyPoints) || outlineData.keyPoints.length !== 5) {
+    throw new Error("Invalid outline data structure - expected 5 key points");
+  }
+
+  // Retrieve user's excluded domains (inlined from getUserExcludedDomains)
+  let excludedDomains: string[] = [];
   try {
-    body = await request.json() as WriteRequest;
-    console.log("Write API request received", { 
-      title: body.title,
-      hasOutlineData: !!body.outlineData,
-      keyPointsCount: body.outlineData?.keyPoints?.length ?? 0,
-      keywordsCount: body.keywords?.length ?? 0,
-      hasCoverImage: !!body.coverImage,
-      sourcesCount: body.sources?.length ?? 0
-    });
+    console.log(`[DOMAIN_FILTER] Retrieving excluded domains for Clerk user: ${userId}`);
     
-    if (!body.outlineData || !body.title || !body.keywords || body.keywords.length === 0) {
-      console.log("Invalid request - missing required fields");
-      return NextResponse.json(
-        { error: 'Outline data, title, and keywords are required' },
-        { status: 400 }
-      );
+    // First, get the internal user ID from the Clerk user ID
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_user_id, userId))
+      .limit(1);
+
+    if (userRecord) {
+      const settings = await db
+        .select({ excluded_domains: articleSettings.excluded_domains })
+        .from(articleSettings)
+        .where(eq(articleSettings.user_id, userRecord.id))
+        .limit(1);
+
+      excludedDomains = settings.length > 0 ? settings[0]!.excluded_domains : [];
+      
+      console.log(`[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`);
+    } else {
+      console.log(`[DOMAIN_FILTER] User not found for Clerk ID: ${userId}`);
     }
-
-    // Validate outline data structure
-    if (!body.outlineData.keyPoints || !Array.isArray(body.outlineData.keyPoints) || body.outlineData.keyPoints.length !== 5) {
-      console.log("Invalid outline data - expected 5 key points");
-      return NextResponse.json(
-        { error: 'Invalid outline data structure' },
-        { status: 400 }
-      );
-    }
-
-    // Fetch article settings
-    let settingsData;
-    try {
-      const settings = await db.select().from(articleSettings).limit(1);
-      settingsData = settings.length > 0 ? {
-        toneOfVoice: settings[0]!.toneOfVoice ?? '',
-        articleStructure: settings[0]!.articleStructure ?? '',
-        maxWords: settings[0]!.maxWords ?? 800, // Provide default if column doesn't exist
-      } : {
-        toneOfVoice: '',
-        articleStructure: '',
-        maxWords: 800,
-      };
-      console.log("Article settings loaded", { settingsFound: settings.length > 0 });
-    } catch (error) {
-      // If there's an error (like missing column), use defaults
-      console.log('Using default article settings due to database error', error);
-      settingsData = {
-        toneOfVoice: '',
-        articleStructure: '',
-        maxWords: 800,
-      };
-    }
-
-    // Check if videos are available for enhanced generation
-    const hasVideos = body.videos && body.videos.length > 0;
-    const schemaToUse = hasVideos ? enhancedBlogPostSchema : blogPostSchema;
-
-    console.log("Starting AI content generation", {
-      model: MODELS.CLAUDE_SONET_4,
-      hasVideos,
-      schemaType: hasVideos ? 'enhanced' : 'basic',
-      settingsData: {
-        toneOfVoice: settingsData.toneOfVoice?.slice(0, 50) + '...',
-        maxWords: settingsData.maxWords
+  } catch (error) {
+    console.error(`[DOMAIN_FILTER] Error retrieving excluded domains for Clerk user ${userId}:`, error);
+    // Return empty array on error to avoid blocking article generation
+    excludedDomains = [];
+  }
+  
+  // Filter sources to remove excluded domains (inlined from filterSourcesByExcludedDomains)
+  let filteredSources = sources;
+  if (sources && excludedDomains && excludedDomains.length > 0) {
+    filteredSources = sources.filter(source => {
+      try {
+        const url = new URL(source.url);
+        const domain = url.hostname;
+        
+        // Normalize domain (remove www and convert to lowercase)
+        const normalizedDomain = domain.toLowerCase().replace(/^www\./, '');
+        
+        // Check if domain is excluded
+        const isExcluded = excludedDomains.some(excludedDomain => {
+          const normalizedExcluded = excludedDomain.toLowerCase().replace(/^www\./, '');
+          
+          // Exact match
+          if (normalizedDomain === normalizedExcluded) {
+            return true;
+          }
+          
+          // Check if the domain is a subdomain of the excluded domain
+          if (normalizedDomain.endsWith('.' + normalizedExcluded)) {
+            return true;
+          }
+          
+          return false;
+        });
+        
+        if (isExcluded) {
+          console.log(`[DOMAIN_FILTER] Filtered out source: ${source.url} (domain: ${domain})`);
+        }
+        
+        return !isExcluded;
+      } catch (error) {
+        // If URL parsing fails, keep the source (don't filter invalid URLs)
+        console.warn(`[DOMAIN_FILTER] Could not parse URL for filtering: ${source.url}`, error);
+        return true;
       }
     });
 
-    let articleObject;
-    try {
-      const result = await generateObject({
-        model: anthropic(MODELS.CLAUDE_SONET_4),
-        schema: schemaToUse,
-        prompt: prompts.writing({
-          title: body.title,
-          outlineData: body.outlineData,
-          coverImage: body.coverImage,
-          videos: body.videos ?? [],
-          sources: body.sources ?? [],
-          notes: body.notes
-        }, settingsData, []),
-      });
-      articleObject = result.object;
-      console.log("AI content generation completed successfully", {
-        contentLength: articleObject.content?.length ?? 0,
-        hasSlug: !!articleObject.slug,
-        hasExcerpt: !!articleObject.excerpt
-      });
-    } catch (aiError) {
-      console.error("AI content generation failed", {
-        error: aiError instanceof Error ? {
-          name: aiError.name,
-          message: aiError.message,
-          stack: aiError.stack?.slice(0, 500)
-        } : aiError,
-        model: MODELS.CLAUDE_SONET_4,
-        hasVideos,
-        promptLength: prompts.writing({
-          title: body.title,
-          outlineData: body.outlineData,
-          coverImage: body.coverImage,
-          videos: body.videos ?? [],
-          sources: body.sources ?? [],
-          notes: body.notes
-        }, settingsData, []).length
-      });
-      throw aiError;
+    const filteredCount = sources.length - filteredSources.length;
+    if (filteredCount > 0) {
+      console.log(`[DOMAIN_FILTER] Filtered out ${filteredCount} sources due to excluded domains`);
     }
+  }
+  
+  // Fetch article settings
+  let settingsData;
+  try {
+    const settings = await db.select().from(articleSettings).limit(1);
+    settingsData = settings.length > 0 ? {
+      toneOfVoice: settings[0]!.toneOfVoice ?? '',
+      articleStructure: settings[0]!.articleStructure ?? '',
+      maxWords: settings[0]!.maxWords ?? 800, // Provide default if column doesn't exist
+    } : {
+      toneOfVoice: '',
+      articleStructure: '',
+      maxWords: 800,
+    };
+    console.log("[WRITE_LOGIC] Article settings loaded", { settingsFound: settings.length > 0 });
+  } catch (error) {
+    // If there's an error (like missing column), use defaults
+    console.log('[WRITE_LOGIC] Using default article settings due to database error', error);
+    settingsData = {
+      toneOfVoice: '',
+      articleStructure: '',
+      maxWords: 800,
+    };
+  }
 
-    // Log video usage for analytics
-    if (hasVideos) {
-      const videoCount = 'videos' in articleObject ? 
-        (articleObject as { videos?: Array<unknown> }).videos?.length ?? 0 : 0;
-      console.log(`Article generated with ${videoCount} videos embedded`);
+  // Check if videos are available for enhanced generation
+  const hasVideos = videos && videos.length > 0;
+  // Always use basic schema for now to avoid schema validation issues
+  const schemaToUse = blogPostSchema;
+
+  console.log("[WRITE_LOGIC] Starting AI content generation", {
+    model: MODELS.CLAUDE_SONET_4,
+    hasVideos,
+    schemaType: 'basic', // Always using basic schema now
+    excludedDomainsCount: excludedDomains.length,
+    filteredSourcesCount: filteredSources?.length ?? 0,
+    originalSourcesCount: sources?.length ?? 0,
+    settingsData: {
+      toneOfVoice: settingsData.toneOfVoice?.slice(0, 50) + '...',
+      maxWords: settingsData.maxWords
     }
+  });
 
-    // Validate the AI response has required fields
-    if (!articleObject.content || !articleObject.title || !articleObject.slug) {
-      console.error("AI generated invalid article object", {
-        hasContent: !!articleObject.content,
-        hasTitle: !!articleObject.title,
-        hasSlug: !!articleObject.slug,
-        articleObject: JSON.stringify(articleObject).slice(0, 500) + '...'
-      });
-      throw new Error("AI generated article is missing required fields (content, title, or slug)");
-    }
+  let articleObject;
+  // Create excluded domains prompt instruction
+  const excludedDomainsInstruction = excludedDomains && excludedDomains.length > 0 
+    ? `\n\nIMPORTANT: Do not include any links to the following excluded domains in your response: ${excludedDomains.join(', ')}. If any of these domains appear in your source material, do not reference them or include links to them in the generated content.`
+    : '';
 
-    // Ensure excerpt is included as the first paragraph of the content
-    const contentWithExcerpt = articleObject.excerpt 
-      ? `${articleObject.excerpt}\n\n${articleObject.content}`
-      : articleObject.content;
-
-    // Include the cover image in the response if provided
-    const responseObject = {
-      ...articleObject,
-      content: contentWithExcerpt,
-      ...(body.coverImage && { coverImage: body.coverImage })
-    } as WriteResponse;
-
-    console.log("Article write completed successfully", {
-      finalContentLength: responseObject.content.length,
-      hasMetaDescription: !!responseObject.metaDescription,
-      tagsCount: responseObject.tags?.length ?? 0
+  try {
+    const result = await generateObject({
+      model: anthropic(MODELS.CLAUDE_SONET_4),
+      schema: schemaToUse,
+      prompt: prompts.writing({
+        title: title,
+        outlineData: outlineData,
+        coverImage: coverImage,
+        videos: [], // Don't pass videos to avoid enhanced schema issues
+        sources: filteredSources ?? [],
+        notes: notes
+      }, settingsData, [], excludedDomains) + excludedDomainsInstruction,
     });
+    articleObject = result.object;
+    console.log("[WRITE_LOGIC] AI content generation completed successfully", {
+      contentLength: articleObject.content?.length ?? 0,
+      hasSlug: !!articleObject.slug,
+      hasExcerpt: !!articleObject.excerpt,
+      generatedFields: Object.keys(articleObject)
+    });
+  } catch (aiError) {
+    console.error("[WRITE_LOGIC] AI content generation failed", {
+      error: aiError instanceof Error ? {
+        name: aiError.name,
+        message: aiError.message,
+        stack: aiError.stack?.slice(0, 500)
+      } : aiError,
+      model: MODELS.CLAUDE_SONET_4,
+      hasVideos,
+      schemaUsed: 'blogPostSchema',
+      requiredFields: Object.keys(blogPostSchema.shape)
+    });
+    throw aiError;
+  }
 
-    return NextResponse.json(responseObject);
+  // Log video usage for analytics
+  if (hasVideos) {
+    const videoCount = 'videos' in articleObject ? 
+      (articleObject as { videos?: Array<unknown> }).videos?.length ?? 0 : 0;
+    console.log(`[WRITE_LOGIC] Article generated with ${videoCount} videos embedded`);
+  }
+
+  // Validate the AI response has required fields
+  if (!articleObject.content || !articleObject.title || !articleObject.slug) {
+    console.error("[WRITE_LOGIC] AI generated invalid article object", {
+      hasContent: !!articleObject.content,
+      hasTitle: !!articleObject.title,
+      hasSlug: !!articleObject.slug,
+      articleObject: JSON.stringify(articleObject).slice(0, 500) + '...'
+    });
+    throw new Error("AI generated article is missing required fields (content, title, or slug)");
+  }
+
+  // Ensure excerpt is included as the first paragraph of the content
+  const contentWithExcerpt = articleObject.excerpt 
+    ? `${articleObject.excerpt}\n\n${articleObject.content}`
+    : articleObject.content;
+
+  // Include the cover image in the response if provided
+  const responseObject = {
+    ...articleObject,
+    content: contentWithExcerpt,
+    ...(coverImage && { coverImage: coverImage })
+  } as WriteResponse;
+
+  console.log("[WRITE_LOGIC] Article write completed successfully", {
+    finalContentLength: responseObject.content.length,
+    hasMetaDescription: !!responseObject.metaDescription,
+    tagsCount: responseObject.tags?.length ?? 0
+  });
+
+  return responseObject;
+}
+
+export async function POST(request: Request) {
+  let body: WriteRequest | undefined;
+  try {  
+    body = await request.json() as WriteRequest;
+
+    const result = await performWriteLogic(
+      body.outlineData,
+      body.title,
+      body.keywords,
+      body.userId,
+      body.coverImage,
+      body.videos,
+      body.sources,
+      body.notes,
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Write endpoint error - Full details:', {
       error: error instanceof Error ? {

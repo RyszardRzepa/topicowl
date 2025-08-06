@@ -11,9 +11,11 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Save, XCircle } from "lucide-react";
+import { X, Plus, Save, XCircle, Link, Search } from "lucide-react";
 import Image from "next/image";
+import { UnsplashImagePicker } from "./unsplash-image-picker";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
+import type { UnsplashImage } from "@/app/api/articles/images/search/route";
 
 interface ArticleEditorProps {
   article: ArticleDetailResponse["data"];
@@ -42,6 +44,8 @@ export function ArticleEditor({
   });
 
   const [newKeyword, setNewKeyword] = useState("");
+  const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
+  const [selectedUnsplashImage, setSelectedUnsplashImage] = useState<UnsplashImage | null>(null);
 
   const handleAddKeyword = () => {
     if (newKeyword.trim() && !formData.metaKeywords.includes(newKeyword.trim())) {
@@ -57,6 +61,15 @@ export function ArticleEditor({
     setFormData((prev) => ({
       ...prev,
       metaKeywords: prev.metaKeywords.filter((keyword) => keyword !== keywordToRemove),
+    }));
+  };
+
+  const handleUnsplashImageSelect = (image: UnsplashImage) => {
+    setSelectedUnsplashImage(image);
+    setFormData((prev) => ({
+      ...prev,
+      coverImageUrl: image.urls.regular,
+      coverImageAlt: image.altDescription ?? image.description ?? `Photo by ${image.user.name} on Unsplash`,
     }));
   };
 
@@ -166,49 +179,108 @@ export function ArticleEditor({
       {/* Cover Image */}
       <Card>
         <CardHeader>
-          <CardTitle>Cover Image</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Cover Image</CardTitle>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={imageInputMode === "url" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setImageInputMode("url")}
+              >
+                <Link className="mr-1 h-4 w-4" />
+                URL
+              </Button>
+              <Button
+                type="button"
+                variant={imageInputMode === "search" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setImageInputMode("search")}
+              >
+                <Search className="mr-1 h-4 w-4" />
+                Search
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <label
-              htmlFor="coverImageUrl"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Cover Image URL
-            </label>
-            <Input
-              id="coverImageUrl"
-              type="url"
-              value={formData.coverImageUrl}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  coverImageUrl: e.target.value,
-                }))
-              }
-              placeholder="https://example.com/image.jpg"
-            />
-          </div>
+          {imageInputMode === "url" ? (
+            <>
+              <div>
+                <label
+                  htmlFor="coverImageUrl"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Cover Image URL
+                </label>
+                <Input
+                  id="coverImageUrl"
+                  type="url"
+                  value={formData.coverImageUrl}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      coverImageUrl: e.target.value,
+                    }))
+                  }
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
 
-          <div>
-            <label
-              htmlFor="coverImageAlt"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Cover Image Alt Text
-            </label>
-            <Input
-              id="coverImageAlt"
-              value={formData.coverImageAlt}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  coverImageAlt: e.target.value,
-                }))
-              }
-              placeholder="Describe the image for accessibility"
-            />
-          </div>
+              <div>
+                <label
+                  htmlFor="coverImageAlt"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Cover Image Alt Text
+                </label>
+                <Input
+                  id="coverImageAlt"
+                  value={formData.coverImageAlt}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      coverImageAlt: e.target.value,
+                    }))
+                  }
+                  placeholder="Describe the image for accessibility"
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="mb-3 block text-sm font-medium text-gray-700">
+                Search Unsplash Images
+              </label>
+              <UnsplashImagePicker
+                onImageSelect={handleUnsplashImageSelect}
+                selectedImageId={selectedUnsplashImage?.id}
+              />
+              
+              {/* Show alt text input for selected Unsplash image */}
+              {selectedUnsplashImage && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="coverImageAlt"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Cover Image Alt Text
+                  </label>
+                  <Input
+                    id="coverImageAlt"
+                    value={formData.coverImageAlt}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        coverImageAlt: e.target.value,
+                      }))
+                    }
+                    placeholder="Describe the image for accessibility"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Image Preview */}
           {formData.coverImageUrl && (

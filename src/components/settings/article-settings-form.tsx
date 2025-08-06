@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ExcludedDomainsField } from './excluded-domains-field';
 import type { ArticleSettingsRequest, ArticleSettingsResponse } from '@/app/api/settings/route';
 
 // Form-specific type for component state
@@ -11,6 +12,7 @@ interface ArticleSettingsForm {
   toneOfVoice: string;
   articleStructure: string;
   maxWords: number;
+  excluded_domains: string[];
   // Company/business settings
   companyName: string;
   productDescription: string;
@@ -31,6 +33,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
     toneOfVoice: initialSettings.toneOfVoice ?? 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
     articleStructure: initialSettings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
     maxWords: initialSettings.maxWords ?? 800,
+    excluded_domains: initialSettings.excluded_domains ?? [],
     // Company/business settings
     companyName: initialSettings.companyName ?? '',
     productDescription: initialSettings.productDescription ?? '',
@@ -41,6 +44,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
   });
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleInputChange = (field: keyof ArticleSettingsForm, value: string | number | string[]) => {
     setFormData(prev => ({
@@ -62,6 +66,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
     try {
       setSaving(true);
       setSaveMessage(null);
+      setIsLoading(true);
       
       const response = await fetch('/api/settings', {
         method: 'POST',
@@ -72,18 +77,31 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to save settings' })) as { error?: string };
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save settings' })) as { error?: string, details?: string[] };
+        
+        // Handle domain validation errors specifically
+        if (errorData.details && Array.isArray(errorData.details)) {
+          throw new Error(`Invalid domains: ${errorData.details.join(', ')}`);
+        }
+        
         throw new Error(errorData.error ?? 'Failed to save settings');
       }
 
       const updatedSettings = await response.json() as ArticleSettingsResponse;
       onSettingsUpdate(updatedSettings);
-      setSaveMessage('Settings saved successfully!');
+      setSaveMessage('Settings saved successfully! Your excluded domains will be applied to future article generation.');
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSaveMessage(null), 5000);
     } catch (error) {
       console.error('Failed to save settings:', error);
       setSaveMessage(error instanceof Error ? error.message : 'Failed to save settings');
+      
+      // Clear error message after 8 seconds
+      setTimeout(() => setSaveMessage(null), 8000);
     } finally {
       setSaving(false);
+      setIsLoading(false);
     }
   };
 
@@ -91,12 +109,14 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
     try {
       setSaving(true);
       setSaveMessage(null);
+      setIsLoading(true);
       
       // Reset to default settings by posting defaults
       const defaultSettings: ArticleSettingsRequest = {
         toneOfVoice: 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
         articleStructure: 'Introduction • Main points with subheadings • Practical tips • Conclusion',
         maxWords: 800,
+        excluded_domains: [],
         companyName: '',
         productDescription: '',
         keywords: [],
@@ -123,6 +143,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         toneOfVoice: settings.toneOfVoice ?? 'professional',
         articleStructure: settings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
         maxWords: settings.maxWords ?? 800,
+        excluded_domains: settings.excluded_domains ?? [],
         companyName: settings.companyName ?? '',
         productDescription: settings.productDescription ?? '',
         keywords: settings.keywords ?? [],
@@ -131,12 +152,19 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         publishingFrequency: settings.publishingFrequency ?? 'weekly',
       });
       onSettingsUpdate(settings);
-      setSaveMessage('Settings reset to defaults!');
+      setSaveMessage('Settings reset to defaults! All excluded domains have been cleared.');
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSaveMessage(null), 5000);
     } catch (error) {
       console.error('Failed to reset settings:', error);
       setSaveMessage(error instanceof Error ? error.message : 'Failed to reset settings');
+      
+      // Clear error message after 8 seconds
+      setTimeout(() => setSaveMessage(null), 8000);
     } finally {
       setSaving(false);
+      setIsLoading(false);
     }
   };
 
@@ -339,17 +367,42 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
             How often you plan to publish new articles
           </p>
         </div>
+
+        {/* Excluded Domains */}
+        <ExcludedDomainsField
+          domains={formData.excluded_domains}
+          onChange={(domains) => handleInputChange('excluded_domains', domains)}
+          disabled={saving || isLoading}
+        />
         </CardContent>
       </Card>
 
       {/* Save Message */}
       {saveMessage && (
-        <div className={`p-3 rounded-md ${
+        <div className={`p-4 rounded-lg flex items-start gap-3 ${
           saveMessage.includes('successfully') || saveMessage.includes('reset') 
             ? 'bg-green-50 text-green-800 border border-green-200' 
             : 'bg-red-50 text-red-800 border border-red-200'
         }`}>
-          {saveMessage}
+          <div className="flex-shrink-0 mt-0.5">
+            {saveMessage.includes('successfully') || saveMessage.includes('reset') ? (
+              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="font-medium">
+              {saveMessage.includes('successfully') || saveMessage.includes('reset') ? 'Success' : 'Error'}
+            </p>
+            <p className="mt-1 text-sm">
+              {saveMessage}
+            </p>
+          </div>
         </div>
       )}
 
@@ -357,17 +410,29 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
       <div className="flex space-x-4">
         <Button 
           onClick={handleSave} 
-          disabled={saving}
-          className="flex-1"
+          disabled={saving || isLoading}
+          className="flex-1 flex items-center justify-center gap-2"
         >
-          {saving ? 'Saving...' : 'Save Changes'}
+          {saving && (
+            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          )}
+          {saving ? 'Saving Changes...' : 'Save Changes'}
         </Button>
         <Button 
           onClick={handleReset}
-          disabled={saving}
+          disabled={saving || isLoading}
           variant="outline"
-          className="px-6"
+          className="px-6 flex items-center justify-center gap-2"
         >
+          {saving && (
+            <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          )}
           Reset to Defaults
         </Button>
       </div>
