@@ -518,6 +518,10 @@ export const prompts = {
         title: string;
         url: string;
       }>;
+      sources?: Array<{
+        url: string;
+        title?: string;
+      }>;
       researchData?: string; // Add research data for context
       notes?: string; // User-provided context and requirements
     },
@@ -565,8 +569,31 @@ export const prompts = {
   - Article schema: author, datePublished=${currentDate}, dateModified=${currentDate}, headline, wordCount, image, mainEntityOfPage.
   - OG/Twitter Card values: title, description, image.
   - Featured snippet: concise definition/answer paragraph (<50 words) after H1 or first H2.
-  - Internal links: ${relatedPosts?.length ?? 0} posts, descriptive anchors; 2–4 external citations (source name, year).
+  - Internal links: ${relatedPosts?.length ?? 0} posts, descriptive anchors; 2–5 external citations using provided sources.
   </seo_best_practices>
+  
+  ${
+    data.sources?.length
+      ? `
+  <verified_sources>
+  Use these VERIFIED source URLs for external citations (maximum 5 links in article):
+  ${data.sources.map((source, index) => `[${index + 1}] ${source.url}${source.title ? ` - ${source.title}` : ""}`).join("\n")}
+  
+  CITATION REQUIREMENTS:
+  - Use ONLY these URLs for external links
+  - Maximum 5 source citations throughout the article
+  - Integrate links naturally within relevant content sections
+  - Use descriptive anchor text that indicates the source (e.g., "according to [Source Name]", "as reported by [Organization]")
+  - Distribute links across different sections for optimal flow
+  - Prioritize the most authoritative and relevant sources
+  </verified_sources>
+  `
+      : `
+  <sources_note>
+  No verified sources provided. Focus on general principles and best practices without specific external citations.
+  </sources_note>
+  `
+  }
   
   <outline_contract>
   RESEARCH ANALYSIS CONTEXT:
@@ -691,33 +718,36 @@ export const prompts = {
   Check and fix:
   1) Structure: One H1, correct H2–H4 hierarchy.
   2) SEO: Primary keyword early, correct meta lengths, 1–2% keyword density.
-  3) Link Integrity: ONLY use URLs provided in outline's relevantLinks arrays.
-  4) Citations: ≥2 credible external links from provided sources.
+  3) Source Citations: Use ONLY provided verified sources (max 8 links).
+  4) Citations: Integrate external sources naturally with descriptive anchors.
   5) Originality: Unique examples, no plagiarism.
   6) Factuality: No hallucinations, state unknown data clearly.
   7) Internal links: Include relevant posts.
   8) Word count ±10%.
   9) Data Accuracy: No invented statistics, prices, addresses, or contact details.
-  10) Source Verification: All claims must be supportable by provided research context.
+  10) Source Verification: All external links must be from provided sources list.
   </quality_gates>
   
   <anti_hallucination_rules>
   STRICTLY FORBIDDEN:
-  ❌ Inventing specific URLs not provided in relevantLinks
+  ❌ Inventing specific URLs not provided in verified sources
   ❌ Creating fake statistics or data points
   ❌ Fabricating prices, costs, or financial information
   ❌ Making up company names, addresses, or contact information
-  ❌ Citing sources not provided in the research context
+  ❌ Citing sources not provided in the verified sources list
   ❌ Claiming specific features or capabilities without verification
   ❌ Using placeholder text like "contact them at..." without actual contact info
+  ❌ Creating external links beyond the provided verified sources
   
   REQUIRED APPROACH:
-  ✅ Use only verified information from outline and research context
+  ✅ Use only verified sources from the provided list for external citations
+  ✅ Maximum 5 external links total using only provided source URLs
   ✅ Speak in general terms when specific data is unavailable
   ✅ Focus on principles and best practices rather than specific examples when data is limited
   ✅ Use conditional language ("typically," "often," "generally") for unverified claims
-  ✅ Direct readers to official sources using provided links
+  ✅ Direct readers to official sources using only provided links
   ✅ Acknowledge limitations: "specific pricing varies" instead of inventing numbers
+  ✅ Integrate source citations naturally with descriptive anchor text
   </anti_hallucination_rules>
   
   <output_format>

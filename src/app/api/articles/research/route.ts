@@ -1,7 +1,4 @@
-import {
-  google,
-  type GoogleGenerativeAIProviderMetadata,
-} from "@ai-sdk/google";
+import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { prompts } from "@/prompts";
@@ -26,11 +23,65 @@ export interface ResearchResponse {
   }>;
 }
 
-// Types colocated with this API route
-export interface ResearchRequest {
-  title: string;
-  keywords: string[];
-  notes?: string;
+// Function to resolve Google redirect URLs to actual destinations
+async function resolveGoogleRedirectUrl(url: string): Promise<string> {
+  try {
+    // Check if it's a Google redirect URL
+    if (!url.includes('vertexaisearch.cloud.google.com/grounding-api-redirect/')) {
+      return url;
+    }
+
+    const response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'manual'
+    });
+
+    // Check for redirect location
+    const location = response.headers.get('location');
+    if (location) {
+      return location;
+    }
+
+    // If no redirect header, try GET request
+    const getResponse = await fetch(url, {
+      redirect: 'manual'
+    });
+    
+    const getLocation = getResponse.headers.get('location');
+    if (getLocation) {
+      return getLocation;
+    }
+
+    // Fallback to original URL if no redirect found
+    return url;
+  } catch (error) {
+    console.error(`[RESEARCH_API] Failed to resolve redirect URL: ${url}`, error);
+    return url; // Return original URL on error
+  }
+}
+
+// Function to resolve all source URLs
+async function resolveSources(sources: Array<{
+  sourceType: string;
+  url: string;
+  title?: string;
+}>): Promise<Array<{
+  url: string;
+  title?: string;
+}>> {
+  const resolvedSources = await Promise.allSettled(
+    sources.map(async (source) => {
+      const resolvedUrl = await resolveGoogleRedirectUrl(source.url);
+      return {
+        url: resolvedUrl,
+        title: source.title
+      };
+    })
+  );
+
+  return resolvedSources
+    .filter((result) => result.status === 'fulfilled')
+    .map((result) => (result as PromiseFulfilledResult<{url: string; title?: string}>).value);
 }
 
 export async function POST(request: Request) {
@@ -74,7 +125,6 @@ export async function POST(request: Request) {
 
     // Retry logic for when sources are empty or not returned
     let text: string;
-    let providerMetadata: GoogleGenerativeAIProviderMetadata | undefined;
     let sources: Array<{
       sourceType: string;
       url: string;
@@ -105,7 +155,6 @@ export async function POST(request: Request) {
       });
 
       text = result.text;
-      providerMetadata = result.providerMetadata?.google as unknown as GoogleGenerativeAIProviderMetadata;
       sources = (result.sources ?? []) as Array<{
         sourceType: string;
         url: string;
@@ -133,16 +182,16 @@ export async function POST(request: Request) {
 
     console.log("[RESEARCH_API] Final sources:", sources);
 
-    // For now, return empty sources array since the AI SDK sources structure is complex
-    // The main research data (text) already contains the information with proper citations
+    // Resolve Google redirect URLs to actual destinations
+    const resolvedSources = await resolveSources(sources);
+    console.log("[RESEARCH_API] Resolved sources:", resolvedSources);
 
     // Extract YouTube videos from resolved sources
-    const videos = sources
+    const videos = resolvedSources
       .filter(
-        (source): source is { sourceType: string; url: string; title?: string } =>
-          source.sourceType === "url" &&
-          (source.url.includes("youtube.com") ||
-            source.url.includes("youtu.be")),
+        (source) =>
+          source.url.includes("youtube.com") ||
+          source.url.includes("youtu.be")
       )
       .map((video) => ({
         title: video.title ?? "YouTube Video",
@@ -152,14 +201,14 @@ export async function POST(request: Request) {
 
     console.log(
       "[RESEARCH_API] Valid sources processed:",
-      sources,
+      resolvedSources.length,
       "videos found:",
       videos.length,
     );
 
     return NextResponse.json({
       researchData: text,
-      sources: sources,
+      sources: resolvedSources,
       videos,
     });
   } catch (error) {

@@ -184,15 +184,7 @@ export function ArticlePreviewClient({
             isLoading={isSaving}
           />
 
-          {/* Videos Display */}
-          {article.videos &&
-          Array.isArray(article.videos) &&
-          article.videos.length > 0 ? (
-            <div className="mb-6">
-              <h3 className="mb-3 text-lg font-semibold">Videos</h3>
-              <VideoEmbedPreview videos={article.videos as VideoEmbed[]} />
-            </div>
-          ) : null}
+        
 
           {/* Content Editor */}
           <ContentEditorWithPreview

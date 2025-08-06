@@ -20,6 +20,10 @@ interface WriteRequest {
     title: string;
     url: string;
   }>;
+  sources?: Array<{
+    url: string;
+    title?: string;
+  }>;
   notes?: string; // User-provided context and requirements
 }
 
@@ -55,7 +59,8 @@ export async function POST(request: Request) {
       hasOutlineData: !!body.outlineData,
       keyPointsCount: body.outlineData?.keyPoints?.length ?? 0,
       keywordsCount: body.keywords?.length ?? 0,
-      hasCoverImage: !!body.coverImage
+      hasCoverImage: !!body.coverImage,
+      sourcesCount: body.sources?.length ?? 0
     });
     
     if (!body.outlineData || !body.title || !body.keywords || body.keywords.length === 0) {
@@ -123,6 +128,7 @@ export async function POST(request: Request) {
           outlineData: body.outlineData,
           coverImage: body.coverImage,
           videos: body.videos ?? [],
+          sources: body.sources ?? [],
           notes: body.notes
         }, settingsData, []),
       });
@@ -146,6 +152,7 @@ export async function POST(request: Request) {
           outlineData: body.outlineData,
           coverImage: body.coverImage,
           videos: body.videos ?? [],
+          sources: body.sources ?? [],
           notes: body.notes
         }, settingsData, []).length
       });

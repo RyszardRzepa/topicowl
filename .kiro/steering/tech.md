@@ -1,4 +1,5 @@
 # Tech Stack
+Never write uni tests.
 
 ## Framework & Runtime
 - **Next.js 15** - React framework with App Router

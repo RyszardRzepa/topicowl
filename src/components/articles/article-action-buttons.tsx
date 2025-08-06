@@ -252,7 +252,7 @@ export function ArticleActionButtons({
           </Button>
         )}
 
-        {canRegenerate && (
+        {/* {canRegenerate && (
           <Button
             onClick={handleRegenerate}
             disabled={isRegenerating}
@@ -263,7 +263,7 @@ export function ArticleActionButtons({
             <RotateCcw className="h-3 w-3" />
             {isRegenerating ? "..." : "Regenerate"}
           </Button>
-        )}
+        )} */}
 
         {canPublish && (
           <Button
@@ -273,7 +273,7 @@ export function ArticleActionButtons({
             className="flex h-7 items-center gap-1 px-2 py-1 text-xs"
           >
             <Send className="h-3 w-3" />
-            {isPublishing ? "..." : "Publish"}
+            {isPublishing ? "..." : "Publish Now"}
           </Button>
         )}
       </div>
