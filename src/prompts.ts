@@ -547,238 +547,137 @@ export const prompts = {
       toneOfVoice?: string;
       articleStructure?: string;
       maxWords?: number;
+      notes: string
     },
     relatedPosts?: string[],
-    excludedDomains?: string[],
+    _excludedDomains?: string[],
   ) => {
     const currentDate = new Date().toISOString().split("T")[0];
 
-    return `
-  <role>
-  You are a senior content strategist, editor, and SEO specialist. Write an original, people-first article titled "${data.title}" that is easy to scan, genuinely helpful, and aligned with HubSpot-style best practices (skimmable sections, clear definitions, examples/templates, internal linking, and practical takeaways).
-  </role>
-  
-  <context>
-  Audience: ${data.audience ?? "General business/marketing readers"}
-  Primary intent: ${data.searchIntent ?? "informational"}
-  Date: ${currentDate}
-  </context>
-  
-  <style_guide>
-  - Tone: ${settings?.toneOfVoice ?? "expert, clear, no fluff, direct, friendly"}
-  - Conform to the exact structure: ${settings?.articleStructure ?? "H1, short Intro, TOC, H2 sections with H3s as needed, Summary/Conclusion, FAQ"}
-  - Short paragraphs (≤3 lines), meaningful subheads, bullets, numbered steps, and callouts.
-  - Active voice, concrete examples, specific, verifiable claims.
-  - Accessibility: descriptive link text, informative alt text for images, logical heading hierarchy (one H1 only).
-  </style_guide>
-  
-  <eeat_and_helpful_content>
-  - Demonstrate E‑E‑A‑T: reputable sources, brief author expertise, date, and last updated.
-  - Solve reader's task quickly; front-load value; include TL;DR box after intro.
-  - Add reusable assets: checklists, templates, tables, formulas, snippets.
-  </eeat_and_helpful_content>
-  
-  <seo_best_practices>
-  - Primary keyword in H1, first sentence, and within first 100 words.
-  - Keyword density for primary keyword: 2-3 keywords.
-  - 3–8 semantically related keywords naturally from outline.
-  - metaTitle ≤60 chars, metaDescription 150–160 chars with CTA.
-  - Slug kebab-case without stop words.
-  - FAQPage schema: 2–4 genuine intent Q&A.
-  - Article schema: author, datePublished=${currentDate}, dateModified=${currentDate}, headline, wordCount, image, mainEntityOfPage.
-  - OG/Twitter Card values: title, description, image.
-  - Featured snippet: concise definition/answer paragraph (<50 words) after H1 or first H2.
-  - Internal links: ${relatedPosts?.length ?? 0} posts, descriptive anchors; 2–5 external citations using provided sources.
-  </seo_best_practices>
-  
-  ${
-    data.sources?.length
-      ? `
-  <verified_sources>
-  Use these VERIFIED source URLs for external citations (maximum 5 links in article):
-  ${data.sources.map((source, index) => `[${index + 1}] ${source.url}${source.title ? ` - ${source.title}` : ""}`).join("\n")}
-  
-  CITATION REQUIREMENTS:
-  - Use ONLY these URLs for external links
-  - Maximum 5 source citations throughout the article
-  - Integrate links naturally within relevant content sections
-  - Use descriptive anchor text that indicates the source (e.g., "according to [Source Name]", "as reported by [Organization]")
-  - Distribute links across different sections for optimal flow
-  - Prioritize the most authoritative and relevant sources
-  </verified_sources>
-  `
-      : `
-  <sources_note>
-  No verified sources provided. Focus on general principles and best practices without specific external citations.
-  </sources_note>
-  `
-  }
-  
-  <outline_contract>
-  RESEARCH ANALYSIS CONTEXT:
-  - Sources Analyzed: ${data.outlineData.researchAnalysisSummary?.totalSourcesAnalyzed ?? "Not available"}
-  - Key Themes Identified: ${data.outlineData.researchAnalysisSummary?.keyThemesIdentified ?? "Not available"}
-  
-  ARTICLE STRUCTURE:
-  Title: ${data.outlineData.title}
-  Target Keywords: ${data.outlineData.keywords?.join(", ") ?? "None specified"}
-  
-  KEY POINTS (Each becomes an H2 section):
-  ${data.outlineData.keyPoints
-    ?.map(
-      (point, i) => `${i + 1}. ${point.heading}
-     Summary: ${point.summary}
-     Section Keywords: ${point.primaryKeywords?.join(", ") ?? "None specified"}
-     VERIFIED Links: ${point.relevantLinks?.length ? point.relevantLinks.join(", ") : "No links provided - DO NOT invent links"}${point.videoContext ? `\n   Video Context: ${point.videoContext}` : ""}`,
-    )
-    .join("\n\n")}
-  
-  ${
-    data.outlineData.videoIntegration
-      ? `
-  VIDEO INTEGRATION PLAN:
-  - Optimal Section: ${data.outlineData.videoIntegration.optimalSection}
-  - Integration Rationale: ${data.outlineData.videoIntegration.integrationRationale}
-  - Matched Video: ${data.outlineData.videoIntegration.matchedVideo}
-  `
-      : ""
-  }
-  
-  CRITICAL CONTENT CONSTRAINTS:
-  - Total Outline Words: ${data.outlineData.totalWords ?? "Not specified"}
-  - ONLY use links provided in relevantLinks arrays above
-  - NEVER invent URLs, statistics, or specific data not provided
-  - If specific data is missing, use general principles instead
-  - All factual claims must be supportable by provided research context
-  
-  ${
-    data.researchData
-      ? `
-  RESEARCH DATA SUMMARY:
-  The following research data was analyzed to create this outline. Use this context to support your writing but do NOT extract specific URLs, prices, addresses, or contact information unless explicitly provided in the key points above:
-  
-  ${data.researchData.substring(0, 2000)}...
-  `
-      : "No additional research context provided."
-  }
-  </outline_contract>
-  
-  ${
-    data.notes
-      ? `
-  <user_guidance>
-  <article_notes>
-  The user has provided specific guidance for this article:
-  ${data.notes}
-  
-  Incorporate this information and context throughout the article while maintaining quality and flow. Use these notes to:
-  - Guide the tone and style of the content
-  - Include specific facts, examples, or case studies mentioned
-  - Address particular requirements or preferences
-  - Tailor the content to the specified audience or use case
-  - Ensure the article meets the user's specific objectives
-  
-  The notes should influence the content naturally without disrupting the article's structure or readability.
-  </article_notes>
-  </user_guidance>
-  `
-      : ""
-  }
-  
-  <content_requirements>
-  - H1 matches article title.
-  - Intro: 3–5 sentences clearly stating the problem, outcome, audience.
-  - TL;DR: 3–5 bullet takeaways.
-  - TOC: auto-generated from H2s.
-  - H2 sections:
-    * "Why this matters" lead, summary expansion, actionable guidance.
-    * Cite claims with external sources (name, year).
-    * End H2 with one-sentence "Bottom line".
-  - One real-world example/template/table.
-  - Conclusion: recap and CTA.
-  - FAQ: 2–4 high-intent Q&A.
-  </content_requirements>
-  
-  <on_page_formatting>
-  - Semantic HTML: headings, lists, tables, blockquotes, code.
-  - Sentences ≤24 words average; avoid undefined jargon.
-  - Complex comparisons as tables.
-  - Images with purpose-descriptive alt text.
-  </on_page_formatting>
-  
-  ${
-    data.coverImage
-      ? `
-  <cover_image>
-  A cover image has been selected for this article: ${data.coverImage}
-  This image should complement the article content and be referenced appropriately in the imageCaption field.
-  </cover_image>
-  `
-      : ""
-  }
-  
-  ${
-    data.videos?.length
-      ? `
-  <video_integration>
-  OPTIONAL: Embed one highly relevant YouTube video.
-  Format provided, explain relevance briefly.
-  Available videos: ${data.videos.map((v) => `${v.title}: ${v.url}`).join("; ")}
-  Section hints: ${data.outlineData.keyPoints
-    .map((p) => (p.videoContext ? `${p.heading}: ${p.videoContext}` : ""))
-    .filter(Boolean)
-    .join("; ")}
-  </video_integration>
-  `
-      : ""
-  }
-  
-  <quality_gates>
-  Check and fix:
-  1) Structure: One H1, correct H2–H4 hierarchy.
-  2) SEO: Primary keyword early, correct meta lengths, 1–2% keyword density.
-  3) Source Citations: Use ONLY provided verified sources (max 8 links).
-  4) Citations: Integrate external sources naturally with descriptive anchors.
-  5) Originality: Unique examples, no plagiarism.
-  6) Factuality: No hallucinations, state unknown data clearly.
-  7) Internal links: Include relevant posts.
-  8) Word count ±10%.
-  9) Data Accuracy: No invented statistics, prices, addresses, or contact details.
-  10) Source Verification: All external links must be from provided sources list.
-  </quality_gates>
-  
-  <anti_hallucination_rules>
-  STRICTLY FORBIDDEN:
-  ❌ Inventing specific URLs not provided in verified sources
-  ❌ Creating fake statistics or data points
-  ❌ Fabricating prices, costs, or financial information
-  ❌ Making up company names, addresses, or contact information
-  ❌ Citing sources not provided in the verified sources list
-  ❌ Claiming specific features or capabilities without verification
-  ❌ Using placeholder text like "contact them at..." without actual contact info
-  ❌ Creating external links beyond the provided verified sources
-  ${excludedDomains && excludedDomains.length > 0 ? `❌ Linking to or referencing the following excluded domains: ${excludedDomains.join(", ")}` : ""}
-  
-  REQUIRED APPROACH:
-  ✅ Use only verified sources from the provided list for external citations
-  ✅ Maximum 5 external links total using only provided source URLs
-  ✅ Speak in general terms when specific data is unavailable
-  ✅ Focus on principles and best practices rather than specific examples when data is limited
-  ✅ Use conditional language ("typically," "often," "generally") for unverified claims
-  ✅ Direct readers to official sources using only provided links
-  ✅ Acknowledge limitations: "specific pricing varies" instead of inventing numbers
-  ✅ Integrate source citations naturally with descriptive anchor text
-  ${excludedDomains && excludedDomains.length > 0 ? `✅ Completely avoid mentioning or linking to excluded competitor domains: ${excludedDomains.join(", ")}` : ""}
-  </anti_hallucination_rules>
-  
-  <output_format>
-  JSON matching blogPostSchema exactly.
-  </output_format>
-  
-  <final_reminder>
-  Return ONLY JSON.
-  </final_reminder>
-      `;
+    return `<role>
+You are an expert SEO content writer creating a comprehensive, user-first article that ranks well and provides genuine value.
+</role>
+
+<user_configuration>
+Tone of Voice: ${settings?.toneOfVoice ?? "expert, clear, no fluff, direct, friendly"}
+Article Structure: ${settings?.articleStructure ?? "H1, intro, TOC, H2 sections, conclusion, FAQ"}
+Custom Requirements: ${settings?.notes ?? "none"}
+Internal Links Available: ${relatedPosts?.length ?? 0}
+</user_configuration>
+
+<critical_instructions>
+MANDATORY RULES:
+1. Follow the EXACT tone specified: ${settings?.toneOfVoice ?? "expert, clear, no fluff"}
+2. Use ONLY the structure format: ${settings?.articleStructure ?? "standard"}
+3. NEVER invent statistics, URLs, or data
+4. Use ONLY provided sources for citations
+5. One H1 only (the title)
+6. Maximum 3 sentences per paragraph
+7. Active voice throughout
+8. Grade 8 reading level (Flesch 60-70)
+</critical_instructions>
+
+<article_parameters>
+Title: ${data.title}
+Primary Keyword: [Extract from title]
+Word Count Target: ${settings?.maxWords ?? data.outlineData.totalWords ?? "2000-2500"}
+Audience: ${data.audience ?? "General business readers"}
+Intent: ${data.searchIntent ?? "informational"}
+Date: ${currentDate}
+</article_parameters>
+
+<writing_formula>
+Apply the CLEAR framework:
+- Concise: Remove every unnecessary word
+- Logical: Each paragraph flows to the next
+- Engaging: Use "you" language, ask questions
+- Actionable: Include specific next steps
+- Readable: Short sentences (15-20 words avg)
+</writing_formula>
+
+<exact_structure>
+1. H1: ${data.title}
+2. Introduction (50-100 words):
+   - Hook: Question or surprising fact
+   - Problem statement
+   - What reader will learn (3 bullets)
+3. Quick Answer Box (40-60 words for featured snippet)
+4. Table of Contents (auto-generated from H2s)
+5. Main Content Sections:
+${data.outlineData.keyPoints?.map((point, i) => `
+   Section ${i + 1} - H2: ${point.heading}
+   - Summary: ${point.summary}
+   - Keywords: ${point.primaryKeywords?.join(", ") ?? "None"}
+   - Links: ${point.relevantLinks?.length ? point.relevantLinks.join(", ") : "None"}
+   - Structure: Why it matters → Core content (200-400 words) → Example → Key takeaway`).join('\n')}
+6. Practical Application (choose ONE):
+   - Checklist OR Template OR Comparison table
+7. Conclusion (100-150 words):
+   - 3 key takeaways
+   - Clear next action
+8. FAQ Section (2-4 questions from user intent)
+</exact_structure>
+
+<seo_optimization>
+Primary Keyword: Use in H1, first sentence, 1-2% density
+LSI Keywords: ${data.outlineData.keywords?.join(", ") ?? "derive from context"}
+Meta Title: ${data.title} (≤60 chars)
+Meta Description: Compelling summary with CTA (150-160 chars)
+URL Slug: ${data.title?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') ?? "url-slug"}
+</seo_optimization>
+
+<internal_linking>
+${relatedPosts && relatedPosts.length > 0 ? `
+Include 3-5 internal links to these related posts:
+${relatedPosts.map((post, i) => `[${i+1}] ${post}`).join('\n')}
+Use natural, descriptive anchor text distributed across sections.
+` : 'No internal links available'}
+</internal_linking>
+
+<source_integration>
+${data.sources?.length ? `
+ONLY use these verified sources (max 5 citations):
+${data.sources.map((s, i) => `[${i+1}] ${s.url}${s.title ? ` - ${s.title}` : ""}`).join('\n')}
+Citation format: "According to [Source Name]..." with natural integration.
+` : 'No external sources provided - use general knowledge only'}
+</source_integration>
+
+${data.notes ? `
+<user_notes>
+Special instructions for this article:
+${data.notes}
+Incorporate naturally while maintaining quality and flow.
+</user_notes>
+` : ''}
+
+${data.videos?.length ? `
+<video_integration>
+Optional: Embed ONE relevant video where it adds value:
+${data.videos.map(v => `- ${v.title}: ${v.url}`).join('\n')}
+</video_integration>
+` : ''}
+
+<quality_checklist>
+Before submitting, verify:
+□ Matches user's tone: ${settings?.toneOfVoice ?? "professional"}
+□ Follows exact structure: ${settings?.articleStructure ?? "standard"}
+□ All claims are verifiable
+□ Reading level: Grade 8
+□ Value clearly delivered
+□ No fluff or filler words
+□ Internal links: ${relatedPosts?.length ?? 0} included
+□ External citations: Only from provided sources
+</quality_checklist>
+
+<output_format>
+Provide the complete article with:
+- Proper H1, H2, H3 hierarchy
+- Bold key points
+- Bullet lists where appropriate
+- Natural keyword integration
+- Scannable paragraphs (≤3 lines)
+- Clear value in every section
+</output_format>`
   },
 
   validation: (article: string) => `

@@ -76,14 +76,20 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as UpdateRequest;
 
-    if (
-      !body.article ||
-      (!body.corrections && !body.validationIssues && !body.validationText)
-    ) {
+    if (!body.article) {
+      return NextResponse.json(
+        {
+          error: "Article is required",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!body.corrections && !body.validationIssues && !body.validationText) {
       return NextResponse.json(
         {
           error:
-            "Article and either corrections, validationIssues, or validationText are required",
+            "Either corrections, validationIssues, or validationText are required",
         },
         { status: 400 },
       );

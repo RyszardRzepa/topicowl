@@ -339,11 +339,15 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
             min="100"
             max="5000"
             value={formData.maxWords}
-            onChange={(e) => handleInputChange('maxWords', parseInt(e.target.value) || 800)}
+            onChange={(e) => {
+              const value = parseInt(e.target.value) || 800;
+              const clampedValue = Math.min(Math.max(value, 500), 5000);
+              handleInputChange('maxWords', clampedValue);
+            }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <p className="text-sm text-gray-500 mt-1">
-            Target word count for generated articles (100-5000 words)
+            Target word count for generated articles. Must be between 100 and 5,000 words.
           </p>
         </div>
 
