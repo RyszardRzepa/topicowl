@@ -14,6 +14,7 @@ export interface ArticleSettingsRequest {
   articleStructure?: string;
   maxWords?: number;
   excluded_domains?: string[];
+  sitemap_url?: string;
   // Company/business settings
   companyName?: string;
   productDescription?: string;
@@ -30,6 +31,7 @@ export interface ArticleSettingsResponse {
   articleStructure: string | null;
   maxWords: number | null;
   excluded_domains: string[];
+  sitemap_url: string | null;
   createdAt: Date;
   updatedAt: Date;
   // Company settings from users table
@@ -48,6 +50,7 @@ const articleSettingsSchema = z.object({
   articleStructure: z.string().optional(),
   maxWords: z.number().min(100).max(5000).optional(),
   excluded_domains: z.array(z.string()).max(100).optional(),
+  sitemap_url: z.string().url().optional().or(z.literal("")),
   // Company/business settings
   companyName: z.string().min(1).max(255).optional(),
   productDescription: z.string().max(1000).optional(),
@@ -104,6 +107,7 @@ export async function GET() {
         articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
         maxWords: 800,
         excluded_domains: [],
+        sitemap_url: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         companyName: userRecord.company_name ?? undefined,
@@ -122,6 +126,7 @@ export async function GET() {
       articleStructure: articleSettingsRecord.articleStructure,
       maxWords: articleSettingsRecord.maxWords,
       excluded_domains: Array.isArray(articleSettingsRecord.excluded_domains) ? articleSettingsRecord.excluded_domains : [],
+      sitemap_url: articleSettingsRecord.sitemap_url,
       createdAt: articleSettingsRecord.createdAt,
       updatedAt: articleSettingsRecord.updatedAt,
       companyName: userRecord.company_name ?? undefined,
@@ -200,6 +205,11 @@ export async function POST(req: NextRequest) {
         ...articleSettingsData
       } = validatedData;
 
+      // Sanitize sitemap_url - convert empty string to null
+      if ('sitemap_url' in articleSettingsData && articleSettingsData.sitemap_url === "") {
+        articleSettingsData.sitemap_url = undefined;
+      }
+
       // Update user company data if provided
       if (companyName !== undefined || productDescription !== undefined || keywords !== undefined) {
         await tx
@@ -265,6 +275,7 @@ export async function POST(req: NextRequest) {
       const combinedResponse: ArticleSettingsResponse = {
         ...updatedArticleSettings,
         excluded_domains: Array.isArray(updatedArticleSettings.excluded_domains) ? updatedArticleSettings.excluded_domains : [],
+        sitemap_url: updatedArticleSettings.sitemap_url,
         companyName: updatedUser?.company_name ?? undefined,
         productDescription: updatedUser?.product_description ?? undefined,
         keywords: Array.isArray(updatedUser?.keywords) ? updatedUser.keywords as string[] : [],

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExcludedDomainsField } from './excluded-domains-field';
 import type { ArticleSettingsRequest, ArticleSettingsResponse } from '@/app/api/settings/route';
+import type { FetchSitemapResponse } from '@/app/api/sitemaps/fetch/route';
 
 // Form-specific type for component state
 interface ArticleSettingsForm {
@@ -13,6 +14,7 @@ interface ArticleSettingsForm {
   articleStructure: string;
   maxWords: number;
   excluded_domains: string[];
+  sitemap_url: string;
   // Company/business settings
   companyName: string;
   productDescription: string;
@@ -34,6 +36,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
     articleStructure: initialSettings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
     maxWords: initialSettings.maxWords ?? 800,
     excluded_domains: initialSettings.excluded_domains ?? [],
+    sitemap_url: initialSettings.sitemap_url ?? '',
     // Company/business settings
     companyName: initialSettings.companyName ?? '',
     productDescription: initialSettings.productDescription ?? '',
@@ -45,6 +48,8 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [testingSitemap, setTestingSitemap] = useState(false);
+  const [sitemapTestResult, setSitemapTestResult] = useState<string | null>(null);
 
   const handleInputChange = (field: keyof ArticleSettingsForm, value: string | number | string[]) => {
     setFormData(prev => ({
@@ -105,6 +110,49 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
     }
   };
 
+  const handleTestSitemap = async () => {
+    if (!formData.sitemap_url) {
+      setSitemapTestResult('Please enter a sitemap URL first');
+      setTimeout(() => setSitemapTestResult(null), 5000);
+      return;
+    }
+
+    try {
+      setTestingSitemap(true);
+      setSitemapTestResult(null);
+      
+      const response = await fetch('/api/sitemaps/fetch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          websiteUrl: formData.sitemap_url.replace('/sitemap.xml', ''), 
+          refreshCache: true 
+        }),
+      });
+
+      const result = await response.json() as FetchSitemapResponse;
+      
+      if (result.success && result.data) {
+        setSitemapTestResult(`✓ Sitemap is valid! Found ${result.data.totalBlogPosts} blog posts.`);
+      } else {
+        setSitemapTestResult(`✗ Sitemap test failed: ${result.error ?? 'Unknown error'}`);
+      }
+      
+      // Clear result message after 10 seconds
+      setTimeout(() => setSitemapTestResult(null), 10000);
+    } catch (error) {
+      console.error('Failed to test sitemap:', error);
+      setSitemapTestResult(`✗ Failed to test sitemap: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Clear error message after 10 seconds
+      setTimeout(() => setSitemapTestResult(null), 10000);
+    } finally {
+      setTestingSitemap(false);
+    }
+  };
+
   const handleReset = async () => {
     try {
       setSaving(true);
@@ -117,6 +165,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         articleStructure: 'Introduction • Main points with subheadings • Practical tips • Conclusion',
         maxWords: 800,
         excluded_domains: [],
+        sitemap_url: '',
         companyName: '',
         productDescription: '',
         keywords: [],
@@ -144,6 +193,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         articleStructure: settings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
         maxWords: settings.maxWords ?? 800,
         excluded_domains: settings.excluded_domains ?? [],
+        sitemap_url: settings.sitemap_url ?? '',
         companyName: settings.companyName ?? '',
         productDescription: settings.productDescription ?? '',
         keywords: settings.keywords ?? [],
@@ -282,6 +332,74 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
             Who your articles are primarily written for
           </p>
         </div>
+        </CardContent>
+      </Card>
+
+      {/* Sitemap Settings Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Website Sitemap</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label htmlFor="sitemapUrl" className="block text-sm font-medium text-gray-700 mb-2">
+              Sitemap URL
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                id="sitemapUrl"
+                value={formData.sitemap_url}
+                onChange={(e) => handleInputChange('sitemap_url', e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="https://yourwebsite.com/sitemap.xml"
+              />
+              <Button
+                type="button"
+                onClick={handleTestSitemap}
+                disabled={testingSitemap || !formData.sitemap_url}
+                variant="outline"
+                className="px-4 flex items-center gap-2"
+              >
+                {testingSitemap && (
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {testingSitemap ? 'Testing...' : 'Test Sitemap'}
+              </Button>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              URL to your website&apos;s sitemap for better internal linking. We&apos;ll automatically detect blog posts from your sitemap.
+            </p>
+            
+            {/* Sitemap Test Result */}
+            {sitemapTestResult && (
+              <div className={`p-3 rounded-lg flex items-start gap-3 mt-3 ${
+                sitemapTestResult.startsWith('✓') 
+                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                <div className="flex-shrink-0 mt-0.5">
+                  {sitemapTestResult.startsWith('✓') ? (
+                    <svg className="h-4 w-4 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">
+                    {sitemapTestResult}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

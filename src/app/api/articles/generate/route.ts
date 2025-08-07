@@ -6,6 +6,7 @@ import type { ApiResponse, VideoEmbed } from "@/types";
 import { API_BASE_URL } from "@/constants";
 import { fetcher } from "@/lib/utils";
 import { getUserExcludedDomains } from "@/lib/utils/article-generation";
+import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
 import { articles, articleGeneration, users } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -29,6 +30,7 @@ interface GenerationContext {
   userId: string;
   article: typeof articles.$inferSelect;
   keywords: string[];
+  relatedArticles: string[];
 }
 
 // Validation and setup functions
@@ -99,11 +101,15 @@ async function validateAndSetupGeneration(
     ? (existingArticle.keywords as string[])
     : [];
 
+  // Generate related articles early so we can include them in the immediate response
+  const relatedArticles = await getRelatedArticles(userRecord.id, existingArticle.title, keywords);
+
   return {
     articleId: id,
     userId: userRecord.id,
     article: existingArticle,
     keywords: keywords.length > 0 ? keywords : [existingArticle.title],
+    relatedArticles,
   };
 }
 
@@ -338,6 +344,7 @@ async function writeArticle(
   coverImageUrl: string,
   generationId: number,
   userId: string,
+  relatedArticles: string[], // Pass pre-generated related articles
   videos?: Array<{ title: string; url: string }>,
 ): Promise<WriteResponse> {
   await updateGenerationProgress(generationId, "writing", 55);
@@ -359,7 +366,8 @@ async function writeArticle(
         keywords,
         coverImage: coverImageUrl || undefined,
         videos,
-        userId
+        userId,
+        relatedArticles
       },
     },
   );
@@ -495,6 +503,7 @@ async function finalizeArticle(
       progress: 100,
       completedAt: new Date(),
       draftContent: content,
+      relatedArticles: writeData.relatedPosts ?? [],
       updatedAt: new Date(),
     })
     .where(eq(articleGeneration.id, generationId));
@@ -636,6 +645,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       coverImageUrl,
       generationRecord.id,
       userId,
+      context.relatedArticles,
       researchData.videos,
     );
     console.log("Writing completed", {
@@ -736,6 +746,7 @@ export async function POST(req: NextRequest) {
       data: {
         message: "Article generation started",
         articleId: articleId,
+        relatedArticles: context.relatedArticles,
       },
     } as ApiResponse);
   } catch (error) {

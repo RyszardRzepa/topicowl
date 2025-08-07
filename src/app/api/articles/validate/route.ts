@@ -78,7 +78,9 @@ export async function performValidateLogic(article: string): Promise<ValidateRes
         - issue: brief description of what's wrong
         - correction: suggested correction or "Needs verification"
       
-      If no issues are found in the validation results, return: {"isValid": true, "issues": []}
+      If no issues are found in the validation results, return: {"isValid": true, "issues": []}.
+
+      Ensure the intent is current and based on real-time top results.
     `,
   });
 

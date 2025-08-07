@@ -190,6 +190,27 @@
       "when": 1754470726231,
       "tag": "0026_large_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1754485083964,
+      "tag": "0027_shocking_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1754485100931,
+      "tag": "0028_conscious_vampiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1754486267225,
+      "tag": "0029_blue_puff_adder",
+      "breakpoints": true
     }
   ]
 }

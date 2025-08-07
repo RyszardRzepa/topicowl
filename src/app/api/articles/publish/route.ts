@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, users } from "@/server/db/schema";
+import { articles, users, articleGeneration } from "@/server/db/schema";
 import { eq, and, lte } from "drizzle-orm";
 import type { ApiResponse } from '@/types';
 import crypto from "crypto";
@@ -54,6 +54,21 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
       return; // No webhook configured, skip
     }
 
+    // Get related articles from articleGeneration table
+    let relatedArticles: string[] = [];
+    try {
+      const [generationRecord] = await db
+        .select({ relatedArticles: articleGeneration.relatedArticles })
+        .from(articleGeneration)
+        .where(eq(articleGeneration.articleId, article.id))
+        .limit(1);
+
+      relatedArticles = generationRecord?.relatedArticles ?? [];
+    } catch (error) {
+      console.error('Error fetching related articles for webhook:', error);
+      // Continue without related articles
+    }
+
     // Prepare webhook payload
     const payload = {
         id: article.id,
@@ -71,6 +86,7 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
         publishedAt: article.publishedAt?.toISOString(),
         sources: Array.isArray(article.sources) ? article.sources : [],
         internalLinks: Array.isArray(article.internalLinks) ? article.internalLinks : [],
+        relatedArticles: relatedArticles,
         createdAt: article.createdAt.toISOString(),
         updatedAt: article.updatedAt.toISOString(),
     };

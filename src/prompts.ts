@@ -268,9 +268,7 @@ export const prompts = {
     keywords: string[],
     notes?: string,
     excludedDomains?: string[],
-  ) => `
-  As of ${new Date().toISOString()} verify every factual claim using Google Search. For each claim, attach at least 2 grounding supports (with URL and title) drawn from groundingChunks and include a “Sources” section at the end listing those URLs.
-  
+  ) => `  
       <system_prompt>
         <role_definition>
         You are an expert content researcher and SEO specialist tasked with analyzing grounded search results and organizing them into structured research data.
@@ -495,7 +493,10 @@ export const prompts = {
         </output_requirements>
   
         <execution_command>
-        <instruction>ANALYZE THE GROUNDED SEARCH RESULTS PROVIDED BY THE SYSTEM AND CREATE A STRUCTURED RESEARCH REPORT USING ONLY ATTRIBUTION SOURCES. Always call tool google_search for web search</instruction>
+        <instruction>
+        ANALYZE THE GROUNDED SEARCH RESULTS PROVIDED BY THE SYSTEM AND CREATE A STRUCTURED RESEARCH REPORT USING ONLY ATTRIBUTION SOURCES. Always call tool google_search for web search.
+        Ensure the intent is current and based on real-time top results.
+        </instruction>
         </execution_command>
     `,
 
@@ -503,51 +504,22 @@ export const prompts = {
     data: {
       title: string;
       audience?: string;
-      searchIntent?:
-        | "informational"
-        | "commercial"
-        | "transactional"
-        | "navigational"
-        | "investigational";
+      searchIntent?: "informational" | "commercial" | "transactional";
       outlineData: {
-        title: string;
-        keywords: string[];
-        researchAnalysisSummary: {
-          totalSourcesAnalyzed: number;
-          keyThemesIdentified: number;
-        };
-        keyPoints: Array<{
-          heading: string;
-          summary: string;
-          relevantLinks: string[];
-          primaryKeywords: string[];
-          videoContext?: string;
-        }>;
-        totalWords: number;
-        videoIntegration?: {
-          optimalSection: string;
-          integrationRationale: string;
-          matchedVideo: string;
-        };
-        videoMatchingSections?: string[];
+        keyPoints?: Array<{ heading: string; summary: string; relevantLinks?: string[] }>;
+        keywords?: string[];
+        totalWords?: number;
       };
-      coverImage?: string;
-      videos?: Array<{
-        title: string;
-        url: string;
-      }>;
-      sources?: Array<{
-        url: string;
-        title?: string;
-      }>;
-      researchData?: string; // Add research data for context
-      notes?: string; // User-provided context and requirements
+      sources?: Array<{ url: string; title?: string }>;
+      notes?: string;
+      videos?: Array<{ title: string; url: string }>;
     },
     settings?: {
       toneOfVoice?: string;
       articleStructure?: string;
       maxWords?: number;
-      notes: string
+      notes?: string;
+      faqCount?: number;
     },
     relatedPosts?: string[],
     _excludedDomains?: string[],
@@ -555,26 +527,27 @@ export const prompts = {
     const currentDate = new Date().toISOString().split("T")[0];
 
     return `<role>
-You are an expert SEO content writer creating a comprehensive, user-first article that ranks well and provides genuine value.
+You are an expert SEO content writer creating a comprehensive, user-first article that ranks well and provides genuine value. Output in clean Markdown format.
 </role>
 
 <user_configuration>
 Tone of Voice: ${settings?.toneOfVoice ?? "expert, clear, no fluff, direct, friendly"}
-Article Structure: ${settings?.articleStructure ?? "H1, intro, TOC, H2 sections, conclusion, FAQ"}
-Custom Requirements: ${settings?.notes ?? "none"}
 Internal Links Available: ${relatedPosts?.length ?? 0}
 </user_configuration>
 
 <critical_instructions>
 MANDATORY RULES:
 1. Follow the EXACT tone specified: ${settings?.toneOfVoice ?? "expert, clear, no fluff"}
-2. Use ONLY the structure format: ${settings?.articleStructure ?? "standard"}
+2. Use ONLY one H1 (the title)
 3. NEVER invent statistics, URLs, or data
 4. Use ONLY provided sources for citations
-5. One H1 only (the title)
-6. Maximum 3 sentences per paragraph
-7. Active voice throughout
-8. Grade 8 reading level (Flesch 60-70)
+5. Maximum 3 sentences per paragraph
+6. Active voice throughout
+7. Grade 8 reading level (Flesch 60-70)
+8. OUTPUT IN MARKDOWN FORMAT ONLY
+9. NO interactive elements (checkboxes, forms, buttons)
+10. NO fluff or filler words
+11. MUST include all provided links naturally within article text
 </critical_instructions>
 
 <article_parameters>
@@ -595,89 +568,201 @@ Apply the CLEAR framework:
 - Readable: Short sentences (15-20 words avg)
 </writing_formula>
 
-<exact_structure>
-1. H1: ${data.title}
-2. Introduction (50-100 words):
-   - Hook: Question or surprising fact
-   - Problem statement
-   - What reader will learn (3 bullets)
-3. Quick Answer Box (40-60 words for featured snippet)
-4. Table of Contents (auto-generated from H2s)
-5. Main Content Sections:
-${data.outlineData.keyPoints?.map((point, i) => `
-   Section ${i + 1} - H2: ${point.heading}
-   - Summary: ${point.summary}
-   - Keywords: ${point.primaryKeywords?.join(", ") ?? "None"}
-   - Links: ${point.relevantLinks?.length ? point.relevantLinks.join(", ") : "None"}
-   - Structure: Why it matters → Core content (200-400 words) → Example → Key takeaway`).join('\n')}
-6. Practical Application (choose ONE):
-   - Checklist OR Template OR Comparison table
-7. Conclusion (100-150 words):
-   - 3 key takeaways
-   - Clear next action
-8. FAQ Section (2-4 questions from user intent)
-</exact_structure>
+<article_structure_guide>
+Follow this EXACT structure for the article:
+
+# ${data.title}
+
+## Introduction (50-100 words)
+- Hook with question, surprising fact, or problem statement
+- Clearly state what the article covers
+- Tell reader what they'll learn (can use bullets or inline text)
+
+${data.outlineData.keyPoints?.[0] ? `
+## ${data.outlineData.keyPoints[0].heading}
+- **Why this matters:** 1 sentence explaining relevance
+- Main content: ${data.outlineData.keyPoints[0].summary} (200-400 words)
+- Include concrete example or data point
+${data.outlineData.keyPoints[0].relevantLinks?.length ? `- MUST INCLUDE these links naturally in this section: ${data.outlineData.keyPoints[0].relevantLinks.join(', ')}` : ''}
+- **Key takeaway:** Bold one-liner summarizing the section
+` : ''}
+
+${data.outlineData.keyPoints?.[1] ? `
+## ${data.outlineData.keyPoints[1].heading}
+- **Why this matters:** 1 sentence explaining relevance
+- Main content: ${data.outlineData.keyPoints[1].summary} (200-400 words)
+- Include concrete example or data point
+${data.outlineData.keyPoints[1].relevantLinks?.length ? `- MUST INCLUDE these links naturally in this section: ${data.outlineData.keyPoints[1].relevantLinks.join(', ')}` : ''}
+- **Key takeaway:** Bold one-liner summarizing the section
+` : ''}
+
+${data.videos?.length ? `
+## Video Resources (Optional - only if video adds value)
+Mention relevant video as: "For a visual explanation of [topic], [video title] provides [specific value]."
+Do not embed, only reference as text.
+` : ''}
+
+${data.outlineData.keyPoints?.[2] ? `
+## ${data.outlineData.keyPoints[2].heading}
+- **Why this matters:** 1 sentence explaining relevance
+- Main content: ${data.outlineData.keyPoints[2].summary} (200-400 words)
+- Include concrete example or data point
+${data.outlineData.keyPoints[2].relevantLinks?.length ? `- MUST INCLUDE these links naturally in this section: ${data.outlineData.keyPoints[2].relevantLinks.join(', ')}` : ''}
+- **Key takeaway:** Bold one-liner summarizing the section
+` : ''}
+
+${data.outlineData.keyPoints?.[3] ? `
+## ${data.outlineData.keyPoints[3].heading}
+- **Why this matters:** 1 sentence explaining relevance
+- Main content: ${data.outlineData.keyPoints[3].summary} (200-400 words)
+- Include concrete example or data point
+${data.outlineData.keyPoints[3].relevantLinks?.length ? `- MUST INCLUDE these links naturally in this section: ${data.outlineData.keyPoints[3].relevantLinks.join(', ')}` : ''}
+- **Key takeaway:** Bold one-liner summarizing the section
+` : ''}
+
+${data.outlineData.keyPoints?.[4] ? `
+## ${data.outlineData.keyPoints[4].heading}
+- **Why this matters:** 1 sentence explaining relevance
+- Main content: ${data.outlineData.keyPoints[4].summary} (200-400 words)
+- Include concrete example or data point
+${data.outlineData.keyPoints[4].relevantLinks?.length ? `- MUST INCLUDE these links naturally in this section: ${data.outlineData.keyPoints[4].relevantLinks.join(', ')}` : ''}
+- **Key takeaway:** Bold one-liner summarizing the section
+` : ''}
+
+${data.outlineData.keyPoints?.[5] ? `
+## ${data.outlineData.keyPoints[5].heading}
+- **Why this matters:** 1 sentence explaining relevance
+- Main content: ${data.outlineData.keyPoints[5].summary} (200-400 words)
+- Include concrete example or data point
+${data.outlineData.keyPoints[5].relevantLinks?.length ? `- MUST INCLUDE these links naturally in this section: ${data.outlineData.keyPoints[5].relevantLinks.join(', ')}` : ''}
+- **Key takeaway:** Bold one-liner summarizing the section
+` : ''}
+
+## Frequently Asked Questions
+
+### [Question 1 based on user intent]?
+Answer in 2-3 sentences with specific, helpful information.
+
+### [Question 2 based on user intent]?
+Answer in 2-3 sentences with specific, helpful information.
+
+${settings?.faqCount && settings.faqCount >= 3 ? `
+### [Question 3 based on user intent]?
+Answer in 2-3 sentences with specific, helpful information.
+` : ''}
+
+${settings?.faqCount && settings.faqCount >= 4 ? `
+### [Question 4 based on user intent]?
+Answer in 2-3 sentences with specific, helpful information.
+` : ''}
+</article_structure_guide>
+
+<link_integration_requirements>
+CRITICAL: You MUST include ALL provided links within the article content.
+
+${data.outlineData.keyPoints?.map((point: { heading: string; relevantLinks?: string[] }, i: number) => 
+  point.relevantLinks?.length ? `
+Section "${point.heading}" MUST include these links:
+${point.relevantLinks.map((link: string) => `- ${link}`).join('\n')}
+Integration: Work each link naturally into the text where it adds value.
+` : ''
+).filter(Boolean).join('\n')}
+
+Internal Links to Include:
+${relatedPosts && relatedPosts.length > 0 ? `
+${relatedPosts.map((post: string, i: number) => `
+${i+1}. URL: ${post}
+   Use descriptive anchor text that describes the linked content
+`).join('\n')}
+
+Integration Rules:
+- Use descriptive anchor text (NOT "click here" or "read more")
+- Example: "Learn more about [specific topic](url)" or "Our guide to [topic](url) explains..."
+- Distribute links naturally throughout relevant sections
+- Each link should add value to the reader
+- Links should flow naturally within sentences
+` : 'No internal links provided'}
+
+External Source Links:
+${data.sources?.length ? `
+${data.sources.map((s: { url: string; title?: string }, i: number) => `
+${i+1}. URL: ${s.url}
+   Source: ${s.title ?? "External source"}
+   Use as: "According to [${s.title ?? "research"}](${s.url})..." or "As [source](${s.url}) reports..."
+`).join('\n')}
+` : 'No external sources provided'}
+
+LINK FORMAT: Always use markdown format [descriptive text](url)
+PLACEMENT: Links must appear naturally within sentences, not as standalone items
+FREQUENCY: Minimum 1 link per H2 section where links are provided
+</link_integration_requirements>
 
 <seo_optimization>
-Primary Keyword: Use in H1, first sentence, 1-2% density
+Primary Keyword: Use in H1, first sentence, 1-2% density throughout
 LSI Keywords: ${data.outlineData.keywords?.join(", ") ?? "derive from context"}
-Meta Title: ${data.title} (≤60 chars)
-Meta Description: Compelling summary with CTA (150-160 chars)
-URL Slug: ${data.title?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') ?? "url-slug"}
+Natural Integration: Work keywords into sentences naturally, never force them
 </seo_optimization>
-
-<internal_linking>
-${relatedPosts && relatedPosts.length > 0 ? `
-Include 3-5 internal links to these related posts:
-${relatedPosts.map((post, i) => `[${i+1}] ${post}`).join('\n')}
-Use natural, descriptive anchor text distributed across sections.
-` : 'No internal links available'}
-</internal_linking>
-
-<source_integration>
-${data.sources?.length ? `
-ONLY use these verified sources (max 5 citations):
-${data.sources.map((s, i) => `[${i+1}] ${s.url}${s.title ? ` - ${s.title}` : ""}`).join('\n')}
-Citation format: "According to [Source Name]..." with natural integration.
-` : 'No external sources provided - use general knowledge only'}
-</source_integration>
 
 ${data.notes ? `
 <user_notes>
 Special instructions for this article:
 ${data.notes}
-Incorporate naturally while maintaining quality and flow.
+Incorporate these naturally while maintaining quality and flow.
 </user_notes>
 ` : ''}
 
 ${data.videos?.length ? `
 <video_integration>
-Optional: Embed ONE relevant video where it adds value:
-${data.videos.map(v => `- ${v.title}: ${v.url}`).join('\n')}
+If relevant, mention ONE video as a resource (text reference only, no embed):
+${data.videos.map((v: { title: string; url?: string }) => `- ${v.title}: Mention as "For a visual guide, see [${v.title}]"`).join('\n')}
+Include only where it adds value to the content.
 </video_integration>
 ` : ''}
 
-<quality_checklist>
-Before submitting, verify:
-□ Matches user's tone: ${settings?.toneOfVoice ?? "professional"}
-□ Follows exact structure: ${settings?.articleStructure ?? "standard"}
-□ All claims are verifiable
-□ Reading level: Grade 8
-□ Value clearly delivered
-□ No fluff or filler words
-□ Internal links: ${relatedPosts?.length ?? 0} included
-□ External citations: Only from provided sources
-</quality_checklist>
+<markdown_formatting_rules>
+Use ONLY these markdown elements:
+- # for H1 (only once - the title)
+- ## for H2 sections
+- ### for H3 subsections (only in FAQ)
+- **bold** for key takeaways and emphasis
+- *italic* for secondary emphasis
+- - for bullet points
+- 1. for numbered lists
+- [text](url) for ALL links (clickable format)
+- > for important quotes or callouts
+- Regular paragraphs with line breaks
 
-<output_format>
-Provide the complete article with:
-- Proper H1, H2, H3 hierarchy
-- Bold key points
-- Bullet lists where appropriate
-- Natural keyword integration
-- Scannable paragraphs (≤3 lines)
-- Clear value in every section
-</output_format>`
+DO NOT USE:
+- Table of Contents section
+- [ ] checkboxes
+- HTML tags
+- Interactive elements
+- Plain URLs without markdown formatting
+</markdown_formatting_rules>
+
+<content_guidelines>
+Every section must:
+1. Answer user intent directly
+2. Include relevant links where they add value
+3. Use concrete examples (not generalities)
+4. Include specific details and data
+5. Flow naturally to the next section
+6. Support claims with linked sources when available
+7. Stay under 3 sentences per paragraph
+8. Use grade 8 reading level language
+</content_guidelines>
+
+<output_instructions>
+Generate the COMPLETE article in markdown format following the EXACT structure provided.
+Structure flow: Introduction → 2 H2 sections → Video mention (if relevant) → 2-4 more H2 sections → FAQ
+Start immediately with # ${data.title}
+End with the FAQ section.
+NO Table of Contents section.
+ALL provided links MUST be included as clickable [text](url) format within relevant content.
+Ensure all content is ready for direct publishing.
+Focus on delivering genuine value with zero fluff.
+Every sentence must earn its place.
+</output_instructions> Ensure the intent is current and based on real-time top results.`
   },
 
   validation: (article: string) => `
@@ -1191,6 +1276,8 @@ Provide the complete article with:
   <system_prompt>
   You are an expert content strategist creating a focused, actionable article outline from research data.
   
+  🚨 CRITICAL CONSTRAINT: Each summary MUST be 150-300 characters maximum (including spaces and punctuation). This is a hard limit - exceeding it will cause system failure.
+  
   <critical_requirements>
   ⚠️ LINK HANDLING: Only use URLs from the 'sources' parameter provided below. Never use URLs from researchData or create new ones.
   - If sources parameter is provided: Use ONLY those exact URLs in relevantLinks arrays
@@ -1274,7 +1361,8 @@ Provide the complete article with:
   <step_3_optimization>
   For each selected key point:
   - Create keyword-rich, engaging heading
-  - Write 150-350 character summary (COUNT CHARACTERS, NOT WORDS)
+  - Write 150-300 character summary (STRICT CHARACTER LIMIT - COUNT EVERY CHARACTER INCLUDING SPACES AND PUNCTUATION)
+  - Example of good length: "Discover Oslo's authentic local eateries like Engebret Cafe and Kaffistova. Learn where locals dine for traditional Norwegian cuisine and historical ambiance in the heart of the city." (196 characters)
   - Add relevant links ONLY from sources parameter (if provided)
   - Include primary keywords for the section
   
@@ -1307,7 +1395,7 @@ Provide the complete article with:
     "keyPoints": [
       {
         "heading": "Keyword-rich heading",
-        "summary": "150-350 character summary",
+        "summary": "150-300 character summary - BE CONCISE AND STAY UNDER 300 CHARACTERS",
         "characterCount": number,
         "relevantLinks": [${sources && sources.length > 0 ? '"source_url_only_from_sources_param"' : ""}],
         "selectionScore": number,
@@ -1323,12 +1411,13 @@ Provide the complete article with:
   }
   
   Quality Checks:
-  ✅ Character counts manually verified (not word counts)
+  ✅ Character counts manually verified (SUMMARIES MUST BE UNDER 300 CHARACTERS)
   ✅ Links ONLY from sources parameter (never from researchData)
   ✅ All 5 key points flow logically
   ✅ Keywords naturally integrated
   ✅ Information traceable to research data
   ${videos && videos.length > 0 ? "✅ Maximum ONE video integration selected" : ""}
+  ✅ CRITICAL: Each summary is 150-300 characters maximum - count every character including spaces and punctuation
   </output_format>
     `,
 };

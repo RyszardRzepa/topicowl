@@ -93,7 +93,7 @@ export async function POST(request: Request) {
           google_search: google.tools.googleSearch({}),
         },
         system:
-          `As of ${new Date().toISOString()} verify every factual claim using Google Search. For each claim, attach at least 2 grounding supports (with URL and title) drawn from groundingChunks and include a “Sources” section at the end listing those URLs`,
+          `Ensure the intent is current and based on real-time top results.`,
         prompt: prompts.research(title, keywords, notes, domainsToExclude),
       });
 
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
         const chunks = meta?.groundingChunks ?? [];
         const supports = meta?.groundingSupports ?? [];
 
-        console.log(`[RESEARCH_LOGIC] Grounding metadata - chunks: ${chunks.length}, supports: ${supports.length}`);
+        console.log(`[RESEARCH_LOGIC] Grounding metadata - meta`, meta);
 
         // First try grounding metadata
         if (chunks.length > 0 && supports.length > 0) {

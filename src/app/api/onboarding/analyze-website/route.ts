@@ -7,6 +7,7 @@ import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { MODELS } from "@/constants";
 import { z } from "zod";
+import { normalizeSitemapUrl, validateSitemapUrl } from "@/lib/utils/sitemap";
 
 export interface AnalyzeWebsiteRequest {
   websiteUrl: string;
@@ -114,6 +115,91 @@ async function jinaUrlToMd(url: string): Promise<string> {
   }
 }
 
+// Inline sitemap fetching function (same as in sitemap API)
+async function fetchWebsiteSitemap(websiteUrl: string): Promise<{
+  blogSlugs: string[];
+  sitemapUrl: string;
+  error?: string;
+}> {
+  try {
+    // Normalize the sitemap URL
+    const sitemapUrl = normalizeSitemapUrl(websiteUrl);
+    
+    // Validate the sitemap URL
+    const validation = validateSitemapUrl(sitemapUrl);
+    if (!validation.isValid) {
+      throw new Error(`Invalid sitemap URL: ${validation.error}`);
+    }
+    
+    console.log(`Fetching sitemap from: ${sitemapUrl}`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    const response = await fetch(sitemapUrl, {
+      headers: {
+        'User-Agent': 'Contentbot Sitemap Fetcher',
+      },
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sitemap: ${response.status} ${response.statusText}`);
+    }
+
+    const xmlData = await response.text();
+    
+    // Simple regex parsing to extract blog URLs - support multiple patterns
+    const blogPatterns = [
+      /<loc>[^<]+\/blog\/[^<]+<\/loc>/g,     // /blog/ pattern
+      /<loc>[^<]+\/articles\/[^<]+<\/loc>/g, // /articles/ pattern
+      /<loc>[^<]+\/posts\/[^<]+<\/loc>/g,    // /posts/ pattern
+    ];
+    
+    let urlMatches: RegExpMatchArray | null = null;
+    let matchedPattern = '';
+    
+    for (const pattern of blogPatterns) {
+      urlMatches = xmlData.match(pattern);
+      if (urlMatches && urlMatches.length > 0) {
+        matchedPattern = pattern.source.includes('/blog/') ? 'blog' : 
+                        pattern.source.includes('/articles/') ? 'articles' : 'posts';
+        break;
+      }
+    }
+    
+    if (!urlMatches) {
+      console.log('No blog URLs found in sitemap');
+      return { blogSlugs: [], sitemapUrl };
+    }
+    
+    // Convert URLs to slugs based on the matched pattern
+    const blogSlugs = urlMatches
+      .map(match => {
+        const url = match.replace(/<\/?loc>/g, '');
+        try {
+          const urlPath = new URL(url).pathname;
+          // Remove the appropriate prefix and trailing slash
+          const prefix = `/${matchedPattern}/`;
+          return urlPath.replace(prefix, '').replace(/\/$/, '');
+        } catch {
+          return null;
+        }
+      })
+      .filter((slug): slug is string => slug !== null && slug.length > 0 && !['blog', 'articles', 'posts'].includes(slug));
+    
+    console.log(`Found ${blogSlugs.length} blog posts in sitemap using pattern: /${matchedPattern}/`);
+    return { blogSlugs, sitemapUrl };
+    
+  } catch (error) {
+    console.error('Error fetching sitemap:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return { blogSlugs: [], sitemapUrl: normalizeSitemapUrl(websiteUrl), error: errorMessage };
+  }
+}
+
 // Enhanced AI analysis using Google Gemini with generateObject
 async function analyzeWebsiteWithAI(
   url: string,
@@ -146,7 +232,6 @@ For toneOfVoice, provide a detailed description of the appropriate writing tone 
 For publishingFrequency, choose from: daily, weekly, bi-weekly, or monthly based on industry standards.
 
 Provide 5-10 relevant keywords for content marketing based on their actual content.`,
-      maxTokens: 1000,
     });
 
     return {
@@ -270,6 +355,22 @@ export async function POST(request: NextRequest): Promise<Response> {
         return Response.json(response, { status: 404 });
       }
 
+      // Attempt to fetch sitemap (non-blocking)
+      let sitemapUrl: string | null = null;
+      try {
+        console.log(`Attempting to fetch sitemap for ${normalizedUrl} during onboarding`);
+        const sitemapResult = await fetchWebsiteSitemap(normalizedUrl);
+        if (!sitemapResult.error) {
+          sitemapUrl = sitemapResult.sitemapUrl;
+          console.log(`Successfully fetched sitemap: ${sitemapUrl}, found ${sitemapResult.blogSlugs.length} blog posts`);
+        } else {
+          console.log(`Sitemap fetch failed: ${sitemapResult.error}`);
+        }
+      } catch (sitemapError) {
+        console.log(`Sitemap fetch failed during onboarding: ${sitemapError instanceof Error ? sitemapError.message : 'Unknown error'}`);
+        // Continue onboarding regardless of sitemap failure
+      }
+
       // Use transaction to ensure data consistency and complete onboarding
       await db.transaction(async (tx) => {
         // Update user record with analysis data AND mark onboarding as complete
@@ -303,6 +404,7 @@ export async function POST(request: NextRequest): Promise<Response> {
               toneOfVoice: aiAnalysis.toneOfVoice,
               articleStructure: DEFAULT_ARTICLE_STRUCTURE,
               maxWords: aiAnalysis.contentStrategy.maxWords,
+              sitemap_url: sitemapUrl, // Store sitemap URL if found, null otherwise
               updatedAt: new Date(),
             })
             .where(eq(articleSettings.user_id, userRecord.id));
@@ -313,12 +415,13 @@ export async function POST(request: NextRequest): Promise<Response> {
             toneOfVoice: aiAnalysis.toneOfVoice,
             articleStructure: DEFAULT_ARTICLE_STRUCTURE,
             maxWords: aiAnalysis.contentStrategy.maxWords,
+            sitemap_url: sitemapUrl, // Store sitemap URL if found, null otherwise
           });
         }
       });
 
       console.log(
-        `Successfully saved analysis data and completed onboarding for user ${userId}`,
+        `Successfully saved analysis data and completed onboarding for user ${userId}${sitemapUrl ? `, sitemap stored: ${sitemapUrl}` : ', no sitemap found'}`,
       );
 
       const response: AnalyzeWebsiteResponse = {

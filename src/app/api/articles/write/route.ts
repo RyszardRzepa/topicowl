@@ -8,6 +8,7 @@ import { articleSettings, users } from '@/server/db/schema';
 import type { OutlineResponse } from '@/app/api/articles/outline/route';
 import { blogPostSchema } from '@/types';
 import { eq } from 'drizzle-orm';
+import { getRelatedArticles } from '@/lib/utils/related-articles';
 
 // Types colocated with this API route
 interface WriteRequest {
@@ -26,7 +27,8 @@ interface WriteRequest {
     title?: string;
   }>;
   notes?: string; // User-provided context and requirements
-  userId: string
+  userId: string;
+  relatedArticles?: string[]; // Pre-generated related articles to avoid re-generating them
 }
 
 export interface WriteResponse {
@@ -62,6 +64,7 @@ export async function performWriteLogic(
   videos?: Array<{ title: string; url: string }>,
   sources?: Array<{ url: string; title?: string }>,
   notes?: string,
+  relatedArticles?: string[], // Pre-generated related articles
 ): Promise<WriteResponse> {
   console.log("[WRITE_LOGIC] Starting write generation", { 
     title,
@@ -166,10 +169,12 @@ export async function performWriteLogic(
       toneOfVoice: settings[0]!.toneOfVoice ?? '',
       articleStructure: settings[0]!.articleStructure ?? '',
       maxWords: settings[0]!.maxWords ?? 800, // Provide default if column doesn't exist
+      notes: notes ?? '', // Add notes field
     } : {
       toneOfVoice: '',
       articleStructure: '',
       maxWords: 800,
+      notes: notes ?? '', // Add notes field
     };
     console.log("[WRITE_LOGIC] Article settings loaded", { settingsFound: settings.length > 0 });
   } catch (error) {
@@ -179,6 +184,7 @@ export async function performWriteLogic(
       toneOfVoice: '',
       articleStructure: '',
       maxWords: 800,
+      notes: notes ?? '', // Add notes field
     };
   }
 
@@ -264,10 +270,41 @@ export async function performWriteLogic(
     ? `${articleObject.excerpt}\n\n${articleObject.content}`
     : articleObject.content;
 
-  // Include the cover image in the response if provided
+  // Get related articles - use pre-generated ones if provided, otherwise generate them
+  let finalRelatedArticles: string[] = relatedArticles ?? [];
+  
+  if (finalRelatedArticles.length === 0) {
+    try {
+      // First get the internal user ID from Clerk user ID
+      const [userRecord] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.clerk_user_id, userId))
+        .limit(1);
+
+      if (userRecord) {
+        finalRelatedArticles = await getRelatedArticles(userRecord.id, title, keywords, 3);
+        console.log("[WRITE_LOGIC] Generated related articles", { 
+          count: finalRelatedArticles.length, 
+          articles: finalRelatedArticles 
+        });
+      }
+    } catch (error) {
+      console.error("[WRITE_LOGIC] Error generating related articles:", error);
+      // Continue with empty array if related articles generation fails
+    }
+  } else {
+    console.log("[WRITE_LOGIC] Using pre-generated related articles", { 
+      count: finalRelatedArticles.length, 
+      articles: finalRelatedArticles 
+    });
+  }
+
+  // Include the cover image and related articles in the response
   const responseObject = {
     ...articleObject,
     content: contentWithExcerpt,
+    relatedPosts: finalRelatedArticles,
     ...(coverImage && { coverImage: coverImage })
   } as WriteResponse;
 
@@ -294,6 +331,7 @@ export async function POST(request: Request) {
       body.videos,
       body.sources,
       body.notes,
+      body.relatedArticles,
     );
 
     return NextResponse.json(result);

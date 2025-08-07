@@ -176,6 +176,9 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
   draftContent: text("draft_content"),
   validationReport: text("validation_report"),
   seoReport: jsonb("seo_report").default({}).notNull(),
+  
+  // Related articles
+  relatedArticles: jsonb("related_articles").default([]).notNull().$type<string[]>(),
 
   // Image selection tracking
   selectedImageId: text("selected_image_id"),
@@ -213,6 +216,9 @@ export const articleSettings = contentbotSchema.table("article_settings", {
     .default([])
     .notNull()
     .$type<string[]>(),
+    
+  // Sitemap functionality
+  sitemap_url: text("sitemap_url"), // User's website sitemap URL (e.g., https://example.com/sitemap.xml)
     
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)

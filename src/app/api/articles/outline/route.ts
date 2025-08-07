@@ -151,6 +151,7 @@ export async function POST(request: Request) {
       const { object: outlineData } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
         schema: outlineSchema,
+        system: "Ensure the intent is current and based on real-time top results.",
         prompt: prompts.outline(title, keywords, researchData, videos, notes, filteredSources, finalExcludedDomains),
         maxRetries: 3,
       });
