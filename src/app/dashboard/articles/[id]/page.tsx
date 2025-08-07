@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/server/db";
-import { articles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, articleGeneration } from "@/server/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { ArticlePreviewClient } from "@/components/articles/article-preview-client";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 
@@ -34,6 +34,14 @@ export default async function ArticlePreviewPage({
       notFound();
     }
 
+    // Also fetch the latest generation data to get the full draft content
+    const [generationData] = await db
+      .select()
+      .from(articleGeneration)
+      .where(eq(articleGeneration.articleId, articleId))
+      .orderBy(desc(articleGeneration.createdAt))
+      .limit(1);
+
     // Transform the database data to match the expected format
     article = {
       id: articleData.id,
@@ -54,7 +62,7 @@ export default async function ArticlePreviewPage({
       slug: articleData.slug,
       metaDescription: articleData.metaDescription,
       metaKeywords: articleData.metaKeywords,
-      draft: articleData.draft,
+      draft: generationData?.draftContent || articleData.draft, // Use generation draft content if available
       content: articleData.content, // Final published content
       videos: articleData.videos, // YouTube video embeds
       factCheckReport: articleData.factCheckReport,
@@ -75,8 +83,8 @@ export default async function ArticlePreviewPage({
         : [],
       wordCount: articleData.content
         ? articleData.content.split(/\s+/).length
-        : articleData.draft
-          ? articleData.draft.split(/\s+/).length
+        : (generationData?.draftContent || articleData.draft)
+          ? (generationData?.draftContent || articleData.draft)!.split(/\s+/).length
           : 0,
       // Optional extended fields
       seoAnalysis: articleData.seoScore

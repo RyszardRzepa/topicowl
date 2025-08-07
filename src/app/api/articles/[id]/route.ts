@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, users, articleGeneration } from "@/server/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import type { ArticleStatus } from "@/types";
 import { videoEmbedSchema } from "@/types";
@@ -145,6 +145,14 @@ export async function GET(
 
     const articleData = article[0] as ArticleData;
 
+    // Also fetch the latest generation data to get the full draft content
+    const [generationData] = await db
+      .select()
+      .from(articleGeneration)
+      .where(eq(articleGeneration.articleId, articleId))
+      .orderBy(desc(articleGeneration.createdAt))
+      .limit(1);
+
     // Verify article ownership and that it's not deleted
     if (articleData.user_id !== userRecord.id) {
       return NextResponse.json(
@@ -165,15 +173,16 @@ export async function GET(
     const seoAnalysis: SEOAnalysis | undefined = articleData.seoScore ? {
       score: articleData.seoScore,
       recommendations: generateSEORecommendations(articleData),
-      keywordDensity: calculateKeywordDensity(articleData),
-      readabilityScore: calculateReadabilityScore(articleData)
+      keywordDensity: calculateKeywordDensity(articleData, generationData?.draftContent),
+      readabilityScore: calculateReadabilityScore(articleData, generationData?.draftContent)
     } : undefined;
 
     // Generate generation logs from tracking fields
     const generationLogs: GenerationLog[] = generateGenerationLogs(articleData);
 
-    // Calculate word count from content
-    const wordCount = calculateWordCount(articleData.draft);
+    // Calculate word count from content (use generation draft content if available)
+    const contentForWordCount = generationData?.draftContent || articleData.draft;
+    const wordCount = calculateWordCount(contentForWordCount);
 
     // Extract target keywords from keywords field
     const targetKeywords = Array.isArray(articleData.keywords) 
@@ -189,6 +198,8 @@ export async function GET(
       success: true,
       data: {
         ...articleData,
+        // Use generation draft content if available, otherwise fall back to article draft
+        draft: generationData?.draftContent || articleData.draft,
         seoAnalysis,
         generationLogs,
         wordCount,
@@ -234,8 +245,8 @@ function generateSEORecommendations(article: ArticleData): string[] {
   return recommendations;
 }
 
-function calculateKeywordDensity(article: ArticleData): Record<string, number> {
-  const content = article.draft ?? '';
+function calculateKeywordDensity(article: ArticleData, generationContent?: string | null): Record<string, number> {
+  const content = generationContent || article.draft || '';
   const keywords = Array.isArray(article.keywords) ? (article.keywords as string[]) : [];
   const density: Record<string, number> = {};
   
@@ -254,8 +265,8 @@ function calculateKeywordDensity(article: ArticleData): Record<string, number> {
   return density;
 }
 
-function calculateReadabilityScore(article: ArticleData): number {
-  const content = article.draft ?? '';
+function calculateReadabilityScore(article: ArticleData, generationContent?: string | null): number {
+  const content = generationContent || article.draft || '';
   
   if (!content) {
     return 0;

@@ -11,7 +11,6 @@ import { db } from "@/server/db";
 import { articles, articleGeneration, users } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
 import type { ResearchResponse } from "@/app/api/articles/research/route";
-import type { OutlineResponse } from "@/app/api/articles/outline/route";
 import type { WriteResponse } from "@/app/api/articles/write/route";
 import type { ValidateResponse } from "@/app/api/articles/validate/route";
 import type { UpdateResponse } from "@/app/api/articles/update/route";
@@ -242,51 +241,52 @@ async function performResearch(
   return researchData;
 }
 
-async function createOutline(
-  title: string,
-  keywords: string[],
-  researchData: string,
-  sources: Array<{ url: string; title?: string }>,
-  generationId: number,
-  userId: string,
-  videos?: Array<{ title: string; url: string }>,
-  notes?: string,
-): Promise<OutlineResponse> {
-  console.log("Calling outline API", { title, keywords });
+// COMMENTED OUT - OUTLINE GENERATION SKIPPED
+// async function createOutline(
+//   title: string,
+//   keywords: string[],
+//   researchData: string,
+//   sources: Array<{ url: string; title?: string }>,
+//   generationId: number,
+//   userId: string,
+//   videos?: Array<{ title: string; url: string }>,
+//   notes?: string,
+// ): Promise<string> {
+//   console.log("Calling outline API", { title, keywords });
 
-  // Get excluded domains for the user
-  const excludedDomains = await getUserExcludedDomains(userId);
+//   // Get excluded domains for the user
+//   const excludedDomains = await getUserExcludedDomains(userId);
 
-  const outlineResult = await fetcher<ApiResponse<OutlineResponse>>(
-    `${API_BASE_URL}/api/articles/outline`,
-    {
-      method: "POST",
-      body: {
-        title,
-        keywords,
-        researchData,
-        sources,
-        videos,
-        notes,
-        userId, // Pass the clerk user ID
-        excludedDomains, // Pass excluded domains so outline API doesn't need to fetch them
-      },
-    },
-  );
+//   const outlineResult = await fetcher<ApiResponse<string>>(
+//     `${API_BASE_URL}/api/articles/outline`,
+//     {
+//       method: "POST",
+//       body: {
+//         title,
+//         keywords,
+//         researchData,
+//         sources,
+//         videos,
+//         notes,
+//         userId, // Pass the clerk user ID
+//         excludedDomains, // Pass excluded domains so outline API doesn't need to fetch them
+//       },
+//     },
+//   );
 
-  if (!outlineResult.success || !outlineResult.data) {
-    throw new Error("Failed to generate outline");
-  }
+//   if (!outlineResult.success || !outlineResult.data) {
+//     throw new Error("Failed to generate outline");
+//   }
 
-  const outlineData = outlineResult.data;
+//   const outlineData = outlineResult.data;
 
-  await db
-    .update(articleGeneration)
-    .set({ outline: outlineData, status: "outlining", progress: 40 })
-    .where(eq(articleGeneration.id, generationId));
+//   await db
+//     .update(articleGeneration)
+//     .set({ outline: outlineData, status: "outlining", progress: 40 })
+//     .where(eq(articleGeneration.id, generationId));
 
-  return outlineData;
-}
+//   return outlineData;
+// }
 
 async function selectCoverImage(
   articleId: number,
@@ -338,7 +338,7 @@ async function selectCoverImage(
 }
 
 async function writeArticle(
-  outlineData: OutlineResponse,
+  researchData: ResearchResponse, // Changed from OutlineResponse to ResearchResponse
   title: string,
   keywords: string[],
   coverImageUrl: string,
@@ -361,13 +361,14 @@ async function writeArticle(
     {
       method: "POST",
       body: {
-        outlineData: outlineData,
+        researchData: researchData, // Pass research data instead of outline
         title,
         keywords,
         coverImage: coverImageUrl || undefined,
         videos,
         userId,
-        relatedArticles
+        relatedArticles,
+        generationId // Pass the generationId to save the write prompt
       },
     },
   );
@@ -511,6 +512,9 @@ async function finalizeArticle(
     hasMetaDescription: !!updateData.metaDescription,
     metaKeywordsCount: updateData.metaKeywords?.length ?? 0,
     hasCoverImage: !!coverImageUrl,
+    draftContentLength: updateData.draft.length,
+    draftContentWordCount: updateData.draft.split(/\s+/).filter(word => word.length > 0).length,
+    draftContentPreview: updateData.draft.substring(0, 200) + "...",
   });
 
   await db.update(articles).set(updateData).where(eq(articles.id, articleId));
@@ -630,22 +634,22 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       dataLength: researchData?.researchData?.length ?? 0,
     });
 
-    // Phase 2: Outline
-    console.log("Starting outline phase");
-    apiCallsLog.push("/outline");
-    const outlineData = await createOutline(
-      article.title,
-      keywords,
-      researchData.researchData ?? "",
-      researchData.sources ?? [],
-      generationRecord.id,
-      userId,
-      researchData.videos,
-      article.notes ?? undefined,
-    );
-    console.log("Outline completed", {
-      outlineLength: outlineData?.length ?? 0,
-    });
+    // Phase 2: Outline (COMMENTED OUT - SKIPPED)
+    // console.log("Starting outline phase");
+    // apiCallsLog.push("/outline");
+    // const outlineData = await createOutline(
+    //   article.title,
+    //   keywords,
+    //   researchData.researchData ?? "",
+    //   researchData.sources ?? [],
+    //   generationRecord.id,
+    //   userId,
+    //   researchData.videos,
+    //   article.notes ?? undefined,
+    // );
+    // console.log("Outline completed", {
+    //   outlineLength: outlineData?.length ?? 0,
+    // });
 
     // Phase 3: Image Selection
     console.log("Starting image selection phase");
@@ -662,7 +666,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
     console.log("Starting writing phase");
     apiCallsLog.push("/write");
     const writeData = await writeArticle(
-      outlineData,
+      researchData, // Pass research data directly instead of outline
       article.title,
       keywords,
       coverImageUrl,
@@ -723,8 +727,6 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       tagsCount: writeData.tags?.length ?? 0,
     });
 
-    // Log the API calls sequence
-    console.log("API CALLED:");
     apiCallsLog.forEach(api => console.log(`-> ${api}`));
   } catch (error) {
     await handleGenerationError(

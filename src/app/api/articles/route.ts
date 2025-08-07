@@ -6,6 +6,8 @@ import { articles, users } from "@/server/db/schema";
 import { max, eq } from "drizzle-orm";
 import { z } from "zod";
 
+export const maxDuration = 800;
+
 // Types colocated with this API route
 export interface CreateArticleRequest {
   title: string;

@@ -211,6 +211,13 @@
       "when": 1754486267225,
       "tag": "0029_blue_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1754583554006,
+      "tag": "0030_nifty_shocker",
+      "breakpoints": true
     }
   ]
 }

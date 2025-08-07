@@ -5,6 +5,8 @@ import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { blogPostSchema } from "@/types";
 
+export const maxDuration = 800;
+
 // Types colocated with this API route
 interface ValidationIssue {
   fact: string;
@@ -59,6 +61,7 @@ export async function performUpdateLogic(
     model,
     schema: blogPostSchema,
     prompt: prompts.update(article, validationText, settings),
+    maxOutputTokens: 20000,
   });
 
   const response: UpdateResponse = {

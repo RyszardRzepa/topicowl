@@ -176,6 +176,7 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
   draftContent: text("draft_content"),
   validationReport: text("validation_report"),
   seoReport: jsonb("seo_report").default({}).notNull(),
+  writePrompt: text("write_prompt"), // Store the AI prompt used for writing
   
   // Related articles
   relatedArticles: jsonb("related_articles").default([]).notNull().$type<string[]>(),

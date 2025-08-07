@@ -1,18 +1,69 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { type MDXEditorMethods } from '@mdxeditor/editor'
-import { ForwardRefEditor } from './ForwardRefEditor'
+import { useRef, useState, Component, type ReactNode } from "react";
+import { type MDXEditorMethods } from "@mdxeditor/editor";
+import { ForwardRefEditor } from "./ForwardRefEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Save, Copy, Eye, Code } from "lucide-react";
 
+// Error boundary for the MDX editor
+class EditorErrorBoundary extends Component<
+  { children: ReactNode; onError: (error: Error) => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; onError: (error: Error) => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    this.props.onError(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null; // The parent component will handle showing the fallback
+    }
+
+    return this.props.children;
+  }
+}
 
 interface ContentEditorWithPreviewProps {
   initialContent?: string;
   onSave: (content: string) => void;
   isLoading?: boolean;
   placeholder?: string;
+}
+
+// Helper function to sanitize content for the MDX editor
+function sanitizeContentForEditor(content: string): string {
+  // Convert YouTube markdown links to directive format
+  return content.replace(
+    /\[!\[([^\]]*)\]\([^)]+\)\]\(https:\/\/(?:m\.)?youtube\.com\/watch\?v=([^&)]+)(?:[^)]*)\)/g,
+    (match, altText, videoId) => {
+      // Extract video title from alt text or use default
+      const title = altText ?? "Watch on YouTube";
+      return `::youtube[${title}]{#${videoId}}`;
+    },
+  );
+}
+
+// Helper function to convert directive format back to markdown for saving
+function convertDirectivesToMarkdown(content: string): string {
+  // Convert YouTube directives back to markdown image links
+  return content.replace(
+    /::youtube\[([^\]]*)\]\{#([^}]+)\}/g,
+    (match, title, videoId) => {
+      const linkTitle = title ?? "Watch on YouTube";
+      return `[![${linkTitle}](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)](https://www.youtube.com/watch?v=${videoId})`;
+    },
+  );
 }
 
 export function ContentEditorWithPreview({
@@ -22,19 +73,55 @@ export function ContentEditorWithPreview({
   placeholder = "Start writing your article...",
 }: ContentEditorWithPreviewProps) {
   const editorRef = useRef<MDXEditorMethods>(null);
-  const [currentContent, setCurrentContent] = useState(initialContent);
+  const sanitizedInitialContent = sanitizeContentForEditor(initialContent);
+  const [currentContent, setCurrentContent] = useState(sanitizedInitialContent);
   const [key, setKey] = useState(0);
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
+
+  // Debug logging
+  console.log(
+    "ContentEditor - original content length:",
+    initialContent.length,
+  );
+  console.log(
+    "ContentEditor - sanitized content length:",
+    sanitizedInitialContent.length,
+  );
+  console.log("ContentEditor - currentContent length:", currentContent.length);
+
+  // Check if content was sanitized
+  if (initialContent !== sanitizedInitialContent) {
+    console.log("ContentEditor - content was converted to directives");
+    console.log(
+      "ContentEditor - original YouTube section:",
+      initialContent.substring(
+        Math.max(0, initialContent.indexOf("youtube.com") - 50),
+        initialContent.indexOf("youtube.com") + 150,
+      ),
+    );
+    console.log(
+      "ContentEditor - directive YouTube section:",
+      sanitizedInitialContent.substring(
+        Math.max(0, sanitizedInitialContent.indexOf("::youtube") - 10),
+        sanitizedInitialContent.indexOf("::youtube") + 100,
+      ),
+    );
+  }
 
   const handleSave = () => {
     const markdown = editorRef.current?.getMarkdown() ?? currentContent;
-    onSave(markdown);
+    // Convert directives back to markdown format for saving
+    const convertedMarkdown = convertDirectivesToMarkdown(markdown);
+    onSave(convertedMarkdown);
   };
 
   const handleCopyMarkdown = async () => {
     try {
       const markdown = editorRef.current?.getMarkdown() ?? currentContent;
-      await navigator.clipboard.writeText(markdown);
+      // Convert directives back to markdown format for copying
+      const convertedMarkdown = convertDirectivesToMarkdown(markdown);
+      await navigator.clipboard.writeText(convertedMarkdown);
       // You might want to add a toast notification here
     } catch (err) {
       console.error("Failed to copy markdown:", err);
@@ -43,6 +130,17 @@ export function ContentEditorWithPreview({
 
   const handleEditorChange = (markdown: string) => {
     setCurrentContent(markdown);
+    // Clear any previous errors when content changes successfully
+    if (editorError) {
+      setEditorError(null);
+    }
+  };
+
+  const handleEditorError = (error: Error) => {
+    console.error("MDX Editor error:", error);
+    setEditorError(error.message);
+    // Fall back to markdown mode when editor fails
+    setIsMarkdownMode(true);
   };
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -52,11 +150,11 @@ export function ContentEditorWithPreview({
   const toggleMarkdownMode = () => {
     if (!isMarkdownMode) {
       // Switching to markdown mode - get current content from editor
-      const markdown = editorRef.current?.getMarkdown() ?? '';
+      const markdown = editorRef.current?.getMarkdown() ?? "";
       setCurrentContent(markdown);
     }
     setIsMarkdownMode(!isMarkdownMode);
-    setKey(prev => prev + 1); // Force editor re-render when switching back
+    setKey((prev) => prev + 1); // Force editor re-render when switching back
   };
 
   const getWordCount = (text: string) => {
@@ -65,28 +163,42 @@ export function ContentEditorWithPreview({
 
   return (
     <Card className="relative pb-20">
-      <CardContent className="p-0 overflow-visible">
+      <CardContent className="overflow-visible p-0">
         <div className="mdx-editor">
-          {isMarkdownMode ? (
+          {editorError && (
+            <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3">
+              <p className="text-sm text-yellow-800">
+                <strong>Editor Error:</strong> {editorError}
+              </p>
+              <p className="mt-1 text-xs text-yellow-600">
+                Switched to markdown mode. You can continue editing in raw
+                markdown.
+              </p>
+            </div>
+          )}
+
+          {isMarkdownMode || editorError ? (
             <textarea
               value={currentContent}
               onChange={handleTextareaChange}
               placeholder={placeholder}
-              className="w-full min-h-[400px] p-4 font-mono text-sm border-none outline-none resize-none"
+              className="min-h-[400px] w-full resize-none border-none p-4 font-mono text-sm outline-none"
             />
           ) : (
-            <ForwardRefEditor
-              key={`editor-${initialContent.length}-${key}`}
-              ref={editorRef}
-              markdown={currentContent}
-              onChange={handleEditorChange}
-              placeholder={placeholder}
-              contentEditableClassName="prose prose-lg max-w-none"
-            />
+            <EditorErrorBoundary onError={handleEditorError}>
+              <ForwardRefEditor
+                key={`editor-${sanitizedInitialContent.length}-${key}`}
+                ref={editorRef}
+                markdown={currentContent}
+                onChange={handleEditorChange}
+                placeholder={placeholder}
+                contentEditableClassName="prose prose-lg max-w-none"
+              />
+            </EditorErrorBoundary>
           )}
 
           {/* Floating Editor Actions */}
-          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+          <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
             <div className="flex items-center gap-4">
               <div className="text-sm text-gray-500">
                 {getWordCount(currentContent)} words
@@ -109,7 +221,7 @@ export function ContentEditorWithPreview({
                     </>
                   )}
                 </Button>
-               
+
                 <Button
                   onClick={handleSave}
                   disabled={isLoading}

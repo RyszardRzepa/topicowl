@@ -505,7 +505,7 @@ export const prompts = {
       title: string;
       audience?: string;
       searchIntent?: "informational" | "commercial" | "transactional";
-      markdownOutline: string; // Changed from outlineData object to markdown string
+      researchData: string; // Changed from markdownOutline to researchData
       sources?: Array<{ url: string; title?: string }>;
       notes?: string;
       videos?: Array<{ title: string; url: string }>;
@@ -523,46 +523,40 @@ export const prompts = {
     const currentDate = new Date().toISOString().split("T")[0];
 
     return `<role>
-You are an expert SEO content writer creating a comprehensive article based on the provided markdown outline. Write in clean Markdown format following the outline structure exactly.
+You are an expert SEO content writer creating a comprehensive article directly from research data. Write in clean Markdown format with proper structure and engaging content.
 </role>
 
 <article_parameters>
 Title: ${data.title}
-Target Words: ${settings?.maxWords ?? "1500-2000"}
+Max Length: ${settings?.maxWords ?? 1800} words (aim for comprehensive, detailed content)
 Tone: ${settings?.toneOfVoice ?? "expert, clear, direct, friendly"}
 Audience: ${data.audience ?? "General business readers"}
 Date: ${currentDate}
 </article_parameters>
 
 <critical_rules>
-1. Follow the provided markdown outline structure EXACTLY - do not deviate
-2. Use ONLY one H1 (the title) - NO CONTENT BEFORE THE TITLE
-3. Maximum 3 sentences per paragraph
-4. Grade 8 reading level (active voice, short sentences)
-5. Include ALL provided links naturally within the content
-6. Output in Markdown format only
-7. No interactive elements or HTML
-8. Begin article content with the H1 title, not with any intro text
-9. Expand the outline guidance into full, engaging content
+1. Use ONLY one H1 (the title) - NO CONTENT BEFORE THE TITLE
+2. Maximum 3 sentences per paragraph
+3. Grade 8 reading level (active voice, short sentences)
+4. Include ALL provided links naturally within the content
+5. Output in Markdown format only
+6. No interactive elements or HTML
+7. Begin article content with the H1 title, not with any intro text
+8. Create comprehensive, detailed content that thoroughly covers the topic
+9. Aim for the target word count - provide in-depth analysis and practical examples
+10. Include multiple sections with detailed explanations and actionable insights
 </critical_rules>
 
-<markdown_outline_to_follow>
-${data.markdownOutline}
-</markdown_outline_to_follow>
+<research_data_to_use>
+${data.researchData}
+</research_data_to_use>
 
-<content_expansion_instructions>
-1. **Introduction**: Expand the brief intro in the outline into 2-3 engaging sentences that hook the reader
-2. **TL;DR**: Keep the bullet points as provided in the outline - expand each into clear, actionable takeaways
-3. **Main Sections**: For each H2 section in the outline:
-   - Use the exact heading from the outline
-   - Expand the "Content guidance" into 200-400 words of valuable, specific content
-   - Include concrete examples and practical advice
-   - Integrate the specified links naturally
-   - Focus on the keywords mentioned in the outline
-4. **Video Sections**: If included, reference video content naturally in text (no embeds)
-5. **Table Sections**: If included, create well-formatted markdown tables with clear headers and organized data that helps readers compare options or understand relationships
-6. **FAQ**: Expand the answer guidance into 2-3 sentence responses with specific, helpful information
-</content_expansion_instructions>
+<content_structure_requirements>
+Create a well-structured article following the specified article structure: ${settings?.articleStructure ?? "standard blog format"}
+${!!data?.videos?.length? "Include video section using this video data: " + JSON.stringify(data?.videos) : "" } 
+
+Structure your content based on the most important information in the research data and organize it according to the user's preferred article structure format.
+</content_structure_requirements>
 
 <link_integration>
 ${
@@ -594,18 +588,22 @@ Format: "According to [source name](url)..."
 - Remove duplicate external links - use unique external sources only
 - Link format: [descriptive text](url)
 - Integration: Natural within sentences, add value to content
-- Follow the link guidance provided in the outline sections
+- Don't use links from this domain: vertexaisearch.google.com
 </link_integration>
 
 <writing_execution>
 1. Start with H1 title - no content before the title
-2. Follow the markdown outline structure exactly
-3. Expand each section based on the content guidance provided
-4. Keep paragraphs short (max 3 sentences)
-5. Use active voice and grade 8 reading level
-6. Use each external URL only ONCE - no duplicate external links
-7. Limit internal links to maximum 3 per article
-8. Ensure the final article is comprehensive and valuable
+2. Create a compelling introduction that hooks the reader (150-200 words)
+3. Add a TL;DR section with key takeaways
+4. Develop 4-6 main content sections based on research data (each 200-300 words)
+5. Include detailed explanations, examples, and practical insights in each section
+6. Add a comprehensive FAQ section with 4-6 questions
+7. Keep paragraphs short (max 3 sentences) but ensure thorough coverage
+8. Use active voice and grade 8 reading level
+9. Use each external URL only ONCE - no duplicate external links
+10. Limit internal links to maximum 3 per article
+11. Aim for the target word count by providing comprehensive, detailed content
+12. Include specific examples, case studies, and actionable advice throughout
 
 ${
   data.notes
@@ -615,7 +613,7 @@ Special instructions: ${data.notes}
     : ""
 }
 
-Generate the complete article now, following the markdown outline structure exactly and expanding the guidance into full, engaging content.
+Generate the complete article now, creating structure and content directly from the research data provided.
 </writing_execution>`;
   },
 

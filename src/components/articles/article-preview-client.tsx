@@ -2,15 +2,12 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArticleMetadata } from "./article-metadata";
 import { CoverImageDisplay } from "./cover-image-display";
 import { ArticleSidebarEditor } from "./article-sidebar-editor";
 import { ContentEditorWithPreview } from "./content-editor-with-preview";
-import { VideoEmbedPreview } from "./video-embed-preview";
 import { GenerationProgress } from "./generation-progress";
 import { useGenerationPolling } from "@/hooks/use-generation-polling";
 import { getArticleContent } from "@/lib/utils";
-import type { VideoEmbed } from "@/types";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 
 interface ArticlePreviewClientProps {
@@ -182,9 +179,7 @@ export function ArticlePreviewClient({
             coverImageAlt={article.coverImageAlt ?? undefined}
             onImageUpdate={handleCoverImageSave}
             isLoading={isSaving}
-          />
-
-        
+          />        
 
           {/* Content Editor */}
           <ContentEditorWithPreview

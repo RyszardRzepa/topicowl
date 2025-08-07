@@ -454,13 +454,10 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
           <input
             type="number"
             id="maxWords"
-            min="100"
-            max="5000"
             value={formData.maxWords}
             onChange={(e) => {
               const value = parseInt(e.target.value) || 800;
-              const clampedValue = Math.min(Math.max(value, 500), 5000);
-              handleInputChange('maxWords', clampedValue);
+              handleInputChange('maxWords', value);
             }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
