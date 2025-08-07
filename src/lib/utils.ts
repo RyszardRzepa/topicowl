@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { z, type ZodTypeAny, ZodObject, ZodArray, ZodOptional } from "zod";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -21,7 +22,7 @@ export async function fetcher<T = unknown>(
     body,
     headers = {},
     responseType = "json",
-    timeout = 15 * 60 * 1000, // 15 minutes default for AI operations
+    timeout = 20 * 60 * 1000, // 20 minutes default for AI operations
   } = options;
 
   const startTime = Date.now();

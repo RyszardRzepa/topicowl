@@ -9,6 +9,9 @@ import { z } from "zod";
 import { MODELS } from "@/constants";
 import { prompts } from "@/prompts";
 
+// Set maximum duration for AI operations to prevent timeouts
+export const maxDuration = 800;
+
 // Types colocated with this API route
 export interface ArticleIdea {
   title: string;
@@ -105,7 +108,6 @@ export async function POST() {
       model: google(MODELS.GEMINI_2_5_FLASH),
       prompt: prompts.generateIdeas(userContext),
       temperature: 0.7,
-      maxTokens: 4000,
     });
 
     console.log("[GENERATE_IDEAS_API] Generated text, now structuring...");

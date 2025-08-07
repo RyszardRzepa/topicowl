@@ -1,8 +1,12 @@
 import { google } from "@ai-sdk/google";
-import { generateText } from "ai";
+import { generateText, generateObject } from "ai";
 import { NextResponse } from "next/server";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
+import { z } from "zod";
+
+// Set maximum duration for AI operations to prevent timeouts
+export const maxDuration = 800;
 
 // Types colocated with this API route
 export interface ResearchRequest {
@@ -21,6 +25,7 @@ export interface ResearchResponse {
   videos?: Array<{
     title: string;
     url: string;
+    reason?: string;
   }>;
 }
 
@@ -43,7 +48,6 @@ interface GroundingMetadata {
 
 export async function POST(request: Request) {
   try {
-
     const body = (await request.json()) as ResearchRequest;
 
     const { title, keywords, notes, excludedDomains } = body;
@@ -85,20 +89,19 @@ export async function POST(request: Request) {
         providerOptions: {
           google: {
             thinkingConfig: {
-              thinkingBudget: 5000,
+              thinkingBudget: 0,
             },
           },
         },
         tools: {
           google_search: google.tools.googleSearch({}),
         },
-        system:
-          `Ensure the intent is current and based on real-time top results.`,
+        system: `Ensure the intent is current and based on real-time top results.`,
         prompt: prompts.research(title, keywords, notes, domainsToExclude),
       });
 
       text = result.text;
-      
+
       // Get sources from result.sources or fallback to grounding metadata
       let resultSources = (result.sources ?? []) as Array<{
         sourceType: string;
@@ -108,13 +111,18 @@ export async function POST(request: Request) {
 
       // Fallback to grounding metadata or text extraction when sources is empty
       if (resultSources.length === 0) {
-        console.log("[RESEARCH_LOGIC] Sources empty, checking grounding metadata and text");
-        
-        const meta = result.providerMetadata?.google?.groundingMetadata as GroundingMetadata | undefined;
+        console.log(
+          "[RESEARCH_LOGIC] Sources empty, checking grounding metadata and text",
+        );
+
+        const meta = result.providerMetadata?.google?.groundingMetadata as
+          | GroundingMetadata
+          | undefined;
         const chunks = meta?.groundingChunks ?? [];
         const supports = meta?.groundingSupports ?? [];
 
-        console.log(`[RESEARCH_LOGIC] Grounding metadata - meta`, meta);
+        console.log(`[RESEARCH_LOGIC] Grounding metadata - meta`, result.providerMetadata);
+        console.log(`[SOURCES!!!]`, result.sources);
 
         // First try grounding metadata
         if (chunks.length > 0 && supports.length > 0) {
@@ -124,45 +132,54 @@ export async function POST(request: Request) {
           }
 
           const derivedSources = [...idx]
-            .map(i => chunks[i]?.web)
+            .map((i) => chunks[i]?.web)
             .filter(Boolean)
-            .map(w => ({ 
+            .map((w) => ({
               sourceType: "web",
-              url: w!.uri, 
-              title: w!.title 
+              url: w!.uri,
+              title: w!.title,
             }));
 
-          console.log(`[RESEARCH_LOGIC] Derived ${derivedSources.length} sources from grounding metadata`);
+          console.log(
+            `[RESEARCH_LOGIC] Derived ${derivedSources.length} sources from grounding metadata`,
+          );
           resultSources = derivedSources;
         }
 
         // If still no sources, try to extract from text
         if (resultSources.length === 0) {
-          console.log("[RESEARCH_LOGIC] Attempting to extract sources from response text");
-          
+          console.log(
+            "[RESEARCH_LOGIC] Attempting to extract sources from response text",
+          );
+
           // Look for Google Vertex AI search redirect URLs in the text
-          const vertexUrlRegex = /https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s<>"{}|\\^`[\]]+/g;
+          const vertexUrlRegex =
+            /https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s<>"{}|\\^`[\]]+/g;
           const vertexUrls = text.match(vertexUrlRegex);
-          
+
           if (vertexUrls) {
             const uniqueVertexUrls = [...new Set(vertexUrls)];
-            resultSources = uniqueVertexUrls.map(url => ({
+            resultSources = uniqueVertexUrls.map((url) => ({
               sourceType: "web",
               url,
-              title: undefined
+              title: undefined,
             }));
-            console.log(`[RESEARCH_LOGIC] Extracted ${resultSources.length} Vertex AI redirect URLs from text`);
+            console.log(
+              `[RESEARCH_LOGIC] Extracted ${resultSources.length} Vertex AI redirect URLs from text`,
+            );
           } else {
             // Fallback: extract any URLs from the text
             const urlMatches = text.match(/https?:\/\/[^\s<>"{}|\\^`[\]]+/g);
             if (urlMatches) {
               const uniqueUrls = [...new Set(urlMatches)];
-              resultSources = uniqueUrls.map(url => ({
+              resultSources = uniqueUrls.map((url) => ({
                 sourceType: "web",
                 url,
-                title: undefined
+                title: undefined,
               }));
-              console.log(`[RESEARCH_LOGIC] Extracted ${resultSources.length} URLs as fallback sources`);
+              console.log(
+                `[RESEARCH_LOGIC] Extracted ${resultSources.length} URLs as fallback sources`,
+              );
             }
           }
         }
@@ -199,19 +216,25 @@ export async function POST(request: Request) {
         let resolvedUrl = source.url;
         let resolvedTitle = source.title;
         let isValid = false;
-        
+
         // Check if it's a Google redirect URL and resolve it
-        if (source.url.includes("vertexaisearch.cloud.google.com/grounding-api-redirect/")) {
+        if (
+          source.url.includes(
+            "vertexaisearch.cloud.google.com/grounding-api-redirect/",
+          )
+        ) {
           try {
-            console.log(`[RESEARCH_API] Resolving Vertex AI redirect: ${source.url.substring(0, 80)}...`);
-            
+            console.log(
+              `[RESEARCH_API] Resolving Vertex AI redirect: ${source.url.substring(0, 80)}...`,
+            );
+
             const response = await fetch(source.url, {
               method: "HEAD",
               redirect: "manual",
               headers: {
-                "User-Agent": "ContentBot Research/1.0"
+                "User-Agent": "ContentBot Research/1.0",
               },
-              signal: AbortSignal.timeout(5000) // 5 second timeout
+              signal: AbortSignal.timeout(5000), // 5 second timeout
             });
 
             // Check for redirect location
@@ -224,26 +247,33 @@ export async function POST(request: Request) {
               const getResponse = await fetch(source.url, {
                 redirect: "manual",
                 headers: {
-                  "User-Agent": "ContentBot Research/1.0"
+                  "User-Agent": "ContentBot Research/1.0",
                 },
-                signal: AbortSignal.timeout(5000) // 5 second timeout
+                signal: AbortSignal.timeout(5000), // 5 second timeout
               });
 
               const getLocation = getResponse.headers.get("location");
               if (getLocation) {
                 resolvedUrl = getLocation;
-                console.log(`[RESEARCH_API] Resolved via GET to: ${resolvedUrl}`);
+                console.log(
+                  `[RESEARCH_API] Resolved via GET to: ${resolvedUrl}`,
+                );
               }
             }
-            
+
             // Extract domain from resolved URL as title
             if (resolvedUrl !== source.url) {
               try {
                 const urlObj = new URL(resolvedUrl);
-                resolvedTitle = urlObj.hostname.replace(/^www\./, '');
-                console.log(`[RESEARCH_API] Set title to domain: ${resolvedTitle}`);
+                resolvedTitle = urlObj.hostname.replace(/^www\./, "");
+                console.log(
+                  `[RESEARCH_API] Set title to domain: ${resolvedTitle}`,
+                );
               } catch (error) {
-                console.warn(`[RESEARCH_API] Could not extract domain from ${resolvedUrl}:`, error);
+                console.warn(
+                  `[RESEARCH_API] Could not extract domain from ${resolvedUrl}:`,
+                  error,
+                );
                 resolvedTitle = "Unknown Source";
               }
             }
@@ -256,42 +286,53 @@ export async function POST(request: Request) {
             return {
               url: source.url,
               title: "Invalid Source",
-              isValid: false
+              isValid: false,
             };
           }
         }
-        
+
         // Validate the final URL (only if we successfully resolved it or it wasn't a redirect)
-        if (resolvedUrl !== source.url || !source.url.includes("vertexaisearch.cloud.google.com")) {
+        if (
+          resolvedUrl !== source.url ||
+          !source.url.includes("vertexaisearch.cloud.google.com")
+        ) {
           try {
             const validationResponse = await fetch(resolvedUrl, {
               method: "HEAD",
               headers: {
-                "User-Agent": "ContentBot Research/1.0"
+                "User-Agent": "ContentBot Research/1.0",
               },
-              signal: AbortSignal.timeout(5000) // 5 second timeout
+              signal: AbortSignal.timeout(5000), // 5 second timeout
             });
-            
-            isValid = validationResponse.ok || validationResponse.status === 405; // 405 Method Not Allowed is ok for HEAD requests
-            
+
+            isValid =
+              validationResponse.ok || validationResponse.status === 405; // 405 Method Not Allowed is ok for HEAD requests
+
             if (!isValid) {
-              console.warn(`[RESEARCH_API] Source returned status ${validationResponse.status}: ${resolvedUrl}`);
+              console.warn(
+                `[RESEARCH_API] Source returned status ${validationResponse.status}: ${resolvedUrl}`,
+              );
             } else {
-              console.log(`[RESEARCH_API] Validated source: ${resolvedUrl} (${validationResponse.status})`);
+              console.log(
+                `[RESEARCH_API] Validated source: ${resolvedUrl} (${validationResponse.status})`,
+              );
             }
           } catch (error) {
-            console.error(`[RESEARCH_API] Failed to validate source: ${resolvedUrl}`, error);
+            console.error(
+              `[RESEARCH_API] Failed to validate source: ${resolvedUrl}`,
+              error,
+            );
             isValid = false;
           }
         } else {
           // If we couldn't resolve a vertex redirect URL, mark as invalid
           isValid = false;
         }
-        
+
         return {
           url: resolvedUrl,
           title: resolvedTitle,
-          isValid
+          isValid,
         };
       }),
     );
@@ -300,89 +341,123 @@ export async function POST(request: Request) {
       .filter((result) => result.status === "fulfilled")
       .map(
         (result) =>
-          (result as PromiseFulfilledResult<{ url: string; title?: string; isValid: boolean }>)
-            .value,
+          (
+            result as PromiseFulfilledResult<{
+              url: string;
+              title?: string;
+              isValid: boolean;
+            }>
+          ).value,
       );
 
     // Separate valid and invalid sources
-    const validSources = processedSources.filter(source => source.isValid);
-    const invalidSources = processedSources.filter(source => !source.isValid);
-    
+    const validSources = processedSources.filter((source) => source.isValid);
+    const invalidSources = processedSources.filter((source) => !source.isValid);
+
     if (invalidSources.length > 0) {
-      console.warn(`[RESEARCH_API] Found ${invalidSources.length} invalid sources:`, 
-        invalidSources.map(s => ({ url: s.url.substring(0, 50) + '...', title: s.title })));
+      console.warn(
+        `[RESEARCH_API] Found ${invalidSources.length} invalid sources:`,
+        invalidSources.map((s) => ({
+          url: s.url.substring(0, 50) + "...",
+          title: s.title,
+        })),
+      );
     }
-    
+
     // Only use valid sources - if no valid sources, return empty array rather than invalid ones
-    const finalResolvedSources = validSources.map(({ url, title }) => ({ url, title }));
-    
-    console.log(`[RESEARCH_LOGIC] Resolved and validated sources: ${validSources.length} valid, ${invalidSources.length} invalid`);
-    
+    const finalResolvedSources = validSources.map(({ url, title }) => ({
+      url,
+      title,
+    }));
+
+    console.log(
+      `[RESEARCH_LOGIC] Resolved and validated sources: ${validSources.length} valid, ${invalidSources.length} invalid`,
+    );
+
     // Log the final valid sources
     if (finalResolvedSources.length > 0) {
-      console.log(`[RESEARCH_LOGIC] Final valid sources:`, 
-        finalResolvedSources.map(s => ({ title: s.title, url: s.url })));
+      console.log(
+        `[RESEARCH_LOGIC] Final valid sources:`,
+        finalResolvedSources.map((s) => ({ title: s.title, url: s.url })),
+      );
     } else {
-      console.warn(`[RESEARCH_LOGIC] No valid sources found after resolution and validation`);
+      console.warn(
+        `[RESEARCH_LOGIC] No valid sources found after resolution and validation`,
+      );
     }
 
     // Filter sources to remove excluded domains
-    const filteredSources = domainsToExclude.length === 0 
-      ? finalResolvedSources 
-      : finalResolvedSources.filter(source => {
-          try {
-            const url = new URL(source.url);
-            const domain = url.hostname;
-            const isExcluded = domainsToExclude.some(excludedDomain => 
-              domain.toLowerCase().includes(excludedDomain.toLowerCase())
-            );
-            
-            if (isExcluded) {
-              console.log(`[DOMAIN_FILTER] Filtered out source: ${source.url} (domain: ${domain})`);
+    const filteredSources =
+      domainsToExclude.length === 0
+        ? finalResolvedSources
+        : finalResolvedSources.filter((source) => {
+            try {
+              const url = new URL(source.url);
+              const domain = url.hostname;
+              const isExcluded = domainsToExclude.some((excludedDomain) =>
+                domain.toLowerCase().includes(excludedDomain.toLowerCase()),
+              );
+
+              if (isExcluded) {
+                console.log(
+                  `[DOMAIN_FILTER] Filtered out source: ${source.url} (domain: ${domain})`,
+                );
+              }
+
+              return !isExcluded;
+            } catch (error) {
+              // If URL parsing fails, keep the source (don't filter invalid URLs)
+              console.warn(
+                `[DOMAIN_FILTER] Could not parse URL for filtering: ${source.url}`,
+                error,
+              );
+              return true;
             }
-            
-            return !isExcluded;
-          } catch (error) {
-            // If URL parsing fails, keep the source (don't filter invalid URLs)
-            console.warn(`[DOMAIN_FILTER] Could not parse URL for filtering: ${source.url}`, error);
-            return true;
-          }
-        });
+          });
 
     // Filter research text to remove any URLs from excluded domains
     let filteredText = text;
     if (domainsToExclude.length > 0) {
       // Regular expression to find URLs in text
       const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
-      
+
       const matches = text.match(urlRegex);
-      
+
       if (matches) {
         let filteredCount = 0;
-        
-        matches.forEach(url => {
+
+        matches.forEach((url) => {
           try {
             const urlObj = new URL(url);
             const domain = urlObj.hostname;
-            
-            if (domainsToExclude.some(excludedDomain => 
-              domain.toLowerCase().includes(excludedDomain.toLowerCase())
-            )) {
+
+            if (
+              domainsToExclude.some((excludedDomain) =>
+                domain.toLowerCase().includes(excludedDomain.toLowerCase()),
+              )
+            ) {
               // Remove the URL from the text
-              filteredText = filteredText.replace(url, '');
+              filteredText = filteredText.replace(url, "");
               filteredCount++;
-              console.log(`[DOMAIN_FILTER] Removed URL from text: ${url} (domain: ${domain})`);
+              console.log(
+                `[DOMAIN_FILTER] Removed URL from text: ${url} (domain: ${domain})`,
+              );
             }
           } catch (error) {
             // If URL parsing fails, leave it as is
-            console.warn(`[DOMAIN_FILTER] Could not parse URL in text: ${url}`, error);
+            console.warn(
+              `[DOMAIN_FILTER] Could not parse URL in text: ${url}`,
+              error,
+            );
           }
         });
-        
+
         if (filteredCount > 0) {
-          console.log(`[DOMAIN_FILTER] Filtered out ${filteredCount} URLs from text content`);
+          console.log(
+            `[DOMAIN_FILTER] Filtered out ${filteredCount} URLs from text content`,
+          );
           // Clean up any double spaces or line breaks left by URL removal
-          filteredText = filteredText.replace(/\s+/g, ' ').trim();
+          filteredText = filteredText.replace(/\s+/g, " ").trim();
         }
       }
     }
@@ -404,10 +479,177 @@ export async function POST(request: Request) {
       `${finalResolvedSources.length} total, ${filteredSources.length} after filtering, ${videos.length} videos found`,
     );
 
+    // Search for YouTube videos specifically for the article title
+    let selectedVideo: { title: string; url: string; reason: string } | undefined;
+    
+    try {
+      console.log("[YOUTUBE_SEARCH] Starting YouTube video search for:", title);
+      
+      const youtubeSearchResult = await generateText({
+        model: google(MODELS.GEMINI_2_5_FLASH),
+        tools: {
+          googleSearch: google.tools.googleSearch({}),
+        },
+        system: "Search the web for YouTube links. Return only valid YouTube links.",
+        prompt: `Search the web for youtube links about topic: ${title}. Return only valid youtube links.`,
+      });
+
+      console.log("[YOUTUBE_SEARCH] Search completed, extracting YouTube URLs");
+
+      // Get sources from result.sources first
+      let youtubeSearchSources = (youtubeSearchResult.sources ?? []) as Array<{
+        sourceType: string;
+        url: string;
+        title?: string;
+      }>;
+
+      // If no sources, try grounding metadata
+      if (youtubeSearchSources.length === 0) {
+        const meta = youtubeSearchResult.providerMetadata?.google?.groundingMetadata as
+          | GroundingMetadata
+          | undefined;
+        const chunks = meta?.groundingChunks ?? [];
+        const supports = meta?.groundingSupports ?? [];
+
+        if (chunks.length > 0 && supports.length > 0) {
+          const idx = new Set<number>();
+          for (const s of supports) {
+            (s.groundingChunkIndices ?? []).forEach((i: number) => idx.add(i));
+          }
+
+          youtubeSearchSources = [...idx]
+            .map((i) => chunks[i]?.web)
+            .filter(Boolean)
+            .map((w) => ({
+              sourceType: "web",
+              url: w!.uri,
+              title: w!.title,
+            }));
+
+          console.log(`[YOUTUBE_SEARCH] Derived ${youtubeSearchSources.length} sources from grounding metadata`);
+        }
+      }
+
+      // Extract YouTube URLs from text as fallback
+      const youtubeUrlRegex = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/g;
+      const textYoutubeUrls = youtubeSearchResult.text.match(youtubeUrlRegex) ?? [];
+      
+      // Also extract any Google redirect URLs that might lead to YouTube
+      const vertexUrlRegex = /https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s<>"{}|\\^`[\]]+/g;
+      const vertexUrls = youtubeSearchResult.text.match(vertexUrlRegex) ?? [];
+
+      // Combine all potential URLs
+      const allPotentialUrls = [
+        ...youtubeSearchSources.map(s => s.url),
+        ...textYoutubeUrls,
+        ...vertexUrls
+      ];
+
+      if (allPotentialUrls.length > 0) {
+        const uniqueUrls = [...new Set(allPotentialUrls)];
+        console.log(`[YOUTUBE_SEARCH] Found ${uniqueUrls.length} unique URLs to resolve`);
+
+        // Resolve URLs and filter for YouTube videos
+        const resolvedYoutubeUrls = await Promise.allSettled(
+          uniqueUrls.map(async (url) => {
+            let resolvedUrl = url;
+            
+            // Check if it's a Google redirect URL and resolve it
+            if (url.includes("vertexaisearch.cloud.google.com/grounding-api-redirect/")) {
+              try {
+                console.log(`[YOUTUBE_SEARCH] Resolving redirect: ${url.substring(0, 80)}...`);
+                
+                const response = await fetch(url, {
+                  method: "HEAD",
+                  redirect: "manual",
+                  headers: {
+                    "User-Agent": "ContentBot Research/1.0",
+                  },
+                  signal: AbortSignal.timeout(5000),
+                });
+
+                const location = response.headers.get("location");
+                if (location) {
+                  resolvedUrl = location;
+                  console.log(`[YOUTUBE_SEARCH] Resolved to: ${resolvedUrl}`);
+                } else {
+                  // Try GET request
+                  const getResponse = await fetch(url, {
+                    redirect: "manual",
+                    headers: {
+                      "User-Agent": "ContentBot Research/1.0",
+                    },
+                    signal: AbortSignal.timeout(5000),
+                  });
+
+                  const getLocation = getResponse.headers.get("location");
+                  if (getLocation) {
+                    resolvedUrl = getLocation;
+                    console.log(`[YOUTUBE_SEARCH] Resolved via GET to: ${resolvedUrl}`);
+                  }
+                }
+              } catch (error) {
+                console.error(`[YOUTUBE_SEARCH] Failed to resolve redirect: ${url.substring(0, 80)}...`, error);
+                return null; // Skip this URL
+              }
+            }
+
+            // Check if the resolved URL is a YouTube URL
+            const isYouTube = resolvedUrl.includes("youtube.com") || resolvedUrl.includes("youtu.be");
+            
+            return isYouTube ? resolvedUrl : null;
+          })
+        );
+
+        const youtubeUrls = resolvedYoutubeUrls
+          .filter((result) => result.status === "fulfilled" && result.value !== null)
+          .map((result) => (result as PromiseFulfilledResult<string | null>).value!)
+          .filter(Boolean);
+
+        const uniqueYoutubeUrls = [...new Set(youtubeUrls)];
+        console.log(`[YOUTUBE_SEARCH] Found ${uniqueYoutubeUrls.length} unique YouTube URLs after resolution`);
+
+        if (uniqueYoutubeUrls.length > 0) {
+          // Use AI to select the best YouTube video
+          const videoSelectionSchema = z.object({
+            selectedVideo: z.object({
+              title: z.string().describe("The title of the selected YouTube video"),
+              url: z.string().describe("The URL of the selected YouTube video"),
+              reason: z.string().describe("Brief explanation of why this video was selected as the best match for the article topic")
+            })
+          });
+
+          const selectionResult = await generateObject({
+            model: google(MODELS.GEMINI_2_5_FLASH),
+            schema: videoSelectionSchema,
+            prompt: `From the following YouTube URLs, select the ONE best video that is most relevant to the article topic "${title}".
+
+YouTube URLs found:
+${uniqueYoutubeUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
+
+Original search context:
+${youtubeSearchResult.text}
+
+Select the most relevant video and provide a title, URL, and brief reason for your selection.`
+          });
+
+          selectedVideo = selectionResult.object.selectedVideo;
+          console.log("[YOUTUBE_SEARCH] Selected video:", selectedVideo);
+        } else {
+          console.log("[YOUTUBE_SEARCH] No YouTube URLs found after resolution");
+        }
+      } else {
+        console.log("[YOUTUBE_SEARCH] No URLs found to process");
+      }
+    } catch (error) {
+      console.error("[YOUTUBE_SEARCH] Error during YouTube search:", error);
+      // Continue without failing the entire request
+    }
+
     const result: ResearchResponse = {
       researchData: filteredText,
       sources: filteredSources,
-      videos,
+      videos: selectedVideo ? [selectedVideo] : [],
     };
 
     return NextResponse.json(result);

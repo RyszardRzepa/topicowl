@@ -394,27 +394,46 @@ async function validateArticle(
     contentLength: content.length,
   });
 
-  const validationData = await fetcher<ValidateResponse>(
-    `${API_BASE_URL}/api/articles/validate`,
-    {
-      method: "POST",
-      body: {
-        content,
+  try {
+    const validationData = await fetcher<ValidateResponse>(
+      `${API_BASE_URL}/api/articles/validate`,
+      {
+        method: "POST",
+        body: {
+          content,
+        },
+        timeout: 10 * 60 * 1000, // 10 minutes timeout for validation
       },
-    },
-  );
+    );
 
-  console.log("Validate API response", {
-    isValid: validationData.isValid,
-    issuesCount: validationData.issues?.length ?? 0,
-    hasRawText: !!validationData.rawValidationText,
-  });
+    console.log("Validate API response", {
+      isValid: validationData.isValid,
+      issuesCount: validationData.issues?.length ?? 0,
+      hasRawText: !!validationData.rawValidationText,
+    });
 
-  await updateGenerationProgress(generationId, "updating", 90, {
-    validationReport: validationData.rawValidationText ?? "",
-  });
+    await updateGenerationProgress(generationId, "updating", 90, {
+      validationReport: validationData.rawValidationText ?? "",
+    });
 
-  return validationData;
+    return validationData;
+  } catch (error) {
+    console.error("Validation failed, proceeding without validation", error);
+    
+    // If validation fails due to timeout or other errors, return a fallback response
+    // This prevents the entire generation from failing
+    const fallbackResponse: ValidateResponse = {
+      isValid: true,
+      issues: [],
+      rawValidationText: "Validation skipped due to timeout or error",
+    };
+
+    await updateGenerationProgress(generationId, "updating", 90, {
+      validationReport: `Validation skipped: ${error instanceof Error ? error.message : "Unknown error"}`,
+    });
+
+    return fallbackResponse;
+  }
 }
 
 async function updateArticleIfNeeded(
@@ -583,6 +602,7 @@ async function handleGenerationError(
 async function generateArticle(context: GenerationContext): Promise<void> {
   const { articleId, userId, article, keywords } = context;
   let generationRecord: typeof articleGeneration.$inferSelect | null = null;
+  const apiCallsLog: string[] = [];
 
   try {
     console.log("Starting article generation", {
@@ -598,6 +618,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
 
     // Phase 1: Research
     console.log("Starting research phase");
+    apiCallsLog.push("/research");
     const researchData = await performResearch(
       article.title,
       keywords,
@@ -611,6 +632,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
 
     // Phase 2: Outline
     console.log("Starting outline phase");
+    apiCallsLog.push("/outline");
     const outlineData = await createOutline(
       article.title,
       keywords,
@@ -622,12 +644,12 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       article.notes ?? undefined,
     );
     console.log("Outline completed", {
-      keyPointsCount: outlineData?.keyPoints?.length ?? 0,
-      totalWords: outlineData?.totalWords ?? 0,
+      outlineLength: outlineData?.length ?? 0,
     });
 
     // Phase 3: Image Selection
     console.log("Starting image selection phase");
+    apiCallsLog.push("/images/select-for-article");
     const { coverImageUrl, coverImageAlt } = await selectCoverImage(
       articleId,
       generationRecord.id,
@@ -638,6 +660,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
 
     // Phase 4: Writing
     console.log("Starting writing phase");
+    apiCallsLog.push("/write");
     const writeData = await writeArticle(
       outlineData,
       article.title,
@@ -655,6 +678,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
 
     // Phase 5: Validation
     console.log("Starting validation phase");
+    apiCallsLog.push("/validate");
     const validationData = await validateArticle(
       writeData.content ?? "",
       generationRecord.id,
@@ -670,6 +694,11 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       writeData.content ?? "",
       validationData.rawValidationText ?? "",
     );
+    
+    // Only log update API call if it was actually called
+    if (!(validationData.rawValidationText ?? "").includes("No factual issues identified")) {
+      apiCallsLog.push("/update");
+    }
     console.log("Update completed", {
       contentUpdated: finalContent !== writeData.content,
       finalContentLength: finalContent.length,
@@ -693,6 +722,10 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       hasMetaDescription: !!writeData.metaDescription,
       tagsCount: writeData.tags?.length ?? 0,
     });
+
+    // Log the API calls sequence
+    console.log("API CALLED:");
+    apiCallsLog.forEach(api => console.log(`-> ${api}`));
   } catch (error) {
     await handleGenerationError(
       articleId,

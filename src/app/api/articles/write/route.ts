@@ -10,9 +10,12 @@ import { blogPostSchema } from '@/types';
 import { eq } from 'drizzle-orm';
 import { getRelatedArticles } from '@/lib/utils/related-articles';
 
+// Set maximum duration for AI operations to prevent timeouts
+export const maxDuration = 800;
+
 // Types colocated with this API route
 interface WriteRequest {
-  outlineData: OutlineResponse;
+  outlineData: OutlineResponse; // Now a string (markdown)
   title: string;
   keywords: string[];
   author?: string;
@@ -56,7 +59,7 @@ export interface WriteResponse {
 
 // Extracted write logic that can be called directly
 export async function performWriteLogic(
-  outlineData: OutlineResponse,
+  outlineData: OutlineResponse, // Now a string (markdown)
   title: string,
   keywords: string[],
   userId: string,
@@ -69,7 +72,7 @@ export async function performWriteLogic(
   console.log("[WRITE_LOGIC] Starting write generation", { 
     title,
     hasOutlineData: !!outlineData,
-    keyPointsCount: outlineData?.keyPoints?.length ?? 0,
+    outlineLength: outlineData?.length ?? 0,
     keywordsCount: keywords?.length ?? 0,
     hasCoverImage: !!coverImage,
     sourcesCount: sources?.length ?? 0
@@ -77,11 +80,6 @@ export async function performWriteLogic(
   
   if (!outlineData || !title || !keywords || keywords.length === 0) {
     throw new Error("Outline data, title, and keywords are required");
-  }
-
-  // Validate outline data structure
-  if (!outlineData.keyPoints || !Array.isArray(outlineData.keyPoints) || outlineData.keyPoints.length !== 5) {
-    throw new Error("Invalid outline data structure - expected 5 key points");
   }
 
   // Retrieve user's excluded domains (inlined from getUserExcludedDomains)
@@ -218,12 +216,12 @@ export async function performWriteLogic(
       schema: schemaToUse,
       prompt: prompts.writing({
         title: title,
-        outlineData: outlineData,
-        coverImage: coverImage,
+        markdownOutline: outlineData, // Pass the markdown outline string
         videos: [], // Don't pass videos to avoid enhanced schema issues
         sources: filteredSources ?? [],
         notes: notes
       }, settingsData, [], excludedDomains) + excludedDomainsInstruction,
+      maxRetries: 2,
     });
     articleObject = result.object;
     console.log("[WRITE_LOGIC] AI content generation completed successfully", {
@@ -265,11 +263,6 @@ export async function performWriteLogic(
     throw new Error("AI generated article is missing required fields (content, title, or slug)");
   }
 
-  // Ensure excerpt is included as the first paragraph of the content
-  const contentWithExcerpt = articleObject.excerpt 
-    ? `${articleObject.excerpt}\n\n${articleObject.content}`
-    : articleObject.content;
-
   // Get related articles - use pre-generated ones if provided, otherwise generate them
   let finalRelatedArticles: string[] = relatedArticles ?? [];
   
@@ -303,7 +296,6 @@ export async function performWriteLogic(
   // Include the cover image and related articles in the response
   const responseObject = {
     ...articleObject,
-    content: contentWithExcerpt,
     relatedPosts: finalRelatedArticles,
     ...(coverImage && { coverImage: coverImage })
   } as WriteResponse;
@@ -347,7 +339,7 @@ export async function POST(request: Request) {
         title: body?.title ?? 'unknown',
         hasOutlineData: !!body?.outlineData,
         keywordsCount: body?.keywords?.length ?? 0,
-        keyPointsCount: body?.outlineData?.keyPoints?.length ?? 0,
+        outlineLength: body?.outlineData?.length ?? 0,
       }
     });
     
