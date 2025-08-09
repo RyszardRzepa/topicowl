@@ -1,4 +1,5 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from '@ai-sdk/openai';
+
 import { generateObject } from "ai";
 import { NextResponse } from "next/server";
 import { prompts } from "@/prompts";
@@ -256,7 +257,7 @@ export async function POST(request: Request) {
 
     try {
       const result = await generateObject({
-        model: anthropic(MODELS.CLAUDE_SONET_4),
+        model: openai(MODELS.OPENAI_GPT_5),
         schema: schemaToUse,
         prompt: writePrompt,
         maxRetries: 2,

@@ -3,6 +3,7 @@ export const MODELS = {
   GEMINI_2_5_FLASH: "gemini-2.5-flash",
   GEMINI_2_5_PRO: "gemini-2.5-pro",
   CLAUDE_SONET_4: "claude-sonnet-4-20250514",
+  OPENAI_GPT_5: "gpt-5-2025-08-07",
 } as const;
 
 // API URL constant for internal API calls

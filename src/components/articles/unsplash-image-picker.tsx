@@ -33,7 +33,7 @@ export function UnsplashImagePicker({
         },
         body: JSON.stringify({
           query: searchQuery,
-          count: 18,
+          count: 60,
           orientation: "landscape",
         }),
       });
@@ -101,43 +101,43 @@ export function UnsplashImagePicker({
               <p className="mb-3 text-sm text-gray-600">
                 Found {images.length} images. Click to select:
               </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {images.map((image) => (
-                  <div
-                    key={image.id}
-                    className={`group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all hover:border-blue-400 ${
-                      selectedImageId === image.id
-                        ? "border-blue-500 ring-2 ring-blue-200"
-                        : "border-gray-200"
-                    }`}
-                    onClick={() => onImageSelect(image)}
-                  >
-                    <div className="aspect-video">
-                      <Image
-                        src={image.urls.small}
-                        alt={image.altDescription ?? image.description ?? "Unsplash image"}
-                        width={400}
-                        height={300}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                        unoptimized
-                      />
-                    </div>
-                    
-                    {/* Selection indicator */}
-                    {selectedImageId === image.id && (
-                      <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
-                        <Check className="h-4 w-4" />
+              <div className="max-h-[400px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {images.map((image) => (
+                    <div
+                      key={image.id}
+                      className={`group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all hover:border-blue-400 ${
+                        selectedImageId === image.id
+                          ? "border-blue-500 ring-2 ring-blue-200"
+                          : "border-gray-200"
+                      }`}
+                      onClick={() => onImageSelect(image)}
+                    >
+                      <div className="aspect-video">
+                        <Image
+                          src={image.urls.small}
+                          alt={image.altDescription ?? image.description ?? "Unsplash image"}
+                          width={400}
+                          height={300}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                          unoptimized
+                        />
                       </div>
-                    )}
-
-                    {/* Image info overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                      <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                        by {image.user.name}
-                      </p>
+                      {/* Selection indicator */}
+                      {selectedImageId === image.id && (
+                        <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                          <Check className="h-4 w-4" />
+                        </div>
+                      )}
+                      {/* Image info overlay */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                        <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                          by {image.user.name}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </>
           )}

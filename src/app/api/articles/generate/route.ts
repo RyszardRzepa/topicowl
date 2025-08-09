@@ -13,7 +13,6 @@ import { eq, desc } from "drizzle-orm";
 import type { ResearchResponse } from "@/app/api/articles/research/route";
 import type { WriteResponse } from "@/app/api/articles/write/route";
 import type { ValidateResponse } from "@/app/api/articles/validate/route";
-import type { UpdateResponse } from "@/app/api/articles/update/route";
 import type { ArticleImageSelectionResponse } from "@/app/api/articles/images/select-for-article/route";
 
 export const maxDuration = 800;
@@ -346,6 +345,7 @@ async function writeArticle(
   userId: string,
   relatedArticles: string[], // Pass pre-generated related articles
   videos?: Array<{ title: string; url: string }>,
+  notes?: string,
 ): Promise<WriteResponse> {
   await updateGenerationProgress(generationId, "writing", 55);
 
@@ -368,7 +368,9 @@ async function writeArticle(
         videos,
         userId,
         relatedArticles,
-        generationId // Pass the generationId to save the write prompt
+        generationId, // Pass the generationId to save the write prompt
+        sources: researchData.sources ?? [],
+        notes: notes ?? undefined,
       },
     },
   );
@@ -441,13 +443,17 @@ async function updateArticleIfNeeded(
   content: string,
   validationText: string,
 ): Promise<string> {
-  if (validationText.includes("No factual issues identified")) {
+  // Skip update if validation explicitly reports no issues OR validation was skipped
+  if (
+    validationText.includes("No factual issues identified") ||
+    validationText.toLowerCase().includes("validation skipped")
+  ) {
     return content;
   }
 
   console.log("Calling update API");
 
-  const updateResult = await fetcher<UpdateResponse>(
+  const updateResult = await fetcher<unknown>(
     `${API_BASE_URL}/api/articles/update`,
     {
       method: "POST",
@@ -458,7 +464,12 @@ async function updateArticleIfNeeded(
     },
   );
 
-  return updateResult.updatedContent ?? content;
+  // Handle both { updatedContent } and { success, data: { updatedContent } }
+  const updatedContent =
+    (updateResult as { updatedContent?: string })?.updatedContent ??
+    (updateResult as { data?: { updatedContent?: string } })?.data?.updatedContent;
+
+  return updatedContent ?? content;
 }
 
 async function finalizeArticle(
@@ -674,6 +685,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       userId,
       context.relatedArticles,
       researchData.videos,
+      article.notes ?? undefined,
     );
     console.log("Writing completed", {
       contentLength: writeData.content?.length ?? 0,

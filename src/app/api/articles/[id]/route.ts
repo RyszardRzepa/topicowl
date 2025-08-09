@@ -181,7 +181,7 @@ export async function GET(
     const generationLogs: GenerationLog[] = generateGenerationLogs(articleData);
 
     // Calculate word count from content (use generation draft content if available)
-    const contentForWordCount = generationData?.draftContent || articleData.draft;
+  const contentForWordCount = generationData?.draftContent ?? articleData.draft;
     const wordCount = calculateWordCount(contentForWordCount);
 
     // Extract target keywords from keywords field
@@ -199,7 +199,7 @@ export async function GET(
       data: {
         ...articleData,
         // Use generation draft content if available, otherwise fall back to article draft
-        draft: generationData?.draftContent || articleData.draft,
+  draft: generationData?.draftContent ?? articleData.draft,
         seoAnalysis,
         generationLogs,
         wordCount,
@@ -246,7 +246,7 @@ function generateSEORecommendations(article: ArticleData): string[] {
 }
 
 function calculateKeywordDensity(article: ArticleData, generationContent?: string | null): Record<string, number> {
-  const content = generationContent || article.draft || '';
+  const content = generationContent ?? article.draft ?? '';
   const keywords = Array.isArray(article.keywords) ? (article.keywords as string[]) : [];
   const density: Record<string, number> = {};
   
@@ -266,7 +266,7 @@ function calculateKeywordDensity(article: ArticleData, generationContent?: strin
 }
 
 function calculateReadabilityScore(article: ArticleData, generationContent?: string | null): number {
-  const content = generationContent || article.draft || '';
+  const content = generationContent ?? article.draft ?? '';
   
   if (!content) {
     return 0;
@@ -301,7 +301,7 @@ function countSyllables(word: string): number {
 }
 
 function calculateWordCount(content: string | null): number {
-  if (!content) return 0;
+  if (!content) return 0; // fine, boolean check still acceptable
   return content.split(/\s+/).filter(word => word.length > 0).length;
 }
 
@@ -430,6 +430,28 @@ export async function PUT(
       .set(updateData)
       .where(eq(articles.id, articleId))
       .returning();
+
+    // If draft content was updated, also sync it to the latest articleGeneration row (if any)
+    if (Object.prototype.hasOwnProperty.call(validatedData, 'draft') && validatedData.draft !== undefined) {
+      try {
+        const latestGen = await db
+          .select({ id: articleGeneration.id })
+          .from(articleGeneration)
+          .where(eq(articleGeneration.articleId, articleId))
+          .orderBy(desc(articleGeneration.createdAt))
+          .limit(1);
+
+        if (latestGen.length > 0) {
+          await db
+            .update(articleGeneration)
+            .set({ draftContent: validatedData.draft, updatedAt: new Date() })
+            .where(eq(articleGeneration.id, latestGen[0]!.id));
+        }
+      } catch (syncError) {
+        // Non-fatal: log and continue; we don't want to fail the primary article update
+        console.error('Failed to sync draft to articleGeneration:', syncError);
+      }
+    }
 
     return NextResponse.json({
       success: true,

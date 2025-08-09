@@ -13,7 +13,8 @@ export const env = createEnv({
     CLERK_SECRET_KEY: z.string(),
     CLERK_WEBHOOK_SECRET: z.string(),
     UNSPLASH_ACCESS_KEY: z.string().min(1),
-    UNSPLASH_SECRET_KEY: z.string().min(1).optional(), // For future user auth features
+    UNSPLASH_SECRET_KEY: z.string().min(1).optional(),
+    OPENAI_API_KEY: z.string(),
     
     // Webhook configuration
     WEBHOOK_TIMEOUT_MS: z.string().default("30000"),
@@ -61,6 +62,8 @@ export const env = createEnv({
     
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

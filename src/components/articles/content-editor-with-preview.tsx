@@ -5,7 +5,7 @@ import { type MDXEditorMethods } from "@mdxeditor/editor";
 import { ForwardRefEditor } from "./ForwardRefEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Save, Copy, Eye, Code } from "lucide-react";
+import { Save, Eye, Code } from "lucide-react";
 
 // Error boundary for the MDX editor
 class EditorErrorBoundary extends Component<
@@ -44,12 +44,13 @@ interface ContentEditorWithPreviewProps {
 // Helper function to sanitize content for the MDX editor
 function sanitizeContentForEditor(content: string): string {
   // Convert YouTube markdown links to directive format
+  // More flexible regex to handle various YouTube URL formats
   return content.replace(
-    /\[!\[([^\]]*)\]\([^)]+\)\]\(https:\/\/(?:m\.)?youtube\.com\/watch\?v=([^&)]+)(?:[^)]*)\)/g,
-    (match, altText, videoId) => {
+    /\[!\[([^\]]*)\]\([^)]+\)\]\(https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:[^)]*)\)/g,
+    (_match: string, altText: string, videoId: string) => {
       // Extract video title from alt text or use default
-      const title = altText ?? "Watch on YouTube";
-      return `::youtube[${title}]{#${videoId}}`;
+      const title = altText || "Watch on YouTube";
+      return `\n\n::youtube[${title}]{#${videoId}}\n\n`;
     },
   );
 }
@@ -59,7 +60,7 @@ function convertDirectivesToMarkdown(content: string): string {
   // Convert YouTube directives back to markdown image links
   return content.replace(
     /::youtube\[([^\]]*)\]\{#([^}]+)\}/g,
-    (match, title, videoId) => {
+    (_match: string, title: string, videoId: string) => {
       const linkTitle = title ?? "Watch on YouTube";
       return `[![${linkTitle}](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)](https://www.youtube.com/watch?v=${videoId})`;
     },
@@ -116,17 +117,7 @@ export function ContentEditorWithPreview({
     onSave(convertedMarkdown);
   };
 
-  const handleCopyMarkdown = async () => {
-    try {
-      const markdown = editorRef.current?.getMarkdown() ?? currentContent;
-      // Convert directives back to markdown format for copying
-      const convertedMarkdown = convertDirectivesToMarkdown(markdown);
-      await navigator.clipboard.writeText(convertedMarkdown);
-      // You might want to add a toast notification here
-    } catch (err) {
-      console.error("Failed to copy markdown:", err);
-    }
-  };
+  // Copy markdown functionality (handleCopyMarkdown) removed due to being unused.
 
   const handleEditorChange = (markdown: string) => {
     setCurrentContent(markdown);

@@ -538,13 +538,12 @@ Date: ${currentDate}
 1. Use ONLY one H1 (the title) - NO CONTENT BEFORE THE TITLE
 2. Maximum 3 sentences per paragraph
 3. Grade 8 reading level (active voice, short sentences)
-4. Include ALL provided links naturally within the content
+4. Include ALL provided links naturally within the content, dont use domain names.
 5. Output in Markdown format only
 6. No interactive elements or HTML
 7. Begin article content with the H1 title, not with any intro text
 8. Create comprehensive, detailed content that thoroughly covers the topic
 9. Aim for the target word count - provide in-depth analysis and practical examples
-10. Include multiple sections with detailed explanations and actionable insights
 </critical_rules>
 
 <research_data_to_use>
@@ -552,8 +551,26 @@ ${data.researchData}
 </research_data_to_use>
 
 <content_structure_requirements>
-Create a well-structured article following the specified article structure: ${settings?.articleStructure ?? "standard blog format"}
-${!!data?.videos?.length? "Include video section using this video data: " + JSON.stringify(data?.videos) : "" } 
+Create a well-structured article following the specified article structure: \n ${settings?.articleStructure ?? "standard blog format"}
+${
+  !!data?.videos?.length
+    ? `
+Include video section using this video data: ${JSON.stringify(data?.videos)}
+
+🎬 VIDEO INTEGRATION REQUIREMENTS:
+- Create contextual video titles that are BOTH accurate to the video content AND relevant to your article section
+- CRITICAL: Video titles must accurately represent what the video actually shows/discusses
+- Adapt the original video title to fit your article context while maintaining content accuracy
+- Format: ## "Your Contextual Video Title Here"
+- Example: If original video is "Top 10 Places in Norway" and covers restaurants, adapt to "Top Restaurant Picks in Norway" (accurate + contextual)
+- Example: If original video is "Travel Guide 2024" and shows hiking tips, use "Travel Guide: Hiking Tips for 2024" (accurate + contextual)
+- AVOID: Creating completely different titles that misrepresent the video content
+- AVOID: Using generic titles that don't match what viewers will actually see in the video
+- Follow the video with the YouTube embed format: [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)
+- Place videos strategically within relevant content sections, not as standalone elements
+`
+    : ""
+} 
 
 Structure your content based on the most important information in the research data and organize it according to the user's preferred article structure format.
 </content_structure_requirements>
@@ -567,7 +584,15 @@ ${relatedPosts
   .slice(0, 3)
   .map((post, i) => `${i + 1}. ${post}`)
   .join("\n")}
-Use descriptive anchor text, not "click here"
+
+🎯 INTERNAL LINKING STRATEGY:
+- Integrate links naturally within the content flow using contextual anchor text
+- Use descriptive phrases that already exist in your writing as anchor text
+- Example: "For more insights on the best lunch spots in Oslo" → "[best lunch spots in Oslo](/blog/best-lunch-spots-oslo)"
+- Example: "When exploring Norwegian cuisine traditions" → "[Norwegian cuisine traditions](/blog/norwegian-cuisine-guide)"
+- NEVER show raw URLs or domain names in the text
+- Links should enhance the reader's understanding and provide additional value
+- Place links where they naturally support the narrative flow
 `
     : ""
 }
@@ -576,7 +601,10 @@ ${
   data.sources?.length
     ? `
 External sources to cite:
-${data.sources.map((s, i) => `${i + 1}. ${s.url} - ${s.title ?? "Source"}`).join("\n")}
+${data.sources
+  .filter((s) => !_excludedDomains?.some((domain) => s.url.includes(domain)))
+  .map((s, i) => `${i + 1}. ${s.url} - ${s.title ?? "Source"}`)
+  .join("\n")}
 Format: "According to [source name](url)..."
 `
     : ""
@@ -589,21 +617,44 @@ Format: "According to [source name](url)..."
 - Link format: [descriptive text](url)
 - Integration: Natural within sentences, add value to content
 - Don't use links from this domain: vertexaisearch.google.com
+${
+  _excludedDomains && _excludedDomains.length > 0
+    ? `
+⚠️ EXCLUDED COMPETITOR DOMAINS - DO NOT USE:
+${_excludedDomains.map((domain) => `- ${domain}`).join("\n")}
+- Do not include any links, references, or mentions of these competitor domains
+- Do not cite information from these domains in your sources
+- Avoid mentioning these competitors by name in the article content
+- Focus on alternative sources and avoid giving visibility to competitor brands
+`
+    : ""
+}
+
+🎯 CONTEXTUAL LINKING REQUIREMENTS:
+- Anchor text MUST be natural descriptive phrases that flow within the sentence context
+- Use topic-relevant keywords and phrases as anchor text (e.g. "best coffee shops in Bergen", "Norwegian hiking trails", "Oslo restaurant guide")
+- NEVER use raw domain names (e.g. "osloexplore.com") or naked URLs as anchor text
+- Avoid generic anchors like "click here", "read more", or "website"
+- If mentioning a brand, integrate it meaningfully (e.g. "according to TripAdvisor research" not just "TripAdvisor")
+- Links should appear naturally within the content flow, not as obvious insertions
+- Use contextual phrases that readers would naturally expect to be linked
 </link_integration>
 
 <writing_execution>
 1. Start with H1 title - no content before the title
-2. Create a compelling introduction that hooks the reader (150-200 words)
-3. Add a TL;DR section with key takeaways
-4. Develop 4-6 main content sections based on research data (each 200-300 words)
-5. Include detailed explanations, examples, and practical insights in each section
-6. Add a comprehensive FAQ section with 4-6 questions
-7. Keep paragraphs short (max 3 sentences) but ensure thorough coverage
-8. Use active voice and grade 8 reading level
-9. Use each external URL only ONCE - no duplicate external links
-10. Limit internal links to maximum 3 per article
-11. Aim for the target word count by providing comprehensive, detailed content
-12. Include specific examples, case studies, and actionable advice throughout
+3. Create a compelling introduction
+4. Add a TL;DR section with key takeaways
+5. Develop 4-6 main content sections based on research data (each 200-300 words)
+6. Include detailed explanations, examples, and practical insights in each section
+7. Add a comprehensive FAQ section with 4-6 questions
+8. Keep paragraphs short (max 3 sentences) but ensure thorough coverage
+9. Use active voice and grade 8 reading level
+10. Use each external URL only ONCE - no duplicate external links
+11. Limit internal links to maximum 3 per article
+12. Aim for the target word count by providing comprehensive, detailed content
+13. Include specific examples, case studies, and actionable advice throughout
+14. **CONTEXTUAL LINKING**: When writing content, naturally incorporate internal links using descriptive phrases that already exist in your text. For example, if you write about "exploring the best restaurants in Bergen", make "best restaurants in Bergen" the clickable link to the relevant internal page. Never show URLs or domain names in the visible text.
+15. **CONTEXTUAL VIDEO TITLES**: If videos are provided, create section titles that are both accurate to the actual video content AND relevant to your article context. Adapt the original video title to fit your section while ensuring it accurately represents what viewers will see in the video.
 
 ${
   data.notes
@@ -1133,7 +1184,7 @@ Generate the complete article now, creating structure and content directly from 
   OUTPUT FORMAT: Return a complete markdown outline with full article structure that follows this example:
   
   # Article Title Here
-  
+
   Brief article introduction that hooks the reader and sets context for what they'll learn.
   
   ## TL;DR
