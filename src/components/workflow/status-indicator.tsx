@@ -12,13 +12,14 @@ import {
   PenTool,
   CheckSquare,
   Target,
+  Shield,
 } from "lucide-react";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ArticleStatus } from "@/types";
 
-type GenerationPhase = "research" | "writing" | "validation" | "optimization";
+type GenerationPhase = "research" | "writing" | "quality-control" | "validation" | "optimization";
 
 interface StatusIndicatorProps {
   status: ArticleStatus;
@@ -54,6 +55,13 @@ export function StatusIndicator({
           label: "Writing",
           color: "text-brand-green",
           description: "Creating content",
+        };
+      case "quality-control":
+        return {
+          icon: Shield,
+          label: "Quality Control",
+          color: "text-brand-orange",
+          description: "Analyzing content quality",
         };
       case "validation":
         return {

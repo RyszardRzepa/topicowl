@@ -316,29 +316,38 @@ function filterTextContent(text: string, excludedDomains: string[]): string {
 function extractYouTubeVideoId(url: string): string | null {
   try {
     const urlObj = new URL(url);
+    const host = urlObj.hostname.replace(/^www\./, "");
+    const path = urlObj.pathname;
 
-    // Handle youtube.com/watch?v= format
-    if (
-      urlObj.hostname.includes("youtube.com") &&
-      urlObj.pathname === "/watch"
-    ) {
-      return urlObj.searchParams.get("v");
+    let videoId: string | null = null;
+
+    if (host.includes("youtube.com")) {
+      if (path === "/watch") {
+        videoId = urlObj.searchParams.get("v");
+      } else if (path.startsWith("/embed/")) {
+        videoId =
+          path.split("/embed/")[1]?.split("/")[0]?.split("?")[0] ?? null;
+      } else if (path.startsWith("/shorts/")) {
+        videoId =
+          path.split("/shorts/")[1]?.split("/")[0]?.split("?")[0] ?? null;
+      } else if (path.startsWith("/live/")) {
+        // live URLs sometimes look like /live/VIDEOID?feature=share
+        videoId = path.split("/live/")[1]?.split("/")[0]?.split("?")[0] ?? null;
+      }
+    } else if (host.includes("youtu.be")) {
+      videoId = path.slice(1).split("/")[0]?.split("?")[0] ?? null;
     }
 
-    // Handle youtu.be/ format
-    if (urlObj.hostname.includes("youtu.be")) {
-      return urlObj.pathname.slice(1); // Remove leading slash
+    if (!videoId) {
+      return null;
     }
 
-    // Handle youtube.com/embed/ format
-    if (
-      urlObj.hostname.includes("youtube.com") &&
-      urlObj.pathname.startsWith("/embed/")
-    ) {
-      return urlObj.pathname.split("/embed/")[1]?.split("?")[0] ?? null;
+    // YouTube video IDs are 11 chars base64url-like
+    const idPattern = /^[A-Za-z0-9_-]{11}$/;
+    if (!idPattern.test(videoId)) {
+      return null;
     }
-
-    return null;
+    return videoId;
   } catch (error) {
     console.error(
       `[YOUTUBE_VALIDATION] Failed to parse YouTube URL: ${url}`,
@@ -357,74 +366,48 @@ async function validateYouTubeVideo(
     if (!videoId) {
       return { isValid: false, error: "Invalid YouTube URL format" };
     }
-
-    console.log(`[YOUTUBE_VALIDATION] Validating video ID: ${videoId}`);
-
-    // Try a GET request to check if video exists and is accessible
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ContentBot/1.0)",
+    const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(
+      `[YOUTUBE_VALIDATION] (oEmbed only) Validating video ID: ${videoId}`,
+    );
+    const resp = await fetch(
+      `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(canonicalUrl)}`,
+      {
+        method: "GET",
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; ContentBot/1.0)" },
+        signal: AbortSignal.timeout(6000),
       },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (response.ok) {
-      // Try to extract title from the response
-      const html = await response.text();
-      // Check for common error indicators in the HTML
-      const errorIndicators = [
-        "Video unavailable",
-        "This video is not available",
-        "Private video",
-        "Video removed",
-        "This video has been removed",
-        "This video is private",
-        "This video is unavailable",
-      ];
-
-      const hasError = errorIndicators.some((indicator) =>
-        html.toLowerCase().includes(indicator.toLowerCase()),
-      );
-
-      if (hasError) {
-        console.warn(
-          `[YOUTUBE_VALIDATION] Video ${videoId} exists but is not accessible`,
-        );
-        return {
-          isValid: false,
-          error: "Video is private, removed, or unavailable",
-        };
-      }
-
-      console.log(
-        `[YOUTUBE_VALIDATION] Video ${videoId} validated successfully`,
-      );
-      return { isValid: true, title: "" };
+    );
+    if (resp.ok) {
+      const data = (await resp.json()) as { title?: string };
+      return { isValid: true, title: data.title?.trim() ?? "YouTube Video" };
     }
-
-    // Check specific HTTP status codes
-    if (response.status === 404) {
+    if (resp.status === 400) {
+      return { isValid: false, error: "Invalid video ID (400)" };
+    }
+    if (resp.status === 404) {
       return { isValid: false, error: "Video not found (404)" };
-    } else if (response.status === 403) {
-      return { isValid: false, error: "Video access forbidden (403)" };
-    } else {
-      return { isValid: false, error: `HTTP ${response.status}` };
     }
+    if (resp.status === 401 || resp.status === 403) {
+      return {
+        isValid: false,
+        error: `Video access restricted (${resp.status})`,
+      };
+    }
+    return { isValid: false, error: `oEmbed HTTP ${resp.status}` };
   } catch (error) {
     console.error(
-      `[YOUTUBE_VALIDATION] Error validating YouTube video: ${url}`,
+      `[YOUTUBE_VALIDATION] Error validating YouTube video via oEmbed: ${url}`,
       error,
     );
-
     if (error instanceof Error) {
       if (error.name === "AbortError") {
         return { isValid: false, error: "Validation timeout" };
-      } else if (error.message.includes("fetch")) {
+      }
+      if (error.message.toLowerCase().includes("fetch")) {
         return { isValid: false, error: "Network error during validation" };
       }
     }
-
     return { isValid: false, error: "Unknown validation error" };
   }
 }
@@ -432,12 +415,21 @@ async function validateYouTubeVideo(
 // Helper function to search and validate YouTube videos
 async function searchAndValidateYouTubeVideos(
   title: string,
-): Promise<{ title: string; url: string; reason: string } | undefined> {
+): Promise<{ title: string; url: string; reason: string } | null> {
   try {
     console.log("[YOUTUBE_SEARCH] Starting YouTube video search for:", title);
-
-    const youtubeSearchResult = await generateText({
+    // Retry generateText ONLY if no sources are returned (max 3 attempts)
+    const maxAttempts = 3;
+    let attempt = 1;
+    let youtubeSearchResult = await generateText({
       model: google(MODELS.GEMINI_2_5_FLASH),
+      providerOptions: {
+        google: {
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        },
+      },
       tools: {
         googleSearch: google.tools.googleSearch({}),
       },
@@ -445,58 +437,48 @@ async function searchAndValidateYouTubeVideos(
         "Search the web for YouTube links. Return only valid YouTube links.",
       prompt: `Search the web for youtube links about topic: ${title}. Return only valid youtube links.`,
     });
-
-    console.log("[YOUTUBE_SEARCH] Search completed, extracting YouTube URLs");
-
-    // Get sources from result.sources first
-    let youtubeSearchSources = (youtubeSearchResult.sources ?? []) as Array<{
+    while ((youtubeSearchResult.sources ?? []).length === 0 && attempt < maxAttempts) {
+      attempt++;
+      console.log(
+        `[YOUTUBE_SEARCH] No sources returned, retrying attempt ${attempt}/${maxAttempts}`,
+      );
+      youtubeSearchResult = await generateText({
+        model: google(MODELS.GEMINI_2_5_FLASH),
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          },
+        },
+        tools: {
+          googleSearch: google.tools.googleSearch({}),
+        },
+        system:
+          "Search the web for YouTube links. Return only valid YouTube links.",
+        prompt: `Search the web for youtube links about topic: ${title}. Return only valid youtube links.`,
+      });
+    }
+    const youtubeSearchSources = (youtubeSearchResult.sources ?? []) as Array<{
       sourceType: string;
       url: string;
       title?: string;
     }>;
 
-    // If no sources, try grounding metadata
     if (youtubeSearchSources.length === 0) {
-      const meta = youtubeSearchResult.providerMetadata?.google
-        ?.groundingMetadata as GroundingMetadata | undefined;
-      const chunks = meta?.groundingChunks ?? [];
-      const supports = meta?.groundingSupports ?? [];
-
-      if (chunks.length > 0 && supports.length > 0) {
-        youtubeSearchSources = extractSourcesFromGroundingMetadata(
-          chunks,
-          supports,
-        );
-        console.log(
-          `[YOUTUBE_SEARCH] Derived ${youtubeSearchSources.length} sources from grounding metadata`,
-        );
-      }
+      console.log(
+        `[YOUTUBE_SEARCH] No sources returned after ${attempt} attempt(s); returning null (no fallback extraction)`,
+      );
+      return null;
     }
 
-    // Extract YouTube URLs from text as fallback
-    const youtubeUrlRegex =
-      /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/g;
-    const textYoutubeUrls =
-      youtubeSearchResult.text.match(youtubeUrlRegex) ?? [];
+    console.log(
+      `[YOUTUBE_SEARCH] Received ${youtubeSearchSources.length} sources after ${attempt} attempt(s)`,
+    );
 
-    // Also extract any Google redirect URLs that might lead to YouTube
-    const vertexUrlRegex =
-      /https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s<>"{}|\\^`[\]]+/g;
-    const vertexUrls = youtubeSearchResult.text.match(vertexUrlRegex) ?? [];
-
-    // Combine all potential URLs
-    const allPotentialUrls = [
-      ...youtubeSearchSources.map((s) => s.url),
-      ...textYoutubeUrls,
-      ...vertexUrls,
+    const uniqueUrls = [
+      ...new Set(youtubeSearchSources.map((s) => s.url).filter(Boolean)),
     ];
-
-    if (allPotentialUrls.length === 0) {
-      console.log("[YOUTUBE_SEARCH] No URLs found to process");
-      return undefined;
-    }
-
-    const uniqueUrls = [...new Set(allPotentialUrls)];
     console.log(
       `[YOUTUBE_SEARCH] Found ${uniqueUrls.length} unique URLs to resolve`,
     );
@@ -579,7 +561,7 @@ async function searchAndValidateYouTubeVideos(
 
     if (uniqueYoutubeUrls.length === 0) {
       console.log("[YOUTUBE_SEARCH] No YouTube URLs found after resolution");
-      return undefined;
+      return null;
     }
 
     // Enhanced YouTube URL validation
@@ -628,7 +610,7 @@ async function searchAndValidateYouTubeVideos(
       console.log(
         "[YOUTUBE_SEARCH] No valid YouTube URLs found after enhanced validation",
       );
-      return undefined;
+      return null;
     }
 
     // Use AI to select the best YouTube video from validated URLs
@@ -688,10 +670,10 @@ async function searchAndValidateYouTubeVideos(
       "[YOUTUBE_SEARCH] Selected video:",
       selectionResult.object.selectedVideo,
     );
-    return selectionResult.object.selectedVideo;
+  return selectionResult.object.selectedVideo;
   } catch (error) {
     console.error("[YOUTUBE_SEARCH] Error during YouTube search:", error);
-    return undefined;
+  return null;
   }
 }
 

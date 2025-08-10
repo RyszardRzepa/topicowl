@@ -41,27 +41,30 @@ interface ContentEditorWithPreviewProps {
   placeholder?: string;
 }
 
-// Helper function to sanitize content for the MDX editor
+// Convert YouTube markdown links to clean directive format
 function sanitizeContentForEditor(content: string): string {
-  // Convert YouTube markdown links to directive format
-  // More flexible regex to handle various YouTube URL formats
-  return content.replace(
+  console.log("Original content:", content);
+
+  // Use the correct directive syntax: ::youtube[Title]{#videoId}
+  const result = content.replace(
     /\[!\[([^\]]*)\]\([^)]+\)\]\(https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:[^)]*)\)/g,
     (_match: string, altText: string, videoId: string) => {
-      // Extract video title from alt text or use default
+      console.log("Found YouTube link, videoId:", videoId);
       const title = altText || "Watch on YouTube";
       return `\n\n::youtube[${title}]{#${videoId}}\n\n`;
     },
   );
+
+  console.log("Converted content:", result);
+  return result;
 }
 
-// Helper function to convert directive format back to markdown for saving
+// Convert directives back to standard format for saving
 function convertDirectivesToMarkdown(content: string): string {
-  // Convert YouTube directives back to markdown image links
   return content.replace(
     /::youtube\[([^\]]*)\]\{#([^}]+)\}/g,
     (_match: string, title: string, videoId: string) => {
-      const linkTitle = title ?? "Watch on YouTube";
+      const linkTitle = title || "Watch on YouTube";
       return `[![${linkTitle}](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)](https://www.youtube.com/watch?v=${videoId})`;
     },
   );

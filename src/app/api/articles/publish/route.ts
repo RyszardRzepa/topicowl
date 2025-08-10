@@ -74,7 +74,7 @@ async function sendWebhookAsync(userId: string, article: ArticleData): Promise<v
         id: article.id,
         title: article.title,
         slug: article.slug,
-        description: article.description,
+        description: article.description ?? articles.metaDescription,
         content: article.content ?? article.draft ?? '',
         keywords: Array.isArray(article.keywords) ? article.keywords : [],
         targetAudience: article.targetAudience,

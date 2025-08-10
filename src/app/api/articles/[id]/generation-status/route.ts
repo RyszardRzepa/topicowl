@@ -13,6 +13,7 @@ export interface GenerationStatus {
     | "pending"
     | "researching"
     | "writing"
+    | "quality-control"
     | "validating"
     | "updating"
     | "completed"
@@ -116,6 +117,8 @@ export async function GET(
           return "researching";
         case "writing":
           return "writing";
+        case "quality-control":
+          return "quality-control";
         case "validating":
           return "validating";
         case "updating":
@@ -138,6 +141,8 @@ export async function GET(
           return "Researching topic and gathering information";
         case "writing":
           return "Writing article content";
+        case "quality-control":
+          return "Analyzing content quality";
         case "validating":
           return "Fact-checking and validation";
         case "updating":
@@ -160,6 +165,7 @@ export async function GET(
         : getPhaseDescription(latestGeneration.status),
       phase: latestGeneration.status === "researching" ? "research" :
              latestGeneration.status === "writing" ? "writing" :
+             latestGeneration.status === "quality-control" ? "quality-control" :
              latestGeneration.status === "validating" ? "validation" :
              latestGeneration.status === "updating" ? "optimization" : undefined,
       startedAt:

@@ -1,6 +1,10 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { env } from '@/env';
+import { google } from '@ai-sdk/google';
+import { generateObject } from 'ai';
+import { MODELS } from '@/constants';
+import { z } from 'zod';
 
 // Types colocated with this API route
 export interface ImageSearchRequest {
@@ -11,6 +15,7 @@ export interface ImageSearchRequest {
   contentFilter?: 'low' | 'high';  // Content safety level
   count?: number;                   // Number of images to return (1-30)
   excludeIds?: string[];            // Image IDs to exclude from results
+  aiEnhance?: boolean;              // Whether to use AI for query refinement and ranking
 }
 
 export interface UnsplashImage {
@@ -62,11 +67,14 @@ export interface ImageSearchResponse {
       unsplashUrl: string;
       downloadUrl: string;
     };
+  aiQueries?: string[];           // Queries produced by AI refinement
+  aiUsed?: boolean;               // Indicates if AI assisted the search
   };
   metadata: {
     searchTerms: string[];
     processingTime: number;
     apiCallsUsed: number;
+  ranking: 'algorithm' | 'hybrid-ai';
   };
 }
 
@@ -225,6 +233,23 @@ const fetchUnsplashSearch = async (query: string, baseParams: URLSearchParams): 
   return response.json() as Promise<UnsplashSearchResult>;
 };
 
+// AI helper result types (kept local, not exported)
+
+// Zod schemas for AI structured outputs
+const queryRefinementSchema = z.object({
+  primaryQuery: z.string(),
+  alternatives: z.array(z.string()).default([])
+});
+
+const aiRankingSchema = z.object({
+  scores: z.array(z.object({
+    id: z.string(),
+    score: z.number(),
+    reason: z.string().optional()
+  })),
+  bestId: z.string().optional()
+});
+
 export async function POST(request: NextRequest) {
   try {
     console.log('[IMAGE_SEARCH_API] POST request received');
@@ -243,7 +268,7 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
     let apiCallsUsed = 0;
     
-    // Build search parameters
+    // Build base search parameters
     const searchParams = new URLSearchParams({
       per_page: '30', // Maximum for best selection
       order_by: 'relevant',
@@ -257,27 +282,109 @@ export async function POST(request: NextRequest) {
       searchParams.set('color', body.color);
     }
     
-    console.log('[IMAGE_SEARCH_API] Starting primary search with query:', body.query);
-    
-    // Primary search
-    let searchResult = await fetchUnsplashSearch(body.query, searchParams);
-    apiCallsUsed++;
-    
-    let images = searchResult.results;
-    console.log('[IMAGE_SEARCH_API] Primary search returned', images.length, 'results');
+    let aiQueries: string[] = [];
+    let effectiveQueries: string[] = [body.query];
+    let aiUsed = false;
+
+  // (Removed deterministic token extraction per request; rely solely on AI refinement when enabled)
+
+    // Optional AI query refinement
+    if (body.aiEnhance) {
+      try {
+        
+  const refinementPrompt = `You are generating optimal Unsplash photo search queries for an article title.
+Return ONLY JSON: {"primaryQuery":"...","alternatives":["...", "..."]}
+Instructions:
+- Extract any specific place names or proper nouns from the title and KEEP them intact in queries.
+- Use 1-3 word visually concrete phrases (nouns/adjectives only).
+- Remove filler words (guide, how to, tips, strategy, introduction, ultimate).
+- Prefer plural for generic scene subjects (e.g. "museums", "solar panels").
+- If title is abstract, choose a concrete visual proxy.
+- Each alternative must be distinct (different focus or synonym).
+
+Title: ${body.query}
+Keywords: ${(body.keywords ?? []).join(', ')}`;
+
+        const { object: refinementObj } = await generateObject({
+          model: google(MODELS.GEMINI_2_5_FLASH),
+          prompt: refinementPrompt,
+          schema: queryRefinementSchema,
+          temperature: 0.2,
+        });
+        if (refinementObj.primaryQuery.trim()) {
+          aiUsed = true;
+          aiQueries = [refinementObj.primaryQuery.trim(), ...(refinementObj.alternatives.filter(q => q?.trim()))];
+          // Deduplicate and keep reasonable count
+          const seen = new Set<string>();
+          effectiveQueries = [];
+          for (const q of aiQueries) {
+            const cleaned = q.toLowerCase();
+            if (!seen.has(cleaned)) {
+              seen.add(cleaned);
+              effectiveQueries.push(q);
+            }
+            if (effectiveQueries.length >= 4) break; // Cap API usage
+          }
+        } else {
+          console.log('[IMAGE_SEARCH_API] AI refinement parse failed, falling back to original query');
+        }
+      } catch (aiRefineError) {
+        console.warn('[IMAGE_SEARCH_API] AI refinement error, continuing without it:', aiRefineError);
+      }
+    }
+
+    console.log('[IMAGE_SEARCH_API] Effective queries:', effectiveQueries);
+
+    // Aggregate search results from queries until we have enough unique images
+    let allImages: UnsplashPhoto[] = [];
+    let searchResult: UnsplashSearchResult | null = null;
+    const maxDesired = Math.min(body.count ?? 10, 30) * 3; // Over-fetch for better ranking
+    for (const q of effectiveQueries) {
+      try {
+        console.log('[IMAGE_SEARCH_API] Searching Unsplash with query:', q);
+        const result = await fetchUnsplashSearch(q, searchParams);
+        apiCallsUsed++;
+        searchResult = searchResult ?? result; // Keep first for total count
+        // Merge unique by id
+        const existingIds = new Set(allImages.map(i => i.id));
+        for (const r of result.results) {
+          if (!existingIds.has(r.id)) {
+            allImages.push(r);
+            existingIds.add(r.id);
+          }
+        }
+        console.log('[IMAGE_SEARCH_API] Accumulated images:', allImages.length);
+        if (allImages.length >= maxDesired) break;
+      } catch (searchErr) {
+        console.warn('[IMAGE_SEARCH_API] Query failed:', q, searchErr);
+      }
+    }
+
+    // Fallback: if nothing retrieved
+    if (allImages.length === 0) {
+      console.log('[IMAGE_SEARCH_API] No images found from refined queries, doing fallback single search');
+      searchResult = await fetchUnsplashSearch(body.query, searchParams);
+      apiCallsUsed++;
+      allImages = searchResult.results;
+    }
+
+    let images = allImages;
+  searchResult ??= { total: images.length, total_pages: 1, results: images };
     
     // Enhanced search if needed
-    if (images.length < 5 && body.keywords?.length) {
-      console.log('[IMAGE_SEARCH_API] Enhancing search with keywords:', body.keywords);
-      // Try keyword-enhanced search
+    if (images.length < 5 && body.keywords?.length && !body.aiEnhance) {
+      console.log('[IMAGE_SEARCH_API] Enhancing search with keywords (non-AI path):', body.keywords);
       const enhancedQuery = [body.query, ...body.keywords].join(' ');
-      const enhancedResponse = await fetchUnsplashSearch(enhancedQuery, searchParams);
-      apiCallsUsed++;
-      
-      if (enhancedResponse.results.length > images.length) {
-        images = enhancedResponse.results;
-        searchResult = enhancedResponse;
-        console.log('[IMAGE_SEARCH_API] Enhanced search returned', images.length, 'results');
+      try {
+        const enhancedResponse = await fetchUnsplashSearch(enhancedQuery, searchParams);
+        apiCallsUsed++;
+        if (enhancedResponse.results.length > images.length) {
+          images = enhancedResponse.results;
+          searchResult = enhancedResponse;
+          console.log('[IMAGE_SEARCH_API] Enhanced search returned', images.length, 'results');
+        }
+      } catch (enhErr) {
+        console.warn('[IMAGE_SEARCH_API] Enhanced keyword search failed:', enhancedQuery, enhErr);
       }
     }
     
@@ -289,17 +396,67 @@ export async function POST(request: NextRequest) {
     
     // Process and rank images
     const searchTerms = [body.query, ...(body.keywords ?? [])];
-    const processedImages = images
+    // Baseline algorithmic scoring
+    let processedImages = images
       .map(img => ({
         ...transformUnsplashImage(img),
         relevanceScore: calculateRelevanceScore(img, searchTerms)
-      }))
+      }));
+
+    // Optional AI ranking (hybrid)
+    let rankingMode: 'algorithm' | 'hybrid-ai' = 'algorithm';
+    if (body.aiEnhance && processedImages.length > 1) {
+      try {
+        // Take top N by baseline to reduce token usage
+        const candidateCount = Math.min(12, processedImages.length);
+        const candidates = processedImages
+          .sort((a, b) => b.relevanceScore - a.relevanceScore)
+          .slice(0, candidateCount);
+        const aiRankingPrompt = `You are selecting the best Unsplash image for an article.
+Article topic: ${body.query}
+Keywords: ${(body.keywords ?? []).join(', ')}
+
+Rate each candidate image from 0-100 (higher is better) based on semantic relevance, descriptive clarity, likely usefulness as a blog cover, composition quality implied by description, and general professionalism.
+Return ONLY JSON in the structure: {"scores":[{"id":"<id>","score":90,"reason":"short reason"},...],"bestId":"<id>"}
+Be concise. If unsure, approximate.
+
+Candidates:\n${candidates.map(c => `ID:${c.id}\nAlt:${c.altDescription ?? ''}\nDesc:${c.description ?? ''}\nLikes:${c.likes}\n`).join('\n')}`;
+        const { object: ranking } = await generateObject({
+          model: google(MODELS.GEMINI_2_5_FLASH),
+          prompt: aiRankingPrompt,
+          schema: aiRankingSchema,
+          temperature: 0.1,
+        });
+        if (ranking.scores.length) {
+          rankingMode = 'hybrid-ai';
+          const aiScoreMap = new Map<string, number>();
+          ranking.scores.forEach(s => {
+            if (typeof s.score === 'number') aiScoreMap.set(s.id, Math.max(0, Math.min(100, s.score)));
+          });
+          // Combine scores (normalize AI 0-100 to 0-1)
+          processedImages = processedImages.map(img => {
+            const aiScore = aiScoreMap.get(img.id);
+            if (aiScore !== undefined) {
+              const combined = (img.relevanceScore * 0.4) + ((aiScore / 100) * 0.6);
+              return { ...img, relevanceScore: combined };
+            }
+            return img;
+          });
+          console.log('[IMAGE_SEARCH_API] Applied AI ranking to images');
+        } else {
+          console.log('[IMAGE_SEARCH_API] AI ranking parse failed, using algorithmic scores');
+        }
+      } catch (aiRankError) {
+        console.warn('[IMAGE_SEARCH_API] AI ranking error, continuing with algorithmic ranking:', aiRankError);
+      }
+    }
+
+    processedImages = processedImages
       .sort((a, b) => b.relevanceScore - a.relevanceScore)
       .slice(0, body.count ?? 10);
-    
-    console.log('[IMAGE_SEARCH_API] Processed and ranked', processedImages.length, 'images');
-    
-    // Select best image
+
+    console.log('[IMAGE_SEARCH_API] Processed and ranked', processedImages.length, 'images (mode:', processedImages.length > 0 ? 'success' : 'none', ')');
+
     const selectedImage = processedImages[0];
     
     // Track download for attribution compliance
@@ -335,12 +492,15 @@ export async function POST(request: NextRequest) {
         selectedImage,
         totalResults: searchResult.total,
         searchQuery: body.query,
-        attribution
+        attribution,
+        aiQueries: aiQueries.length > 0 ? aiQueries : undefined,
+        aiUsed: aiUsed || (body.aiEnhance ?? false)
       },
       metadata: {
         searchTerms,
         processingTime,
-        apiCallsUsed
+        apiCallsUsed,
+        ranking: rankingMode
       }
     } as ImageSearchResponse);
     

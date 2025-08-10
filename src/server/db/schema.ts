@@ -161,7 +161,7 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
 
   // Generation process tracking
   taskId: varchar("task_id"),
-  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, researching, writing, validating, completed, failed
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, researching, writing, quality-control, validating, updating, completed, failed
   progress: integer("progress").default(0).notNull(), // 0-100 percentage
 
   outline: jsonb("outline"),
@@ -175,6 +175,7 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
   researchData: jsonb("research_data").default({}).notNull(),
   draftContent: text("draft_content"),
   validationReport: text("validation_report"),
+  qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
   seoReport: jsonb("seo_report").default({}).notNull(),
   writePrompt: text("write_prompt"), // Store the AI prompt used for writing
   

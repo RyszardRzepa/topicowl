@@ -310,7 +310,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: data.title,
-          description: data.description ?? "Click to edit this article idea",
+          description: data.description,
           keywords: data.keywords ?? [],
           targetAudience: data.targetAudience,
           notes: data.notes,

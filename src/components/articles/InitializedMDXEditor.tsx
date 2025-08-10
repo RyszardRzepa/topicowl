@@ -28,7 +28,9 @@ import {
   Separator,
 } from "@mdxeditor/editor";
 
-// YouTube directive descriptor
+import { YouTube } from "@/components/YouTube";
+
+// YouTube directive descriptor using the clean component
 const YouTubeDirectiveDescriptor: DirectiveDescriptor = {
   name: "youtube",
   testNode(node) {
@@ -37,28 +39,18 @@ const YouTubeDirectiveDescriptor: DirectiveDescriptor = {
   attributes: ["id"],
   hasChildren: false,
   Editor: (props) => {
+    console.log("YouTube directive props:", props.mdastNode);
     const videoId = props.mdastNode.attributes?.id;
     if (!videoId) {
       return (
-        <div className="rounded border border-gray-300 p-4">
+        <div className="rounded border border-gray-300 p-4 text-center text-gray-500">
           YouTube video (no ID provided)
         </div>
       );
     }
 
-    return (
-      <div className="my-4">
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}`}
-          title="YouTube video"
-          frameBorder="0"
-          allowFullScreen
-          loading="lazy"
-          className="aspect-video w-full rounded-lg"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
-      </div>
-    );
+    console.log("Rendering YouTube with ID:", videoId);
+    return <YouTube id={videoId} />;
   },
 };
 

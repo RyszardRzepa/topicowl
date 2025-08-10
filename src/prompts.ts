@@ -538,7 +538,7 @@ Date: ${currentDate}
 1. Use ONLY one H1 (the title) - NO CONTENT BEFORE THE TITLE
 2. Maximum 3 sentences per paragraph
 3. Grade 8 reading level (active voice, short sentences)
-4. Include ALL provided links naturally within the content, dont use domain names.
+4. Include links naturally: use at most 6 external links (select the most authoritative & contextually relevant) and at most 3 internal links; never show domain names as anchor text.
 5. Output in Markdown format only
 6. No interactive elements or HTML
 7. Begin article content with the H1 title, not with any intro text
@@ -588,8 +588,8 @@ ${relatedPosts
 🎯 INTERNAL LINKING STRATEGY:
 - Integrate links naturally within the content flow using contextual anchor text
 - Use descriptive phrases that already exist in your writing as anchor text
-- Example: "For more insights on the best lunch spots in Oslo" → "[best lunch spots in Oslo](/blog/best-lunch-spots-oslo)"
-- Example: "When exploring Norwegian cuisine traditions" → "[Norwegian cuisine traditions](/blog/norwegian-cuisine-guide)"
+- Example: "For more insights on the best lunch spots in Oslo" → "[best lunch spots in Oslo](best-lunch-spots-oslo)"
+- Example: "When exploring Norwegian cuisine traditions" → "[Norwegian cuisine traditions](norwegian-cuisine-guide)"
 - NEVER show raw URLs or domain names in the text
 - Links should enhance the reader's understanding and provide additional value
 - Place links where they naturally support the narrative flow
@@ -603,9 +603,10 @@ ${
 External sources to cite:
 ${data.sources
   .filter((s) => !_excludedDomains?.some((domain) => s.url.includes(domain)))
+  .slice(0, 6)
   .map((s, i) => `${i + 1}. ${s.url} - ${s.title ?? "Source"}`)
   .join("\n")}
-Format: "According to [source name](url)..."
+Format: "According to [source name](url)..." (You may use FEWER than 6 if some are not contextually relevant)
 `
     : ""
 }
@@ -613,6 +614,7 @@ Format: "According to [source name](url)..."
 🚨 LINK CONSTRAINTS:
 - Each external URL can only be used ONCE in the entire article
 - Maximum 3 internal links (our website) allowed
+- Maximum 6 external links allowed (if more are provided, select the 6 most authoritative & contextually relevant; you may use fewer if not all are relevant)
 - Remove duplicate external links - use unique external sources only
 - Link format: [descriptive text](url)
 - Integration: Natural within sentences, add value to content
@@ -1364,4 +1366,360 @@ Generate the complete article now, creating structure and content directly from 
   ✅ Keyword focus specified for each content section
   </output_requirements>
     `,
+
+  qualityControl: (
+    articleContent: string,
+    userSettings: {
+      toneOfVoice?: string;
+      articleStructure?: string;
+      maxWords?: number;
+      faqCount?: number;
+      notes?: string;
+    },
+    originalPrompt: string,
+  ) => `
+  <system_prompt>
+  <role_definition>
+  You are an expert content quality analyst and editor. Your task is to systematically evaluate the provided article against user-defined quality standards, writing preferences, and the original writing prompt. You must identify specific issues that need correction and return them in a structured markdown format that can be processed by AI for automatic corrections.
+  </role_definition>
+  
+  <quality_evaluation_parameters>
+  <article_content>
+  ${articleContent}
+  </article_content>
+  
+  <user_settings>
+  <tone_of_voice>${userSettings.toneOfVoice ?? "Not specified"}</tone_of_voice>
+  <article_structure>${userSettings.articleStructure ?? "Not specified"}</article_structure>
+  <max_words>${userSettings.maxWords ?? "Not specified"}</max_words>
+  <user_notes>${userSettings.notes ?? "Not specified"}</user_notes>
+  </user_settings>
+  
+  <original_writing_prompt>
+  ${originalPrompt}
+  </original_writing_prompt>
+  
+  <evaluation_objective>Identify specific quality issues that prevent the article from meeting user standards and provide actionable feedback for AI-driven corrections</evaluation_objective>
+  </quality_evaluation_parameters>
+  </system_prompt>
+  
+  <quality_assessment_framework>
+  
+  <assessment_category_1>
+  <title>TONE OF VOICE COMPLIANCE</title>
+  <evaluation_criteria>
+  Analyze whether the article's tone matches the user's specified tone of voice preferences
+  Check for consistency in voice throughout the article
+  Identify sections where tone deviates from requirements
+  Evaluate appropriateness for target audience
+  </evaluation_criteria>
+  
+  <specific_checks>
+  - Does the writing style match the specified tone (${userSettings.toneOfVoice ?? "user's preferred tone"})?
+  - Is the tone consistent throughout all sections?
+  - Are word choices appropriate for the intended voice?
+  - Does the level of formality/informality align with requirements?
+  - Are transitions and connecting phrases consistent with the tone?
+  </specific_checks>
+  </assessment_category_1>
+  
+  <assessment_category_2>
+  <title>ARTICLE STRUCTURE ADHERENCE</title>
+  <evaluation_criteria>
+  Verify that the article follows the user's specified structure preferences
+  Check for proper heading hierarchy and organization
+  Ensure all required sections are present and properly formatted
+  Validate content flow and logical progression
+  </evaluation_criteria>
+  
+  <specific_checks>
+  - Does the article follow the specified structure format (${userSettings.articleStructure ?? "user's preferred structure"})?
+  - Are headings properly hierarchical (H1, H2, H3) and descriptive?
+  - Is there a clear introduction and conclusion?
+  - Are sections logically ordered and well-connected?
+  - Does the structure support readability and user experience?
+  </specific_checks>
+  </assessment_category_2>
+  
+  <assessment_category_3>
+  <title>WORD COUNT AND LENGTH REQUIREMENTS</title>
+  <evaluation_criteria>
+  Verify article length meets user specifications
+  Check for appropriate content density and depth
+  Ensure sections are properly balanced
+  Validate that content justifies the length
+  </evaluation_criteria>
+  
+  <specific_checks>
+  - Does the article meet the specified word count target (${userSettings.maxWords ?? "user's target"} words)?
+  - Is content appropriately detailed without being verbose?
+  - Are sections balanced in length and depth?
+  - Is there sufficient content to justify the article length?
+  - Are there areas that need expansion or condensation?
+  </specific_checks>
+  </assessment_category_3>
+  
+  <assessment_category_4>
+  <title>FAQ SECTION COMPLIANCE</title>
+  <evaluation_criteria>
+  Check if FAQ section meets user requirements
+  Validate question quality and relevance
+  Ensure answers are comprehensive and helpful
+  Verify proper formatting and structure
+  </evaluation_criteria>
+  
+  <specific_checks>
+  - Does the article include the specified number of FAQ items (${userSettings.faqCount ?? "user's requirement"})?
+  - Are FAQ questions relevant and valuable to readers?
+  - Do answers provide comprehensive and actionable information?
+  - Is the FAQ section properly formatted and easy to read?
+  - Do questions address common user concerns about the topic?
+  </specific_checks>
+  </assessment_category_4>
+  
+  <assessment_category_5>
+  <title>ORIGINAL PROMPT ADHERENCE</title>
+  <evaluation_criteria>
+  Verify the article fulfills the requirements of the original writing prompt
+  Check that key topics and objectives are addressed
+  Ensure the article serves the intended purpose
+  Validate that specific instructions were followed
+  </evaluation_criteria>
+  
+  <specific_checks>
+  - Does the article address all key points from the original writing prompt?
+  - Are the main objectives and goals of the prompt fulfilled?
+  - Has the article maintained focus on the intended topic and scope?
+  - Were any specific instructions or requirements from the prompt ignored?
+  - Does the content align with the original intent and purpose?
+  </specific_checks>
+  </assessment_category_5>
+  
+  <assessment_category_6>
+  <title>CONTENT QUALITY AND READABILITY</title>
+  <evaluation_criteria>
+  Evaluate overall content quality, clarity, and readability
+  Check for grammar, spelling, and formatting issues
+  Assess information accuracy and completeness
+  Verify proper use of markdown formatting
+  </evaluation_criteria>
+  
+  <specific_checks>
+  - Is the content clear, well-written, and easy to understand?
+  - Are there grammar, spelling, or punctuation errors?
+  - Is markdown formatting used correctly and consistently?
+  - Are paragraphs appropriately sized (max 3 sentences)?
+  - Is the reading level appropriate for the target audience?
+  - Are links properly formatted and contextually relevant?
+  </specific_checks>
+  </assessment_category_6>
+  
+  <assessment_category_7>
+  <title>USER NOTES AND SPECIAL REQUIREMENTS</title>
+  <evaluation_criteria>
+  Check compliance with any specific user notes or requirements
+  Verify that custom instructions were followed
+  Ensure special preferences are reflected in the content
+  Validate adherence to any unique specifications
+  </evaluation_criteria>
+  
+  <specific_checks>
+  - Were all user notes and special requirements addressed (${userSettings.notes ?? "no specific notes provided"})?
+  - Are there any custom instructions that were not followed?
+  - Does the article reflect the user's specific preferences and requirements?
+  - Are there any unique specifications that need attention?
+  </specific_checks>
+  </assessment_category_7>
+  
+  </quality_assessment_framework>
+  
+  <issue_identification_process>
+  
+  <step_1_systematic_review>
+  Review the article systematically against each assessment category
+  Document specific instances where standards are not met
+  Identify the exact location and nature of each issue
+  Prioritize issues by impact on user requirements
+  </step_1_systematic_review>
+  
+  <step_2_issue_categorization>
+  Group identified issues by category and severity
+  Provide specific examples and locations for each issue
+  Explain why each issue violates user requirements
+  Suggest specific corrective actions for each problem
+  </step_2_issue_categorization>
+  
+  <step_3_actionable_feedback>
+  Format feedback in a way that AI can process for corrections
+  Provide clear, specific instructions for each fix needed
+  Include examples of desired improvements where helpful
+  Ensure feedback is constructive and solution-oriented
+  </step_3_actionable_feedback>
+  
+  </issue_identification_process>
+  
+  <output_requirements>
+  
+  <decision_logic>
+  IF no significant quality issues are found:
+  - Return exactly: null
+  - Do not return empty string, empty markdown, or any other format
+  
+  IF quality issues are identified:
+  - Return markdown-formatted string with specific issues and corrections needed
+  - Use clear headings and bullet points for organization
+  - Provide actionable feedback that AI can use for corrections
+  - Include specific examples and locations where possible
+  </decision_logic>
+  
+  <markdown_format_template>
+  When issues are found, use this structure:
+  
+  # Article Quality Issues
+  
+  ## Tone of Voice Issues
+  - **Issue**: [Specific problem with tone]
+  - **Location**: [Where in the article this occurs]
+  - **Required Fix**: [Specific correction needed]
+  - **Example**: [How it should be written instead]
+  
+  ## Structure Issues
+  - **Issue**: [Specific structural problem]
+  - **Location**: [Section or heading affected]
+  - **Required Fix**: [Specific structural change needed]
+  
+  ## Word Count Issues
+  - **Issue**: [Length-related problem]
+  - **Current Count**: [Estimated current word count]
+  - **Target Count**: [Required word count]
+  - **Required Fix**: [Specific content changes needed]
+  
+  ## FAQ Issues
+  - **Issue**: [Problem with FAQ section]
+  - **Required Fix**: [Specific FAQ improvements needed]
+  
+  ## Content Quality Issues
+  - **Issue**: [Specific quality problem]
+  - **Location**: [Where this occurs]
+  - **Required Fix**: [Specific improvement needed]
+  
+  ## User Requirements Issues
+  - **Issue**: [Specific requirement not met]
+  - **User Requirement**: [What the user specified]
+  - **Required Fix**: [How to meet the requirement]
+  
+  [Only include sections where issues are actually found]
+  </markdown_format_template>
+  
+  <quality_standards>
+  <pass_criteria>
+  Article passes quality control if:
+  ✅ Tone matches user specifications consistently
+  ✅ Structure follows user preferences accurately
+  ✅ Word count is within acceptable range of target
+  ✅ FAQ section meets user requirements
+  ✅ All original prompt objectives are fulfilled
+  ✅ Content is well-written and properly formatted
+  ✅ User notes and special requirements are addressed
+  ✅ No significant quality issues that would impact user satisfaction
+  </pass_criteria>
+  
+  <fail_criteria>
+  Article fails quality control if:
+  ❌ Tone significantly deviates from user preferences
+  ❌ Structure does not follow specified format
+  ❌ Word count is significantly over or under target
+  ❌ FAQ section is missing or inadequate
+  ❌ Original prompt objectives are not met
+  ❌ Content has significant quality or formatting issues
+  ❌ User requirements are ignored or poorly addressed
+  ❌ Issues would negatively impact user experience or satisfaction
+  </fail_criteria>
+  </quality_standards>
+  
+  </output_requirements>
+  
+  <execution_command>
+  <instruction>
+  ANALYZE THE PROVIDED ARTICLE AGAINST ALL QUALITY ASSESSMENT CATEGORIES. IF NO SIGNIFICANT ISSUES ARE FOUND, RETURN null. IF ISSUES ARE IDENTIFIED, RETURN A MARKDOWN-FORMATTED STRING WITH SPECIFIC, ACTIONABLE FEEDBACK FOR AI-DRIVEN CORRECTIONS.
+  </instruction>
+  </execution_command>
+    `,
+
+  updateWithQualityControl: (
+    article: string,
+    qualityControlIssues: string,
+    settings?: {
+      toneOfVoice?: string;
+      articleStructure?: string;
+      maxWords?: number;
+    },
+  ) => {
+    const currentDate = new Date().toISOString().split("T")[0];
+
+    const toneOfVoice = settings?.toneOfVoice ?? "professional and informative";
+    const articleStructure =
+      settings?.articleStructure ?? "standard blog structure";
+    const maxWords = settings?.maxWords ?? 600;
+
+    return `
+  <role>
+  You are a senior content editor specializing in quality improvement. Your task is to update the provided article based on quality control feedback while maintaining the original structure and voice.
+  </role>
+  
+  <guidelines>
+  - Maintain the exact structure: ${articleStructure}
+  - Preserve tone of voice: ${toneOfVoice}
+  - Keep length around: ${maxWords} words
+  - Date: ${currentDate}
+  - Address ALL quality issues identified in the feedback
+  - Preserve the article's original intent and messaging
+  - Make improvements that enhance readability and engagement
+  </guidelines>
+  
+  <seo_preservation>
+  - Maintain all SEO elements (meta title, description, slug)
+  - Keep keyword density and placement intact
+  - Preserve heading structure and hierarchy
+  - Maintain internal linking strategy
+  - Keep FAQPage schema structure if present
+  </seo_preservation>
+  
+  <original_article>
+  ${article}
+  </original_article>
+  
+  <quality_control_feedback>
+  ${qualityControlIssues}
+  </quality_control_feedback>
+  
+  <update_instructions>
+  1. Carefully review each issue identified in the quality control feedback
+  2. Address tone of voice inconsistencies by adjusting language and style
+  3. Fix structural problems while maintaining the overall article flow
+  4. Improve keyword integration and density as needed
+  5. Enhance readability and engagement based on feedback
+  6. Correct any factual inaccuracies or unclear statements
+  7. Ensure all improvements align with user settings and preferences
+  8. Maintain the same word count (±50 words maximum variance)
+  9. Preserve all JSON schema fields and formatting
+  </update_instructions>
+  
+  <quality_improvement_focus>
+  - Enhance clarity and readability
+  - Improve engagement and flow
+  - Strengthen adherence to user preferences
+  - Maintain professional quality standards
+  - Ensure content serves the target audience effectively
+  </quality_improvement_focus>
+  
+  <output_format>
+  Return EXACT JSON complying with blogPostSchema (id, title, slug, excerpt, metaDescription, readingTime, content, author, date, coverImage, imageCaption, tags, relatedPosts).
+  </output_format>
+  
+  <final_reminder>
+  Focus on addressing the specific quality issues identified while preserving the article's core message and structure. Make targeted improvements that enhance overall quality without changing the fundamental nature of the content.
+  </final_reminder>
+      `;
+  },
 };

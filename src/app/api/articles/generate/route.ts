@@ -14,6 +14,7 @@ import type { ResearchResponse } from "@/app/api/articles/research/route";
 import type { WriteResponse } from "@/app/api/articles/write/route";
 import type { ValidateResponse } from "@/app/api/articles/validate/route";
 import type { ArticleImageSelectionResponse } from "@/app/api/articles/images/select-for-article/route";
+import type { QualityControlResponse } from "@/app/api/articles/quality-control/route";
 
 export const maxDuration = 800;
 
@@ -100,7 +101,11 @@ async function validateAndSetupGeneration(
     : [];
 
   // Generate related articles early so we can include them in the immediate response
-  const relatedArticles = await getRelatedArticles(userRecord.id, existingArticle.title, keywords);
+  const relatedArticles = await getRelatedArticles(
+    userRecord.id,
+    existingArticle.title,
+    keywords,
+  );
 
   return {
     articleId: id,
@@ -128,6 +133,7 @@ async function createOrReuseGenerationRecord(
     console.log("Reusing existing generation record", {
       generationId: existingRecord.id,
       currentStatus: existingRecord.status,
+      previousQualityControlReport: existingRecord.qualityControlReport,
     });
 
     // Reset the existing record for a new generation attempt
@@ -142,6 +148,7 @@ async function createOrReuseGenerationRecord(
         errorDetails: null,
         draftContent: null,
         validationReport: "",
+        qualityControlReport: null, // Reset quality control report
         researchData: {},
         seoReport: {},
         imageKeywords: [],
@@ -212,7 +219,9 @@ async function performResearch(
 
   // Get the Clerk user ID to retrieve excluded domains
   const { userId: clerkUserId } = await auth();
-  const excludedDomains = clerkUserId ? await getUserExcludedDomains(clerkUserId) : [];
+  const excludedDomains = clerkUserId
+    ? await getUserExcludedDomains(clerkUserId)
+    : [];
 
   const researchData = await fetcher<ResearchResponse>(
     `${API_BASE_URL}/api/articles/research`,
@@ -347,7 +356,7 @@ async function writeArticle(
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
 ): Promise<WriteResponse> {
-  await updateGenerationProgress(generationId, "writing", 55);
+  await updateGenerationProgress(generationId, "writing", 50);
 
   console.log("Calling write API", {
     title,
@@ -382,11 +391,171 @@ async function writeArticle(
     tagsCount: writeData.tags?.length ?? 0,
   });
 
-  await updateGenerationProgress(generationId, "validating", 70, {
+  await updateGenerationProgress(generationId, "quality-control", 60, {
     draftContent: writeData.content ?? "",
   });
 
   return writeData;
+}
+
+async function performQualityControl(
+  content: string,
+  generationId: number,
+  userId: string,
+): Promise<QualityControlResponse> {
+  const startTime = Date.now();
+
+  console.log("Calling quality control API", {
+    contentLength: content.length,
+    generationId,
+    userId,
+  });
+
+  try {
+    // Get the write prompt from the generation record
+    const [generationRecord] = await db
+      .select({ writePrompt: articleGeneration.writePrompt })
+      .from(articleGeneration)
+      .where(eq(articleGeneration.id, generationId))
+      .limit(1);
+
+    const originalPrompt = generationRecord?.writePrompt ?? "";
+
+    if (!originalPrompt) {
+      console.log("No write prompt found, skipping quality control", {
+        generationId,
+        processingTimeMs: Date.now() - startTime,
+      });
+      return {
+        issues: null,
+        isValid: true,
+      };
+    }
+
+    console.log("Fetching write prompt for quality control", {
+      generationId,
+      hasPrompt: !!originalPrompt,
+      promptLength: originalPrompt.length,
+    });
+
+    const qualityControlData = await fetcher<QualityControlResponse>(
+      `${API_BASE_URL}/api/articles/quality-control`,
+      {
+        method: "POST",
+        body: {
+          articleContent: content,
+          originalPrompt,
+          generationId,
+        },
+        timeout: 5 * 60 * 1000, // 5 minutes timeout for quality control
+      },
+    );
+
+    console.log("Quality control API response", {
+      isValid: qualityControlData.isValid,
+      hasIssues: !!qualityControlData.issues,
+      issuesLength: qualityControlData.issues?.length ?? 0,
+      processingTimeMs: Date.now() - startTime,
+      generationId,
+      rawIssues: qualityControlData.issues, // Log the actual content
+    });
+
+    // Log detailed quality control data for debugging
+    console.log("QUALITY_CONTROL_DETAILED_RESPONSE", {
+      timestamp: new Date().toISOString(),
+      generationId,
+      userId,
+      response: {
+        isValid: qualityControlData.isValid,
+        issues: qualityControlData.issues,
+        issuesType: typeof qualityControlData.issues,
+        issuesIsNull: qualityControlData.issues === null,
+        issuesIsUndefined: qualityControlData.issues === undefined,
+        issuesLength: qualityControlData.issues?.length ?? 0,
+      },
+    });
+
+    // Note: Quality control API already saves the report to database
+    // We only update the progress here to avoid double-saving
+    await updateGenerationProgress(generationId, "quality-control", 70);
+
+    return qualityControlData;
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+
+    // Enhanced error logging with categorization
+    let errorCategory = "unknown_error";
+    let shouldRetry = false;
+
+    if (error instanceof Error) {
+      if (error.message.includes("timeout")) {
+        errorCategory = "timeout_error";
+        shouldRetry = false; // Don't retry timeouts to avoid blocking generation
+      } else if (error.message.includes("fetch")) {
+        errorCategory = "network_error";
+        shouldRetry = true;
+      } else if (error.message.includes("500")) {
+        errorCategory = "server_error";
+        shouldRetry = true;
+      } else if (error.message.includes("400")) {
+        errorCategory = "client_error";
+        shouldRetry = false;
+      }
+    }
+
+    console.error(
+      "Quality control failed, proceeding without quality control",
+      {
+        error:
+          error instanceof Error
+            ? {
+                name: error.name,
+                message: error.message,
+                stack: error.stack?.slice(0, 500),
+              }
+            : error,
+        errorCategory,
+        shouldRetry,
+        processingTimeMs: processingTime,
+        generationId,
+        contentLength: content.length,
+      },
+    );
+
+    // Log quality control failure metrics for monitoring
+    console.log("QUALITY_CONTROL_FAILURE_METRICS", {
+      timestamp: new Date().toISOString(),
+      generationId,
+      userId,
+      errorCategory,
+      processingTimeMs: processingTime,
+      contentLength: content.length,
+      fallbackUsed: true,
+    });
+
+    // If quality control fails, return a fallback response
+    // This prevents the entire generation from failing
+    const fallbackResponse: QualityControlResponse = {
+      issues: null,
+      isValid: true,
+    };
+
+    console.log("QUALITY_CONTROL_FALLBACK_RESPONSE", {
+      timestamp: new Date().toISOString(),
+      generationId,
+      userId,
+      fallbackResponse,
+      errorCategory,
+      processingTimeMs: processingTime,
+    });
+
+    // Save null quality control report to indicate failure/skip
+    await updateGenerationProgress(generationId, "quality-control", 70, {
+      qualityControlReport: null,
+    });
+
+    return fallbackResponse;
+  }
 }
 
 async function validateArticle(
@@ -415,14 +584,14 @@ async function validateArticle(
       hasRawText: !!validationData.rawValidationText,
     });
 
-    await updateGenerationProgress(generationId, "updating", 90, {
+    await updateGenerationProgress(generationId, "updating", 85, {
       validationReport: validationData.rawValidationText ?? "",
     });
 
     return validationData;
   } catch (error) {
     console.error("Validation failed, proceeding without validation", error);
-    
+
     // If validation fails due to timeout or other errors, return a fallback response
     // This prevents the entire generation from failing
     const fallbackResponse: ValidateResponse = {
@@ -442,16 +611,41 @@ async function validateArticle(
 async function updateArticleIfNeeded(
   content: string,
   validationText: string,
+  qualityControlIssues?: string | null,
 ): Promise<string> {
-  // Skip update if validation explicitly reports no issues OR validation was skipped
-  if (
-    validationText.includes("No factual issues identified") ||
-    validationText.toLowerCase().includes("validation skipped")
-  ) {
+  // Determine if we need to update based on validation or quality control issues
+  const hasValidationIssues =
+    validationText &&
+    !validationText.includes("No factual issues identified") &&
+    !validationText.toLowerCase().includes("validation skipped");
+
+  const hasQualityControlIssues =
+    qualityControlIssues !== null && qualityControlIssues !== undefined;
+
+  // Skip update if no issues found
+  if (!hasValidationIssues && !hasQualityControlIssues) {
+    console.log(
+      "No validation or quality control issues found, skipping update",
+    );
     return content;
   }
 
-  console.log("Calling update API");
+  // Combine validation and quality control feedback
+  let combinedFeedback = "";
+
+  if (hasValidationIssues) {
+    combinedFeedback += `## Validation Issues\n\n${validationText}\n\n`;
+  }
+
+  if (hasQualityControlIssues) {
+    combinedFeedback += `## Quality Control Issues\n\n${qualityControlIssues}\n\n`;
+  }
+
+  console.log("Calling update API with combined feedback", {
+    hasValidationIssues,
+    hasQualityControlIssues,
+    combinedFeedbackLength: combinedFeedback.length,
+  });
 
   const updateResult = await fetcher<unknown>(
     `${API_BASE_URL}/api/articles/update`,
@@ -459,7 +653,7 @@ async function updateArticleIfNeeded(
       method: "POST",
       body: {
         article: content,
-        validationText,
+        validationText: combinedFeedback,
       },
     },
   );
@@ -467,7 +661,8 @@ async function updateArticleIfNeeded(
   // Handle both { updatedContent } and { success, data: { updatedContent } }
   const updatedContent =
     (updateResult as { updatedContent?: string })?.updatedContent ??
-    (updateResult as { data?: { updatedContent?: string } })?.data?.updatedContent;
+    (updateResult as { data?: { updatedContent?: string } })?.data
+      ?.updatedContent;
 
   return updatedContent ?? content;
 }
@@ -524,7 +719,9 @@ async function finalizeArticle(
     metaKeywordsCount: updateData.metaKeywords?.length ?? 0,
     hasCoverImage: !!coverImageUrl,
     draftContentLength: updateData.draft.length,
-    draftContentWordCount: updateData.draft.split(/\s+/).filter(word => word.length > 0).length,
+    draftContentWordCount: updateData.draft
+      .split(/\s+/)
+      .filter((word) => word.length > 0).length,
     draftContentPreview: updateData.draft.substring(0, 200) + "...",
   });
 
@@ -692,8 +889,43 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       hasMetaDescription: !!writeData.metaDescription,
     });
 
-    // Phase 5: Validation
+    // Phase 5: Quality Control
+    console.log("Starting quality control phase");
+    await updateGenerationProgress(generationRecord.id, "quality-control", 60);
+    apiCallsLog.push("/quality-control");
+
+    const qualityControlStartTime = Date.now();
+    const qualityControlData = await performQualityControl(
+      writeData.content ?? "",
+      generationRecord.id,
+      userId,
+    );
+    const qualityControlProcessingTime = Date.now() - qualityControlStartTime;
+
+    // Log quality control success metrics for monitoring
+    console.log("QUALITY_CONTROL_SUCCESS_METRICS", {
+      timestamp: new Date().toISOString(),
+      generationId: generationRecord.id,
+      articleId,
+      userId,
+      isValid: qualityControlData.isValid,
+      hasIssues: !qualityControlData.isValid,
+      issuesLength: qualityControlData.issues?.length ?? 0,
+      processingTimeMs: qualityControlProcessingTime,
+      contentLength: writeData.content?.length ?? 0,
+      success: true,
+    });
+
+    console.log("Quality control completed", {
+      isValid: qualityControlData.isValid,
+      hasIssues: !qualityControlData.isValid,
+      issuesLength: qualityControlData.issues?.length ?? 0,
+      processingTimeMs: qualityControlProcessingTime,
+    });
+
+    // Phase 6: Validation
     console.log("Starting validation phase");
+    await updateGenerationProgress(generationRecord.id, "validating", 80);
     apiCallsLog.push("/validate");
     const validationData = await validateArticle(
       writeData.content ?? "",
@@ -704,23 +936,38 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       issuesCount: validationData.issues?.length ?? 0,
     });
 
-    // Phase 6: Update (if needed)
+    // Phase 7: Update (if needed)
     console.log("Starting update phase");
+    await updateGenerationProgress(generationRecord.id, "updating", 95);
     const finalContent = await updateArticleIfNeeded(
       writeData.content ?? "",
       validationData.rawValidationText ?? "",
+      qualityControlData.issues,
     );
-    
-    // Only log update API call if it was actually called
-    if (!(validationData.rawValidationText ?? "").includes("No factual issues identified")) {
+
+    // Log update API call if it was actually called
+    const hasValidationIssues =
+      validationData.rawValidationText &&
+      !validationData.rawValidationText.includes(
+        "No factual issues identified",
+      ) &&
+      !validationData.rawValidationText
+        .toLowerCase()
+        .includes("validation skipped");
+    const hasQualityControlIssues = qualityControlData.issues !== null;
+
+    if (hasValidationIssues || hasQualityControlIssues) {
       apiCallsLog.push("/update");
     }
+
     console.log("Update completed", {
       contentUpdated: finalContent !== writeData.content,
       finalContentLength: finalContent.length,
+      hadValidationIssues: hasValidationIssues,
+      hadQualityControlIssues: hasQualityControlIssues,
     });
 
-    // Phase 7: Finalize
+    // Phase 8: Finalize
     await finalizeArticle(
       articleId,
       writeData,
@@ -739,7 +986,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       tagsCount: writeData.tags?.length ?? 0,
     });
 
-    apiCallsLog.forEach(api => console.log(`-> ${api}`));
+    apiCallsLog.forEach((api) => console.log(`-> ${api}`));
   } catch (error) {
     await handleGenerationError(
       articleId,

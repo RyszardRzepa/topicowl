@@ -25,6 +25,7 @@ export interface UpdateRequest {
   corrections?: Correction[];
   validationIssues?: ValidationIssue[];
   validationText?: string; // Raw validation text from validation API
+  qualityControlIssues?: string; // Markdown-formatted quality control feedback
   settings?: {
     toneOfVoice?: string;
     articleStructure?: string;
@@ -75,6 +76,45 @@ export async function performUpdateLogic(
   return response;
 }
 
+// Quality control specific update logic
+export async function performQualityControlUpdate(
+  article: string,
+  qualityControlIssues: string,
+  settings?: {
+    toneOfVoice?: string;
+    articleStructure?: string;
+    maxWords?: number;
+  },
+): Promise<UpdateResponse> {
+  console.log("[QUALITY_CONTROL_UPDATE] Starting update", { 
+    contentLength: article.length,
+    issuesLength: qualityControlIssues.length,
+  });
+
+  if (!article || !qualityControlIssues) {
+    throw new Error("Article and qualityControlIssues are required");
+  }
+
+  const model = anthropic(MODELS.CLAUDE_SONET_4);
+
+  const { object: articleObject } = await generateObject({
+    model,
+    schema: blogPostSchema,
+    prompt: prompts.updateWithQualityControl(article, qualityControlIssues, settings),
+    maxOutputTokens: 20000,
+  });
+
+  const response: UpdateResponse = {
+    updatedContent: articleObject.content,
+  };
+
+  console.log("[QUALITY_CONTROL_UPDATE] Update completed", {
+    updatedContentLength: response.updatedContent.length,
+  });
+
+  return response;
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as UpdateRequest;
@@ -88,43 +128,55 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.corrections && !body.validationIssues && !body.validationText) {
+    if (!body.corrections && !body.validationIssues && !body.validationText && !body.qualityControlIssues) {
       return NextResponse.json(
         {
           error:
-            "Either corrections, validationIssues, or validationText are required",
+            "Either corrections, validationIssues, validationText, or qualityControlIssues are required",
         },
         { status: 400 },
       );
     }
 
-    const model = anthropic(MODELS.CLAUDE_SONET_4);
+    let response: UpdateResponse;
 
-    let correctionsOrValidationText: Correction[] | string;
-
-    if (body.validationText) {
-      correctionsOrValidationText = body.validationText;
+    // Handle quality control issues with specialized logic
+    if (body.qualityControlIssues) {
+      response = await performQualityControlUpdate(
+        body.article,
+        body.qualityControlIssues,
+        body.settings
+      );
     } else {
-      // Convert validationIssues to corrections format if provided
-      correctionsOrValidationText =
-        body.corrections ??
-        body.validationIssues?.map((issue) => ({
-          fact: issue.fact,
-          issue: issue.issue,
-          correction: issue.correction,
-        })) ??
-        [];
+      // Handle other types of updates (existing logic)
+      const model = anthropic(MODELS.CLAUDE_SONET_4);
+
+      let correctionsOrValidationText: Correction[] | string;
+
+      if (body.validationText) {
+        correctionsOrValidationText = body.validationText;
+      } else {
+        // Convert validationIssues to corrections format if provided
+        correctionsOrValidationText =
+          body.corrections ??
+          body.validationIssues?.map((issue) => ({
+            fact: issue.fact,
+            issue: issue.issue,
+            correction: issue.correction,
+          })) ??
+          [];
+      }
+
+      const { object: articleObject } = await generateObject({
+        model,
+        schema: blogPostSchema,
+        prompt: prompts.update(body.article, correctionsOrValidationText, body.settings),
+      });
+
+      response = {
+        updatedContent: articleObject.content,
+      };
     }
-
-    const { object: articleObject } = await generateObject({
-      model,
-      schema: blogPostSchema,
-      prompt: prompts.update(body.article, correctionsOrValidationText, body.settings),
-    });
-
-    const response: UpdateResponse = {
-      updatedContent: articleObject.content,
-    };
 
     return NextResponse.json({
       success: true,

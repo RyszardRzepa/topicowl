@@ -75,6 +75,9 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [newlyCreatedArticleId, setNewlyCreatedArticleId] = useState<
+    number | null
+  >(null);
 
   const fetchKanbanBoard = async () => {
     try {
@@ -508,9 +511,8 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: "New Article Idea",
-          description: "Click to edit this article idea",
-          keywords: ["article", "content"], // Provide default keywords
+          title: "Untitled Article", // Minimal placeholder that will be immediately editable
+          // keywords will use the default empty array from schema
         }),
       });
 
@@ -519,6 +521,9 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
       }
 
       const newArticle = (await response.json()) as Article;
+
+      // Mark this article as newly created so it enters edit mode automatically
+      setNewlyCreatedArticleId(newArticle.id);
 
       // Optimistic update - add the new article to the ideas column
       const updatedColumns = columns.map((column) => {
@@ -542,8 +547,8 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     return (
       <div className="flex h-96 items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-brand-green"></div>
-          <p className="mt-2 text-brand-white/70">Loading kanban board...</p>
+          <div className="border-brand-green mx-auto h-8 w-8 animate-spin rounded-full border-b-2"></div>
+          <p className="text-brand-white/70 mt-2">Loading kanban board...</p>
         </div>
       </div>
     );
@@ -564,8 +569,10 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     <div className="h-full">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-brand-white">Article Pipeline</h2>
-          <p className="mt-1 text-sm text-brand-white/70">
+          <h2 className="text-brand-white text-2xl font-bold">
+            Article Pipeline
+          </h2>
+          <p className="text-brand-white/70 mt-1 text-sm">
             Drag articles forward through the workflow: Ideas → To Generate →
             Generating → Wait for Publish → Published
           </p>
@@ -601,7 +608,9 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={`min-h-[200px] flex-1 overflow-hidden rounded-lg p-2 transition-colors ${
-                      snapshot.isDraggingOver ? "bg-brand-white/10" : "bg-brand-white/5"
+                      snapshot.isDraggingOver
+                        ? "bg-brand-white/10"
+                        : "bg-brand-white/5"
                     }`}
                   >
                     {column.articles.map((article, index) => (
@@ -609,9 +618,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                         key={article.id}
                         draggableId={article.id.toString()}
                         index={index}
-                        isDragDisabled={
-                          !isDraggable(article.status)
-                        }
+                        isDragDisabled={!isDraggable(article.status)}
                       >
                         {(provided, snapshot) => (
                           <div
@@ -635,6 +642,17 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
                               onNavigate={(articleId) =>
                                 router.push(`/articles/${articleId}`)
                               }
+                              isNewlyCreated={
+                                newlyCreatedArticleId === article.id
+                              }
+                              onEditModeChange={(isEditing) => {
+                                if (
+                                  !isEditing &&
+                                  newlyCreatedArticleId === article.id
+                                ) {
+                                  setNewlyCreatedArticleId(null);
+                                }
+                              }}
                             />
                           </div>
                         )}
@@ -662,6 +680,8 @@ function ArticleCard({
   onAddToQueue,
   onRemoveFromQueue,
   onNavigate,
+  isNewlyCreated = false,
+  onEditModeChange,
 }: {
   article: Article;
   onUpdate: (articleId: number, updates: Partial<Article>) => Promise<void>;
@@ -679,17 +699,28 @@ function ArticleCard({
   onAddToQueue: (articleId: number) => Promise<void>;
   onRemoveFromQueue: (articleId: number) => Promise<void>;
   onNavigate: (articleId: number) => void;
+  isNewlyCreated?: boolean;
+  onEditModeChange?: (isEditing: boolean) => void;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(isNewlyCreated);
   const [isScheduling, setIsScheduling] = useState(false);
   const [selectedScheduleTime, setSelectedScheduleTime] = useState<string>("");
   const [schedulingFrequency, setSchedulingFrequency] = useState<
     "once" | "daily" | "weekly" | "monthly"
   >("once");
   const [editData, setEditData] = useState({
-    title: article.title,
+    title:
+      isNewlyCreated && article.title === "Untitled Article"
+        ? ""
+        : article.title,
   });
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Notify parent when edit mode changes
+  const handleEditModeChange = (editing: boolean) => {
+    setIsEditing(editing);
+    onEditModeChange?.(editing);
+  };
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on interactive elements or during editing
@@ -717,7 +748,7 @@ function ArticleCard({
       await onUpdate(article.id, {
         title: editData.title.trim(),
       });
-      setIsEditing(false);
+      handleEditModeChange(false);
     } catch (error) {
       console.error("Failed to update article:", error);
     } finally {
@@ -729,7 +760,7 @@ function ArticleCard({
     setEditData({
       title: article.title,
     });
-    setIsEditing(false);
+    handleEditModeChange(false);
   };
 
   const handleDelete = async () => {
@@ -832,8 +863,8 @@ function ArticleCard({
               onChange={(e) =>
                 setEditData({ ...editData, title: e.target.value })
               }
-              className="w-full rounded-md border border-brand-white/20 bg-brand-white/10 px-3 py-2 focus:ring-2 focus:ring-brand-green focus:outline-none text-brand-white placeholder:text-brand-white/50"
-              placeholder="Article title..."
+              className="border-brand-white/20 bg-brand-white/10 focus:ring-brand-green text-brand-white placeholder:text-brand-white/50 w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
+              placeholder="Enter article title..."
               disabled={isUpdating || !canEdit}
               autoFocus
             />
@@ -845,13 +876,13 @@ function ArticleCard({
                 className={cn(
                   "line-clamp-2 min-w-0 flex-1 transition-colors",
                   canEdit
-                    ? "cursor-pointer hover:text-brand-green"
+                    ? "hover:text-brand-green cursor-pointer"
                     : "cursor-default",
                 )}
                 onClick={(e) => {
                   if (canEdit) {
                     e.stopPropagation();
-                    setIsEditing(true);
+                    handleEditModeChange(true);
                   }
                 }}
               >
@@ -864,7 +895,7 @@ function ArticleCard({
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0"
-                      onClick={() => setIsEditing(true)}
+                      onClick={() => handleEditModeChange(true)}
                     >
                       <Edit3 className="h-4 w-4" />
                     </Button>
@@ -935,13 +966,13 @@ function ArticleCard({
         {/* Status indicator for generating articles */}
         {isGenerating && (
           <div className="mb-3">
-            <div className="h-2 w-full rounded-full bg-brand-white/20">
+            <div className="bg-brand-white/20 h-2 w-full rounded-full">
               <div
-                className="h-2 animate-pulse rounded-full bg-brand-green"
+                className="bg-brand-green h-2 animate-pulse rounded-full"
                 style={{ width: "60%" }}
               />
             </div>
-            <p className="mt-1 text-xs font-medium text-brand-green">
+            <p className="text-brand-green mt-1 text-xs font-medium">
               Generating content...
             </p>
           </div>
@@ -950,7 +981,7 @@ function ArticleCard({
         {/* Show completion indicator for published articles */}
         {isCompleted && (
           <div className="mb-3">
-            <div className="rounded bg-brand-green/20 p-2 text-xs font-medium text-brand-green">
+            <div className="bg-brand-green/20 text-brand-green rounded p-2 text-xs font-medium">
               ✓ Published successfully
             </div>
           </div>

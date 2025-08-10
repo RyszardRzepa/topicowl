@@ -20,7 +20,7 @@ export interface CreateArticleRequest {
 const createArticleSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional(),
-  keywords: z.array(z.string()).default([]),
+  keywords: z.array(z.string()).optional().default([]),
   targetAudience: z.string().optional(),
   notes: z.string().optional(),
 });

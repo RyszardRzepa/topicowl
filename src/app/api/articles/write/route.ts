@@ -1,4 +1,5 @@
 import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 
 import { generateObject } from "ai";
 import { NextResponse } from "next/server";
@@ -207,7 +208,6 @@ export async function POST(request: Request) {
     // Check if videos are available for enhanced generation
     const hasVideos = body.videos && body.videos.length > 0;
     // Always use basic schema for now to avoid schema validation issues
-    const schemaToUse = blogPostSchema;
 
     let articleObject;
     // Create excluded domains prompt instruction
@@ -257,8 +257,8 @@ export async function POST(request: Request) {
 
     try {
       const result = await generateObject({
-        model: openai(MODELS.OPENAI_GPT_5),
-        schema: schemaToUse,
+        model: anthropic(MODELS.CLAUDE_SONET_4),
+        schema: blogPostSchema,
         prompt: writePrompt,
         maxRetries: 2,
         maxOutputTokens: 10000,

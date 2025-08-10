@@ -218,6 +218,13 @@
       "when": 1754583554006,
       "tag": "0030_nifty_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1754818323441,
+      "tag": "0031_faulty_mulholland_black",
+      "breakpoints": true
     }
   ]
 }
