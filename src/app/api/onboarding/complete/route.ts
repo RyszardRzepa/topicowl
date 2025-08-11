@@ -37,7 +37,7 @@ export async function POST(_request: NextRequest): Promise<Response> {
         onboarding_completed: users.onboarding_completed 
       })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -69,7 +69,7 @@ export async function POST(_request: NextRequest): Promise<Response> {
           onboarding_completed: true,
           updatedAt: new Date(),
         })
-        .where(eq(users.clerk_user_id, userId));
+        .where(eq(users.id, userId));
 
       // Create default article settings if they don't exist
       const [existingSettings] = await tx

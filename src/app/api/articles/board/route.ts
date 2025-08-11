@@ -63,11 +63,11 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -81,7 +81,7 @@ export async function GET(_req: NextRequest) {
     const allArticles = await db
       .select({
         id: articles.id,
-        user_id: articles.user_id,
+        user_id: articles.userId,
         title: articles.title,
         description: articles.description,
         keywords: articles.keywords,
@@ -113,7 +113,7 @@ export async function GET(_req: NextRequest) {
       .leftJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
       .where(
         and(
-          eq(articles.user_id, userRecord.id),
+          eq(articles.userId, userRecord.id),
           ne(articles.status, "deleted")
         )
       )

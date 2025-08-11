@@ -344,7 +344,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       const [userRecord] = await db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.clerk_user_id, userId))
+        .where(eq(users.id, userId))
         .limit(1);
 
       if (!userRecord) {
@@ -384,7 +384,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             onboarding_completed: true, // Complete onboarding in the same transaction
             updatedAt: new Date(),
           })
-          .where(eq(users.clerk_user_id, userId));
+          .where(eq(users.id, userId));
 
         // Create or update article settings based on AI analysis
         const { articleSettings } = await import("@/server/db/schema");

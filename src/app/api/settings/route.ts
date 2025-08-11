@@ -13,8 +13,8 @@ export interface ArticleSettingsRequest {
   toneOfVoice?: string;
   articleStructure?: string;
   maxWords?: number;
-  excluded_domains?: string[];
-  sitemap_url?: string;
+  excludedDomains?: string[];
+  sitemapUrl?: string;
   // Company/business settings
   companyName?: string;
   productDescription?: string;
@@ -30,8 +30,8 @@ export interface ArticleSettingsResponse {
   toneOfVoice: string | null;
   articleStructure: string | null;
   maxWords: number | null;
-  excluded_domains: string[];
-  sitemap_url: string | null;
+  excludedDomains: string[];
+  sitemapUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
   // Company settings from users table
@@ -49,8 +49,8 @@ const articleSettingsSchema = z.object({
   toneOfVoice: z.string().optional(),
   articleStructure: z.string().optional(),
   maxWords: z.number().min(100).max(5000).optional(),
-  excluded_domains: z.array(z.string()).max(100).optional(),
-  sitemap_url: z.string().url().optional().or(z.literal("")),
+  excludedDomains: z.array(z.string()).max(100).optional(),
+  sitemapUrl: z.string().url().optional().or(z.literal("")),
   // Company/business settings
   companyName: z.string().min(1).max(255).optional(),
   productDescription: z.string().max(1000).optional(),
@@ -76,13 +76,13 @@ export async function GET() {
     const [userRecord] = await db
       .select({
         id: users.id,
-        company_name: users.company_name,
-        product_description: users.product_description,
+        companyName: users.companyName,
+        productDescription: users.productDescription,
         keywords: users.keywords,
         domain: users.domain,
       })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -96,7 +96,7 @@ export async function GET() {
     const [articleSettingsRecord] = await db
       .select()
       .from(articleSettings)
-      .where(eq(articleSettings.user_id, userRecord.id))
+      .where(eq(articleSettings.userId, userRecord.id))
       .limit(1);
     
     if (!articleSettingsRecord) {
@@ -106,12 +106,12 @@ export async function GET() {
         toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
         articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
         maxWords: 800,
-        excluded_domains: [],
-        sitemap_url: null,
+        excludedDomains: [],
+        sitemapUrl: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        companyName: userRecord.company_name ?? undefined,
-        productDescription: userRecord.product_description ?? undefined,
+        companyName: userRecord.companyName ?? undefined,
+        productDescription: userRecord.productDescription ?? undefined,
         keywords: Array.isArray(userRecord.keywords) ? userRecord.keywords as string[] : [],
         domain: userRecord.domain ?? undefined,
       };
@@ -125,12 +125,12 @@ export async function GET() {
       toneOfVoice: articleSettingsRecord.toneOfVoice,
       articleStructure: articleSettingsRecord.articleStructure,
       maxWords: articleSettingsRecord.maxWords,
-      excluded_domains: Array.isArray(articleSettingsRecord.excluded_domains) ? articleSettingsRecord.excluded_domains : [],
-      sitemap_url: articleSettingsRecord.sitemap_url,
+      excludedDomains: Array.isArray(articleSettingsRecord.excludedDomains) ? articleSettingsRecord.excludedDomains : [],
+      sitemapUrl: articleSettingsRecord.sitemapUrl,
       createdAt: articleSettingsRecord.createdAt,
       updatedAt: articleSettingsRecord.updatedAt,
-      companyName: userRecord.company_name ?? undefined,
-      productDescription: userRecord.product_description ?? undefined,
+      companyName: userRecord.companyName ?? undefined,
+      productDescription: userRecord.productDescription ?? undefined,
       keywords: Array.isArray(userRecord.keywords) ? userRecord.keywords as string[] : [],
       domain: userRecord.domain ?? undefined,
     };
@@ -161,8 +161,8 @@ export async function POST(req: NextRequest) {
     const validatedData = articleSettingsSchema.parse(body);
     
     // Validate excluded domains if provided
-    if (validatedData.excluded_domains) {
-      const domainValidation = validateDomains(validatedData.excluded_domains);
+    if (validatedData.excludedDomains) {
+      const domainValidation = validateDomains(validatedData.excludedDomains);
       
       if (domainValidation.invalidDomains.length > 0) {
         return NextResponse.json(
@@ -175,14 +175,14 @@ export async function POST(req: NextRequest) {
       }
       
       // Use normalized domains for storage
-      validatedData.excluded_domains = domainValidation.normalizedDomains;
+      validatedData.excludedDomains = domainValidation.normalizedDomains;
     }
     
     // Get user record
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -220,14 +220,14 @@ export async function POST(req: NextRequest) {
             ...(keywords !== undefined && { keywords: keywords }),
             updatedAt: new Date(),
           })
-          .where(eq(users.clerk_user_id, userId));
+          .where(eq(users.id, userId));
       }
 
       // Check if article settings already exist for this user
       const [existingSettings] = await tx
         .select({ id: articleSettings.id })
         .from(articleSettings)
-        .where(eq(articleSettings.user_id, userRecord.id))
+        .where(eq(articleSettings.userId, userRecord.id))
         .limit(1);
       
       let updatedArticleSettings;
@@ -248,7 +248,7 @@ export async function POST(req: NextRequest) {
         const insertResult = await tx
           .insert(articleSettings)
           .values({
-            user_id: userRecord.id,
+            userId: userRecord.id,
             ...articleSettingsData,
           })
           .returning();
@@ -262,20 +262,20 @@ export async function POST(req: NextRequest) {
       // Get updated user data for response
       const [updatedUser] = await tx
         .select({
-          company_name: users.company_name,
-          product_description: users.product_description,
+          company_name: users.companyName,
+          product_description: users.productDescription,
           keywords: users.keywords,
           domain: users.domain,
         })
         .from(users)
-        .where(eq(users.clerk_user_id, userId))
+        .where(eq(users.id, userId))
         .limit(1);
 
       // Combine for response
       const combinedResponse: ArticleSettingsResponse = {
         ...updatedArticleSettings,
-        excluded_domains: Array.isArray(updatedArticleSettings.excluded_domains) ? updatedArticleSettings.excluded_domains : [],
-        sitemap_url: updatedArticleSettings.sitemap_url,
+        excludedDomains: Array.isArray(updatedArticleSettings.excludedDomains) ? updatedArticleSettings.excludedDomains : [],
+        sitemapUrl: updatedArticleSettings.sitemapUrl,
         companyName: updatedUser?.company_name ?? undefined,
         productDescription: updatedUser?.product_description ?? undefined,
         keywords: Array.isArray(updatedUser?.keywords) ? updatedUser.keywords as string[] : [],

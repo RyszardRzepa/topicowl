@@ -46,7 +46,7 @@ export async function GET(
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -103,8 +103,11 @@ export async function GET(
     // If no generation record exists, return not found
     if (!latestGeneration) {
       return NextResponse.json(
-        { success: false, error: "No generation found for this article" } as ApiResponse,
-        { status: 404 }
+        {
+          success: false,
+          error: "No generation found for this article",
+        } as ApiResponse,
+        { status: 404 },
       );
     }
 
@@ -160,14 +163,22 @@ export async function GET(
       articleId: id,
       status: mapStatus(latestGeneration.status),
       progress: latestGeneration.progress,
-      currentStep: latestGeneration.status === "completed" 
-        ? undefined 
-        : getPhaseDescription(latestGeneration.status),
-      phase: latestGeneration.status === "researching" ? "research" :
-             latestGeneration.status === "writing" ? "writing" :
-             latestGeneration.status === "quality-control" ? "quality-control" :
-             latestGeneration.status === "validating" ? "validation" :
-             latestGeneration.status === "updating" ? "optimization" : undefined,
+      currentStep:
+        latestGeneration.status === "completed"
+          ? undefined
+          : getPhaseDescription(latestGeneration.status),
+      phase:
+        latestGeneration.status === "researching"
+          ? "research"
+          : latestGeneration.status === "writing"
+            ? "writing"
+            : latestGeneration.status === "quality-control"
+              ? "quality-control"
+              : latestGeneration.status === "validating"
+                ? "validation"
+                : latestGeneration.status === "updating"
+                  ? "optimization"
+                  : undefined,
       startedAt:
         latestGeneration.startedAt?.toISOString() ??
         latestGeneration.createdAt.toISOString(),

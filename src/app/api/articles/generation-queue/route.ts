@@ -69,11 +69,11 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -148,11 +148,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -293,11 +293,11 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {

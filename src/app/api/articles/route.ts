@@ -38,11 +38,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const maxPositionResult = await db
       .select({ maxPosition: max(articles.kanbanPosition) })
       .from(articles)
-      .where(eq(articles.user_id, userRecord.id));
+      .where(eq(articles.userId, userRecord.id));
     
     const nextPosition = (maxPositionResult[0]?.maxPosition ?? -1) + 1;
 
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       .insert(articles)
       .values({
         ...validatedData,
-        user_id: userRecord.id,
+        userId: userRecord.id,
         status: 'idea',
         kanbanPosition: nextPosition,
       })
@@ -103,11 +103,11 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -121,7 +121,7 @@ export async function GET(_req: NextRequest) {
     const userArticles = await db
       .select()
       .from(articles)
-      .where(eq(articles.user_id, userRecord.id))
+      .where(eq(articles.userId, userRecord.id))
       .orderBy(articles.kanbanPosition, articles.createdAt);
     
     return NextResponse.json(userArticles);

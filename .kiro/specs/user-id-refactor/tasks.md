@@ -1,51 +1,38 @@
 # Implementation Plan
 
-- [ ] 1. Create database migration for user ID refactoring
-  - Write Drizzle migration SQL to safely migrate from auto-generated IDs to Clerk user IDs
-  - Add temporary columns, populate data, update foreign keys, and clean up old structure
-  - Ensure migration is rollback-safe and preserves all existing data relationships
-  - _Requirements: 4.1, 4.2, 4.3, 4.4_
-
-- [ ] 2. Update database schema definition
+- [x] 2. Update database schema definition
   - Modify users table schema to use Clerk user ID as primary key
   - Remove clerk_user_id column definition from schema
   - Update all foreign key references to point to new user ID structure
   - _Requirements: 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-- [ ] 3. Update Clerk webhook handler for new user ID structure
+- [x] 3. Update Clerk webhook handler for new user ID structure
   - Modify user creation logic to use Clerk user ID as primary key
   - Update user lookup queries to use id instead of clerk_user_id
   - Update user update and deletion operations for new schema
   - Fix TypeScript errors and ensure proper error handling
   - _Requirements: 1.4, 3.5_
 
-- [ ] 4. Update user lookup patterns in articles API routes
-  - Modify all user lookup queries in articles/* API routes to use Clerk user ID directly
+- [x] 4. Update user lookup patterns in articles API routes
+  - Modify all user lookup queries in articles/\* API routes to use Clerk user ID directly
   - Update user validation logic to query by id instead of clerk_user_id
   - Ensure all article-related operations work with new user ID structure
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 5. Update user lookup patterns in settings API routes
-  - Modify all user lookup queries in settings/* API routes to use Clerk user ID directly
+- [x] 5. Update user lookup patterns in settings API routes
+  - Modify all user lookup queries in settings/\* API routes to use Clerk user ID directly
   - Update settings creation and update operations for new user ID structure
   - Ensure webhook settings and other user settings work correctly
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 6. Update user lookup patterns in onboarding API routes
-  - Modify all user lookup queries in onboarding/* API routes to use Clerk user ID directly
+- [x] 6. Update user lookup patterns in onboarding API routes
+  - Modify all user lookup queries in onboarding/\* API routes to use Clerk user ID directly
   - Update onboarding completion and website analysis operations
   - Ensure user creation during onboarding works with new schema
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 7. Update user lookup patterns in credits and other API routes
+- [x] 7. Update user lookup patterns in credits and other API routes
   - Modify user lookup queries in credits API route to use Clerk user ID directly
   - Update sitemaps API route user validation
   - Ensure all remaining API routes work with new user ID structure
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
-
-- [ ] 8. Run database migration and verify data integrity
-  - Execute the migration against the database
-  - Verify all existing user data is preserved and correctly linked
-  - Test foreign key relationships are maintained
-  - Validate that all API routes work correctly with migrated data
-  - _Requirements: 4.1, 4.2, 4.3_

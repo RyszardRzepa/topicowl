@@ -93,7 +93,7 @@ export async function GET() {
         webhook_secret: users.webhook_secret,
       })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
     const [updatedUser] = await db
       .update(users)
       .set(updateData)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .returning({
         webhook_url: users.webhook_url,
         webhook_enabled: users.webhook_enabled,

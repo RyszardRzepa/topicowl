@@ -104,7 +104,7 @@ function extractUserData(data: unknown) {
   const primaryEmail = userData.email_addresses?.[0]?.email_address;
 
   return {
-    clerk_user_id: userData.id,
+    id: userData.id, // Use Clerk user ID as primary key
     email: primaryEmail ?? "",
     firstName:
       userData.first_name && typeof userData.first_name === "string"
@@ -236,34 +236,39 @@ export async function POST(request: NextRequest): Promise<Response> {
           const userData = extractUserData(data);
 
           try {
-            // Check if user already exists
+            // Check if user already exists using Clerk user ID as primary key
             const existingUser = await db
               .select({ id: users.id })
               .from(users)
-              .where(eq(users.clerk_user_id, userData.clerk_user_id))
+              .where(eq(users.id, userData.id))
               .limit(1);
 
-            let userId: string;
-
             if (existingUser.length === 0) {
-              // Create new user record
+              // Create new user record using Clerk user ID as primary key
               const [createdUser] = await db
                 .insert(users)
                 .values({
                   ...userData,
-                  onboarding_completed: false,
+                  onboardingCompleted: false,
                 })
                 .returning({ id: users.id });
 
               if (!createdUser) {
                 throw new Error("Failed to create user record");
               }
-              userId = createdUser.id;
 
               // Create credits record for new user
               await db.insert(userCredits).values({
-                userId: userId,
+                userId: createdUser.id,
                 amount: 3,
+              });
+
+              logWebhookEvent("info", "User and credits created successfully", {
+                userId: data.id,
+                email: userData.email
+                  ? `${userData.email.split("@")[0]}@***`
+                  : null,
+                creditsAllocated: 3,
               });
             } else {
               // Update existing user record
@@ -275,9 +280,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                   lastName: userData.lastName,
                   updatedAt: new Date(),
                 })
-                .where(eq(users.clerk_user_id, userData.clerk_user_id));
-
-              userId = existingUser[0].id;
+                .where(eq(users.id, userData.id));
 
               // Reset credits to 3 for existing user
               await db
@@ -286,20 +289,16 @@ export async function POST(request: NextRequest): Promise<Response> {
                   amount: 3,
                   updatedAt: new Date(),
                 })
-                .where(eq(userCredits.userId, userId));
-            }
+                .where(eq(userCredits.userId, userData.id));
 
-            logWebhookEvent(
-              "info",
-              "User and credits created/updated successfully",
-              {
+              logWebhookEvent("info", "User and credits updated successfully", {
                 userId: data.id,
                 email: userData.email
                   ? `${userData.email.split("@")[0]}@***`
                   : null,
                 creditsAllocated: 3,
-              },
-            );
+              });
+            }
           } catch (dbError) {
             logWebhookEvent(
               "error",
@@ -351,7 +350,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                 lastName: userData.lastName,
                 updatedAt: new Date(),
               })
-              .where(eq(users.clerk_user_id, data.id));
+              .where(eq(users.id, data.id));
 
             logWebhookEvent("info", "User updated successfully", {
               userId: data.id,
@@ -392,7 +391,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           }
 
           try {
-            await db.delete(users).where(eq(users.clerk_user_id, data.id));
+            await db.delete(users).where(eq(users.id, data.id));
 
             logWebhookEvent("info", "User deleted successfully", {
               userId: data.id,

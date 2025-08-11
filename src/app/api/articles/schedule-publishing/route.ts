@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     const [existingArticle] = await db
       .select({
         id: articles.id,
-        user_id: articles.user_id,
+        user_id: articles.userId,
         title: articles.title,
         status: articles.status,
         scheduledAt: articles.publishScheduledAt,

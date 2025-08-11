@@ -8,7 +8,6 @@ import {
   text,
   integer,
   varchar,
-  pgEnum,
   serial,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
@@ -22,30 +21,24 @@ import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 
 export const contentbotSchema = pgSchema("contentbot");
 
-export const generatePublicId = customAlphabet(
-  "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
-  8,
-);
-
 export const users = contentbotSchema.table("users", {
-  id: text("id").primaryKey().default(generatePublicId()),
-  clerk_user_id: text("clerk_user_id").unique().notNull(),
+  id: text("id").primaryKey(),
   email: text("email").notNull(),
   firstName: text("first_name"),
   lastName: text("last_name"),
-  company_name: text("company_name"),
+  companyName: text("company_name"),
   domain: text("domain"),
-  product_description: text("product_description"),
+  productDescription: text("product_description"),
   keywords: jsonb("keywords"),
-  onboarding_completed: boolean("onboarding_completed")
+  onboardingCompleted: boolean("onboarding_completed")
     .default(false)
     .notNull(),
 
   // Webhook configuration
-  webhook_url: text("webhook_url"),
-  webhook_secret: text("webhook_secret"),
-  webhook_enabled: boolean("webhook_enabled").default(false).notNull(),
-  webhook_events: jsonb("webhook_events")
+  webhookUrl: text("webhook_url"),
+  webhookSecret: text("webhook_secret"),
+  webhookEnabled: boolean("webhook_enabled").default(false).notNull(),
+  webhookEvents: jsonb("webhook_events")
     .default(["article.published"])
     .notNull(),
 
@@ -59,7 +52,7 @@ export const users = contentbotSchema.table("users", {
 
 // User credits table for tracking article generation credits
 export const userCredits = contentbotSchema.table("user_credits", {
-  id: text("id").primaryKey().default(generatePublicId()),
+  id: serial("id").primaryKey(),
   userId: text("user_id").notNull().unique(),
   amount: integer("amount").default(0).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -71,7 +64,7 @@ export const userCredits = contentbotSchema.table("user_credits", {
 });
 
 // Article status enum for kan
-export const articleStatusEnum = pgEnum("article_status", [
+export const articleStatusEnum = contentbotSchema.enum("article_status", [
   "idea",
   "scheduled",
   "queued",
@@ -85,7 +78,7 @@ export const articleStatusEnum = pgEnum("article_status", [
 // Articles table for kanban-based workflow
 export const articles = contentbotSchema.table("articles", {
   id: serial("id").primaryKey(),
-  user_id: text("user_id").references(() => users.id),
+  userId: text("user_id").references(() => users.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   keywords: jsonb("keywords").default([]).notNull(),
@@ -127,39 +120,34 @@ export const articles = contentbotSchema.table("articles", {
     .$onUpdate(() => new Date()),
 });
 
-// Add the self-reference after table definition
-export const articlesRelations = {
-  parent_article_id: integer("parent_article_id"),
-};
-
 // Generation queue table for tracking articles scheduled for generation
 export const generationQueue = contentbotSchema.table("generation_queue", {
   id: serial("id").primaryKey(),
-  article_id: integer("article_id")
+  articleId: integer("article_id")
     .references(() => articles.id)
     .notNull(),
-  user_id: text("user_id")
+  userId: text("user_id")
     .references(() => users.id)
     .notNull(),
-  added_to_queue_at: timestamp("added_to_queue_at", { withTimezone: true })
+  addedToQueueAt: timestamp("added_to_queue_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-  scheduled_for_date: timestamp("scheduled_for_date", { withTimezone: true }), // The date this article was scheduled for
-  queue_position: integer("queue_position"), // Order in queue (FIFO)
-  scheduling_type: varchar("scheduling_type", { length: 20 }).default("manual"), // 'manual', 'automatic'
+  scheduledForDate: timestamp("scheduled_for_date", { withTimezone: true }), // The date this article was scheduled for
+  queuePosition: integer("queue_position"), // Order in queue (FIFO)
+  schedulingType: varchar("scheduling_type", { length: 20 }).default("manual"), // 'manual', 'automatic'
   status: varchar("status", { length: 20 }).default("queued"), // 'queued', 'processing', 'completed', 'failed'
   attempts: integer("attempts").default(0),
-  max_attempts: integer("max_attempts").default(3),
-  error_message: text("error_message"),
-  created_at: timestamp("created_at", { withTimezone: true })
+  maxAttempts: integer("max_attempts").default(3),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-  updated_at: timestamp("updated_at", { withTimezone: true })
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull()
     .$onUpdate(() => new Date()),
-  processed_at: timestamp("processed_at", { withTimezone: true }),
-  completed_at: timestamp("completed_at", { withTimezone: true }),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
 // Article Generation tracking table for separation of concerns
@@ -224,19 +212,19 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
 // Article Settings table for global configuration
 export const articleSettings = contentbotSchema.table("article_settings", {
   id: serial("id").primaryKey(),
-  user_id: text("user_id").references(() => users.id),
+  userId: text("user_id").references(() => users.id),
   toneOfVoice: text("tone_of_voice"),
   articleStructure: text("article_structure"),
   maxWords: integer("max_words").default(800),
 
   // Competitor domain exclusion
-  excluded_domains: jsonb("excluded_domains")
+  excludedDomains: jsonb("excluded_domains")
     .default([])
     .notNull()
     .$type<string[]>(),
 
   // Sitemap functionality
-  sitemap_url: text("sitemap_url"), // User's website sitemap URL (e.g., https://example.com/sitemap.xml)
+  sitemapUrl: text("sitemap_url"), // User's website sitemap URL (e.g., https://example.com/sitemap.xml)
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
@@ -250,37 +238,37 @@ export const articleSettings = contentbotSchema.table("article_settings", {
 // Webhook delivery tracking table
 export const webhookDeliveries = contentbotSchema.table("webhook_deliveries", {
   id: serial("id").primaryKey(),
-  user_id: text("user_id")
+  userId: text("user_id")
     .references(() => users.id)
     .notNull(),
-  article_id: integer("article_id")
+  articleId: integer("article_id")
     .references(() => articles.id)
     .notNull(),
-  webhook_url: text("webhook_url").notNull(),
-  event_type: text("event_type").default("article.published").notNull(),
+  webhookUrl: text("webhook_url").notNull(),
+  eventType: text("event_type").default("article.published").notNull(),
 
   // Delivery tracking
   status: text("status").default("pending").notNull(), // pending, success, failed, retrying
   attempts: integer("attempts").default(1).notNull(),
-  max_attempts: integer("max_attempts").default(3).notNull(),
+  maxAttempts: integer("max_attempts").default(3).notNull(),
 
   // Request/Response data
-  request_payload: jsonb("request_payload").notNull(),
-  response_status: integer("response_status"),
-  response_body: text("response_body"),
-  delivery_time_ms: integer("delivery_time_ms"),
+  requestPayload: jsonb("request_payload").notNull(),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  deliveryTimeMs: integer("delivery_time_ms"),
 
   // Error handling
-  error_message: text("error_message"),
-  error_details: jsonb("error_details"),
+  errorMessage: text("error_message"),
+  errorDetails: jsonb("error_details"),
 
   // Retry scheduling
-  next_retry_at: timestamp("next_retry_at", { withTimezone: true }),
-  retry_backoff_seconds: integer("retry_backoff_seconds").default(30).notNull(),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  retryBackoffSeconds: integer("retry_backoff_seconds").default(30).notNull(),
 
-  created_at: timestamp("created_at", { withTimezone: true })
+  createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-  delivered_at: timestamp("delivered_at", { withTimezone: true }),
-  failed_at: timestamp("failed_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  failedAt: timestamp("failed_at", { withTimezone: true }),
 });

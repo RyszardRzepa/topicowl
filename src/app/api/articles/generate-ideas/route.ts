@@ -64,12 +64,12 @@ export async function POST() {
       .select({
         id: users.id,
         domain: users.domain,
-        product_description: users.product_description,
+        productDescription: users.productDescription,
         keywords: users.keywords,
-        company_name: users.company_name,
+        companyName: users.companyName,
       })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -80,12 +80,12 @@ export async function POST() {
     const existingArticles = await db
       .select({ title: articles.title })
       .from(articles)
-      .where(eq(articles.user_id, userRecord.id));
+      .where(eq(articles.userId, userRecord.id));
 
     // Build user context for AI prompt
     const userContext = {
       domain: userRecord.domain ?? "",
-      productDescription: userRecord.product_description ?? "",
+      productDescription: userRecord.productDescription ?? "",
       keywords: Array.isArray(userRecord.keywords)
         ? userRecord.keywords.filter((k): k is string => typeof k === "string")
         : typeof userRecord.keywords === "string"
@@ -94,7 +94,7 @@ export async function POST() {
               .map((k) => k.trim())
               .filter((k) => k.length > 0)
           : ["business", "guide"],
-      companyName: userRecord.company_name ?? "",
+      companyName: userRecord.companyName ?? "",
       existingArticleTitles: existingArticles.map((article) => article.title),
     };
 

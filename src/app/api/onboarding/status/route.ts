@@ -40,7 +40,7 @@ export async function GET(): Promise<Response> {
         onboarding_completed: users.onboarding_completed,
       })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (dbUser.length === 0) {
@@ -73,7 +73,7 @@ export async function GET(): Promise<Response> {
 
         // Create user record inline
         const newUser = await db.insert(users).values({
-          clerk_user_id: userId,
+          id: userId,
           email: primaryEmail,
           firstName: clerkUser.firstName,
           lastName: clerkUser.lastName,

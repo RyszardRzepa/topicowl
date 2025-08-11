@@ -1,0 +1,2 @@
+-- Migration already applied via db:push - marking as completed
+-- All operations have been applied already

@@ -81,11 +81,11 @@ export async function POST(request: Request) {
         `[DOMAIN_FILTER] Retrieving excluded domains for Clerk user: ${body.userId}`,
       );
 
-      // First, get the internal user ID from the Clerk user ID
+      // Verify user exists in database using Clerk user ID
       const [userRecord] = await db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.clerk_user_id, body.userId))
+        .where(eq(users.id, body.userId))
         .limit(1);
 
       if (userRecord) {
@@ -311,11 +311,11 @@ export async function POST(request: Request) {
 
     if (finalRelatedArticles.length === 0) {
       try {
-        // First get the internal user ID from Clerk user ID
+        // Verify user exists in database using Clerk user ID
         const [userRecord] = await db
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.clerk_user_id, body.userId))
+          .where(eq(users.id, body.userId))
           .limit(1);
 
         if (userRecord) {
