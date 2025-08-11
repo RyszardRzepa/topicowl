@@ -14,35 +14,43 @@ export interface AnalyzeWebsiteRequest {
 }
 
 // Default article structure template
-const DEFAULT_ARTICLE_STRUCTURE = `**You are a SaaS content writer. Create a blog post in clean Markdown (.md) that follows the exact structure below. Obey every heading, formatting, and length instruction. Replace the ALL-CAPS text inside {curly-braces} with original content — do NOT output the braces themselves.**
-
-# {COMPELLING H1 TITLE — ≤ 60 characters, capitalized headline style}
-
-{1–2 sentence teaser that sums up the problem + payoff. Keep it punchy.}
-
-![{ALT-TEXT DESCRIBING A RELEVANT HERO IMAGE}]( {IMAGE-URL-PLACEHOLDER} )
-
-{Casual greeting, 1–2 sentences. Then a brief hook (~120 words) explaining why the topic matters for online sellers. Use a conversational tone. End with a forward-looking "In this post, we'll …" statement.}
-
-## The Basics of {TOPIC}   <!-- SECTION 1 -->
-
-{~200–250 words. Explain the core concept in plain language. Use second-person POV ("you"). Give 2–3 concrete, easily visualized examples. Close with a one-sentence benefit statement.}
-
-## How {TECHNOLOGY / TREND} Is Changing {TOPIC}   <!-- SECTION 2 -->
-
-{~300–350 words. Focus on how AI/automation disrupts traditional workflow. Cover:  1. Specific pain points it solves (bullet list of 3–4 items).  2. A mini-case/example featuring a brand or tool.  3. A brief note on challenges or caveats.  End with a rhetorical question that invites the reader to imagine future gains.}
-
-![{SECOND IMAGE ALT-TEXT}]( {IMAGE-URL-PLACEHOLDER} )
-
-## Learn More with Our {RESOURCE}   <!-- SECTION 3 / CTA -->
-
-{100–150 words. Recap key takeaways in bold opening sentence. Highlight time-saving and ROI. Issue a direct call-to-action (CTA) to explore a course, demo, or signup link. One short sentence of positive urgency.}
-
----
-
-**Article Information**  
-- **Meta Description:** {META DESCRIPTION ≤ 155 characters, written in second person, includes primary keyword once}  
-- **Target Keyword:** {PRIMARY FOCUS KEYWORD}`;
+const DEFAULT_ARTICLE_STRUCTURE = `# Article Title Here
+  
+  Brief article introduction that hooks the reader and sets context for what they'll learn. (max 2 sentences.)
+  
+  ## TL;DR
+  
+  * **Key takeaway 1**: Brief explanation of the main benefit or insight
+  * **Key takeaway 2**: Another important point readers will learn  
+  * **Key takeaway 3**: Additional valuable insight or recommendation
+  * **Key takeaway 4**: Final key point that adds value
+  
+  ## Main Content Section Heading (max 150 words)
+  
+  Content guidance: This section should cover [specific topic]. Include practical examples and actionable advice. Integrate relevant links naturally within the content.
+  
+  Keywords focus: [relevant keywords from provided list]
+  Links to integrate: [specific URLs from sources]
+    
+  ## "Video Title Here that matches article content" (if relevant video url available)
+  [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+ 
+  ## Table Section (if relevant structured data available)
+  
+  **Table Title:** "Descriptive Table Title Here"
+  Brief description of what the table shows and how it helps readers compare options or understand data.
+  
+  Content guidance: This section should present structured data in table format. Include 2-6 columns with clear headers and organized information that helps readers make comparisons or understand relationships between data points.
+  
+  ## Additional Content Section 1 (max 150 words)
+  
+  Content guidance: This section should address [specific subtopic]. Focus on [particular aspect] and provide clear, actionable information.
+  
+  Keywords focus: [relevant keywords from provided list]
+  Links to integrate: [specific URLs from sources]
+  
+   ## "instagram or tiktok Title Here" (if relevant instagram or tiktok url available)
+  Answer guidance: Practical advice that addresses this specific user need`;
 
 // Zod schema for AI analysis response
 const WebsiteAnalysisSchema = z.object({
