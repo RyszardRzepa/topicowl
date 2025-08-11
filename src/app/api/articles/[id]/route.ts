@@ -26,7 +26,7 @@ export interface GenerationLog {
 // Type for the raw article data from database
 type ArticleData = {
   id: number;
-  user_id: string | null;
+  userId: string | null;
   title: string;
   description: string | null;
   keywords: unknown;
@@ -154,7 +154,7 @@ export async function GET(
       .limit(1);
 
     // Verify article ownership and that it's not deleted
-    if (articleData.user_id !== userRecord.id) {
+    if (articleData.userId !== userRecord.id) {
       return NextResponse.json(
         { success: false, error: 'Access denied: Article does not belong to current user' },
         { status: 403 }
@@ -396,7 +396,7 @@ export async function PUT(
     }
 
     // Verify article ownership
-    if (existingArticle[0]!.user_id !== userRecord.id) {
+    if (existingArticle[0]!.userId !== userRecord.id) {
       return NextResponse.json(
         { success: false, error: 'Access denied: Article does not belong to current user' },
         { status: 403 }
@@ -534,7 +534,7 @@ export async function DELETE(
     }
 
     // Verify article ownership
-    if (existingArticle[0]!.user_id !== userRecord.id) {
+    if (existingArticle[0]!.userId !== userRecord.id) {
       return NextResponse.json(
         { success: false, error: 'Access denied: Article does not belong to current user' },
         { status: 403 }

@@ -23,7 +23,7 @@ export const contentbotSchema = pgSchema("contentbot");
 
 export const users = contentbotSchema.table("users", {
   id: text("id").primaryKey(),
-  email: text("email").notNull(),
+  email: text("email").notNull().unique(),
   firstName: text("first_name"),
   lastName: text("last_name"),
   companyName: text("company_name"),

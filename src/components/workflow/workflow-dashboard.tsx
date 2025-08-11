@@ -204,7 +204,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       void fetchArticles();
       
       // Refresh credits since generation completed and credits were deducted
-      refreshCredits();
+      void refreshCredits();
     },
     [fetchArticles, articles, refreshCredits],
   );

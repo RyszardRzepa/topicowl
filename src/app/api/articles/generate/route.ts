@@ -75,7 +75,7 @@ async function validateAndSetupGeneration(
   }
 
   // Verify article ownership
-  if (existingArticle.user_id !== userRecord.id) {
+  if (existingArticle.userId !== userRecord.id) {
     throw new Error("Access denied: Article does not belong to current user");
   }
 

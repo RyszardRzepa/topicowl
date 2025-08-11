@@ -68,7 +68,7 @@ export async function POST(
       );
     }
 
-    if (existingArticle.user_id !== userRecord.id) {
+    if (existingArticle.userId !== userRecord.id) {
       return NextResponse.json(
         { success: false, error: "Access denied" } as RunNowResponse,
         { status: 403 }

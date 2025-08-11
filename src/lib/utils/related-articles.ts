@@ -16,10 +16,10 @@ async function fetchUserBlogSlugs(userId: string): Promise<string[]> {
     // Get user's sitemap URL from settings
     const [userSettings] = await db
       .select({
-        sitemap_url: articleSettings.sitemap_url,
+        sitemap_url: articleSettings.sitemapUrl,
       })
       .from(articleSettings)
-      .where(eq(articleSettings.user_id, userId))
+      .where(eq(articleSettings.userId, userId))
       .limit(1);
 
     if (!userSettings?.sitemap_url) {

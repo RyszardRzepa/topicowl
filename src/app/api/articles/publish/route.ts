@@ -9,7 +9,7 @@ import crypto from "crypto";
 // Type for article data
 type ArticleData = {
   id: number;
-  user_id: string | null;
+  userId: string | null;
   title: string;
   description: string | null;
   keywords: unknown;
@@ -52,16 +52,16 @@ async function sendWebhookAsync(
     // Get user webhook configuration
     const [userConfig] = await db
       .select({
-        webhook_url: users.webhook_url,
-        webhook_secret: users.webhook_secret,
-        webhook_enabled: users.webhook_enabled,
+        webhookUrl: users.webhookUrl,
+        webhookSecret: users.webhookSecret,
+        webhookEnabled: users.webhookEnabled,
       })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
 
     // Check if webhook is configured and enabled
-    if (!userConfig?.webhook_enabled || !userConfig.webhook_url) {
+    if (!userConfig?.webhookEnabled || !userConfig.webhookUrl) {
       return; // No webhook configured, skip
     }
 
@@ -112,9 +112,9 @@ async function sendWebhookAsync(
     };
 
     // Generate HMAC signature if secret is provided
-    if (userConfig.webhook_secret) {
+    if (userConfig.webhookSecret) {
       const signature = crypto
-        .createHmac("sha256", userConfig.webhook_secret)
+        .createHmac("sha256", userConfig.webhookSecret)
         .update(payloadString)
         .digest("hex");
       headers["X-Webhook-Signature"] = `sha256=${signature}`;
@@ -122,7 +122,7 @@ async function sendWebhookAsync(
 
     // Send webhook with simple fetch
     try {
-      const response = await fetch(userConfig.webhook_url, {
+      const response = await fetch(userConfig.webhookUrl, {
         method: "POST",
         headers,
         body: payloadString,
@@ -195,8 +195,8 @@ export async function POST(req: NextRequest) {
           publishedArticles.push(updatedArticle);
 
           // Send webhook directly if user has one configured
-          if (updatedArticle.user_id) {
-            void sendWebhookAsync(updatedArticle.user_id, updatedArticle).catch(
+          if (updatedArticle.userId) {
+            void sendWebhookAsync(updatedArticle.userId, updatedArticle).catch(
               (error: unknown) => {
                 console.error(
                   "Failed to send webhook for article",

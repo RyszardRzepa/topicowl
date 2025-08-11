@@ -45,7 +45,7 @@ export default async function ArticlePreviewPage({
     // Transform the database data to match the expected format
     article = {
       id: articleData.id,
-      user_id: articleData.user_id,
+      userId: articleData.userId,
       title: articleData.title,
       description: articleData.description,
       keywords: Array.isArray(articleData.keywords)
@@ -62,7 +62,7 @@ export default async function ArticlePreviewPage({
       slug: articleData.slug,
       metaDescription: articleData.metaDescription,
       metaKeywords: articleData.metaKeywords,
-      draft: generationData?.draftContent || articleData.draft, // Use generation draft content if available
+      draft: generationData?.draftContent ?? articleData.draft, // Use generation draft content if available
       content: articleData.content, // Final published content
       videos: articleData.videos, // YouTube video embeds
       factCheckReport: articleData.factCheckReport,
@@ -83,8 +83,8 @@ export default async function ArticlePreviewPage({
         : [],
       wordCount: articleData.content
         ? articleData.content.split(/\s+/).length
-        : (generationData?.draftContent || articleData.draft)
-          ? (generationData?.draftContent || articleData.draft)!.split(/\s+/).length
+        : (generationData?.draftContent ?? articleData.draft)
+          ? (generationData?.draftContent ?? articleData.draft)!.split(/\s+/).length
           : 0,
       // Optional extended fields
       seoAnalysis: articleData.seoScore

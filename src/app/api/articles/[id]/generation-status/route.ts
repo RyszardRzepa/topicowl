@@ -82,7 +82,7 @@ export async function GET(
     }
 
     // Verify article ownership
-    if (article.user_id !== userRecord.id) {
+    if (article.userId !== userRecord.id) {
       return NextResponse.json(
         {
           success: false,

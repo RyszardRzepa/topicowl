@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify article ownership
-    if (currentArticle.user_id !== userRecord.id) {
+    if (currentArticle.userId !== userRecord.id) {
       return NextResponse.json(
         { error: 'Access denied: Article does not belong to current user' },
         { status: 403 }

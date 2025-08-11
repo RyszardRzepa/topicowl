@@ -52,7 +52,7 @@ export function ArticlePreviewClient({
         status: "wait_for_publish",
       }));
       // Refresh credits since generation completed and credits were deducted
-      refreshCredits();
+      void refreshCredits();
     },
     onError: (error) => {
       setShowErrorMessage(`Generation status error: ${error}`);

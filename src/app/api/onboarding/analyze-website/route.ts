@@ -378,10 +378,10 @@ export async function POST(request: NextRequest): Promise<Response> {
           .update(users)
           .set({
             domain: aiAnalysis.domain,
-            company_name: aiAnalysis.companyName,
-            product_description: aiAnalysis.productDescription,
+            companyName: aiAnalysis.companyName,
+            productDescription: aiAnalysis.productDescription,
             keywords: aiAnalysis.suggestedKeywords,
-            onboarding_completed: true, // Complete onboarding in the same transaction
+            onboardingCompleted: true, // Complete onboarding in the same transaction
             updatedAt: new Date(),
           })
           .where(eq(users.id, userId));
@@ -393,7 +393,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         const [existingSettings] = await tx
           .select({ id: articleSettings.id })
           .from(articleSettings)
-          .where(eq(articleSettings.user_id, userRecord.id))
+          .where(eq(articleSettings.userId, userRecord.id))
           .limit(1);
 
         if (existingSettings) {
@@ -404,18 +404,18 @@ export async function POST(request: NextRequest): Promise<Response> {
               toneOfVoice: aiAnalysis.toneOfVoice,
               articleStructure: DEFAULT_ARTICLE_STRUCTURE,
               maxWords: aiAnalysis.contentStrategy.maxWords,
-              sitemap_url: sitemapUrl, // Store sitemap URL if found, null otherwise
+              sitemapUrl: sitemapUrl, // Store sitemap URL if found, null otherwise
               updatedAt: new Date(),
             })
-            .where(eq(articleSettings.user_id, userRecord.id));
+            .where(eq(articleSettings.userId, userRecord.id));
         } else {
           // Create new settings
           await tx.insert(articleSettings).values({
-            user_id: userRecord.id,
+            userId: userRecord.id,
             toneOfVoice: aiAnalysis.toneOfVoice,
             articleStructure: DEFAULT_ARTICLE_STRUCTURE,
             maxWords: aiAnalysis.contentStrategy.maxWords,
-            sitemap_url: sitemapUrl, // Store sitemap URL if found, null otherwise
+            sitemapUrl: sitemapUrl, // Store sitemap URL if found, null otherwise
           });
         }
       });

@@ -25,7 +25,7 @@ export function useCredits(): UseCreditsReturn {
         throw new Error("Failed to fetch credits");
       }
       
-      const data = await response.json();
+      const data = await response.json() as { credits: number };
       setCredits(data.credits);
     } catch (err) {
       console.error("Error fetching credits:", err);
@@ -36,7 +36,7 @@ export function useCredits(): UseCreditsReturn {
   }, []);
 
   useEffect(() => {
-    fetchCredits();
+    void fetchCredits();
   }, [fetchCredits]);
 
   return {

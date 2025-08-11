@@ -47,10 +47,10 @@ const removeFromQueueSchema = z.object({
 // Helper function to get next queue position
 async function getNextQueuePosition(userId: string): Promise<number> {
   const maxPositionResult = await db
-    .select({ maxPosition: max(generationQueue.queue_position) })
+    .select({ maxPosition: max(generationQueue.queuePosition) })
     .from(generationQueue)
     .where(and(
-      eq(generationQueue.user_id, userId),
+      eq(generationQueue.userId, userId),
       eq(generationQueue.status, "queued")
     ));
   
@@ -87,20 +87,20 @@ export async function GET(_req: NextRequest) {
     const queueItems = await db
       .select({
         id: generationQueue.id,
-        articleId: generationQueue.article_id,
+        articleId: generationQueue.articleId,
         title: articles.title,
-        addedToQueueAt: generationQueue.added_to_queue_at,
-        scheduledForDate: generationQueue.scheduled_for_date,
-        queuePosition: generationQueue.queue_position,
-        schedulingType: generationQueue.scheduling_type,
+        addedToQueueAt: generationQueue.addedToQueueAt,
+        scheduledForDate: generationQueue.scheduledForDate,
+        queuePosition: generationQueue.queuePosition,
+        schedulingType: generationQueue.schedulingType,
         status: generationQueue.status,
         attempts: generationQueue.attempts,
-        errorMessage: generationQueue.error_message,
+        errorMessage: generationQueue.errorMessage,
       })
       .from(generationQueue)
-      .innerJoin(articles, eq(generationQueue.article_id, articles.id))
-      .where(eq(generationQueue.user_id, userRecord.id))
-      .orderBy(generationQueue.queue_position, generationQueue.created_at);
+      .innerJoin(articles, eq(generationQueue.articleId, articles.id))
+      .where(eq(generationQueue.userId, userRecord.id))
+      .orderBy(generationQueue.queuePosition, generationQueue.createdAt);
 
     // Find currently processing item
     const currentlyProcessing = queueItems.find(item => item.status === "processing")?.articleId;
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (existingArticle.user_id !== userRecord.id) {
+    if (existingArticle.userId !== userRecord.id) {
       return NextResponse.json(
         { error: 'Access denied: Article does not belong to current user' },
         { status: 403 }
@@ -200,8 +200,8 @@ export async function POST(req: NextRequest) {
       .select()
       .from(generationQueue)
       .where(and(
-        eq(generationQueue.article_id, articleId),
-        eq(generationQueue.user_id, userRecord.id),
+        eq(generationQueue.articleId, articleId),
+        eq(generationQueue.userId, userRecord.id),
         eq(generationQueue.status, "queued")
       ))
       .limit(1);
@@ -220,11 +220,11 @@ export async function POST(req: NextRequest) {
     const [queueItem] = await db
       .insert(generationQueue)
       .values({
-        article_id: articleId,
-        user_id: userRecord.id,
-        scheduled_for_date: scheduledForDate ? new Date(scheduledForDate) : new Date(),
-        queue_position: queuePosition,
-        scheduling_type: 'manual', // Manual addition to queue
+        articleId: articleId,
+        userId: userRecord.id,
+        scheduledForDate: scheduledForDate ? new Date(scheduledForDate) : new Date(),
+        queuePosition: queuePosition,
+        schedulingType: 'manual', // Manual addition to queue
         status: 'queued',
       })
       .returning();
@@ -260,8 +260,8 @@ export async function POST(req: NextRequest) {
         articleId: updatedArticle.id,
         title: updatedArticle.title,
         status: updatedArticle.status,
-        queuePosition: queueItem.queue_position,
-        addedAt: queueItem.added_to_queue_at.toISOString(),
+        queuePosition: queueItem.queuePosition,
+        addedAt: queueItem.addedToQueueAt.toISOString(),
       },
       message: 'Article added to generation queue',
     });
@@ -323,10 +323,10 @@ export async function DELETE(req: NextRequest) {
     const [existingQueueItem] = await db
       .select({
         id: generationQueue.id,
-        articleId: generationQueue.article_id,
-        userId: generationQueue.user_id,
+        articleId: generationQueue.articleId,
+        userId: generationQueue.userId,
         status: generationQueue.status,
-        queuePosition: generationQueue.queue_position,
+        queuePosition: generationQueue.queuePosition,
       })
       .from(generationQueue)
       .where(eq(generationQueue.id, queueItemId))
@@ -386,17 +386,17 @@ export async function DELETE(req: NextRequest) {
       .select()
       .from(generationQueue)
       .where(and(
-        eq(generationQueue.user_id, userRecord.id),
+        eq(generationQueue.userId, userRecord.id),
         eq(generationQueue.status, "queued")
       ))
-      .orderBy(generationQueue.queue_position);
+      .orderBy(generationQueue.queuePosition);
 
     // Update positions to be sequential
     for (let i = 0; i < remainingItems.length; i++) {
       if (remainingItems[i]) {
         await db
           .update(generationQueue)
-          .set({ queue_position: i })
+          .set({ queuePosition: i })
           .where(eq(generationQueue.id, remainingItems[i]!.id));
       }
     }

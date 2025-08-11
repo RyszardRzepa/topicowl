@@ -37,7 +37,7 @@ export async function GET(): Promise<Response> {
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
-        onboarding_completed: users.onboarding_completed,
+        onboardingCompleted: users.onboardingCompleted,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -77,20 +77,20 @@ export async function GET(): Promise<Response> {
           email: primaryEmail,
           firstName: clerkUser.firstName,
           lastName: clerkUser.lastName,
-          onboarding_completed: false,
+          onboardingCompleted: false,
         }).returning({
           id: users.id,
           email: users.email,
           firstName: users.firstName,
           lastName: users.lastName,
-          onboarding_completed: users.onboarding_completed,
+          onboardingCompleted: users.onboardingCompleted,
         });
 
         const user = newUser[0]!;
         
         const response: OnboardingStatusResponse = {
           success: true,
-          onboarding_completed: user.onboarding_completed,
+          onboarding_completed: user.onboardingCompleted,
           user: {
             id: user.id,
             email: user.email,
@@ -119,7 +119,7 @@ export async function GET(): Promise<Response> {
     
     const response: OnboardingStatusResponse = {
       success: true,
-      onboarding_completed: user.onboarding_completed,
+      onboarding_completed: user.onboardingCompleted,
       user: {
         id: user.id,
         email: user.email,

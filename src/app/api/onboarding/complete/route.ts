@@ -34,7 +34,7 @@ export async function POST(_request: NextRequest): Promise<Response> {
     const [userRecord] = await db
       .select({ 
         id: users.id, 
-        onboarding_completed: users.onboarding_completed 
+        onboardingCompleted: users.onboardingCompleted 
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -49,7 +49,7 @@ export async function POST(_request: NextRequest): Promise<Response> {
     }
 
     // Check if onboarding is already completed
-    if (userRecord.onboarding_completed) {
+    if (userRecord.onboardingCompleted) {
       const response: CompleteOnboardingResponse = {
         success: true,
         data: {
@@ -60,13 +60,13 @@ export async function POST(_request: NextRequest): Promise<Response> {
       return Response.json(response);
     }
 
-    // Complete onboarding in a transaction
+        // Complete onboarding in a transaction
     await db.transaction(async (tx) => {
       // Mark onboarding as complete
       await tx
         .update(users)
         .set({
-          onboarding_completed: true,
+          onboardingCompleted: true,
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId));
@@ -75,17 +75,17 @@ export async function POST(_request: NextRequest): Promise<Response> {
       const [existingSettings] = await tx
         .select({ id: articleSettings.id })
         .from(articleSettings)
-        .where(eq(articleSettings.user_id, userRecord.id))
+        .where(eq(articleSettings.userId, userRecord.id))
         .limit(1);
 
       if (!existingSettings) {
         // Create default settings with empty excluded domains
         await tx.insert(articleSettings).values({
-          user_id: userRecord.id,
+          userId: userRecord.id,
           toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
           articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
           maxWords: 800,
-          excluded_domains: [],
+          excludedDomains: [],
         });
       }
     });

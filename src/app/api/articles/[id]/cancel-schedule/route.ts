@@ -79,7 +79,7 @@ export async function POST(
       );
     }
 
-    if (existingArticle.user_id !== userRecord.id) {
+    if (existingArticle.userId !== userRecord.id) {
       return NextResponse.json(
         { success: false, error: "Access denied" } as CancelScheduleResponse,
         { status: 403 },
@@ -120,7 +120,7 @@ export async function POST(
     // Clean up orphaned queue records for this article
     await db
       .delete(generationQueue)
-      .where(eq(generationQueue.article_id, articleId));
+      .where(eq(generationQueue.articleId, articleId));
 
     return NextResponse.json({
       success: true,

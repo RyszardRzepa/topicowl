@@ -87,10 +87,10 @@ export async function GET() {
     // Get user record with webhook settings
     const [userRecord] = await db
       .select({
-        webhook_url: users.webhook_url,
-        webhook_enabled: users.webhook_enabled,
-        webhook_events: users.webhook_events,
-        webhook_secret: users.webhook_secret,
+        webhookUrl: users.webhookUrl,
+        webhookEnabled: users.webhookEnabled,
+        webhookEvents: users.webhookEvents,
+        webhookSecret: users.webhookSecret,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -106,12 +106,12 @@ export async function GET() {
     const response: WebhookSettingsResponse = {
       success: true,
       data: {
-        webhookUrl: userRecord.webhook_url ?? undefined,
-        webhookEnabled: userRecord.webhook_enabled,
-        webhookEvents: Array.isArray(userRecord.webhook_events) 
-          ? userRecord.webhook_events as string[]
+        webhookUrl: userRecord.webhookUrl ?? undefined,
+        webhookEnabled: userRecord.webhookEnabled,
+        webhookEvents: Array.isArray(userRecord.webhookEvents) 
+          ? userRecord.webhookEvents as string[]
           : ['article.published'],
-        hasSecret: !!(userRecord.webhook_secret && userRecord.webhook_secret.length > 0),
+        hasSecret: !!(userRecord.webhookSecret && userRecord.webhookSecret.length > 0),
       },
     };
 
@@ -155,19 +155,19 @@ export async function POST(req: NextRequest) {
     const updateData: Partial<typeof users.$inferInsert> = {};
     
     if (validatedData.webhookUrl !== undefined) {
-      updateData.webhook_url = validatedData.webhookUrl.trim() || null;
+      updateData.webhookUrl = validatedData.webhookUrl.trim() || null;
     }
     
     if (validatedData.webhookSecret !== undefined) {
-      updateData.webhook_secret = validatedData.webhookSecret.trim() || null;
+      updateData.webhookSecret = validatedData.webhookSecret.trim() || null;
     }
     
     if (validatedData.webhookEnabled !== undefined) {
-      updateData.webhook_enabled = validatedData.webhookEnabled;
+      updateData.webhookEnabled = validatedData.webhookEnabled;
     }
     
     if (validatedData.webhookEvents !== undefined) {
-      updateData.webhook_events = validatedData.webhookEvents;
+      updateData.webhookEvents = validatedData.webhookEvents;
     }
 
     // Add timestamp
@@ -179,10 +179,10 @@ export async function POST(req: NextRequest) {
       .set(updateData)
       .where(eq(users.id, userId))
       .returning({
-        webhook_url: users.webhook_url,
-        webhook_enabled: users.webhook_enabled,
-        webhook_events: users.webhook_events,
-        webhook_secret: users.webhook_secret,
+        webhookUrl: users.webhookUrl,
+        webhookEnabled: users.webhookEnabled,
+        webhookEvents: users.webhookEvents,
+        webhookSecret: users.webhookSecret,
       });
 
     if (!updatedUser) {
@@ -195,12 +195,12 @@ export async function POST(req: NextRequest) {
     const response: WebhookSettingsResponse = {
       success: true,
       data: {
-        webhookUrl: updatedUser.webhook_url ?? undefined,
-        webhookEnabled: updatedUser.webhook_enabled,
-        webhookEvents: Array.isArray(updatedUser.webhook_events) 
-          ? updatedUser.webhook_events as string[]
+        webhookUrl: updatedUser.webhookUrl ?? undefined,
+        webhookEnabled: updatedUser.webhookEnabled,
+        webhookEvents: Array.isArray(updatedUser.webhookEvents) 
+          ? updatedUser.webhookEvents as string[]
           : ['article.published'],
-        hasSecret: !!(updatedUser.webhook_secret && updatedUser.webhook_secret.length > 0),
+        hasSecret: !!(updatedUser.webhookSecret && updatedUser.webhookSecret.length > 0),
       },
     };
 

@@ -90,13 +90,13 @@ export async function POST(request: Request) {
 
       if (userRecord) {
         const settings = await db
-          .select({ excluded_domains: articleSettings.excluded_domains })
+          .select({ excludedDomains: articleSettings.excludedDomains })
           .from(articleSettings)
-          .where(eq(articleSettings.user_id, userRecord.id))
+          .where(eq(articleSettings.userId, userRecord.id))
           .limit(1);
 
         excludedDomains =
-          settings.length > 0 ? settings[0]!.excluded_domains : [];
+          settings.length > 0 ? settings[0]!.excludedDomains : [];
 
         console.log(
           `[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,

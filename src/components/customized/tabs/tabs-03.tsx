@@ -27,7 +27,7 @@ const tabs = [
 
 export default function TabsSeparatedDemo() {
   return (
-    <Tabs defaultValue={tabs[0].value} className="max-w-xs w-full">
+    <Tabs defaultValue={tabs?.[0]?.value} className="max-w-xs w-full">
       <TabsList className="p-0 h-auto bg-background gap-1">
         {tabs.map((tab) => (
           <TabsTrigger

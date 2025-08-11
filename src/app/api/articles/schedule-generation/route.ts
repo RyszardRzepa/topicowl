@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (existingArticle.user_id !== userRecord.id) {
+    if (existingArticle.userId !== userRecord.id) {
       return NextResponse.json(
         {
           success: false,
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     // Clean up orphaned queue records for this article when rescheduling
     await db
       .delete(generationQueue)
-      .where(eq(generationQueue.article_id, articleId));
+      .where(eq(generationQueue.articleId, articleId));
 
     let generationRecord;
     if (existingRecord) {
