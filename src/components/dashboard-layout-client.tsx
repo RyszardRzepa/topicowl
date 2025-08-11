@@ -6,6 +6,7 @@ import { UserButton } from "@clerk/nextjs";
 import { Menu, X } from "lucide-react";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { SettingsDropdown } from "@/components/settings-dropdown";
+import { CreditBalance } from "@/components/dashboard/credit-balance";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
 
@@ -54,7 +55,8 @@ export function DashboardLayoutClient({
 
         {/* Bottom Section */}
         <div className="border-t border-stone-200 p-4">
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <CreditBalance />
             <SettingsDropdown />
           </div>
         </div>

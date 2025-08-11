@@ -7,6 +7,7 @@ import { ArticleSidebarEditor } from "./article-sidebar-editor";
 import { ContentEditorWithPreview } from "./content-editor-with-preview";
 import { GenerationProgress } from "./generation-progress";
 import { useGenerationPolling } from "@/hooks/use-generation-polling";
+import { useCreditContext } from "@/components/dashboard/credit-context";
 import { getArticleContent } from "@/lib/utils";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 
@@ -24,6 +25,7 @@ export function ArticlePreviewClient({
   );
   const [showErrorMessage, setShowErrorMessage] = useState<string | null>(null);
   const router = useRouter();
+  const { refreshCredits } = useCreditContext();
 
   // Use generation status polling for articles in "generating" status
   const { status: generationStatus } = useGenerationPolling({
@@ -49,6 +51,8 @@ export function ArticlePreviewClient({
         ...prev,
         status: "wait_for_publish",
       }));
+      // Refresh credits since generation completed and credits were deducted
+      refreshCredits();
     },
     onError: (error) => {
       setShowErrorMessage(`Generation status error: ${error}`);

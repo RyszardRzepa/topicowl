@@ -4,11 +4,14 @@ import { articles, articleGeneration, users, generationQueue } from "@/server/db
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
+import { hasCredits } from "@/lib/utils/credits";
 
 const scheduleGenerationSchema = z.object({
   articleId: z.number(),
   scheduledAt: z.string().datetime(),
 });
+
+
 
 // API types for this endpoint
 export interface ScheduleGenerationRequest {
@@ -109,6 +112,18 @@ export async function POST(req: NextRequest) {
           error: "Access denied: Article does not belong to current user",
         } as ScheduleGenerationResponse,
         { status: 403 },
+      );
+    }
+
+    // Check if user has credits before scheduling generation
+    const userHasCredits = await hasCredits(userRecord.id);
+    if (!userHasCredits) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Insufficient credits. You need at least 1 credit to schedule article generation.",
+        } as ScheduleGenerationResponse,
+        { status: 402 },
       );
     }
 

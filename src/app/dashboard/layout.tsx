@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
 import { OnboardingChecker } from "@/components/auth/onboarding-checker";
+import { CreditProvider } from "@/components/dashboard/credit-context";
 import { Toaster } from "@/components/ui/sonner";
 
 export default async function DashboardLayout({
@@ -17,7 +18,9 @@ export default async function DashboardLayout({
 
   return (
     <OnboardingChecker>
-      <DashboardLayoutClient>{children}</DashboardLayoutClient>
+      <CreditProvider>
+        <DashboardLayoutClient>{children}</DashboardLayoutClient>
+      </CreditProvider>
       <Toaster />
     </OnboardingChecker>
   );

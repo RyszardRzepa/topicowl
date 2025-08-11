@@ -10,6 +10,7 @@ import { PlanningHub } from "./planning-hub";
 import { ArticleGenerations } from "./article-generations";
 import { PublishingPipeline } from "./publishing-pipeline";
 import { useGenerationPolling } from "@/hooks/use-generation-polling";
+import { useCreditContext } from "@/components/dashboard/credit-context";
 import { toast } from "sonner";
 import type { Article, WorkflowPhase } from "@/types";
 import type {
@@ -41,6 +42,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { refreshCredits } = useCreditContext();
 
   // Function to update URL when tab changes
   const handleTabChange = (newTab: WorkflowPhase) => {
@@ -200,8 +202,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       
       // Refresh articles to get the updated status
       void fetchArticles();
+      
+      // Refresh credits since generation completed and credits were deducted
+      refreshCredits();
     },
-    [fetchArticles, articles],
+    [fetchArticles, articles, refreshCredits],
   );
 
   const handleGenerationError = useCallback(

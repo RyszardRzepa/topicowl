@@ -6,6 +6,7 @@ import {
   articleGeneration,
 } from "@/server/db/schema";
 import { eq, and, lte, max } from "drizzle-orm";
+import { hasCredits } from "@/lib/utils/credits";
 
 // Types colocated with this API route
 export interface CronGenerateArticlesResponse {
@@ -69,6 +70,35 @@ async function processArticleGeneration(queueItem: {
   max_attempts?: number;
 }): Promise<boolean> {
   try {
+    // Check if user has credits before processing
+    const userHasCredits = await hasCredits(queueItem.user_id);
+    if (!userHasCredits) {
+      console.log(
+        `User ${queueItem.user_id} has no credits, skipping queue item ${queueItem.id}`,
+      );
+
+      // Update queue item as failed due to insufficient credits
+      await db
+        .update(generationQueue)
+        .set({
+          status: "failed",
+          error_message: "Insufficient credits to process article generation",
+          updated_at: new Date(),
+        })
+        .where(eq(generationQueue.id, queueItem.id));
+
+      // Update article status back to idea
+      await db
+        .update(articles)
+        .set({
+          status: "idea",
+          updatedAt: new Date(),
+        })
+        .where(eq(articles.id, queueItem.article_id));
+
+      return false;
+    }
+
     // Update queue item status to processing
     await db
       .update(generationQueue)
@@ -201,7 +231,7 @@ export async function POST() {
     console.log("Phase 1: Processing scheduled articles...");
 
     const now = new Date();
-    
+
     // Find articles that are scheduled for generation via articleGeneration table
     const scheduledArticles = await db
       .select({
@@ -213,7 +243,10 @@ export async function POST() {
         scheduledAt: articleGeneration.scheduledAt,
       })
       .from(articles)
-      .innerJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
+      .innerJoin(
+        articleGeneration,
+        eq(articles.id, articleGeneration.articleId),
+      )
       .where(
         and(
           eq(articles.status, "to_generate"),
@@ -228,6 +261,37 @@ export async function POST() {
 
     for (const article of scheduledArticles) {
       try {
+        // Check if user has credits before adding to queue
+        const userHasCredits = await hasCredits(article.user_id!);
+        if (!userHasCredits) {
+          console.log(
+            `User ${article.user_id} has no credits, skipping article ${article.id}`,
+          );
+
+          // Update article status back to idea and generation record to failed
+          await db
+            .update(articles)
+            .set({
+              status: "idea",
+              updatedAt: new Date(),
+            })
+            .where(eq(articles.id, article.id));
+
+          await db
+            .update(articleGeneration)
+            .set({
+              status: "failed",
+              error: "Insufficient credits to process article generation",
+              updatedAt: new Date(),
+            })
+            .where(eq(articleGeneration.id, article.generationId));
+
+          const errorMsg = `Skipped article ${article.id} - user has no credits`;
+          console.log(errorMsg);
+          errors.push(errorMsg);
+          continue;
+        }
+
         // Get next queue position for this user
         const queuePosition = await getNextQueuePosition(article.user_id!);
 

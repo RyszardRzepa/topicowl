@@ -10,6 +10,7 @@ import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
 import { articles, articleGeneration, users } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { getUserCredits, hasCredits, deductCredit } from "@/lib/utils/credits";
 import type { ResearchResponse } from "@/app/api/articles/research/route";
 import type { WriteResponse } from "@/app/api/articles/write/route";
 import type { ValidateResponse } from "@/app/api/articles/validate/route";
@@ -47,6 +48,14 @@ async function validateAndSetupGeneration(
 
   if (!userRecord) {
     throw new Error("User not found");
+  }
+
+  // Check if user has credits before starting generation
+  const userHasCredits = await hasCredits(userRecord.id);
+  if (!userHasCredits) {
+    throw new Error(
+      "Insufficient credits. You need at least 1 credit to generate an article.",
+    );
   }
 
   if (!articleId || isNaN(parseInt(articleId))) {
@@ -674,6 +683,7 @@ async function finalizeArticle(
   coverImageUrl: string,
   coverImageAlt: string,
   generationId: number,
+  userId: string,
   videos?: VideoEmbed[], // Add videos parameter
 ): Promise<void> {
   const updateData: {
@@ -738,6 +748,17 @@ async function finalizeArticle(
       updatedAt: new Date(),
     })
     .where(eq(articleGeneration.id, generationId));
+
+  // Deduct 1 credit from user after successful generation
+  const creditDeducted = await deductCredit(userId);
+  if (!creditDeducted) {
+    console.error("Failed to deduct credit after successful generation", {
+      userId,
+      articleId,
+    });
+  } else {
+    console.log("Credit deducted successfully", { userId, articleId });
+  }
 }
 
 async function handleGenerationError(
@@ -975,6 +996,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       coverImageUrl,
       coverImageAlt,
       generationRecord.id,
+      userId,
       researchData.videos, // Pass videos to finalize function
     );
 
@@ -1059,6 +1081,8 @@ export async function POST(req: NextRequest) {
       status = 403;
     } else if (errorMessage.includes("already in progress")) {
       status = 409;
+    } else if (errorMessage.includes("Insufficient credits")) {
+      status = 402;
     }
 
     return NextResponse.json(

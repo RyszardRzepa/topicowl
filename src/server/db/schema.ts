@@ -57,7 +57,20 @@ export const users = contentbotSchema.table("users", {
     .notNull(),
 });
 
-// Article status enum for kanban workflow
+// User credits table for tracking article generation credits
+export const userCredits = contentbotSchema.table("user_credits", {
+  id: text("id").primaryKey().default(generatePublicId()),
+  userId: text("user_id").notNull().unique(),
+  amount: integer("amount").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
+// Article status enum for kan
 export const articleStatusEnum = pgEnum("article_status", [
   "idea",
   "scheduled",
@@ -178,9 +191,12 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
   qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
   seoReport: jsonb("seo_report").default({}).notNull(),
   writePrompt: text("write_prompt"), // Store the AI prompt used for writing
-  
+
   // Related articles
-  relatedArticles: jsonb("related_articles").default([]).notNull().$type<string[]>(),
+  relatedArticles: jsonb("related_articles")
+    .default([])
+    .notNull()
+    .$type<string[]>(),
 
   // Image selection tracking
   selectedImageId: text("selected_image_id"),
@@ -212,16 +228,16 @@ export const articleSettings = contentbotSchema.table("article_settings", {
   toneOfVoice: text("tone_of_voice"),
   articleStructure: text("article_structure"),
   maxWords: integer("max_words").default(800),
-  
+
   // Competitor domain exclusion
   excluded_domains: jsonb("excluded_domains")
     .default([])
     .notNull()
     .$type<string[]>(),
-    
+
   // Sitemap functionality
   sitemap_url: text("sitemap_url"), // User's website sitemap URL (e.g., https://example.com/sitemap.xml)
-    
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
