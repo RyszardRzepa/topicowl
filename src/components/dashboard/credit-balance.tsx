@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
-import { Coins, Loader2, Plus } from "lucide-react";
+import { Coins, Loader2, Plus, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCreditContext } from "@/components/dashboard/credit-context";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CreditBalanceProps {
   className?: string;
@@ -73,6 +79,16 @@ export function CreditBalance({ className }: CreditBalanceProps) {
           >
             {credits}
           </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">Credits are shared across all your projects</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <Button
           size="sm"

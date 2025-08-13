@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, users, articleGeneration } from "@/server/db/schema";
+import { articles, articleGeneration, projects } from "@/server/db/schema";
 import { eq, and, lte } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
 import crypto from "crypto";
@@ -49,19 +49,20 @@ async function sendWebhookAsync(
   article: ArticleData,
 ): Promise<void> {
   try {
-    // Get user webhook configuration
-    const [userConfig] = await db
+    // Get project webhook configuration through the article's project
+    const [projectConfig] = await db
       .select({
-        webhookUrl: users.webhookUrl,
-        webhookSecret: users.webhookSecret,
-        webhookEnabled: users.webhookEnabled,
+        webhookUrl: projects.webhookUrl,
+        webhookSecret: projects.webhookSecret,
+        webhookEnabled: projects.webhookEnabled,
       })
-      .from(users)
-      .where(eq(users.id, userId))
+      .from(projects)
+      .innerJoin(articles, eq(articles.projectId, projects.id))
+      .where(eq(articles.id, article.id))
       .limit(1);
 
     // Check if webhook is configured and enabled
-    if (!userConfig?.webhookEnabled || !userConfig.webhookUrl) {
+    if (!projectConfig?.webhookEnabled || !projectConfig.webhookUrl) {
       return; // No webhook configured, skip
     }
 
@@ -112,9 +113,9 @@ async function sendWebhookAsync(
     };
 
     // Generate HMAC signature if secret is provided
-    if (userConfig.webhookSecret) {
+    if (projectConfig.webhookSecret) {
       const signature = crypto
-        .createHmac("sha256", userConfig.webhookSecret)
+        .createHmac("sha256", projectConfig.webhookSecret)
         .update(payloadString)
         .digest("hex");
       headers["X-Webhook-Signature"] = `sha256=${signature}`;
@@ -122,7 +123,7 @@ async function sendWebhookAsync(
 
     // Send webhook with simple fetch
     try {
-      const response = await fetch(userConfig.webhookUrl, {
+      const response = await fetch(projectConfig.webhookUrl, {
         method: "POST",
         headers,
         body: payloadString,

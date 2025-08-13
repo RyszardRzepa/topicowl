@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExcludedDomainsField } from './excluded-domains-field';
-import type { ArticleSettingsRequest, ArticleSettingsResponse } from '@/app/api/settings/route';
+import { useProject } from '@/contexts/project-context';
+import type { ProjectSettingsRequest, ProjectSettingsResponse } from '@/app/api/settings/route';
 import type { FetchSitemapResponse } from '@/app/api/sitemaps/fetch/route';
 
 // Form-specific type for component state
@@ -25,11 +26,12 @@ interface ArticleSettingsForm {
 }
 
 interface ArticleSettingsFormProps {
-  initialSettings: ArticleSettingsResponse;
-  onSettingsUpdate: (settings: ArticleSettingsResponse) => void;
+  initialSettings: ProjectSettingsResponse;
+  onSettingsUpdate: (settings: ProjectSettingsResponse) => void;
 }
 
 export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: ArticleSettingsFormProps) {
+  const { currentProject } = useProject();
   const [formData, setFormData] = useState<ArticleSettingsForm>({
     // Article generation settings
     toneOfVoice: initialSettings.toneOfVoice ?? 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
@@ -41,9 +43,10 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
     companyName: initialSettings.companyName ?? '',
     productDescription: initialSettings.productDescription ?? '',
     keywords: initialSettings.keywords ?? [],
-    industryCategory: initialSettings.industryCategory ?? 'business',
-    targetAudience: initialSettings.targetAudience ?? '',
-    publishingFrequency: initialSettings.publishingFrequency ?? 'weekly',
+    // Set default values for properties not in API
+    industryCategory: 'business',
+    targetAudience: '',
+    publishingFrequency: 'weekly',
   });
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -68,17 +71,38 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
   };
 
   const handleSave = async () => {
+    if (!currentProject) {
+      setSaveMessage('Please select a project first');
+      setTimeout(() => setSaveMessage(null), 5000);
+      return;
+    }
+
     try {
       setSaving(true);
       setSaveMessage(null);
       setIsLoading(true);
       
+      // Create request payload with project context
+      const requestData: ProjectSettingsRequest = {
+        projectId: currentProject.id,
+        // Article generation settings
+        toneOfVoice: formData.toneOfVoice,
+        articleStructure: formData.articleStructure,
+        maxWords: formData.maxWords,
+        excludedDomains: formData.excluded_domains,
+        sitemapUrl: formData.sitemap_url || undefined,
+        // Company/business settings
+        companyName: formData.companyName || undefined,
+        productDescription: formData.productDescription || undefined,
+        keywords: formData.keywords,
+      };
+      
       const response = await fetch('/api/settings', {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData as ArticleSettingsRequest),
+        body: JSON.stringify(requestData),
       });
 
       if (!response.ok) {
@@ -92,7 +116,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         throw new Error(errorData.error ?? 'Failed to save settings');
       }
 
-      const updatedSettings = await response.json() as ArticleSettingsResponse;
+      const updatedSettings = await response.json() as ProjectSettingsResponse;
       onSettingsUpdate(updatedSettings);
       setSaveMessage('Settings saved successfully! Your excluded domains will be applied to future article generation.');
       
@@ -154,13 +178,20 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
   };
 
   const handleReset = async () => {
+    if (!currentProject) {
+      setSaveMessage('Please select a project first');
+      setTimeout(() => setSaveMessage(null), 5000);
+      return;
+    }
+
     try {
       setSaving(true);
       setSaveMessage(null);
       setIsLoading(true);
       
-      // Reset to default settings by posting defaults
-      const defaultSettings: ArticleSettingsRequest = {
+      // Reset to default settings
+      const defaultSettings: ProjectSettingsRequest = {
+        projectId: currentProject.id,
         toneOfVoice: 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
         articleStructure: 'Introduction • Main points with subheadings • Practical tips • Conclusion',
         maxWords: 800,
@@ -169,13 +200,10 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         companyName: '',
         productDescription: '',
         keywords: [],
-        industryCategory: 'business',
-        targetAudience: '',
-        publishingFrequency: 'weekly',
       };
 
       const response = await fetch('/api/settings', {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -187,7 +215,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         throw new Error(errorData.error ?? 'Failed to reset settings');
       }
 
-      const settings = await response.json() as ArticleSettingsResponse;
+      const settings = await response.json() as ProjectSettingsResponse;
       setFormData({
         toneOfVoice: settings.toneOfVoice ?? 'professional',
         articleStructure: settings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
@@ -197,9 +225,10 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
         companyName: settings.companyName ?? '',
         productDescription: settings.productDescription ?? '',
         keywords: settings.keywords ?? [],
-        industryCategory: settings.industryCategory ?? 'business',
-        targetAudience: settings.targetAudience ?? '',
-        publishingFrequency: settings.publishingFrequency ?? 'weekly',
+        // Default values for properties not in API
+        industryCategory: 'business',
+        targetAudience: '',
+        publishingFrequency: 'weekly',
       });
       onSettingsUpdate(settings);
       setSaveMessage('Settings reset to defaults! All excluded domains have been cleared.');

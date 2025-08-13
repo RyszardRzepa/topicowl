@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { articles, generationQueue, users } from "@/server/db/schema";
-import { eq, and, max, desc } from "drizzle-orm";
+import { eq, and, max } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
 
@@ -38,10 +38,6 @@ export interface RemoveFromQueueRequest {
 const addToQueueSchema = z.object({
   articleId: z.number(),
   scheduledForDate: z.string().datetime().optional(),
-});
-
-const removeFromQueueSchema = z.object({
-  queueItemId: z.number(),
 });
 
 // Helper function to get next queue position
@@ -168,7 +164,14 @@ export async function POST(req: NextRequest) {
 
     // Check if article exists and belongs to user
     const [existingArticle] = await db
-      .select()
+      .select({
+        id: articles.id,
+        userId: articles.userId,
+        projectId: articles.projectId,
+        title: articles.title,
+        keywords: articles.keywords,
+        status: articles.status,
+      })
       .from(articles)
       .where(eq(articles.id, articleId))
       .limit(1);
@@ -222,6 +225,7 @@ export async function POST(req: NextRequest) {
       .values({
         articleId: articleId,
         userId: userRecord.id,
+        projectId: existingArticle.projectId,
         scheduledForDate: scheduledForDate ? new Date(scheduledForDate) : new Date(),
         queuePosition: queuePosition,
         schedulingType: 'manual', // Manual addition to queue

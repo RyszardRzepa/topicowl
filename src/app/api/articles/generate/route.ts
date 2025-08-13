@@ -126,10 +126,23 @@ async function validateAndSetupGeneration(
 }
 
 // Generation phase functions
-async function createOrReuseGenerationRecord(
+async function createOrResetArticleGeneration(
   articleId: number,
   userId: string,
 ): Promise<typeof articleGeneration.$inferSelect> {
+  // Get article details including projectId
+  const [article] = await db
+    .select({
+      projectId: articles.projectId,
+    })
+    .from(articles)
+    .where(eq(articles.id, articleId))
+    .limit(1);
+
+  if (!article) {
+    throw new Error(`Article ${articleId} not found`);
+  }
+
   // First, check if there's an existing generation record for this article
   const [existingRecord] = await db
     .select()
@@ -180,6 +193,7 @@ async function createOrReuseGenerationRecord(
     .values({
       articleId,
       userId,
+      projectId: article.projectId,
       status: "pending",
       progress: 0,
       startedAt: new Date(),

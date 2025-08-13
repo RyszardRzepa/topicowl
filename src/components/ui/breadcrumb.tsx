@@ -9,6 +9,7 @@ interface BreadcrumbItem {
   label: string;
   href?: string;
   current?: boolean;
+  icon?: string;
 }
 
 interface BreadcrumbProps {
@@ -28,7 +29,7 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
             {item.current || !item.href ? (
               <span
                 className={cn(
-                  "font-medium truncate max-w-[200px] sm:max-w-[300px]",
+                  "font-medium truncate max-w-[200px] sm:max-w-[300px] flex items-center gap-1",
                   item.current
                     ? "text-stone-900"
                     : "text-stone-600"
@@ -36,14 +37,16 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
                 aria-current={item.current ? "page" : undefined}
                 title={item.label}
               >
+                {item.icon && <span className="text-xs">{item.icon}</span>}
                 {item.label}
               </span>
             ) : (
               <Link
                 href={item.href}
-                className="text-stone-600 hover:text-stone-900 transition-colors truncate max-w-[200px] sm:max-w-[300px]"
+                className="text-stone-600 hover:text-stone-900 transition-colors truncate max-w-[200px] sm:max-w-[300px] flex items-center gap-1"
                 title={item.label}
               >
+                {item.icon && <span className="text-xs">{item.icon}</span>}
                 {item.label}
               </Link>
             )}

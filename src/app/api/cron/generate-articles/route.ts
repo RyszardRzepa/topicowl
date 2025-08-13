@@ -72,6 +72,19 @@ async function processArticleGeneration(queueItem: {
       return false;
     }
 
+    // Get article projectId for generation record
+    const [article] = await db
+      .select({
+        projectId: articles.projectId,
+      })
+      .from(articles)
+      .where(eq(articles.id, queueItem.articleId))
+      .limit(1);
+
+    if (!article) {
+      throw new Error(`Article ${queueItem.articleId} not found`);
+    }
+
     // Update queue item status to processing
     await db
       .update(generationQueue)
@@ -102,6 +115,7 @@ async function processArticleGeneration(queueItem: {
       await db.insert(articleGeneration).values({
         articleId: queueItem.articleId,
         userId: queueItem.userId,
+        projectId: article.projectId,
         status: "pending",
         progress: 0,
         startedAt: new Date(),
@@ -210,6 +224,7 @@ export async function POST() {
       .select({
         id: articles.id,
         user_id: articles.userId,
+        project_id: articles.projectId,
         title: articles.title,
         status: articles.status,
         generationId: articleGeneration.id,
@@ -272,6 +287,7 @@ export async function POST() {
         await db.insert(generationQueue).values({
           articleId: article.id,
           userId: article.user_id!,
+          projectId: article.project_id,
           scheduledForDate: article.scheduledAt,
           queuePosition: queuePosition,
           schedulingType: "manual", // Since automatic scheduling was removed

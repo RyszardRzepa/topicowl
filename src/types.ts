@@ -2,6 +2,7 @@
 // API-specific request/response types are colocated with their routes
 
 import { z } from "zod";
+import type { projects } from "@/server/db/schema";
 import type { articleStatusEnum } from "@/server/db/schema";
 
 // OpenGraph metadata schema
@@ -73,12 +74,18 @@ export interface ArticleWorkflowStatus {
   isActive: boolean; // currently being processed
 }
 
+// Project types - inferred from database schema
+// Use Drizzle's type inference for consistency with database schema
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+
 // Article types - core domain entity
 export interface Article {
   id: string;
   title: string;
   content?: string;
   status: ArticleStatus;
+  projectId: number; // Required project association
   keywords?: string[];
   targetWordCount?: number;
   publishDate?: string;
@@ -108,6 +115,7 @@ export interface Article {
 // Settings types - domain entity for application configuration
 export interface ArticleSettings {
   id: string;
+  projectId: number; // Required project association
   name: string;
   defaultWordCount: number;
   tone: 'professional' | 'casual' | 'authoritative' | 'friendly';

@@ -11,6 +11,7 @@ import { ArticleGenerations } from "./article-generations";
 import { PublishingPipeline } from "./publishing-pipeline";
 import { useGenerationPolling } from "@/hooks/use-generation-polling";
 import { useCreditContext } from "@/components/dashboard/credit-context";
+import { useCurrentProjectId } from "@/contexts/project-context";
 import { toast } from "sonner";
 import type { Article, WorkflowPhase } from "@/types";
 import type {
@@ -28,6 +29,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const currentProjectId = useCurrentProjectId();
 
   // Get active tab from URL search params, fallback to 'planning'
   const getValidTab = (tab: string | null): WorkflowPhase => {
@@ -65,12 +67,14 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     // Auto-correct status for completed generations that should be in publishing pipeline
     let correctedStatus = dbArticle.status;
     if (
-      dbArticle.generationStatus === 'completed' &&
+      dbArticle.generationStatus === "completed" &&
       dbArticle.generationProgress === 100 &&
-      (dbArticle.status === 'scheduled' || dbArticle.status === 'generating')
+      (dbArticle.status === "scheduled" || dbArticle.status === "generating")
     ) {
-      correctedStatus = 'wait_for_publish';
-      console.log(`Auto-correcting article ${dbArticle.id} status from ${dbArticle.status} to wait_for_publish`);
+      correctedStatus = "wait_for_publish";
+      console.log(
+        `Auto-correcting article ${dbArticle.id} status from ${dbArticle.status} to wait_for_publish`,
+      );
     }
 
     return {
@@ -90,13 +94,21 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         dbArticle.updatedAt instanceof Date
           ? dbArticle.updatedAt.toISOString()
           : dbArticle.updatedAt,
-      generationProgress: typeof dbArticle.generationProgress === 'number' ? dbArticle.generationProgress : 0,
+      generationProgress:
+        typeof dbArticle.generationProgress === "number"
+          ? dbArticle.generationProgress
+          : 0,
       // Map generation status to phase for UI display
-      generationPhase: dbArticle.generationStatus === 'researching' ? 'research' :
-                      dbArticle.generationStatus === 'writing' ? 'writing' :
-                      dbArticle.generationStatus === 'validating' ? 'validation' :
-                      dbArticle.generationStatus === 'updating' ? 'optimization' :
-                      undefined,
+      generationPhase:
+        dbArticle.generationStatus === "researching"
+          ? "research"
+          : dbArticle.generationStatus === "writing"
+            ? "writing"
+            : dbArticle.generationStatus === "validating"
+              ? "validation"
+              : dbArticle.generationStatus === "updating"
+                ? "optimization"
+                : undefined,
       generationError: dbArticle.generationError ?? undefined,
       estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
       views: 0, // Not tracked in database yet
@@ -126,9 +138,17 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   // Fetch articles from API
   const fetchArticles = useCallback(async () => {
+    if (!currentProjectId) {
+      console.log("No current project ID, skipping article fetch");
+      setArticles([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const response = await fetch("/api/articles/board");
+      const url = `/api/articles/board?projectId=${currentProjectId}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch articles");
       }
@@ -159,7 +179,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentProjectId]);
 
   // Get currently generating articles
   const generatingArticles = articles.filter(
@@ -194,15 +214,17 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   const handleGenerationComplete = useCallback(
     (articleId: string) => {
-      const article = articles.find(a => a.id === articleId);
-      
+      const article = articles.find((a) => a.id === articleId);
+
       toast.success("Article generation completed!", {
-        description: article ? `"${article.title}" is ready for publishing.` : "Your article is ready for publishing.",
+        description: article
+          ? `"${article.title}" is ready for publishing.`
+          : "Your article is ready for publishing.",
       });
-      
+
       // Refresh articles to get the updated status
       void fetchArticles();
-      
+
       // Refresh credits since generation completed and credits were deducted
       void refreshCredits();
     },
@@ -211,12 +233,14 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
   const handleGenerationError = useCallback(
     (articleId: string, error: string) => {
-      const article = articles.find(a => a.id === articleId);
-      
+      const article = articles.find((a) => a.id === articleId);
+
       toast.error("Article generation failed", {
-        description: article ? `"${article.title}" failed to generate: ${error}` : `Generation failed: ${error}`,
+        description: article
+          ? `"${article.title}" failed to generate: ${error}`
+          : `Generation failed: ${error}`,
       });
-      
+
       setArticles((prevArticles) =>
         prevArticles.map((article) =>
           article.id === articleId
@@ -234,26 +258,30 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   // Use polling for the first generating article as an example
   // In a real implementation, you'd need a more sophisticated approach for multiple articles
   const firstGeneratingArticle = generatingArticles[0];
-  
+
   // Don't poll if user is on an article page (to avoid duplicate polling)
-  const isOnArticlePage = pathname.startsWith('/articles/') || pathname.startsWith('/dashboard/articles/');
-  
+  const isOnArticlePage =
+    pathname.startsWith("/articles/") ||
+    pathname.startsWith("/dashboard/articles/");
+
   useGenerationPolling({
     articleId: firstGeneratingArticle?.id ?? "",
     enabled:
-      !!firstGeneratingArticle && 
+      !!firstGeneratingArticle &&
       !firstGeneratingArticle.generationError &&
       !isOnArticlePage, // Disable if on article page
     intervalMs: 45000, // Poll less frequently from dashboard (45 seconds)
     onStatusUpdate: (statusData) =>
-      handleGenerationStatusUpdate(
-        firstGeneratingArticle?.id ?? "",
-        {
-          progress: statusData.progress,
-          phase: statusData.phase as "research" | "writing" | "validation" | "optimization" | undefined,
-          error: statusData.error,
-        },
-      ),
+      handleGenerationStatusUpdate(firstGeneratingArticle?.id ?? "", {
+        progress: statusData.progress,
+        phase: statusData.phase as
+          | "research"
+          | "writing"
+          | "validation"
+          | "optimization"
+          | undefined,
+        error: statusData.error,
+      }),
     onComplete: () =>
       handleGenerationComplete(firstGeneratingArticle?.id ?? ""),
     onError: (error) =>
@@ -309,16 +337,27 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     targetAudience?: string;
     notes?: string;
   }) => {
+    if (!currentProjectId) {
+      toast.error("No project selected", {
+        description: "Please select a project first.",
+      });
+      return;
+    }
+
     try {
       const response = await fetch("/api/articles", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-project-id": currentProjectId.toString(),
+        },
         body: JSON.stringify({
           title: data.title,
           description: data.description,
           keywords: data.keywords ?? [],
           targetAudience: data.targetAudience,
           notes: data.notes,
+          projectId: currentProjectId,
         }),
       });
 
@@ -343,10 +382,20 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     articleId: string,
     updates: Partial<Article>,
   ) => {
+    if (!currentProjectId) {
+      toast.error("No project selected", {
+        description: "Please select a project first.",
+      });
+      return;
+    }
+
     try {
       const response = await fetch(`/api/articles/${articleId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-project-id": currentProjectId.toString(),
+        },
         body: JSON.stringify(updates),
       });
 
@@ -360,7 +409,6 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           article.id === articleId ? { ...article, ...updates } : article,
         ),
       );
-      
     } catch (error) {
       console.error("Failed to update article:", error);
       toast.error("Failed to update article", {
@@ -372,10 +420,18 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   };
 
   const handleDeleteArticle = async (articleId: string) => {
+    if (!currentProjectId) {
+      toast.error("No project selected", {
+        description: "Please select a project first.",
+      });
+      return;
+    }
+
     try {
-      const articleToDelete = articles.find(a => a.id === articleId);
+      const articleToDelete = articles.find((a) => a.id === articleId);
       const response = await fetch(`/api/articles/${articleId}`, {
         method: "DELETE",
+
       });
 
       if (!response.ok) {
@@ -384,9 +440,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
 
       // Optimistic update
       setArticles((prev) => prev.filter((article) => article.id !== articleId));
-      
+
       toast.success("Article deleted successfully!", {
-        description: articleToDelete ? `"${articleToDelete.title}" has been removed.` : undefined,
+        description: articleToDelete
+          ? `"${articleToDelete.title}" has been removed.`
+          : undefined,
       });
     } catch (error) {
       console.error("Failed to delete article:", error);
@@ -399,11 +457,21 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   };
 
   const handleGenerateArticle = async (articleId: string) => {
+    if (!currentProjectId) {
+      toast.error("No project selected", {
+        description: "Please select a project first.",
+      });
+      return;
+    }
+
     try {
-      const article = articles.find(a => a.id === articleId);
+      const article = articles.find((a) => a.id === articleId);
       const response = await fetch("/api/articles/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-project-id": currentProjectId.toString(),
+        },
         body: JSON.stringify({ articleId }),
       });
 
@@ -419,9 +487,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
             : article,
         ),
       );
-      
+
       toast.success("Article generation started!", {
-        description: article ? `Generating "${article.title}"...` : "Your article is being generated.",
+        description: article
+          ? `Generating "${article.title}"...`
+          : "Your article is being generated.",
       });
     } catch (error) {
       console.error("Failed to generate article:", error);
@@ -436,18 +506,28 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     articleId: string,
     scheduledAt: Date,
   ) => {
+    if (!currentProjectId) {
+      toast.error("No project selected", {
+        description: "Please select a project first.",
+      });
+      return;
+    }
+
     try {
-      const article = articles.find(a => a.id === articleId);
+      const article = articles.find((a) => a.id === articleId);
       const response = await fetch("/api/articles/schedule-generation", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-project-id": currentProjectId.toString(),
+        },
         body: JSON.stringify({
           articleId: parseInt(articleId),
           scheduledAt: scheduledAt.toISOString(),
         }),
       });
 
-      const result = await response.json() as ScheduleGenerationResponse;
+      const result = (await response.json()) as ScheduleGenerationResponse;
 
       if (!response.ok || !result.success) {
         throw new Error(result.error ?? "Failed to schedule generation");
@@ -468,16 +548,16 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         );
         return updated;
       });
-      
-      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
+
+      const formattedDate = scheduledAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       });
-      
+
       toast.success("Generation scheduled successfully!", {
-        description: article 
+        description: article
           ? `"${article.title}" will be generated on ${formattedDate}.`
           : `Article will be generated on ${formattedDate}.`,
       });
@@ -491,14 +571,22 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   };
 
   const handlePublishArticle = async (articleId: string) => {
+    if (!currentProjectId) {
+      toast.error("No project selected", {
+        description: "Please select a project first.",
+      });
+      return;
+    }
+
     try {
-      const article = articles.find(a => a.id === articleId);
-      
+      const article = articles.find((a) => a.id === articleId);
+
       // Call the dedicated publish API endpoint
       const response = await fetch("/api/articles/publish", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-project-id": currentProjectId.toString(),
         },
         body: JSON.stringify({
           articleId: articleId,
@@ -506,10 +594,10 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json() as { error?: string };
+        const errorData = (await response.json()) as { error?: string };
         throw new Error(errorData.error ?? "Failed to publish article");
       }
-      
+
       // Optimistic update - the publish API handles database updates
       setArticles((prev) =>
         prev.map((a) =>
@@ -523,9 +611,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
             : a,
         ),
       );
-      
+
       toast.success("Article published successfully!", {
-        description: article ? `"${article.title}" is now live.` : "Your article is now live.",
+        description: article
+          ? `"${article.title}" is now live.`
+          : "Your article is now live.",
       });
     } catch (error) {
       console.error("Failed to publish article:", error);
@@ -542,14 +632,22 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     articleId: string,
     scheduledAt: Date,
   ) => {
+    if (!currentProjectId) {
+      toast.error("No project selected", {
+        description: "Please select a project first.",
+      });
+      return;
+    }
+
     try {
-      const article = articles.find(a => a.id === articleId);
-      
+      const article = articles.find((a) => a.id === articleId);
+
       // Use the new dedicated publishing endpoint
       const response = await fetch("/api/articles/schedule-publishing", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-project-id": currentProjectId.toString(),
         },
         body: JSON.stringify({
           articleId: parseInt(articleId),
@@ -557,14 +655,17 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         }),
       });
 
-      const result = await response.json() as SchedulePublishingResponse | { error: string };
+      const result = (await response.json()) as
+        | SchedulePublishingResponse
+        | { error: string };
 
       if (!response.ok) {
-        const errorMessage = 'error' in result ? result.error : "Failed to schedule publishing";
+        const errorMessage =
+          "error" in result ? result.error : "Failed to schedule publishing";
         throw new Error(errorMessage);
       }
 
-      if (!('success' in result) || !result.success) {
+      if (!("success" in result) || !result.success) {
         throw new Error("Failed to schedule publishing");
       }
 
@@ -576,16 +677,16 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
             : a,
         ),
       );
-      
-      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
+
+      const formattedDate = scheduledAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       });
-      
+
       toast.success("Publishing scheduled successfully!", {
-        description: article 
+        description: article
           ? `"${article.title}" will be published on ${formattedDate}.`
           : `Article will be published on ${formattedDate}.`,
       });
@@ -604,10 +705,13 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       for (const articleId of articleIds) {
         await handleGenerateArticle(articleId);
       }
-      
-      toast.success(`Started generating ${articleIds.length} article${articleIds.length > 1 ? 's' : ''}!`, {
-        description: "Check the Generations tab to monitor progress.",
-      });
+
+      toast.success(
+        `Started generating ${articleIds.length} article${articleIds.length > 1 ? "s" : ""}!`,
+        {
+          description: "Check the Generations tab to monitor progress.",
+        },
+      );
     } catch (error) {
       toast.error("Failed to start bulk generation", {
         description: "Some articles may not have started generating.",
@@ -624,17 +728,20 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       for (const articleId of articleIds) {
         await handleScheduleGeneration(articleId, scheduledAt);
       }
-      
-      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
+
+      const formattedDate = scheduledAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       });
-      
-      toast.success(`Scheduled ${articleIds.length} article${articleIds.length > 1 ? 's' : ''} for generation!`, {
-        description: `All articles will be generated on ${formattedDate}.`,
-      });
+
+      toast.success(
+        `Scheduled ${articleIds.length} article${articleIds.length > 1 ? "s" : ""} for generation!`,
+        {
+          description: `All articles will be generated on ${formattedDate}.`,
+        },
+      );
     } catch (error) {
       toast.error("Failed to schedule bulk generation", {
         description: "Some articles may not have been scheduled.",
@@ -648,10 +755,13 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       for (const articleId of articleIds) {
         await handlePublishArticle(articleId);
       }
-      
-      toast.success(`Published ${articleIds.length} article${articleIds.length > 1 ? 's' : ''}!`, {
-        description: "All selected articles are now live.",
-      });
+
+      toast.success(
+        `Published ${articleIds.length} article${articleIds.length > 1 ? "s" : ""}!`,
+        {
+          description: "All selected articles are now live.",
+        },
+      );
     } catch (error) {
       toast.error("Failed to publish all articles", {
         description: "Some articles may not have been published.",
@@ -668,17 +778,20 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       for (const articleId of articleIds) {
         await handleSchedulePublishing(articleId, scheduledAt);
       }
-      
-      const formattedDate = scheduledAt.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
+
+      const formattedDate = scheduledAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       });
-      
-      toast.success(`Scheduled ${articleIds.length} article${articleIds.length > 1 ? 's' : ''} for publishing!`, {
-        description: `All articles will be published on ${formattedDate}.`,
-      });
+
+      toast.success(
+        `Scheduled ${articleIds.length} article${articleIds.length > 1 ? "s" : ""} for publishing!`,
+        {
+          description: `All articles will be published on ${formattedDate}.`,
+        },
+      );
     } catch (error) {
       toast.error("Failed to schedule bulk publishing", {
         description: "Some articles may not have been scheduled.",
@@ -703,11 +816,13 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       Boolean(a.generationError),
   );
   const publishingArticles = articles.filter(
-    (a) => 
-      a.status === "wait_for_publish" || 
+    (a) =>
+      a.status === "wait_for_publish" ||
       a.status === "published" ||
       // Include articles with completed generation that should be in publishing pipeline
-      (a.generationProgress === 100 && a.generationPhase === undefined && !a.generationError),
+      (a.generationProgress === 100 &&
+        a.generationPhase === undefined &&
+        !a.generationError),
   );
 
   // Debug: Log article statuses to help with troubleshooting
@@ -716,7 +831,11 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     planning: planningArticles.length,
     generations: generationsArticles.length,
     publishing: publishingArticles.length,
-    statuses: articles.map(a => ({ id: a.id, title: a.title, status: a.status }))
+    statuses: articles.map((a) => ({
+      id: a.id,
+      title: a.title,
+      status: a.status,
+    })),
   });
 
   // Don't show loading indicator to prevent flickering on tab changes
@@ -726,9 +845,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     return (
       <div className="flex h-96 items-center justify-center">
         <Alert variant="destructive" className="max-w-md">
-          <AlertDescription className="mb-4">
-            {error}
-          </AlertDescription>
+          <AlertDescription className="mb-4">{error}</AlertDescription>
           <Button onClick={fetchArticles} variant="outline" size="sm">
             Retry
           </Button>

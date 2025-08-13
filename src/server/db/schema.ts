@@ -1,6 +1,5 @@
 // Example model schema from the Drizzle docs
 // https://orm.drizzle.team/docs/sql-schema-declaration
-import { customAlphabet } from "nanoid";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -9,6 +8,7 @@ import {
   integer,
   varchar,
   serial,
+  index,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 
@@ -50,6 +50,55 @@ export const users = contentbotSchema.table("users", {
     .notNull(),
 });
 
+// Projects table for multi-project support
+export const projects = contentbotSchema.table("projects", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => users.id)
+    .notNull(),
+  name: text("name").notNull(),
+  websiteUrl: text("website_url").notNull().unique(),
+  domain: text("domain"), // Extracted from website_url for easy filtering
+
+  // Project-specific settings
+  companyName: text("company_name"),
+  productDescription: text("product_description"),
+  keywords: jsonb("keywords").default([]).notNull(),
+  
+  // Project-specific article settings
+  toneOfVoice: text("tone_of_voice"),
+  articleStructure: text("article_structure"),
+  maxWords: integer("max_words").default(800),
+  excludedDomains: jsonb("excluded_domains")
+    .default([])
+    .notNull()
+    .$type<string[]>(),
+  sitemapUrl: text("sitemap_url"),
+
+  // Project-specific webhook configuration
+  webhookUrl: text("webhook_url"),
+  webhookSecret: text("webhook_secret"),
+  webhookEnabled: boolean("webhook_enabled").default(false).notNull(),
+  webhookEvents: jsonb("webhook_events")
+    .default(["article.published"])
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+}, (table) => ({
+  // Index on user_id for efficient querying of user's projects
+  userIdIdx: index("projects_user_id_idx").on(table.userId),
+  // Index on domain for efficient domain-based lookups
+  domainIdx: index("projects_domain_idx").on(table.domain),
+  // Composite index for user + domain queries
+  userDomainIdx: index("projects_user_domain_idx").on(table.userId, table.domain),
+}));
+
 // User credits table for tracking article generation credits
 export const userCredits = contentbotSchema.table("user_credits", {
   id: serial("id").primaryKey(),
@@ -79,6 +128,9 @@ export const articleStatusEnum = contentbotSchema.enum("article_status", [
 export const articles = contentbotSchema.table("articles", {
   id: serial("id").primaryKey(),
   userId: text("user_id").references(() => users.id),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   keywords: jsonb("keywords").default([]).notNull(),
@@ -118,7 +170,10 @@ export const articles = contentbotSchema.table("articles", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull()
     .$onUpdate(() => new Date()),
-});
+}, (table) => ({
+  // Index on project_id for efficient querying of project's articles
+  projectIdIdx: index("articles_project_id_idx").on(table.projectId),
+}));
 
 // Generation queue table for tracking articles scheduled for generation
 export const generationQueue = contentbotSchema.table("generation_queue", {
@@ -128,6 +183,9 @@ export const generationQueue = contentbotSchema.table("generation_queue", {
     .notNull(),
   userId: text("user_id")
     .references(() => users.id)
+    .notNull(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
     .notNull(),
   addedToQueueAt: timestamp("added_to_queue_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
@@ -148,7 +206,10 @@ export const generationQueue = contentbotSchema.table("generation_queue", {
     .$onUpdate(() => new Date()),
   processedAt: timestamp("processed_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
-});
+}, (table) => ({
+  // Index on project_id for efficient querying of project's generation queue
+  projectIdIdx: index("generation_queue_project_id_idx").on(table.projectId),
+}));
 
 // Article Generation tracking table for separation of concerns
 export const articleGeneration = contentbotSchema.table("article_generation", {
@@ -158,6 +219,9 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
     .notNull(),
   userId: text("user_id")
     .references(() => users.id)
+    .notNull(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
     .notNull(),
 
   // Generation process tracking
@@ -207,12 +271,17 @@ export const articleGeneration = contentbotSchema.table("article_generation", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull()
     .$onUpdate(() => new Date()),
-});
+}, (table) => ({
+  // Index on project_id for efficient querying of project's article generation
+  projectIdIdx: index("article_generation_project_id_idx").on(table.projectId),
+}));
 
 // Article Settings table for global configuration
 export const articleSettings = contentbotSchema.table("article_settings", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").references(() => users.id),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
   toneOfVoice: text("tone_of_voice"),
   articleStructure: text("article_structure"),
   maxWords: integer("max_words").default(800),
@@ -233,13 +302,19 @@ export const articleSettings = contentbotSchema.table("article_settings", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull()
     .$onUpdate(() => new Date()),
-});
+}, (table) => ({
+  // Index on project_id for efficient querying of project's article settings
+  projectIdIdx: index("article_settings_project_id_idx").on(table.projectId),
+}));
 
 // Webhook delivery tracking table
 export const webhookDeliveries = contentbotSchema.table("webhook_deliveries", {
   id: serial("id").primaryKey(),
   userId: text("user_id")
     .references(() => users.id)
+    .notNull(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
     .notNull(),
   articleId: integer("article_id")
     .references(() => articles.id)
@@ -271,4 +346,7 @@ export const webhookDeliveries = contentbotSchema.table("webhook_deliveries", {
     .notNull(),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   failedAt: timestamp("failed_at", { withTimezone: true }),
-});
+}, (table) => ({
+  // Index on project_id for efficient querying of project's webhook deliveries
+  projectIdIdx: index("webhook_deliveries_project_id_idx").on(table.projectId),
+}));

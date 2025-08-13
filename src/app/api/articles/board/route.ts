@@ -1,7 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users, articleGeneration } from "@/server/db/schema";
+import {
+  articles,
+  users,
+  articleGeneration,
+  projects,
+} from "@/server/db/schema";
 import { eq, and, ne } from "drizzle-orm";
 import type { ArticleStatus } from "@/types";
 
@@ -41,7 +46,7 @@ export type DatabaseArticle = {
 export interface KanbanColumn {
   id: string;
   title: string;
-  status: Exclude<ArticleStatus, 'deleted'>; // Exclude deleted from kanban columns
+  status: Exclude<ArticleStatus, "deleted">; // Exclude deleted from kanban columns
   articles: DatabaseArticle[];
   color: string;
 }
@@ -50,17 +55,14 @@ export interface KanbanBoard {
   columns: KanbanColumn[];
 }
 
-// GET /api/articles/board - Get kanban board with articles organized by status
-export async function GET(_req: NextRequest) {
+// GET /api/articles/board - Get kanban board with articles organized by status (optionally filtered by project)
+export async function GET(req: NextRequest) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
-    
+
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify user exists in database
@@ -71,56 +73,122 @@ export async function GET(_req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get only this user's articles with generation tracking info
-    const allArticles = await db
-      .select({
-        id: articles.id,
-        user_id: articles.userId,
-        title: articles.title,
-        description: articles.description,
-        keywords: articles.keywords,
-        targetAudience: articles.targetAudience,
-        status: articles.status,
-        publishScheduledAt: articles.publishScheduledAt,
-        publishedAt: articles.publishedAt,
-        estimatedReadTime: articles.estimatedReadTime,
-        kanbanPosition: articles.kanbanPosition,
-        metaDescription: articles.metaDescription,
-        draft: articles.draft,
-        content: articles.content,
-        factCheckReport: articles.factCheckReport,
-        seoScore: articles.seoScore,
-        internalLinks: articles.internalLinks,
-        sources: articles.sources,
-        coverImageUrl: articles.coverImageUrl,
-        coverImageAlt: articles.coverImageAlt,
-        notes: articles.notes,
-        createdAt: articles.createdAt,
-        updatedAt: articles.updatedAt,
-        // Generation tracking fields
-        generationScheduledAt: articleGeneration.scheduledAt,
-        generationStatus: articleGeneration.status,
-        generationProgress: articleGeneration.progress,
-        generationError: articleGeneration.error,
-      })
-      .from(articles)
-      .leftJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
-      .where(
-        and(
-          eq(articles.userId, userRecord.id),
-          ne(articles.status, "deleted")
+    // Check for project filter in query params
+    const { searchParams } = new URL(req.url);
+    const projectIdParam = searchParams.get("projectId");
+
+    let allArticles;
+
+    if (projectIdParam) {
+      const projectId = parseInt(projectIdParam, 10);
+      if (isNaN(projectId)) {
+        return NextResponse.json(
+          { error: "Invalid project ID" },
+          { status: 400 },
+        );
+      }
+
+      // Get articles for specific project (access control via user ownership of projects)
+      allArticles = await db
+        .select({
+          id: articles.id,
+          user_id: articles.userId,
+          projectId: articles.projectId,
+          title: articles.title,
+          description: articles.description,
+          keywords: articles.keywords,
+          targetAudience: articles.targetAudience,
+          status: articles.status,
+          publishScheduledAt: articles.publishScheduledAt,
+          publishedAt: articles.publishedAt,
+          estimatedReadTime: articles.estimatedReadTime,
+          kanbanPosition: articles.kanbanPosition,
+          metaDescription: articles.metaDescription,
+          draft: articles.draft,
+          content: articles.content,
+          factCheckReport: articles.factCheckReport,
+          seoScore: articles.seoScore,
+          internalLinks: articles.internalLinks,
+          sources: articles.sources,
+          coverImageUrl: articles.coverImageUrl,
+          coverImageAlt: articles.coverImageAlt,
+          notes: articles.notes,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+          // Generation tracking fields
+          generationScheduledAt: articleGeneration.scheduledAt,
+          generationStatus: articleGeneration.status,
+          generationProgress: articleGeneration.progress,
+          generationError: articleGeneration.error,
+        })
+        .from(articles)
+        .leftJoin(
+          articleGeneration,
+          eq(articles.id, articleGeneration.articleId),
         )
-      )
-      .orderBy(articles.kanbanPosition, articles.createdAt);
+        .innerJoin(projects, eq(articles.projectId, projects.id))
+        .where(
+          and(
+            eq(projects.userId, userRecord.id),
+            eq(articles.projectId, projectId),
+            ne(articles.status, "deleted"),
+          ),
+        )
+        .orderBy(articles.kanbanPosition, articles.createdAt);
+    } else {
+      // Get articles for all user's projects
+      allArticles = await db
+        .select({
+          id: articles.id,
+          user_id: articles.userId,
+          projectId: articles.projectId,
+          title: articles.title,
+          description: articles.description,
+          keywords: articles.keywords,
+          targetAudience: articles.targetAudience,
+          status: articles.status,
+          publishScheduledAt: articles.publishScheduledAt,
+          publishedAt: articles.publishedAt,
+          estimatedReadTime: articles.estimatedReadTime,
+          kanbanPosition: articles.kanbanPosition,
+          metaDescription: articles.metaDescription,
+          draft: articles.draft,
+          content: articles.content,
+          factCheckReport: articles.factCheckReport,
+          seoScore: articles.seoScore,
+          internalLinks: articles.internalLinks,
+          sources: articles.sources,
+          coverImageUrl: articles.coverImageUrl,
+          coverImageAlt: articles.coverImageAlt,
+          notes: articles.notes,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+          // Generation tracking fields
+          generationScheduledAt: articleGeneration.scheduledAt,
+          generationStatus: articleGeneration.status,
+          generationProgress: articleGeneration.progress,
+          generationError: articleGeneration.error,
+        })
+        .from(articles)
+        .leftJoin(
+          articleGeneration,
+          eq(articles.id, articleGeneration.articleId),
+        )
+        .innerJoin(projects, eq(articles.projectId, projects.id))
+        .where(
+          and(
+            eq(projects.userId, userRecord.id),
+            ne(articles.status, "deleted"),
+          ),
+        )
+        .orderBy(articles.kanbanPosition, articles.createdAt);
+    }
 
     // Sanitize the articles to ensure JSON fields have proper defaults
-    const sanitizedArticles = allArticles.map(article => ({
+    const sanitizedArticles = allArticles.map((article) => ({
       ...article,
       keywords: article.keywords ?? [],
       factCheckReport: article.factCheckReport ?? {},
@@ -132,71 +200,70 @@ export async function GET(_req: NextRequest) {
     // Define kanban columns
     const columns: KanbanColumn[] = [
       {
-        id: 'idea',
-        title: 'Ideas',
-        status: 'idea',
+        id: "idea",
+        title: "Ideas",
+        status: "idea",
         articles: [],
-        color: '#6B7280', // gray
+        color: "#6B7280", // gray
       },
       {
-        id: 'scheduled',
-        title: 'Scheduled',
-        status: 'scheduled',
+        id: "scheduled",
+        title: "Scheduled",
+        status: "scheduled",
         articles: [],
-        color: '#6366F1', // indigo
+        color: "#6366F1", // indigo
       },
       {
-        id: 'queued',
-        title: 'Generation Queue',
-        status: 'queued',
+        id: "queued",
+        title: "Generation Queue",
+        status: "queued",
         articles: [],
-        color: '#F97316', // orange
+        color: "#F97316", // orange
       },
       {
-        id: 'to_generate',
-        title: 'To Generate',
-        status: 'to_generate',
+        id: "to_generate",
+        title: "To Generate",
+        status: "to_generate",
         articles: [],
-        color: '#F59E0B', // yellow
+        color: "#F59E0B", // yellow
       },
       {
-        id: 'generating',
-        title: 'Generating',
-        status: 'generating',
+        id: "generating",
+        title: "Generating",
+        status: "generating",
         articles: [],
-        color: '#3B82F6', // blue
+        color: "#3B82F6", // blue
       },
       {
-        id: 'wait_for_publish',
-        title: 'Wait for Publish',
-        status: 'wait_for_publish',
+        id: "wait_for_publish",
+        title: "Wait for Publish",
+        status: "wait_for_publish",
         articles: [],
-        color: '#8B5CF6', // purple
+        color: "#8B5CF6", // purple
       },
       {
-        id: 'published',
-        title: 'Published',
-        status: 'published',
+        id: "published",
+        title: "Published",
+        status: "published",
         articles: [],
-        color: '#10B981', // green
+        color: "#10B981", // green
       },
     ];
 
     // Organize articles by status
-    sanitizedArticles.forEach(article => {
-      const column = columns.find(col => col.status === article.status);
+    sanitizedArticles.forEach((article) => {
+      const column = columns.find((col) => col.status === article.status);
       if (column) {
         column.articles.push(article);
       }
     });
 
     return NextResponse.json(columns);
-
   } catch (error) {
-    console.error('Get kanban board error:', error);
+    console.error("Get kanban board error:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch kanban board' },
-      { status: 500 }
+      { error: "Failed to fetch kanban board" },
+      { status: 500 },
     );
   }
 }

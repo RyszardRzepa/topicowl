@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users, generationQueue } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { articles, articleGeneration, users, generationQueue, projects } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
 import { hasCredits } from "@/lib/utils/credits";
@@ -88,30 +88,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if article exists and belongs to user
+    // Check if article exists and belongs to user via project ownership
     const [existingArticle] = await db
-      .select()
+      .select({
+        id: articles.id,
+        userId: articles.userId,
+        projectId: articles.projectId,
+        status: articles.status,
+        title: articles.title,
+      })
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
     if (!existingArticle) {
       return NextResponse.json(
         {
           success: false,
-          error: "Article not found",
+          error: "Article not found or access denied",
         } as ScheduleGenerationResponse,
         { status: 404 },
-      );
-    }
-
-    if (existingArticle.userId !== userRecord.id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Access denied: Article does not belong to current user",
-        } as ScheduleGenerationResponse,
-        { status: 403 },
       );
     }
 
@@ -172,6 +169,7 @@ export async function POST(req: NextRequest) {
         .values({
           articleId: articleId,
           userId: userRecord.id,
+          projectId: existingArticle.projectId,
           status: "pending",
           progress: 0,
           scheduledAt: scheduledDate,

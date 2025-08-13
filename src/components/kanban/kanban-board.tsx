@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   DragDropContext,
@@ -29,8 +29,10 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProjectConfirmation } from "@/components/ui/project-context-indicator";
 import type { ArticleStatus } from "@/types";
 import type { ScheduleGenerationResponse } from "@/app/api/articles/schedule-generation/route";
+import { useProject } from "@/contexts/project-context";
 
 // Inline kanban flow logic
 const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
@@ -72,6 +74,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ className: _className }: KanbanBoardProps) {
   const router = useRouter();
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +82,17 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     number | null
   >(null);
 
-  const fetchKanbanBoard = async () => {
+  const fetchKanbanBoard = useCallback(async () => {
+    // Don't fetch if no project is selected
+    if (!currentProject) {
+      setColumns([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const response = await fetch("/api/articles/board");
+      const response = await fetch(`/api/articles/board?projectId=${currentProject.id}`);
       if (!response.ok) {
         throw new Error("Failed to fetch kanban board");
       }
@@ -95,11 +105,11 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentProject]);
 
   useEffect(() => {
     void fetchKanbanBoard();
-  }, []);
+  }, [fetchKanbanBoard]); // Now properly includes the dependency
 
   // Refresh kanban board when returning from article preview
   useEffect(() => {
@@ -504,6 +514,12 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
   };
 
   const createNewArticle = async () => {
+    // Don't create article if no project is selected
+    if (!currentProject) {
+      console.error("No project selected");
+      return;
+    }
+
     try {
       const response = await fetch("/api/articles", {
         method: "POST",
@@ -512,6 +528,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
         },
         body: JSON.stringify({
           title: "Untitled Article", // Minimal placeholder that will be immediately editable
+          projectId: currentProject.id, // Include current project ID
           // keywords will use the default empty array from schema
         }),
       });
@@ -554,6 +571,18 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     );
   }
 
+  if (!currentProject) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="text-center">
+          <p className="mb-4 text-muted-foreground">
+            Please select a project to view your articles
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -577,10 +606,13 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
             Generating → Wait for Publish → Published
           </p>
         </div>
-        <Button onClick={createNewArticle}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Article Idea
-        </Button>
+        <div className="flex flex-col gap-3">
+          <ProjectConfirmation action="Creating article" className="max-w-sm" />
+          <Button onClick={createNewArticle} disabled={!currentProject}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Article Idea
+          </Button>
+        </div>
       </div>
 
       <DragDropContext onDragEnd={handleDragEnd}>

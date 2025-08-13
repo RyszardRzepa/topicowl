@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { Menu, X } from "lucide-react";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { SettingsDropdown } from "@/components/settings-dropdown";
 import { CreditBalance } from "@/components/dashboard/credit-balance";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
 
@@ -38,11 +38,7 @@ export function DashboardLayoutClient({
       >
         <div className="flex-1 p-4">
           <div className="mb-6 flex items-center justify-between lg:block">
-            <Link href="/dashboard" className="block">
-              <h2 className="text-lg font-semibold text-stone-900">
-                Contentbot
-              </h2>
-            </Link>
+            <ProjectSwitcher className="block" />
             <button
               onClick={() => setSidebarOpen(false)}
               className="rounded-md p-1 hover:bg-stone-100 lg:hidden"

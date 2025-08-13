@@ -274,6 +274,20 @@
       "when": 1754914023466,
       "tag": "0038_fixed_sway",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1754915378822,
+      "tag": "0039_oval_crystal",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1754915714337,
+      "tag": "0040_icy_catseye",
+      "breakpoints": true
     }
   ]
 }

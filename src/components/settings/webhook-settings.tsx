@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
+import { useProject } from '@/contexts/project-context';
 
 // Types from the webhook API
 interface WebhookSettingsData {
@@ -34,6 +35,7 @@ interface WebhookSettingsProps {
 }
 
 export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
+  const { currentProject } = useProject();
   const [settings, setSettings] = useState<WebhookSettingsData>({
     webhookEnabled: false,
     webhookEvents: ['article.published'],
@@ -54,16 +56,27 @@ export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState(false);
 
-  useEffect(() => {
-    void loadSettings();
-  }, []);
+  const loadSettings = useCallback(async () => {
+    if (!currentProject) {
+      setSettings({
+        webhookEnabled: false,
+        webhookEvents: ['article.published'],
+        hasSecret: false,
+      });
+      setFormData({
+        webhookUrl: '',
+        webhookSecret: '',
+        webhookEnabled: false,
+      });
+      setLoading(false);
+      return;
+    }
 
-  const loadSettings = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/settings/webhooks');
+      const response = await fetch(`/api/settings/webhooks?projectId=${currentProject.id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch webhook settings');
       }
@@ -83,15 +96,26 @@ export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentProject]);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   const handleSave = async () => {
+    if (!currentProject) {
+      setError('Please select a project first');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
       setSaveMessage(null);
       
       const payload: Record<string, unknown> = {
+        projectId: currentProject.id,
         webhookEnabled: formData.webhookEnabled,
       };
       
@@ -129,6 +153,11 @@ export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
   };
 
   const handleTest = async () => {
+    if (!currentProject) {
+      setTestResult({ success: false, error: 'Please select a project first' });
+      return;
+    }
+
     if (!formData.webhookUrl.trim()) {
       setTestResult({ success: false, error: 'Please enter a webhook URL first' });
       return;
@@ -142,6 +171,7 @@ export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId: currentProject.id,
           webhookUrl: formData.webhookUrl.trim(),
           webhookSecret: formData.webhookSecret.trim() || undefined,
         }),
@@ -170,6 +200,46 @@ export function WebhookSettings({ onSettingsUpdate }: WebhookSettingsProps) {
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" />
             <span className="ml-2">Loading webhook settings...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Webhook Integration</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Configure webhooks to receive notifications when articles are published
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div className="mb-4 text-gray-500">
+                <svg
+                  className="mx-auto h-12 w-12"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-6m-2-5.5V9m0 0V7a2 2 0 011-1.732l4-2.598a1 1 0 011.366.366L21 5.732V9m-18 0h2m16 0V7l-4-2.598A1 1 0 0015.634 4L12 6.598"
+                  />
+                </svg>
+              </div>
+              <h3 className="mb-2 text-lg font-medium text-gray-900">
+                No Project Selected
+              </h3>
+              <p className="text-gray-600">
+                Select a project to configure webhook settings
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
