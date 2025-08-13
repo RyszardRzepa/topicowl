@@ -159,16 +159,6 @@ export default function NewProjectPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="companyName">Company Name</Label>
-              <Input
-                id="companyName"
-                type="text"
-                value={formData.companyName}
-                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                placeholder="Your Company"
-              />
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="productDescription">Product Description</Label>
