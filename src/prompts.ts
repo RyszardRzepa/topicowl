@@ -1722,4 +1722,44 @@ Generate the complete article now, creating structure and content directly from 
   </final_reminder>
       `;
   },
+  articleStructure: () => {
+    return `
+  # Article Title Here
+  
+  Brief article introduction that hooks the reader and sets context for what they'll learn. (max 2 sentences.)
+  
+  ## TL;DR
+  
+  * **Key takeaway 1**: Brief explanation of the main benefit or insight
+  * **Key takeaway 2**: Another important point readers will learn  
+  * **Key takeaway 3**: Additional valuable insight or recommendation
+  * **Key takeaway 4**: Final key point that adds value
+  
+  ## Main Content Section Heading (max 150 words)
+  
+  Content guidance: This section should cover [specific topic]. Include practical examples and actionable advice. Integrate relevant links naturally within the content.
+  
+  Keywords focus: [relevant keywords from provided list]
+  Links to integrate: [specific URLs from sources]
+    
+  ## "Video Title Here that matches article content" (if relevant video url available)
+  [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+ 
+  ## Table Section (if relevant structured data available)
+  
+  **Table Title:** "Descriptive Table Title Here"
+  Brief description of what the table shows and how it helps readers compare options or understand data.
+  
+  Content guidance: This section should present structured data in table format. Include 2-6 columns with clear headers and organized information that helps readers make comparisons or understand relationships between data points.
+  
+  ## Additional Content Section 1 (max 150 words)
+  
+  Content guidance: This section should address [specific subtopic]. Focus on [particular aspect] and provide clear, actionable information.
+  
+  Keywords focus: [relevant keywords from provided list]
+  Links to integrate: [specific URLs from sources]
+  
+   ## "instagram or tiktok Title Here" (if relevant instagram or tiktok url available)
+  Answer guidance: Practical advice that addresses this specific user need`
+  }
 };

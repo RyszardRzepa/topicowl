@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import { users, articleSettings, projects } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
+import { prompts } from "@/prompts";
 
 // Types colocated with this API route
 export interface CompleteOnboardingRequest {
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           await tx.insert(articleSettings).values({
             projectId: createdProject.id,
             toneOfVoice: projectData.toneOfVoice ?? "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
-            articleStructure: projectData.articleStructure ?? "Introduction • Main points with subheadings • Practical tips • Conclusion",
+            articleStructure: projectData.articleStructure ?? prompts.articleStructure(),
             maxWords: projectData.maxWords ?? 800,
             excludedDomains: [],
           });

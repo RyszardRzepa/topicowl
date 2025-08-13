@@ -1,9 +1,9 @@
 "use client";
 
-import type { ArticleSettingsResponse } from "@/app/api/settings/route";
+import type { ProjectSettingsResponse } from "@/app/api/settings/route";
 
 interface SettingsPreviewProps {
-  settings: ArticleSettingsResponse;
+  settings: ProjectSettingsResponse;
 }
 
 export function SettingsPreview({ settings }: SettingsPreviewProps) {
@@ -19,9 +19,9 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
     
     // Analyze the tone description to determine the style
     const toneText = tone.toLowerCase();
-    const isCasual = toneText.includes('casual') || toneText.includes('relaxed') || toneText.includes('conversational');
-    const isAuthoritative = toneText.includes('authoritative') || toneText.includes('expert') || toneText.includes('technical');
-    const isFriendly = toneText.includes('friendly') || toneText.includes('warm') || toneText.includes('approachable');
+    const isCasual = toneText.includes('casual') ?? toneText.includes('relaxed') ?? toneText.includes('conversational');
+    const isAuthoritative = toneText.includes('authoritative') ?? toneText.includes('expert') ?? toneText.includes('technical');
+    const isFriendly = toneText.includes('friendly') ?? toneText.includes('warm') ?? toneText.includes('approachable');
     
     if (isCasual) {
       return {
@@ -71,15 +71,9 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-blue-700">Industry:</span>
-            <span className="font-medium text-blue-900 capitalize">
-              {settings.industryCategory?.replace("-", " ") ?? "Not set"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-blue-700">Target Audience:</span>
+            <span className="text-blue-700">Website:</span>
             <span className="font-medium text-blue-900">
-              {settings.targetAudience ?? "Not set"}
+              {settings.websiteUrl ?? "Not set"}
             </span>
           </div>
           <div className="flex justify-between">
@@ -108,12 +102,6 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
           <div className="flex justify-between">
             <span className="text-gray-600">Max Words:</span>
             <span className="font-medium">{settings.maxWords ?? 800}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Frequency:</span>
-            <span className="font-medium capitalize">
-              {settings.publishingFrequency?.replace("-", " ") ?? "Weekly"}
-            </span>
           </div>
         </div>
       </div>

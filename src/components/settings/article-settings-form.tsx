@@ -7,6 +7,7 @@ import { ExcludedDomainsField } from './excluded-domains-field';
 import { useProject } from '@/contexts/project-context';
 import type { ProjectSettingsRequest, ProjectSettingsResponse } from '@/app/api/settings/route';
 import type { FetchSitemapResponse } from '@/app/api/sitemaps/fetch/route';
+import { prompts } from '@/prompts';
 
 // Form-specific type for component state
 interface ArticleSettingsForm {
@@ -35,7 +36,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
   const [formData, setFormData] = useState<ArticleSettingsForm>({
     // Article generation settings
     toneOfVoice: initialSettings.toneOfVoice ?? 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
-    articleStructure: initialSettings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
+    articleStructure: initialSettings.articleStructure ?? prompts.articleStructure(),
     maxWords: initialSettings.maxWords ?? 800,
     excluded_domains: initialSettings.excludedDomains ?? [],
     sitemap_url: initialSettings.sitemapUrl ?? '',
@@ -193,7 +194,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
       const defaultSettings: ProjectSettingsRequest = {
         projectId: currentProject.id,
         toneOfVoice: 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.',
-        articleStructure: 'Introduction • Main points with subheadings • Practical tips • Conclusion',
+        articleStructure: prompts.articleStructure(),
         maxWords: 800,
         excludedDomains: [],
         sitemapUrl: '',
@@ -218,7 +219,7 @@ export function ArticleSettingsForm({ initialSettings, onSettingsUpdate }: Artic
       const settings = await response.json() as ProjectSettingsResponse;
       setFormData({
         toneOfVoice: settings.toneOfVoice ?? 'professional',
-        articleStructure: settings.articleStructure ?? 'Introduction • Main points with subheadings • Practical tips • Conclusion',
+        articleStructure: settings.articleStructure ?? prompts.articleStructure(),
         maxWords: settings.maxWords ?? 800,
         excluded_domains: settings.excludedDomains ?? [],
         sitemap_url: settings.sitemapUrl ?? '',
