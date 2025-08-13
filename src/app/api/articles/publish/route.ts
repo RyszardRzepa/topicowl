@@ -86,7 +86,7 @@ async function sendWebhookAsync(
       id: article.id,
       title: article.title,
       slug: article.slug,
-      description: article.description ?? articles.metaDescription,
+      description: article.description ?? article.metaDescription,
       content: article.content ?? article.draft ?? "",
       keywords: Array.isArray(article.keywords) ? article.keywords : [],
       targetAudience: article.targetAudience,

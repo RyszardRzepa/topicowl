@@ -1,177 +1,139 @@
 # Implementation Plan
 
-- [ ] 1. Create diagnostic and debugging tools
-  - [ ] 1.1 Add comprehensive logging to ProjectContext
-    - Add detailed logging for project loading, switching, and error states
-    - Include performance timing logs and API call tracking
-    - Log user actions and context changes for debugging
-    - _Requirements: 4.1_
+- [x] 1. Audit project context management files
+  - [x] 1.1 Review src/contexts/project-context.tsx
+    - Check project loading logic for race conditions and timing issues
+    - Verify error handling and retry mechanisms
+    - Ensure proper state management during project switching
+    - Fix any issues with localStorage and cookie persistence
+    - _Requirements: 1.1, 1.2, 1.4, 6.1, 6.3_
 
-  - [ ] 1.2 Create debug dashboard component
-    - Build internal debug page showing current project state and context data
-    - Display API call logs, response times, and error history
-    - Show project loading status and cache information
-    - _Requirements: 4.1_
-
-  - [ ] 1.3 Implement data validation scripts
-    - Create scripts to validate data integrity and project relationships
-    - Check for orphaned records without proper project_id
-    - Verify user-project ownership relationships
-    - _Requirements: 2.1, 2.2, 2.3, 2.4_
-
-- [ ] 2. Audit and identify current issues
-  - [ ] 2.1 Audit ProjectRequiredChecker component
-    - Review redirect logic and identify race conditions
-    - Test with various project loading states and scenarios
-    - Fix aggressive redirecting behavior for users with valid projects
+  - [x] 1.2 Review src/components/auth/project-required-checker.tsx
+    - Fix aggressive redirect logic that sends users with valid projects to project creation
+    - Improve loading state handling to prevent premature redirects
+    - Add proper error handling and recovery mechanisms
+    - Ensure proper handling of edge cases (no projects, loading states)
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-  - [ ] 2.2 Audit all API endpoints for project filtering
-    - Review every API endpoint that touches articles, settings, generation, webhooks
-    - Verify each endpoint properly filters by project_id and user_id
-    - Document any endpoints missing proper filtering
-    - _Requirements: 2.1, 2.2, 2.3, 2.4_
-
-  - [ ] 2.3 Test project context loading and switching
-    - Test project loading scenarios with various network conditions
-    - Test project switching across all dashboard components
-    - Identify components not properly handling loading states
-    - _Requirements: 1.1, 1.2, 5.1, 5.2_
-
-  - [ ] 2.4 Test onboarding flow end-to-end
-    - Test new user onboarding with project creation
-    - Test existing users without projects scenario
-    - Verify proper project context setting after onboarding completion
-    - _Requirements: 3.1, 3.2, 3.3, 3.4_
-
-- [ ] 3. Fix project context management issues
-  - [ ] 3.1 Fix ProjectRequiredChecker redirect logic
-    - Implement proper loading state handling to prevent premature redirects
-    - Add retry logic for failed project loads
-    - Improve error handling and user feedback
-    - _Requirements: 1.1, 1.2, 1.3, 6.1, 6.3_
-
-  - [ ] 3.2 Enhance ProjectContext error handling
-    - Add automatic retry logic with exponential backoff
-    - Implement graceful degradation with cached data
-    - Add manual retry options and clear error states
-    - _Requirements: 6.1, 6.2, 6.3, 6.4_
-
-  - [ ] 3.3 Fix project switching state management
-    - Ensure all components update correctly when project changes
-    - Fix any stale data issues after project switching
-    - Improve project selection persistence and recovery
-    - _Requirements: 5.2, 5.3, 1.4_
-
-  - [ ] 3.4 Improve project loading performance
-    - Implement parallel loading of projects and user data
-    - Add proper caching with smart invalidation
-    - Optimize initial project context setup
+  - [x] 1.3 Review src/app/dashboard/layout.tsx
+    - Verify ProjectProvider initialization and SSR hydration
+    - Check component hierarchy and context propagation
+    - Ensure proper error boundaries and fallback states
     - _Requirements: 1.1, 1.2_
 
-- [ ] 4. Fix API endpoint data filtering issues
-  - [ ] 4.1 Implement consistent project filtering
-    - Update any API endpoints missing proper project_id filtering
-    - Add user ownership validation to all project-related endpoints
-    - Ensure consistent error responses for unauthorized access
-    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+- [x] 2. Audit API endpoints for data filtering
+  - [x] 2.1 Review src/app/api/projects/route.ts
+    - Verify GET endpoint properly filters projects by user_id
+    - Check POST endpoint for proper user association and validation
+    - Ensure proper error handling and response formats
+    - _Requirements: 2.1, 2.2_
 
-  - [ ] 4.2 Add comprehensive ownership validation
-    - Implement middleware for project ownership verification
-    - Add logging for unauthorized access attempts
-    - Create consistent ownership check patterns across endpoints
-    - _Requirements: 2.1, 2.2, 2.3, 2.4_
-
-  - [ ] 4.3 Fix articles API data isolation
-    - Verify articles endpoints properly filter by project_id and user_id
-    - Test article creation, updating, and deletion with project context
-    - Ensure article generation respects project boundaries
+  - [x] 2.2 Review src/app/api/articles/route.ts
+    - Verify GET endpoint filters articles by project_id and user_id
+    - Check POST endpoint validates project ownership before creating articles
+    - Ensure proper project context validation in all operations
     - _Requirements: 2.2, 2.3_
 
-  - [ ] 4.4 Fix settings API data isolation
-    - Verify settings endpoints work with project-specific data
-    - Test webhook configuration with proper project context
-    - Ensure settings updates only affect current project
-    - _Requirements: 2.4_
+  - [x] 2.3 Review all other API routes in src/app/api/
+    - Check src/app/api/articles/[id]/ routes for project filtering
+    - Review generation-related API routes for project context
+    - Verify settings API routes filter by project_id
+    - Audit webhook API routes for proper project association
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 5. Fix onboarding and project creation flow
-  - [ ] 5.1 Fix onboarding project creation
-    - Ensure project creation during onboarding works correctly
-    - Fix project context setting after onboarding completion
-    - Test redirect to dashboard with proper project context
+- [x] 3. Audit onboarding and project creation flow
+  - [x] 3.1 Review src/app/onboarding/page.tsx
+    - Check project creation logic and context setting after onboarding
+    - Verify proper error handling during website analysis and project creation
+    - Ensure smooth transition to dashboard with correct project context
     - _Requirements: 3.1, 3.2, 3.3_
 
-  - [ ] 5.2 Fix new project creation flow
-    - Test project creation from dashboard/projects/new page
-    - Ensure new projects are added to context and become active
-    - Fix any issues with project switcher after creation
-    - _Requirements: 5.3, 5.4_
+  - [x] 3.2 Review src/app/api/onboarding/complete/route.ts
+    - Verify project creation during onboarding completion
+    - Check proper user association and project settings initialization
+    - Ensure transaction handling and error recovery
+    - _Requirements: 3.1, 3.2_
 
-  - [ ] 5.3 Handle edge cases for users without projects
-    - Fix handling of existing users who don't have projects
-    - Ensure proper redirect to project creation only when necessary
-    - Test recovery scenarios when projects are deleted
-    - _Requirements: 3.4, 1.4_
+  - [x] 3.3 Review src/components/auth/onboarding-checker.tsx
+    - Check onboarding status validation logic
+    - Verify proper redirect handling for completed vs incomplete onboarding
+    - Ensure proper error handling for API failures
+    - _Requirements: 3.1, 3.3, 3.4_
 
-- [ ] 6. Implement comprehensive testing
-  - [ ] 6.1 Create project context unit tests
-    - Test project loading, switching, and error scenarios
-    - Test caching behavior and state management
-    - Test component integration with project context
-    - _Requirements: 4.3_
+  - [x] 3.4 Review src/app/dashboard/projects/new/page.tsx
+    - Check project creation form and validation
+    - Verify proper project context switching after creation
+    - Ensure proper error handling and user feedback
+    - _Requirements: 3.4, 5.3, 5.4_
 
-  - [ ] 6.2 Create API endpoint integration tests
-    - Test data isolation between projects and users
-    - Test unauthorized access scenarios
-    - Test project filtering on all endpoints
-    - _Requirements: 2.1, 2.2, 2.3, 2.4, 4.2_
+- [x] 4. Audit database schema and data integrity
+  - [x] 4.1 Review src/server/db/schema.ts
+    - Verify all tables have proper project_id foreign key constraints
+    - Check indexes are properly defined for project-based queries
+    - Ensure data types and constraints are correct
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 6.3 Create end-to-end user flow tests
-    - Test complete onboarding flow with project creation
-    - Test multi-project content management workflows
-    - Test project switching and data updates
-    - _Requirements: 3.1, 3.2, 3.3, 5.1, 5.2_
+  - [x] 4.2 Check for data migration completeness
+    - Verify all existing data has been properly migrated to include project_id
+    - Check for any orphaned records without proper project associations
+    - Ensure user-project relationships are correctly established
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 6.4 Test edge cases and error scenarios
-    - Test network failures and API errors
-    - Test users with no projects or deleted projects
-    - Test concurrent project operations
-    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+- [x] 5. Audit dashboard components for project context usage
+  - [x] 5.1 Review kanban board components
+    - Check if articles are properly filtered by current project
+    - Verify project context is used in all article operations
+    - Ensure proper loading states and error handling
+    - _Requirements: 2.3, 5.1, 5.2_
 
-- [ ] 7. Improve user experience and error handling
-  - [ ] 7.1 Add better loading states throughout app
-    - Implement consistent loading indicators for project operations
-    - Add skeleton screens for project-dependent content
-    - Improve perceived performance during project switching
-    - _Requirements: 1.2, 6.4_
+  - [x] 5.2 Review article management components
+    - Verify all article CRUD operations use current project context
+    - Check article generation components respect project boundaries
+    - Ensure proper project context display and confirmation
+    - _Requirements: 2.2, 2.3, 5.3, 5.4_
 
-  - [ ] 7.2 Implement user-friendly error messages
-    - Replace technical errors with actionable user messages
-    - Add retry buttons and recovery options
-    - Provide clear guidance for resolving issues
-    - _Requirements: 6.1, 6.2, 6.3_
+  - [x] 5.3 Review settings components
+    - Check settings forms work with project-specific data
+    - Verify webhook configuration uses current project context
+    - Ensure settings updates only affect current project
+    - _Requirements: 2.4, 4.1, 4.2_
 
-  - [ ] 7.3 Add project context indicators
-    - Ensure current project is clearly visible throughout the app
-    - Add project confirmation for critical actions
-    - Display project context in page headers and breadcrumbs
-    - _Requirements: 5.1, 5.4_
+  - [x] 5.4 Review project switcher component
+    - Verify project list displays correctly with all user projects
+    - Check project switching updates all dependent components
+    - Ensure proper persistence of project selection
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-- [ ] 8. Performance optimization and monitoring
-  - [ ] 8.1 Optimize project loading performance
-    - Implement efficient caching strategies
-    - Optimize database queries with proper indexes
-    - Add performance monitoring for project operations
+- [x] 6. Fix TypeScript type issues in dashboard layout
+  - [x] 6.1 Fix initialProject type mismatch in dashboard layout
+    - Update type handling to properly handle null vs undefined for initialProject
+    - Ensure proper type safety for Project type usage
     - _Requirements: 1.1, 1.2_
 
-  - [ ] 8.2 Add production monitoring and alerting
-    - Implement logging for project context issues
-    - Add metrics for project loading times and error rates
-    - Set up alerts for critical project context failures
-    - _Requirements: 4.1, 6.1_
+- [x] 7. Fix identified issues in project context files
+  - [x] 7.1 Fix ProjectRequiredChecker redirect logic improvements
+    - Improve the recovery timeout mechanism to be more reliable
+    - Add better logging for debugging redirect issues
+    - Ensure proper handling of edge cases during project context initialization
+    - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-  - [ ] 8.3 Create troubleshooting documentation
-    - Document common project context issues and solutions
-    - Create debugging guides for developers
-    - Document best practices for project context usage
-    - _Requirements: 4.1_
+  - [x] 7.2 Enhance ProjectContext error handling
+    - Improve error messages to be more user-friendly
+    - Add better fallback mechanisms when API calls fail
+    - Ensure proper cleanup of error states after successful operations
+    - _Requirements: 1.4, 5.2, 6.1, 6.3_
+
+- [ ] 8. Validate and test the complete system
+  - [ ] 8.1 Test user flows end-to-end
+    - Test new user onboarding with project creation
+    - Test existing user login with multiple projects
+    - Test project switching functionality
+    - Verify data isolation between projects and users
+    - _Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 5.1, 5.2_
+
+  - [ ] 8.2 Test error scenarios and recovery
+    - Test behavior when API calls fail
+    - Test behavior when projects fail to load
+    - Test recovery mechanisms and retry functionality
+    - Verify proper error messages and user guidance
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
