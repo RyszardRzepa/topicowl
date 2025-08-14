@@ -1,6 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/env";
+import { db } from "@/server/db";
+import { projects } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
+import type { ClerkPrivateMetadata } from "@/types";
 
 // TypeScript interfaces for Reddit API responses
 export interface RedditProfile {
@@ -63,19 +67,41 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action");
+    const projectId = searchParams.get("projectId");
 
     if (!action || (action !== "profile" && action !== "subreddits")) {
       return NextResponse.json({ error: "Action parameter must be 'profile' or 'subreddits'" }, { status: 400 });
     }
 
-    // Get refresh token from Clerk private metadata
-    const { clerkClient } = await import("@clerk/nextjs/server");
+    if (!projectId) {
+      return NextResponse.json({ error: "Project ID is required" }, { status: 400 });
+    }
+
+    // Validate project ID format
+    const projectIdNum = parseInt(projectId, 10);
+    if (isNaN(projectIdNum)) {
+      return NextResponse.json({ error: "Invalid project ID format" }, { status: 400 });
+    }
+
+    // Verify project exists and user owns it
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectIdNum), eq(projects.userId, userId)))
+      .limit(1);
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found or access denied" }, { status: 404 });
+    }
+
+    // Get project-specific refresh token from Clerk private metadata
     const clerk = await clerkClient();
     const user = await clerk.users.getUser(userId);
-    const refreshToken = user.privateMetadata?.redditRefreshToken as string;
+    const metadata = (user.privateMetadata ?? {}) as ClerkPrivateMetadata;
+    const projectConnection = metadata.redditTokens?.[projectId];
 
-    if (!refreshToken) {
-      return NextResponse.json({ error: "Reddit account not connected" }, { status: 401 });
+    if (!projectConnection) {
+      return NextResponse.json({ error: "Reddit account not connected for this project" }, { status: 401 });
     }
 
     // Exchange refresh token for access token
@@ -88,7 +114,7 @@ export async function GET(request: NextRequest) {
       },
       body: new URLSearchParams({
         grant_type: "refresh_token",
-        refresh_token: refreshToken,
+        refresh_token: projectConnection.refreshToken,
       }),
     });
 
@@ -97,6 +123,15 @@ export async function GET(request: NextRequest) {
     }
 
     const tokenData: RedditTokenResponse = await tokenResponse.json();
+
+    // Update last used timestamp for this project connection
+    const updatedMetadata = { ...metadata };
+    if (updatedMetadata.redditTokens?.[projectId]) {
+      updatedMetadata.redditTokens[projectId].lastUsedAt = new Date().toISOString();
+      await clerk.users.updateUserMetadata(userId, {
+        privateMetadata: updatedMetadata
+      });
+    }
 
     if (action === "profile") {
       // Call Reddit's identity API
