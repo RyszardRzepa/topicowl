@@ -8,9 +8,9 @@ import { fetcher } from "@/lib/utils";
 import { getUserExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { getUserCredits, hasCredits, deductCredit } from "@/lib/utils/credits";
+import { articles, articleGeneration, users, projects } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
+import { hasCredits, deductCredit } from "@/lib/utils/credits";
 import type { ResearchResponse } from "@/app/api/articles/research/route";
 import type { WriteResponse } from "@/app/api/articles/write/route";
 import type { ValidateResponse } from "@/app/api/articles/validate/route";
@@ -64,20 +64,19 @@ async function validateAndSetupGeneration(
 
   const id = parseInt(articleId);
 
-  // Check if article exists and belongs to the current user
-  const [existingArticle] = await db
+  // Check if article exists and belongs to current user's project using JOIN
+  const [result] = await db
     .select()
     .from(articles)
-    .where(eq(articles.id, id));
+    .innerJoin(projects, eq(articles.projectId, projects.id))
+    .where(and(eq(articles.id, id), eq(projects.userId, userRecord.id)))
+    .limit(1);
 
-  if (!existingArticle) {
-    throw new Error("Article not found");
+  if (!result) {
+    throw new Error("Article not found or access denied");
   }
 
-  // Verify article ownership
-  if (existingArticle.userId !== userRecord.id) {
-    throw new Error("Access denied: Article does not belong to current user");
-  }
+  const existingArticle = result.articles;
 
   console.log("Article validation", {
     articleId: id,
@@ -858,7 +857,12 @@ async function generateArticle(context: GenerationContext): Promise<void> {
     });
 
     // Create or reuse generation record
-    generationRecord = await createOrReuseGenerationRecord(articleId, userId);
+    generationRecord = await createOrResetArticleGeneration(articleId, userId);
+    
+    if (!generationRecord) {
+      throw new Error("Failed to create generation record");
+    }
+    
     console.log("Created generation record", {
       generationId: generationRecord.id,
     });

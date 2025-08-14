@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, generationQueue, users } from "@/server/db/schema";
+import { articles, generationQueue, users, projects } from "@/server/db/schema";
 import { eq, and, max } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
@@ -162,8 +162,8 @@ export async function POST(req: NextRequest) {
     const validatedData = addToQueueSchema.parse(body);
     const { articleId, scheduledForDate } = validatedData;
 
-    // Check if article exists and belongs to user
-    const [existingArticle] = await db
+    // Check if article exists and belongs to current user's project using JOIN
+    const [result] = await db
       .select({
         id: articles.id,
         userId: articles.userId,
@@ -173,22 +173,18 @@ export async function POST(req: NextRequest) {
         status: articles.status,
       })
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
-    if (!existingArticle) {
+    if (!result) {
       return NextResponse.json(
-        { error: 'Article not found' },
+        { error: 'Article not found or access denied' },
         { status: 404 }
       );
     }
 
-    if (existingArticle.userId !== userRecord.id) {
-      return NextResponse.json(
-        { error: 'Access denied: Article does not belong to current user' },
-        { status: 403 }
-      );
-    }
+    const existingArticle = result;
 
     // Validate the article has required fields
     if (!existingArticle.title && !existingArticle.keywords) {
@@ -323,32 +319,29 @@ export async function DELETE(req: NextRequest) {
 
     const queueItemId = parseInt(queueItemIdParam);
 
-    // Check if queue item exists and belongs to user
-    const [existingQueueItem] = await db
+    // Check if queue item exists and belongs to current user's project using JOIN
+    const [result] = await db
       .select({
         id: generationQueue.id,
         articleId: generationQueue.articleId,
         userId: generationQueue.userId,
+        projectId: generationQueue.projectId,
         status: generationQueue.status,
         queuePosition: generationQueue.queuePosition,
       })
       .from(generationQueue)
-      .where(eq(generationQueue.id, queueItemId))
+      .innerJoin(projects, eq(generationQueue.projectId, projects.id))
+      .where(and(eq(generationQueue.id, queueItemId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
-    if (!existingQueueItem) {
+    if (!result) {
       return NextResponse.json(
-        { error: 'Queue item not found' },
+        { error: 'Queue item not found or access denied' },
         { status: 404 }
       );
     }
 
-    if (existingQueueItem.userId !== userRecord.id) {
-      return NextResponse.json(
-        { error: 'Access denied: Queue item does not belong to current user' },
-        { status: 403 }
-      );
-    }
+    const existingQueueItem = result;
 
     // Don't allow removing if currently processing
     if (existingQueueItem.status === 'processing') {

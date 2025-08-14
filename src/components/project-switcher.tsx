@@ -34,41 +34,42 @@ export function ProjectSwitcher({ className }: ProjectSwitcherProps) {
 
   if (isLoading) {
     return (
-      <div className={cn("flex items-center space-x-2", className)}>
-        <Building2 className="text-muted-foreground h-5 w-5" />
-        <div className="bg-muted h-4 w-32 animate-pulse rounded" />
+      <div className={cn("w-full", className)}>
+        <div className="flex items-center w-full h-auto py-2.5">
+          <Building2 className="mr-3 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+          <div className="bg-muted h-4 w-32 animate-pulse rounded" />
+        </div>
       </div>
     );
   }
 
   if (projects.length === 0) {
     return (
-      <div className={cn("flex items-center space-x-2", className)}>
+      <div className={cn("w-full", className)}>
         <Button
           variant="ghost"
-          size="sm"
           onClick={handleCreateProject}
-          className="text-foreground hover:text-primary h-auto p-0 font-semibold"
+          className="w-full justify-start h-auto py-2.5 text-muted-foreground hover:text-foreground"
         >
-          <Plus className="mr-1 h-4 w-4" />
-          Create Project
+          <Plus className="mr-3 h-5 w-5 flex-shrink-0" />
+          <span className="text-sm font-medium">Create Project</span>
         </Button>
       </div>
     );
   }
 
   return (
-    <div className={cn("flex items-center space-x-2", className)}>
-      <Building2 className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+    <div className={cn("w-full", className)}>
       <Select
         value={currentProject?.id.toString()}
         onValueChange={handleProjectChange}
       >
-        <SelectTrigger className="hover:bg-accent/50 h-auto w-auto min-w-[160px] border-none bg-transparent p-0 focus:ring-0 focus:ring-offset-0">
-          <div className="flex items-center space-x-2">
+        <SelectTrigger className="w-full justify-start h-auto py-2.5 border-none bg-transparent hover:bg-accent/50 focus:ring-0 focus:ring-offset-0">
+          <div className="flex items-center w-full">
+            <Building2 className="mr-3 h-5 w-5 flex-shrink-0" />
             <SelectValue>
-              <div className="flex flex-col items-start">
-                <span className="text-foreground text-sm font-semibold">
+              <div className="flex flex-col items-start text-left">
+                <span className="text-foreground text-sm font-medium">
                   {currentProject?.name ?? "Select Project"}
                 </span>
                 {currentProject?.domain && (
@@ -78,7 +79,6 @@ export function ProjectSwitcher({ className }: ProjectSwitcherProps) {
                 )}
               </div>
             </SelectValue>
-            <ChevronDown className="text-muted-foreground h-4 w-4" />
           </div>
         </SelectTrigger>
         <SelectContent className="min-w-[250px]">

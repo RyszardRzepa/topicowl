@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, users, projects } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ApiResponse, ArticleStatus } from '@/types';
 import type { ArticleGenerationRequest } from '@/app/api/articles/generate/route';
@@ -104,26 +104,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as unknown;
     const { articleId, newStatus, newPosition } = moveArticleSchema.parse(body);
 
-    // Get current article and verify ownership
-    const [currentArticle] = await db
+    // Get current article and verify ownership using project-based access control
+    const [result] = await db
       .select()
       .from(articles)
-      .where(eq(articles.id, articleId));
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .limit(1);
 
-    if (!currentArticle) {
+    if (!result) {
       return NextResponse.json(
-        { error: 'Article not found' },
+        { error: 'Article not found or access denied' },
         { status: 404 }
       );
     }
 
-    // Verify article ownership
-    if (currentArticle.userId !== userRecord.id) {
-      return NextResponse.json(
-        { error: 'Access denied: Article does not belong to current user' },
-        { status: 403 }
-      );
-    }
+    const currentArticle = result.articles;
 
     // Validate status transition
     if (!isValidStatusTransition(currentArticle.status, newStatus)) {

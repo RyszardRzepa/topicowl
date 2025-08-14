@@ -12,6 +12,8 @@ New types: write common types in `src/types/types.ts` and colocated types in the
 Dont create scripts files for testing.
 Always use ?? insetead of ||.
 
+Make sure that we dont create new util functions, we should inlice code where is used.
+
 ## Framework & Runtime
 - **Next.js 15** with App Router (React 19)
 - **TypeScript** with strict mode enabled

@@ -5,6 +5,7 @@ import {
   articleGeneration,
   users,
   generationQueue,
+  projects,
 } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
@@ -62,29 +63,25 @@ export async function POST(
       );
     }
 
-    // Check if article exists and belongs to user
-    const [existingArticle] = await db
+    // Check if article exists and belongs to current user's project using JOIN
+    const [result] = await db
       .select()
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
-    if (!existingArticle) {
+    if (!result) {
       return NextResponse.json(
         {
           success: false,
-          error: "Article not found",
+          error: "Article not found or access denied",
         } as CancelScheduleResponse,
         { status: 404 },
       );
     }
 
-    if (existingArticle.userId !== userRecord.id) {
-      return NextResponse.json(
-        { success: false, error: "Access denied" } as CancelScheduleResponse,
-        { status: 403 },
-      );
-    }
+    const existingArticle = result.articles;
 
     // Check if article is scheduled for generation
     if (existingArticle.status !== "to_generate") {

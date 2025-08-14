@@ -14,3 +14,5 @@ Don't create new files or helpers in the `src/lib` directory. Write all business
 New types: write common types in `src/types/types.ts` and colocated types in the API route files.
 Dont create scripts files for testing.
 Always use ?? insetead of ||.
+
+Make sure that we dont create new util functions, we should inlice code where is used.

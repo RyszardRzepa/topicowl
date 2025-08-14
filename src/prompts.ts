@@ -522,152 +522,158 @@ export const prompts = {
   ) => {
     const currentDate = new Date().toISOString().split("T")[0];
 
-    return `<role>
-You are an expert SEO content writer creating a comprehensive article directly from research data. Write in clean Markdown format with proper structure and engaging content.
-</role>
+    return `<instructions>
+You are an expert SEO content writer. Produce a comprehensive, well-structured Markdown article using only the material provided in <research> and <external_sources>. Follow the exact section order and rules below.
+</instructions>
 
-<article_parameters>
-Title: ${data.title}
-Max Length: ${settings?.maxWords ?? 1800} words (aim for comprehensive, detailed content)
-Tone: ${settings?.toneOfVoice ?? "expert, clear, direct, friendly"}
-Audience: ${data.audience ?? "General business readers"}
-Date: ${currentDate}
-</article_parameters>
+<variables>
+<title>${data.title}</title>
+<target_words>${settings?.maxWords ?? 1800}</target_words>
+<tone>${settings?.toneOfVoice ?? "expert, clear, direct, friendly"}</tone>
+<audience>${data.audience ?? "General business readers"}</audience>
+<date>${currentDate}</date>
 
-<critical_rules>
-1. Use ONLY one H1 (the title) - NO CONTENT BEFORE THE TITLE
-2. Maximum 3 sentences per paragraph
-3. Grade 8 reading level (active voice, short sentences)
-4. Include links naturally: use at most 6 external links (select the most authoritative & contextually relevant) and at most 3 internal links; never show domain names as anchor text.
-5. Output in Markdown format only
-6. No interactive elements or HTML
-7. Begin article content with the H1 title, not with any intro text
-8. Create comprehensive, detailed content that thoroughly covers the topic
-9. Aim for the target word count - provide in-depth analysis and practical examples
-</critical_rules>
+<internal_links>
+${relatedPosts?.length ? relatedPosts.slice(0,3).join("\n") : ""}
+</internal_links>
 
-<research_data_to_use>
-${data.researchData}
-</research_data_to_use>
-
-<content_structure_requirements>
-Create a well-structured article following the specified article structure: \n ${settings?.articleStructure ?? "standard blog format"}
-${
-  !!data?.videos?.length
-    ? `
-Include video section using this video data: ${JSON.stringify(data?.videos)}
-
-🎬 VIDEO INTEGRATION REQUIREMENTS:
-- Create contextual video titles that are BOTH accurate to the video content AND relevant to your article section
-- CRITICAL: Video titles must accurately represent what the video actually shows/discusses
-- Adapt the original video title to fit your article context while maintaining content accuracy
-- Format: ## "Your Contextual Video Title Here"
-- Example: If original video is "Top 10 Places in Norway" and covers restaurants, adapt to "Top Restaurant Picks in Norway" (accurate + contextual)
-- Example: If original video is "Travel Guide 2024" and shows hiking tips, use "Travel Guide: Hiking Tips for 2024" (accurate + contextual)
-- AVOID: Creating completely different titles that misrepresent the video content
-- AVOID: Using generic titles that don't match what viewers will actually see in the video
-- Follow the video with the YouTube embed format: [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)
-- Place videos strategically within relevant content sections, not as standalone elements
-`
-    : ""
-} 
-
-Structure your content based on the most important information in the research data and organize it according to the user's preferred article structure format.
-</content_structure_requirements>
-
-<link_integration>
-${
-  relatedPosts?.length
-    ? `
-Internal links to distribute (MAX 3):
-${relatedPosts
-  .slice(0, 3)
-  .map((post, i) => `${i + 1}. ${post}`)
-  .join("\n")}
-
-🎯 INTERNAL LINKING STRATEGY:
-- Integrate links naturally within the content flow using contextual anchor text
-- Use descriptive phrases that already exist in your writing as anchor text
-- Example: "For more insights on the best lunch spots in Oslo" → "[best lunch spots in Oslo](best-lunch-spots-oslo)"
-- Example: "When exploring Norwegian cuisine traditions" → "[Norwegian cuisine traditions](norwegian-cuisine-guide)"
-- NEVER show raw URLs or domain names in the text
-- Links should enhance the reader's understanding and provide additional value
-- Place links where they naturally support the narrative flow
-`
-    : ""
-}
-
-${
-  data.sources?.length
-    ? `
-External sources to cite:
+<external_sources>
 ${data.sources
-  .filter((s) => !_excludedDomains?.some((domain) => s.url.includes(domain)))
-  .slice(0, 6)
-  .map((s, i) => `${i + 1}. ${s.url} - ${s.title ?? "Source"}`)
-  .join("\n")}
-Format: "According to [source name](url)..." (You may use FEWER than 6 if some are not contextually relevant)
-`
-    : ""
-}
+  ?.filter((s)=>!_excludedDomains?.some((d)=>s.url.includes(d)))
+  ?.slice(0,6)
+  ?.map((s)=>`${s.title ?? "Source"} | ${s.url}`)
+  ?.join("\n") ?? ""}
+</external_sources>
 
-🚨 LINK CONSTRAINTS:
-- Each external URL can only be used ONCE in the entire article
-- Maximum 3 internal links (our website) allowed
-- Maximum 6 external links allowed (if more are provided, select the 6 most authoritative & contextually relevant; you may use fewer if not all are relevant)
-- Remove duplicate external links - use unique external sources only
-- Link format: [descriptive text](url)
-- Integration: Natural within sentences, add value to content
-- Don't use links from this domain: vertexaisearch.google.com
-${
-  _excludedDomains && _excludedDomains.length > 0
-    ? `
-⚠️ EXCLUDED COMPETITOR DOMAINS - DO NOT USE:
-${_excludedDomains.map((domain) => `- ${domain}`).join("\n")}
-- Do not include any links, references, or mentions of these competitor domains
-- Do not cite information from these domains in your sources
-- Avoid mentioning these competitors by name in the article content
-- Focus on alternative sources and avoid giving visibility to competitor brands
-`
-    : ""
-}
+<excluded_domains>
+${_excludedDomains?.length ? _excludedDomains.join("\n") : ""}
+</excluded_domains>
 
-🎯 CONTEXTUAL LINKING REQUIREMENTS:
-- Anchor text MUST be natural descriptive phrases that flow within the sentence context
-- Use topic-relevant keywords and phrases as anchor text (e.g. "best coffee shops in Bergen", "Norwegian hiking trails", "Oslo restaurant guide")
-- NEVER use raw domain names (e.g. "osloexplore.com") or naked URLs as anchor text
-- Avoid generic anchors like "click here", "read more", or "website"
-- If mentioning a brand, integrate it meaningfully (e.g. "according to TripAdvisor research" not just "TripAdvisor")
-- Links should appear naturally within the content flow, not as obvious insertions
-- Use contextual phrases that readers would naturally expect to be linked
-</link_integration>
+<videos>
+${Array.isArray(data?.videos) && data.videos.length ? JSON.stringify(data.videos) : ""}
+</videos>
 
-<writing_execution>
-1. Start with H1 title - no content before the title
-3. Create a compelling introduction
-4. Add a TL;DR section with key takeaways
-5. Develop 4-6 main content sections based on research data (each 200-300 words)
-6. Include detailed explanations, examples, and practical insights in each section
-7. Add a comprehensive FAQ section with 4-6 questions
-8. Keep paragraphs short (max 3 sentences) but ensure thorough coverage
-9. Use active voice and grade 8 reading level
-10. Use each external URL only ONCE - no duplicate external links
-11. Limit internal links to maximum 3 per article
-12. Aim for the target word count by providing comprehensive, detailed content
-13. Include specific examples, case studies, and actionable advice throughout
-14. **CONTEXTUAL LINKING**: When writing content, naturally incorporate internal links using descriptive phrases that already exist in your text. For example, if you write about "exploring the best restaurants in Bergen", make "best restaurants in Bergen" the clickable link to the relevant internal page. Never show URLs or domain names in the visible text.
-15. **CONTEXTUAL VIDEO TITLES**: If videos are provided, create section titles that are both accurate to the actual video content AND relevant to your article context. Adapt the original video title to fit your section while ensuring it accurately represents what viewers will see in the video.
+<notes>${data.notes ?? ""}</notes>
+</variables>
 
-${
-  data.notes
-    ? `
-Special instructions: ${data.notes}
-`
-    : ""
-}
+<research>
+${data.researchData}
+</research>
 
-Generate the complete article now, creating structure and content directly from the research data provided.
-</writing_execution>`;
+<style_guide>
+- Reading level ≈ grade 8. Short, active sentences.
+- No filler or hype. Avoid clichés (“game-changing,” “let’s dive in,” etc.).
+- Sound human and direct. Starting with “And/But/So” is fine sparingly.
+- Prefer concrete examples and specific numbers when supported by research.
+</style_guide>
+
+<constraints>
+1) Output format:
+   - **Markdown only**.
+   - Exactly **one H1** (the title) and **nothing before it**.
+
+2) Section order (must match exactly):
+   # {title}
+   Short introduction (2–4 sentences)
+   ## TL;DR
+   - 3–6 succinct bullets with key takeaways
+   4–6 main sections (≈200–300 words each) with examples/cases
+   ## FAQ
+   - 4–6 Q&A
+   Optional: ## Sources (only if API-level citations are not attached)
+
+3) Paragraphs: aim for 2–5 sentences. Clarity > rigid limits.
+
+4) Links:
+   - External ≤ 6 unique; Internal ≤ 3.
+   - Natural, descriptive anchors (never raw domains).
+   - Each external URL used at most once.
+   - Do **not** include or mention any domain in <excluded_domains>.
+
+5) Grounding & honesty:
+   - Use only facts present in <research> or <external_sources>.
+   - If a fact isn’t supported, omit it or say it’s unknown. No fabrication.
+   - If Citations API is enabled by the caller, attach citations to lines/claims. If not, include a “## Sources” section listing only the links actually used.
+
+6) Videos (if any): place in the most relevant section using exactly:
+   ## {Contextual Video Title}
+   [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)
+
+7) Tie-breakers when rules conflict (in this order):
+   Factual accuracy & grounding > Section order > Clarity/Readability > Tone > Word target.
+</constraints>
+
+<workflow>
+1) Read <research> and extract key, citable claims, stats, and examples.
+2) Draft a brief outline (mentally) that follows the exact section order.
+3) Write the article in Markdown, inserting links only from <external_sources> and <internal_links>.
+4) If Citations API is enabled, attach citations to claims; else add “## Sources” with bullet links used.
+5) Run <quality_checklist>. Fix any failures before returning <final>.
+</workflow>
+
+<quality_checklist>
+- One H1 only; nothing precedes it.
+- Section order exactly as specified.
+- All non-obvious claims supported by <research> or <external_sources>.
+- No excluded domains used or mentioned.
+- Link counts within limits; each external URL unique.
+- Tone matches <tone>; audience matches <audience>.
+</quality_checklist>
+
+<human_writer_instructions>
+Write to sound human:
+
+### LANGUAGE
+- Simple words: Talk like to a friend, skip complex terms.
+- Short sentences: Break ideas down.
+- No AI phrases: Avoid "dive into," "unleash," "game-changing," etc.
+- Direct: No extra words.
+- Natural: Start with "and," "but," "so."
+- Honest: No hype; admit limits.
+
+### STYLE
+- Conversational grammar: Not academic.
+- No fluff: Cut adjectives/adverbs.
+- Examples: Use specifics.
+- Casual: Like texting.
+- Transitions: "Here's the thing," "and," "but."
+
+### AVOID
+- "Let's dive into..."
+- "Unleash your potential"
+- "Game-changing solution"
+- "Revolutionary approach"
+- "Transform your life"
+- "Unlock the secrets"
+- "Leverage this strategy"
+- "Optimize your workflow"
+
+### USE
+- "Here's how it works"
+- "This can help you"
+- "Here's what I found"
+- "This might work for you"
+- "Here's the thing"
+- "And that's why it matters"
+- "But here's the problem"
+- "So here's what happened"
+
+### CHECK
+- Sounds spoken.
+- Normal words.
+- Genuine, no marketing.
+- Quick to point.
+</human_writer_instructions>
+
+<thinking>
+Think step-by-step here to map claims → sections → links and to verify grounding.
+Do **not** include anything from <thinking> in <final>.
+</thinking>
+
+<final>
+Return only the finished Markdown article that passes <quality_checklist>. No preamble, no commentary.
+</final>
+`;
   },
 
   validation: (article: string) => `
