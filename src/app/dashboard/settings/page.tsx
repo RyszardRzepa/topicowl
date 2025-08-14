@@ -6,8 +6,9 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ReusableTabs } from "@/components/ui/reusable-tabs";
 import { ArticleSettingsForm } from "@/components/settings/article-settings-form";
 import { WebhookSettings } from "@/components/settings/webhook-settings";
+import { RedditSettings } from "@/components/settings/reddit-settings";
 import { useProject } from "@/contexts/project-context";
-import { Settings, Webhook } from "lucide-react";
+import { Settings, Webhook, MessageSquare } from "lucide-react";
 import type { ProjectSettingsResponse } from "@/app/api/settings/route";
 
 export default function SettingsPage() {
@@ -165,6 +166,11 @@ export default function SettingsPage() {
                 label: "Webhooks",
                 icon: <Webhook className="h-4 w-4" />,
               },
+              {
+                value: "reddit",
+                label: "Reddit",
+                icon: <MessageSquare className="h-4 w-4" />,
+              },
             ]}
           />
 
@@ -180,6 +186,10 @@ export default function SettingsPage() {
 
             <TabsContent value="webhooks" className="mt-0">
               <WebhookSettings />
+            </TabsContent>
+
+            <TabsContent value="reddit" className="mt-0">
+              <RedditSettings />
             </TabsContent>
           </Tabs>
         </div>
