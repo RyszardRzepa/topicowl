@@ -135,6 +135,62 @@ export interface ArticleSettings {
   updatedAt: string;
 }
 
+// Reddit integration types for project-specific connections
+export interface ProjectRedditConnection {
+  refreshToken: string;
+  redditUsername: string;
+  redditUserId: string;
+  connectedAt: string;
+  lastUsedAt?: string;
+  scopes: string[];
+}
+
+// Clerk private metadata structure for Reddit tokens
+export interface ClerkPrivateMetadata {
+  redditTokens?: {
+    [projectId: string]: ProjectRedditConnection;
+  };
+  // Other existing metadata fields can be added here as needed
+}
+
+// Reddit token data from OAuth flow
+export interface RedditTokenData {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  scope: string;
+}
+
+// Reddit user data from API
+export interface RedditUserData {
+  name: string;
+  id: string;
+}
+
+// Reddit connection status response
+export interface RedditConnectionStatus {
+  connected: boolean;
+  connection?: {
+    projectId: number;
+    redditUsername: string;
+    connectedAt: string;
+    lastUsedAt?: string;
+    scopes: string[];
+  };
+}
+
+// Utility types for Reddit token management
+export type RedditTokens = {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+};
+
+export type RedditUserInfo = {
+  username: string;
+  userId: string;
+};
+
 // Shared API response wrapper - used across all API routes
 export interface ApiResponse<T = unknown> {
   success: boolean;
