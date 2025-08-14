@@ -49,10 +49,11 @@ export function DashboardLayoutClient({
           <DashboardNav />
         </div>
 
+        <CreditBalance />
+
         {/* Bottom Section */}
         <div className="border-t border-stone-200 p-4">
           <div className="space-y-3">
-            <CreditBalance />
             <SettingsDropdown />
           </div>
         </div>
@@ -76,20 +77,18 @@ export function DashboardLayoutClient({
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 lg:p-6 relative">
+        <main className="relative flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 lg:p-6">
           {/* Pattern Background */}
-          <div 
+          <div
             className="absolute inset-0 opacity-30"
             style={{
               backgroundImage: `
                 radial-gradient(circle at 1px 1px, rgb(156 163 175) 1px, transparent 0)
               `,
-              backgroundSize: '20px 20px'
+              backgroundSize: "20px 20px",
             }}
           />
-          <div className="relative z-10">
-            {children}
-          </div>
+          <div className="relative z-10">{children}</div>
         </main>
       </div>
     </div>

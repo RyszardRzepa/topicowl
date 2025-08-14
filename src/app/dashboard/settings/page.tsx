@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { ReusableTabs } from "@/components/ui/reusable-tabs";
 import { ArticleSettingsForm } from "@/components/settings/article-settings-form";
 import { WebhookSettings } from "@/components/settings/webhook-settings";
 import { useProject } from "@/contexts/project-context";
+import { Settings, Webhook } from "lucide-react";
 import type { ProjectSettingsResponse } from "@/app/api/settings/route";
 
 export default function SettingsPage() {
@@ -14,6 +17,7 @@ export default function SettingsPage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("settings");
 
   const loadSettings = useCallback(async () => {
     if (!currentProject) {
@@ -138,15 +142,47 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mx-auto max-w-6xl space-y-8">
-        {settings && (
-          <ArticleSettingsForm
-            initialSettings={settings}
-            onSettingsUpdate={handleSettingsUpdate}
-          />
-        )}
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Project Settings</h1>
+          <p className="text-gray-600 mt-1">
+            Configure your content generation settings and integrations for {currentProject.name}
+          </p>
+        </div>
 
-        <WebhookSettings />
+        <div className="space-y-6">
+          <ReusableTabs
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            tabs={[
+              {
+                value: "settings",
+                label: "Configure",
+                icon: <Settings className="h-4 w-4" />,
+              },
+              {
+                value: "webhooks", 
+                label: "Webhooks",
+                icon: <Webhook className="h-4 w-4" />,
+              },
+            ]}
+          />
+
+          <Tabs value={activeTab} className="w-full">
+            <TabsContent value="settings" className="mt-0">
+              {settings && (
+                <ArticleSettingsForm
+                  initialSettings={settings}
+                  onSettingsUpdate={handleSettingsUpdate}
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent value="webhooks" className="mt-0">
+              <WebhookSettings />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

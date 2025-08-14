@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { WorkflowTabs } from "./workflow-tabs";
+import { ReusableTabs } from "@/components/ui/reusable-tabs";
 import { PlanningHub } from "./planning-hub";
 import { ArticleGenerations } from "./article-generations";
 import { PublishingPipeline } from "./publishing-pipeline";
@@ -867,12 +867,26 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
         value={activeTab}
         onValueChange={handleTabChange as (value: string) => void}
       >
-        <WorkflowTabs
+        <ReusableTabs
           activeTab={activeTab}
-          onTabChange={handleTabChange}
-          planningCount={planningArticles.length}
-          generationsCount={generationsArticles.length}
-          publishingCount={publishingArticles.length}
+          onTabChange={(tab: string) => handleTabChange(getValidTab(tab))}
+          tabs={[
+            {
+              value: "planning",
+              label: "Planning",
+              count: planningArticles.length,
+            },
+            {
+              value: "generations", 
+              label: "Generations",
+              count: generationsArticles.length,
+            },
+            {
+              value: "publishing",
+              label: "Publishing", 
+              count: publishingArticles.length,
+            },
+          ]}
         />
 
         <TabsContent value="planning">

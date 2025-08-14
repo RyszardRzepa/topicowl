@@ -67,7 +67,7 @@ export function CreditBalance({ className }: CreditBalanceProps) {
   };
 
   return (
-    <div className={`bg-white border border-gray-200 rounded-lg p-3 ${className}`}>
+    <div className={`bg-white border-t border-gray-200 p-3 ${className}`}>
       <div className="space-y-2">
         <div className="flex items-center space-x-2">
           <Coins

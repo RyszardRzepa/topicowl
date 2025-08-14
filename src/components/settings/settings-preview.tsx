@@ -1,6 +1,8 @@
 "use client";
 
 import type { ProjectSettingsResponse } from "@/app/api/settings/route";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Building2, FileText, Search, Webhook, Eye } from "lucide-react";
 
 interface SettingsPreviewProps {
   settings: ProjectSettingsResponse;
@@ -58,159 +60,307 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Company Information Summary */}
-      <div className="rounded-lg bg-blue-50 p-4">
-        <h3 className="mb-3 font-semibold text-blue-900">
-          Company Information
-        </h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-blue-700">Company:</span>
-            <span className="font-medium text-blue-900">
-              {settings.companyName ?? "Not set"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-blue-700">Website:</span>
-            <span className="font-medium text-blue-900">
-              {settings.websiteUrl ?? "Not set"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-blue-700">Keywords:</span>
-            <span className="font-medium text-blue-900">
-              {settings.keywords && settings.keywords.length > 0
-                ? `${settings.keywords.length} keywords`
-                : "None set"}
-            </span>
-          </div>
-        </div>
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="content" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Content</span>
+          </TabsTrigger>
+          <TabsTrigger value="seo" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">SEO</span>
+          </TabsTrigger>
+          <TabsTrigger value="webhooks" className="flex items-center gap-2">
+            <Webhook className="h-4 w-4" />
+            <span className="hidden sm:inline">Webhooks</span>
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="flex items-center gap-2">
+            <Eye className="h-4 w-4" />
+            <span className="hidden sm:inline">Preview</span>
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Article Generation Settings Summary */}
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h3 className="mb-3 font-semibold text-gray-900">
-          Generation Settings
-        </h3>
-        <div className="space-y-2 text-sm">
-          <div className="space-y-1">
-            <span className="text-gray-600">Tone:</span>
-            <p className="font-medium text-sm text-gray-900 leading-relaxed">
-              {settings.toneOfVoice ?? 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.'}
+        {/* Project Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          <div className="rounded-lg bg-blue-50 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-blue-900">
+              Project Information
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-blue-700">Project Name</label>
+                  <p className="mt-1 font-medium text-blue-900">{settings.name}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-blue-700">Company Name</label>
+                  <p className="mt-1 font-medium text-blue-900">
+                    {settings.companyName ?? "Not set"}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-blue-700">Website URL</label>
+                  <p className="mt-1 font-medium text-blue-900 break-all">
+                    {settings.websiteUrl}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-blue-700">Domain</label>
+                  <p className="mt-1 font-medium text-blue-900">
+                    {settings.domain ?? "Not extracted"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {settings.productDescription && (
+              <div className="mt-4 pt-4 border-t border-blue-200">
+                <label className="text-sm font-medium text-blue-700">Product/Service Description</label>
+                <p className="mt-2 text-sm text-blue-800 bg-blue-100 rounded p-3 italic">
+                  &ldquo;{settings.productDescription}&rdquo;
+                </p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Content Settings Tab */}
+        <TabsContent value="content" className="space-y-4">
+          <div className="rounded-lg bg-green-50 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-green-900">
+              Article Generation Settings
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-green-700">Tone of Voice</label>
+                <p className="mt-2 text-sm text-green-800 bg-green-100 rounded p-3 leading-relaxed">
+                  {getToneDescription(settings.toneOfVoice)}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-green-700">Article Structure</label>
+                  <p className="mt-2 font-mono text-xs bg-green-100 rounded p-3 text-green-800">
+                    {settings.articleStructure ?? "Introduction • Main points • Conclusion"}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-green-700">Target Word Count</label>
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-lg font-bold text-green-900">
+                        {settings.maxWords ?? 800} words
+                      </span>
+                      <span className="text-xs text-green-600">
+                        {Math.round(((settings.maxWords ?? 800) / 5000) * 100)}% of max
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-green-200">
+                      <div
+                        className="h-2 rounded-full bg-green-600"
+                        style={{
+                          width: `${Math.min(((settings.maxWords ?? 800) / 5000) * 100, 100)}%`,
+                        }}
+                      ></div>
+                    </div>
+                    <p className="mt-1 text-xs text-green-600">
+                      Maximum: 5,000 words
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* SEO & Keywords Tab */}
+        <TabsContent value="seo" className="space-y-4">
+          <div className="rounded-lg bg-purple-50 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-purple-900">
+              SEO Configuration
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-purple-700">Target Keywords</label>
+                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                    {settings.keywords.length} / 20 keywords
+                  </span>
+                </div>
+                {settings.keywords.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {settings.keywords.map((keyword, index) => (
+                      <span
+                        key={index}
+                        className="rounded-full bg-purple-100 px-3 py-1 text-sm font-medium text-purple-800 border border-purple-200"
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-purple-600 italic bg-purple-100 rounded p-3">
+                    No keywords set. Add keywords to improve content targeting.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-purple-700">Sitemap URL</label>
+                  <p className="mt-1 text-sm text-purple-800 bg-purple-100 rounded p-3 break-all">
+                    {settings.sitemapUrl ?? "Not configured"}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-purple-700">Excluded Domains</label>
+                  <div className="mt-1">
+                    {settings.excludedDomains.length > 0 ? (
+                      <div className="space-y-1">
+                        {settings.excludedDomains.map((domain, index) => (
+                          <span
+                            key={index}
+                            className="block text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded border border-purple-200"
+                          >
+                            {domain}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-purple-600 bg-purple-100 rounded p-3">
+                        No domains excluded
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Webhooks Tab */}
+        <TabsContent value="webhooks" className="space-y-4">
+          <div className="rounded-lg bg-orange-50 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-orange-900">
+              Webhook Configuration
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-orange-100 rounded">
+                <span className="text-sm font-medium text-orange-700">Webhook Status</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  settings.webhookEnabled 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {settings.webhookEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+
+              {settings.webhookUrl && (
+                <div>
+                  <label className="text-sm font-medium text-orange-700">Webhook URL</label>
+                  <p className="mt-1 text-sm text-orange-800 bg-orange-100 rounded p-3 font-mono break-all">
+                    {settings.webhookUrl}
+                  </p>
+                </div>
+              )}
+
+              {settings.webhookSecret && (
+                <div>
+                  <label className="text-sm font-medium text-orange-700">Webhook Secret</label>
+                  <p className="mt-1 text-sm text-orange-800 bg-orange-100 rounded p-3 font-mono">
+                    {'•'.repeat(settings.webhookSecret.length)}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-medium text-orange-700">Webhook Events</label>
+                <div className="mt-2">
+                  {settings.webhookEvents.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {settings.webhookEvents.map((event, index) => (
+                        <span
+                          key={index}
+                          className="rounded bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800 border border-orange-200"
+                        >
+                          {event}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-orange-600 bg-orange-100 rounded p-3">
+                      No events configured
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {!settings.webhookUrl && (
+                <div className="text-center py-6">
+                  <p className="text-sm text-orange-600">
+                    No webhook configuration found. Set up webhooks to receive real-time notifications.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Content Preview Tab */}
+        <TabsContent value="preview" className="space-y-4">
+          <div className="rounded-lg bg-gray-50 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">
+              Sample Content Preview
+            </h3>
+            <p className="mb-6 text-sm text-gray-600">
+              This preview shows how your content will look with the current tone and style settings.
             </p>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Max Words:</span>
-            <span className="font-medium">{settings.maxWords ?? 800}</span>
-          </div>
-        </div>
-      </div>
+            
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <label className="text-sm font-medium text-gray-700">Sample Title</label>
+                <h4 className="mt-2 text-lg font-semibold text-gray-900">
+                  {sampleContent.title}
+                </h4>
+              </div>
 
-      {/* Article Structure Preview */}
-      <div className="rounded-lg bg-green-50 p-4">
-        <h3 className="mb-3 font-semibold text-green-900">Article Structure</h3>
-        <div className="text-sm text-green-800">
-          <p className="rounded bg-green-100 p-2 font-mono text-xs">
-            {settings.articleStructure ??
-              "Introduction • Main points • Conclusion"}
-          </p>
-        </div>
-      </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <label className="text-sm font-medium text-gray-700">Sample Introduction</label>
+                <p className="mt-2 text-gray-800 leading-relaxed">
+                  {sampleContent.intro}
+                </p>
+              </div>
 
-      {/* Keywords Display */}
-      {settings.keywords && settings.keywords.length > 0 && (
-        <div className="rounded-lg bg-purple-50 p-4">
-          <h3 className="mb-3 font-semibold text-purple-900">
-            Target Keywords
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {settings.keywords.map((keyword, index) => (
-              <span
-                key={index}
-                className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800"
-              >
-                {keyword}
-              </span>
-            ))}
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <label className="text-sm font-medium text-gray-700">Sample Body Text</label>
+                <p className="mt-2 text-gray-800 leading-relaxed">
+                  {sampleContent.body}
+                </p>
+              </div>
+
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">Style Analysis</h4>
+                <p className="text-sm text-blue-700">
+                  Based on your tone settings: &ldquo;{getToneDescription(settings.toneOfVoice)}&rdquo;
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Style Descriptions */}
-      <div className="space-y-4">
-        <div>
-          <h4 className="mb-2 font-medium text-gray-900">Tone of Voice</h4>
-          <p className="text-sm text-gray-600">
-            {getToneDescription(settings.toneOfVoice)}
-          </p>
-        </div>
-
-        {settings.productDescription && (
-          <div>
-            <h4 className="mb-2 font-medium text-gray-900">
-              Product/Service Context
-            </h4>
-            <p className="text-sm text-gray-600 italic">
-              &ldquo;{settings.productDescription}&rdquo;
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Sample Content Preview */}
-      <div className="border-t pt-6">
-        <h3 className="mb-4 font-semibold text-gray-900">
-          Sample Content Preview
-        </h3>
-        <div className="space-y-4 text-sm">
-          <div>
-            <h4 className="mb-1 font-medium text-gray-700">Sample Title:</h4>
-            <p className="text-gray-600 italic">
-              &ldquo;{sampleContent.title}&rdquo;
-            </p>
-          </div>
-
-          <div>
-            <h4 className="mb-1 font-medium text-gray-700">
-              Sample Introduction:
-            </h4>
-            <p className="text-gray-600 italic">
-              &ldquo;{sampleContent.intro}&rdquo;
-            </p>
-          </div>
-
-          <div>
-            <h4 className="mb-1 font-medium text-gray-700">
-              Sample Body Text:
-            </h4>
-            <p className="text-gray-600 italic">
-              &ldquo;{sampleContent.body}&rdquo;
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Word Count Indicator */}
-      <div className="rounded-lg bg-blue-50 p-4">
-        <h4 className="mb-2 font-medium text-blue-900">Word Count Target</h4>
-        <div className="flex items-center space-x-2">
-          <div className="h-2 flex-1 rounded-full bg-blue-200">
-            <div
-              className="h-2 rounded-full bg-blue-600"
-              style={{
-                width: `${Math.min(((settings.maxWords ?? 800) / 5000) * 100, 100)}%`,
-              }}
-            ></div>
-          </div>
-          <span className="text-sm font-medium text-blue-900">
-            {settings.maxWords ?? 800} words
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-blue-700">
-          Articles will target approximately {settings.maxWords ?? 800} words in
-          length
-        </p>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

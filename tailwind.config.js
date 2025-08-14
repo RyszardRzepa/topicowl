@@ -5,12 +5,33 @@ module.exports = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    // Brand orange colors for tabs
+    'bg-brand-orange-100',
+    'text-brand-orange-500', 
+    'border-brand-orange-200',
+    'bg-brand-gray-100',
+    'text-brand-gray-900',
+    // Data attribute variants
+    'data-[state=active]:bg-brand-orange-100',
+    'data-[state=active]:text-brand-orange-500',
+    'data-[state=active]:border-brand-orange-200',
+  ],
   theme: {
     extend: {
       fontFamily: {
         inter: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
+        // Override default orange with brand orange colors
+        orange: {
+          50: '#fff7ed',   // Very light orange background
+          100: '#ffedd5',  // Light orange background
+          200: '#fed7aa',  // Light orange border
+          500: '#ff661a',  // Primary brand orange
+          600: '#ea580c',  // Darker orange for hover
+          900: '#9a3412',  // Dark orange for text
+        },
         // Brand colors - Light theme optimized
         brand: {
           green: {
@@ -23,7 +44,8 @@ module.exports = {
           orange: {
             50: '#fff7ed',   // Very light orange background
             100: '#ffedd5',  // Light orange background
-            500: 'rgba(255, 102, 26, 1)', // Primary orange (unchanged)
+            200: '#fed7aa',  // Light orange border
+            500: '#ff661a',  // Primary orange (converted from rgba)
             600: '#ea580c',  // Darker orange for hover
             900: '#9a3412',  // Dark orange for text
           },
