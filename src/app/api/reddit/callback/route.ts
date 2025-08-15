@@ -67,7 +67,9 @@ export async function GET(request: NextRequest) {
     // Parse state to extract project context
     let stateData: StateData;
     try {
-      stateData = JSON.parse(Buffer.from(state, "base64url").toString()) as StateData;
+      stateData = JSON.parse(
+        Buffer.from(state, "base64url").toString(),
+      ) as StateData;
     } catch (parseError) {
       console.error("Failed to parse state data:", parseError);
       return NextResponse.redirect(
@@ -86,7 +88,9 @@ export async function GET(request: NextRequest) {
     const [project] = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, stateData.projectId), eq(projects.userId, userId)))
+      .where(
+        and(eq(projects.id, stateData.projectId), eq(projects.userId, userId)),
+      )
       .limit(1);
 
     if (!project) {
@@ -136,7 +140,10 @@ export async function GET(request: NextRequest) {
     });
 
     if (!userResponse.ok) {
-      console.error("Failed to fetch Reddit user info:", await userResponse.text());
+      console.error(
+        "Failed to fetch Reddit user info:",
+        await userResponse.text(),
+      );
       return NextResponse.redirect(
         `${API_BASE_URL}/dashboard/settings/reddit?error=user_info_failed`,
       );
@@ -148,12 +155,11 @@ export async function GET(request: NextRequest) {
     // Store project-specific refresh token in Clerk private metadata
     const clerk = await clerkClient();
     const user = await clerk.users.getUser(userId);
-    const currentMetadata = (user.privateMetadata ?? {}) as ClerkPrivateMetadata;
-    
+    const currentMetadata = (user.privateMetadata ??
+      {}) as ClerkPrivateMetadata;
+
     // Initialize redditTokens if it doesn't exist
-    if (!currentMetadata.redditTokens) {
-      currentMetadata.redditTokens = {};
-    }
+    currentMetadata.redditTokens ??= {};
 
     // Store connection data for this project
     const connectionData: ProjectRedditConnection = {
@@ -165,7 +171,8 @@ export async function GET(request: NextRequest) {
       scopes: tokens.scope.split(" "),
     };
 
-    currentMetadata.redditTokens[stateData.projectId.toString()] = connectionData;
+    currentMetadata.redditTokens[stateData.projectId.toString()] =
+      connectionData;
 
     await clerk.users.updateUserMetadata(userId, {
       privateMetadata: currentMetadata,

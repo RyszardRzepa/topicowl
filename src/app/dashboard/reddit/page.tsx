@@ -31,8 +31,11 @@ import type {
   RedditPost,
   RedditSubredditPostsResponse,
 } from "@/app/api/reddit/subreddit/posts/route";
+import { useProject } from "@/contexts/project-context";
 
 export default function RedditDashboard() {
+  const { currentProject } = useProject();
+
   // State management for all form data and API responses
   const [postForm, setPostForm] = useState({
     subreddit: "",
@@ -68,9 +71,11 @@ export default function RedditDashboard() {
 
   // Load user profile
   const loadProfile = useCallback(async () => {
+    if (!currentProject) return;
+    
     try {
       setLoading("profile", true);
-      const response = await fetch("/api/reddit/user?action=profile");
+      const response = await fetch(`/api/reddit/user?action=profile&projectId=${currentProject.id}`);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -90,15 +95,15 @@ export default function RedditDashboard() {
     } finally {
       setLoading("profile", false);
     }
-  }, [setLoading]);
+  }, [setLoading, currentProject]);
 
   // Load subscribed subreddits
   const loadSubscriptions = useCallback(async () => {
-    if (!isConnected) return;
+    if (!isConnected || !currentProject) return;
 
     try {
       setLoading("subscriptions", true);
-      const response = await fetch("/api/reddit/user?action=subreddits");
+      const response = await fetch(`/api/reddit/user?action=subreddits&projectId=${currentProject.id}`);
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
@@ -115,7 +120,7 @@ export default function RedditDashboard() {
     } finally {
       setLoading("subscriptions", false);
     }
-  }, [setLoading, isConnected]);
+  }, [setLoading, isConnected, currentProject]);
 
   // Search for subreddits
   const handleSearch = useCallback(async () => {
@@ -124,10 +129,15 @@ export default function RedditDashboard() {
       return;
     }
 
+    if (!currentProject) {
+      toast.error("No project selected");
+      return;
+    }
+
     try {
       setLoading("search", true);
       const response = await fetch(
-        `/api/reddit/subreddits?query=${encodeURIComponent(searchQuery)}`,
+        `/api/reddit/subreddits?query=${encodeURIComponent(searchQuery)}&projectId=${currentProject.id}`,
       );
 
       if (!response.ok) {
@@ -148,7 +158,7 @@ export default function RedditDashboard() {
     } finally {
       setLoading("search", false);
     }
-  }, [searchQuery, setLoading]);
+  }, [searchQuery, setLoading, currentProject]);
 
   // Fetch posts from subreddit
   const handleFetchPosts = useCallback(async () => {
@@ -157,10 +167,15 @@ export default function RedditDashboard() {
       return;
     }
 
+    if (!currentProject) {
+      toast.error("No project selected");
+      return;
+    }
+
     try {
       setLoading("posts", true);
       const response = await fetch(
-        `/api/reddit/subreddit/posts?subreddit=${encodeURIComponent(postsSubreddit)}`,
+        `/api/reddit/subreddit/posts?subreddit=${encodeURIComponent(postsSubreddit)}&projectId=${currentProject.id}`,
       );
 
       if (!response.ok) {
@@ -179,7 +194,7 @@ export default function RedditDashboard() {
     } finally {
       setLoading("posts", false);
     }
-  }, [postsSubreddit, setLoading]);
+  }, [postsSubreddit, setLoading, currentProject]);
 
   // Submit post to Reddit
   const handleSubmitPost = useCallback(
@@ -191,6 +206,11 @@ export default function RedditDashboard() {
         return;
       }
 
+      if (!currentProject) {
+        toast.error("No project selected");
+        return;
+      }
+
       try {
         setLoading("submit", true);
         const response = await fetch("/api/reddit/posts", {
@@ -198,7 +218,10 @@ export default function RedditDashboard() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(postForm satisfies RedditPostSubmissionRequest),
+          body: JSON.stringify({
+            ...postForm,
+            projectId: currentProject.id,
+          } satisfies RedditPostSubmissionRequest),
         });
 
         if (!response.ok) {
@@ -224,7 +247,7 @@ export default function RedditDashboard() {
         setLoading("submit", false);
       }
     },
-    [postForm, setLoading],
+    [postForm, setLoading, currentProject],
   );
 
   // Click handler to populate post form subreddit field
@@ -235,8 +258,10 @@ export default function RedditDashboard() {
 
   // Load profile and subscriptions on component mount
   useEffect(() => {
-    void loadProfile();
-  }, [loadProfile]);
+    if (currentProject) {
+      void loadProfile();
+    }
+  }, [loadProfile, currentProject]);
 
   useEffect(() => {
     if (isConnected) {
@@ -244,8 +269,8 @@ export default function RedditDashboard() {
     }
   }, [isConnected, loadSubscriptions]);
 
-  // Show loading state while checking connection
-  if (isConnected === null) {
+  // Show loading state while checking connection or waiting for project
+  if (isConnected === null || !currentProject) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-2xl">
@@ -284,9 +309,14 @@ export default function RedditDashboard() {
 
             <div className="space-y-4">
               <Button
-                onClick={() => (window.location.href = "/api/reddit/auth")}
+                onClick={() => {
+                  if (currentProject) {
+                    window.location.href = `/api/reddit/auth?projectId=${currentProject.id}`;
+                  }
+                }}
                 className="w-full"
                 size="lg"
+                disabled={!currentProject}
               >
                 Connect Reddit Account
               </Button>

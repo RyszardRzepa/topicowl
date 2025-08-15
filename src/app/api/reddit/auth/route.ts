@@ -21,13 +21,19 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get("projectId");
 
     if (!projectId) {
-      return NextResponse.json({ error: "Project ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Project ID is required" },
+        { status: 400 },
+      );
     }
 
     // Validate project ID format
     const projectIdNum = parseInt(projectId, 10);
     if (isNaN(projectIdNum)) {
-      return NextResponse.json({ error: "Invalid project ID format" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid project ID format" },
+        { status: 400 },
+      );
     }
 
     // Verify project exists and user owns it
@@ -38,7 +44,10 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (!project) {
-      return NextResponse.json({ error: "Project not found or access denied" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Project not found or access denied" },
+        { status: 404 },
+      );
     }
 
     // Generate secure state parameter for CSRF protection with project context
