@@ -147,10 +147,9 @@ export interface ProjectRedditConnection {
 
 // Clerk private metadata structure for Reddit tokens
 export interface ClerkPrivateMetadata {
-  redditTokens?: {
-    [projectId: string]: ProjectRedditConnection;
-  };
+  redditTokens?: Record<string, ProjectRedditConnection>;
   // Other existing metadata fields can be added here as needed
+  [key: string]: unknown; // Index signature for Clerk compatibility
 }
 
 // Reddit token data from OAuth flow

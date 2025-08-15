@@ -4,8 +4,11 @@ import { auth } from "@clerk/nextjs/server";
 import { env } from "@/env";
 import crypto from "crypto";
 import { API_BASE_URL } from "@/constants";
+import { db } from "@/server/db";
+import { projects } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Check if user is authenticated
     const { userId } = await auth();
@@ -13,8 +16,47 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Generate secure state parameter for CSRF protection
-    const state = crypto.randomBytes(30).toString("hex");
+    // Get project ID from query parameters
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get("projectId");
+
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "Project ID is required" },
+        { status: 400 },
+      );
+    }
+
+    // Validate project ID format
+    const projectIdNum = parseInt(projectId, 10);
+    if (isNaN(projectIdNum)) {
+      return NextResponse.json(
+        { error: "Invalid project ID format" },
+        { status: 400 },
+      );
+    }
+
+    // Verify project exists and user owns it
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectIdNum), eq(projects.userId, userId)))
+      .limit(1);
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found or access denied" },
+        { status: 404 },
+      );
+    }
+
+    // Generate secure state parameter for CSRF protection with project context
+    const stateData = {
+      random: crypto.randomBytes(20).toString("hex"),
+      projectId: projectIdNum,
+      userId: userId,
+    };
+    const state = Buffer.from(JSON.stringify(stateData)).toString("base64url");
 
     // Store state in session/cookie for validation in callback
     const response = NextResponse.redirect(
