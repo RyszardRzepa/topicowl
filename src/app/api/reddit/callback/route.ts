@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
 
     // Clear state cookie
     const response = NextResponse.redirect(
-      `${API_BASE_URL}/dashboard/settings/reddit?success=connected&projectId=${stateData.projectId}`,
+      `${API_BASE_URL}/dashboard/reddit`,
     );
     response.cookies.delete("reddit_oauth_state");
 

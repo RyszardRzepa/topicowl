@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ExternalLink, CheckCircle, AlertCircle, MessageSquare } from "lucide-react";
+import { useProject } from "@/contexts/project-context";
 
 interface RedditSettingsProps {
   showCard?: boolean;
@@ -15,6 +16,7 @@ interface RedditSettingsProps {
 
 export function RedditSettings({ showCard = true }: RedditSettingsProps) {
   const { user, isLoaded } = useUser();
+  const { currentProject } = useProject();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -23,11 +25,11 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
 
   // Check connection status on mount
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !user || !currentProject) return;
 
     const checkConnectionStatus = async () => {
       try {
-        const response = await fetch('/api/reddit/status');
+        const response = await fetch(`/api/reddit/status?projectId=${currentProject.id}`);
         if (response.ok) {
           const data = await response.json();
           setConnectionStatus(data.connected ? 'connected' : 'disconnected');
@@ -41,7 +43,7 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
     };
 
     void checkConnectionStatus();
-  }, [user, isLoaded]);
+  }, [user, isLoaded, currentProject]);
 
   // Handle OAuth callback messages
   useEffect(() => {
@@ -62,11 +64,13 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
   }, [searchParams, router]);
 
   const handleConnect = async () => {
+    if (!currentProject) return;
+    
     setIsConnecting(true);
     setMessage(null);
     
     try {
-      const response = await fetch('/api/reddit/auth');
+      const response = await fetch(`/api/reddit/auth?projectId=${currentProject.id}`);
       if (response.ok) {
         // The API will redirect to Reddit OAuth
         window.location.href = response.url;
@@ -84,8 +88,16 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
   };
 
   const handleDisconnect = async () => {
+    if (!currentProject) return;
+    
     try {
-      const response = await fetch('/api/reddit/disconnect', { method: 'POST' });
+      const response = await fetch('/api/reddit/disconnect', { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ projectId: currentProject.id }),
+      });
       if (response.ok) {
         setConnectionStatus('disconnected');
         setMessage({ type: 'success', text: 'Successfully disconnected from Reddit' });
@@ -141,7 +153,13 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
       )}
 
       <div className="space-y-4">
-        {connectionStatus === 'disconnected' && (
+        {!currentProject && (
+          <div className="text-sm text-muted-foreground">
+            Loading project information...
+          </div>
+        )}
+        
+        {currentProject && connectionStatus === 'disconnected' && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Connect your Reddit account to:
@@ -154,7 +172,7 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
             </ul>
             <Button 
               onClick={handleConnect} 
-              disabled={isConnecting || !isLoaded}
+              disabled={isConnecting || !isLoaded || !currentProject}
               className="w-full sm:w-auto"
             >
               {isConnecting ? (
@@ -172,7 +190,7 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
           </div>
         )}
 
-        {connectionStatus === 'connected' && (
+        {currentProject && connectionStatus === 'connected' && (
           <div className="space-y-3">
             <p className="text-sm text-green-700">
               Your Reddit account is successfully connected! You can now use Reddit features in the dashboard.
