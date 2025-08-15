@@ -4,7 +4,7 @@ function getId(input = "") {
   try {
     const u = new URL(input);
     if (u.hostname.includes("youtu.be")) return u.pathname.slice(1);
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || "";
+    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") ?? "";
   } catch {
     return input; // already an ID
   }
@@ -20,7 +20,7 @@ export function YouTube({
   url?: string; 
   title?: string;
 }) {
-  const vid = getId(id || url);
+  const vid = getId(id ?? url);
   if (!vid) return null;
   
   return (

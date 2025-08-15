@@ -6,6 +6,7 @@ import {
   articleGeneration,
 } from "@/server/db/schema";
 import { eq, and, lte, max } from "drizzle-orm";
+import { hasCredits } from "@/lib/utils/credits";
 
 // Types colocated with this API route
 export interface CronGenerateArticlesResponse {
@@ -21,11 +22,11 @@ export interface CronGenerateArticlesResponse {
 // Helper function to get next queue position
 async function getNextQueuePosition(userId: string): Promise<number> {
   const maxPositionResult = await db
-    .select({ maxPosition: max(generationQueue.queue_position) })
+    .select({ maxPosition: max(generationQueue.queuePosition) })
     .from(generationQueue)
     .where(
       and(
-        eq(generationQueue.user_id, userId),
+        eq(generationQueue.userId, userId),
         eq(generationQueue.status, "queued"),
       ),
     );
@@ -33,49 +34,64 @@ async function getNextQueuePosition(userId: string): Promise<number> {
   return (maxPositionResult[0]?.maxPosition ?? -1) + 1;
 }
 
-// Helper function to calculate next schedule time
-function calculateNextScheduleTime(
-  currentSchedule: Date,
-  frequency: string,
-  _frequencyConfig?: Record<string, unknown>,
-): Date | null {
-  if (frequency === "once") return null;
-
-  const next = new Date(currentSchedule);
-
-  switch (frequency) {
-    case "daily":
-      next.setDate(next.getDate() + 1);
-      break;
-    case "weekly":
-      next.setDate(next.getDate() + 7);
-      break;
-    case "monthly":
-      next.setMonth(next.getMonth() + 1);
-      break;
-    default:
-      return null;
-  }
-
-  return next;
-}
-
 // Helper function to process generation queue (calls existing generation pipeline)
 async function processArticleGeneration(queueItem: {
   id: number;
-  article_id: number;
-  user_id: string;
+  articleId: number;
+  userId: string;
   attempts?: number;
-  max_attempts?: number;
+  maxAttempts?: number;
 }): Promise<boolean> {
   try {
+    // Check if user has credits before processing
+    const userHasCredits = await hasCredits(queueItem.userId);
+    if (!userHasCredits) {
+      console.log(
+        `User ${queueItem.userId} has no credits, skipping queue item ${queueItem.id}`,
+      );
+
+      // Update queue item as failed due to insufficient credits
+      await db
+        .update(generationQueue)
+        .set({
+          status: "failed",
+          errorMessage: "Insufficient credits to process article generation",
+          updatedAt: new Date(),
+        })
+        .where(eq(generationQueue.id, queueItem.id));
+
+      // Update article status back to idea
+      await db
+        .update(articles)
+        .set({
+          status: "idea",
+          updatedAt: new Date(),
+        })
+        .where(eq(articles.id, queueItem.articleId));
+
+      return false;
+    }
+
+    // Get article projectId for generation record
+    const [article] = await db
+      .select({
+        projectId: articles.projectId,
+      })
+      .from(articles)
+      .where(eq(articles.id, queueItem.articleId))
+      .limit(1);
+
+    if (!article) {
+      throw new Error(`Article ${queueItem.articleId} not found`);
+    }
+
     // Update queue item status to processing
     await db
       .update(generationQueue)
       .set({
         status: "processing",
-        processed_at: new Date(),
-        updated_at: new Date(),
+        processedAt: new Date(),
+        updatedAt: new Date(),
       })
       .where(eq(generationQueue.id, queueItem.id));
 
@@ -86,19 +102,20 @@ async function processArticleGeneration(queueItem: {
         status: "generating",
         updatedAt: new Date(),
       })
-      .where(eq(articles.id, queueItem.article_id));
+      .where(eq(articles.id, queueItem.articleId));
 
     // Create or update articleGeneration record
     const [existingGeneration] = await db
       .select()
       .from(articleGeneration)
-      .where(eq(articleGeneration.articleId, queueItem.article_id))
+      .where(eq(articleGeneration.articleId, queueItem.articleId))
       .limit(1);
 
     if (!existingGeneration) {
       await db.insert(articleGeneration).values({
-        articleId: queueItem.article_id,
-        userId: queueItem.user_id,
+        articleId: queueItem.articleId,
+        userId: queueItem.userId,
+        projectId: article.projectId,
         status: "pending",
         progress: 0,
         startedAt: new Date(),
@@ -128,8 +145,8 @@ async function processArticleGeneration(queueItem: {
         .update(generationQueue)
         .set({
           status: "completed",
-          completed_at: new Date(),
-          updated_at: new Date(),
+          completedAt: new Date(),
+          updatedAt: new Date(),
         })
         .where(eq(generationQueue.id, queueItem.id));
 
@@ -140,7 +157,7 @@ async function processArticleGeneration(queueItem: {
           status: "wait_for_publish",
           updatedAt: new Date(),
         })
-        .where(eq(articles.id, queueItem.article_id));
+        .where(eq(articles.id, queueItem.articleId));
 
       // Update generation record
       if (existingGeneration) {
@@ -168,14 +185,14 @@ async function processArticleGeneration(queueItem: {
       .set({
         status: "failed",
         attempts: (queueItem.attempts ?? 0) + 1,
-        error_message: error instanceof Error ? error.message : "Unknown error",
-        updated_at: new Date(),
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+        updatedAt: new Date(),
       })
       .where(eq(generationQueue.id, queueItem.id));
 
     // Update article status back to queued for retry or failed if max attempts reached
     const newStatus =
-      (queueItem.attempts ?? 0) + 1 >= (queueItem.max_attempts ?? 3)
+      (queueItem.attempts ?? 0) + 1 >= (queueItem.maxAttempts ?? 3)
         ? "idea"
         : "queued";
     await db
@@ -184,7 +201,7 @@ async function processArticleGeneration(queueItem: {
         status: newStatus,
         updatedAt: new Date(),
       })
-      .where(eq(articles.id, queueItem.article_id));
+      .where(eq(articles.id, queueItem.articleId));
 
     return false;
   }
@@ -201,19 +218,23 @@ export async function POST() {
     console.log("Phase 1: Processing scheduled articles...");
 
     const now = new Date();
-    
+
     // Find articles that are scheduled for generation via articleGeneration table
     const scheduledArticles = await db
       .select({
         id: articles.id,
-        user_id: articles.user_id,
+        user_id: articles.userId,
+        project_id: articles.projectId,
         title: articles.title,
         status: articles.status,
         generationId: articleGeneration.id,
         scheduledAt: articleGeneration.scheduledAt,
       })
       .from(articles)
-      .innerJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
+      .innerJoin(
+        articleGeneration,
+        eq(articles.id, articleGeneration.articleId),
+      )
       .where(
         and(
           eq(articles.status, "to_generate"),
@@ -228,16 +249,48 @@ export async function POST() {
 
     for (const article of scheduledArticles) {
       try {
+        // Check if user has credits before adding to queue
+        const userHasCredits = await hasCredits(article.user_id!);
+        if (!userHasCredits) {
+          console.log(
+            `User ${article.user_id} has no credits, skipping article ${article.id}`,
+          );
+
+          // Update article status back to idea and generation record to failed
+          await db
+            .update(articles)
+            .set({
+              status: "idea",
+              updatedAt: new Date(),
+            })
+            .where(eq(articles.id, article.id));
+
+          await db
+            .update(articleGeneration)
+            .set({
+              status: "failed",
+              error: "Insufficient credits to process article generation",
+              updatedAt: new Date(),
+            })
+            .where(eq(articleGeneration.id, article.generationId));
+
+          const errorMsg = `Skipped article ${article.id} - user has no credits`;
+          console.log(errorMsg);
+          errors.push(errorMsg);
+          continue;
+        }
+
         // Get next queue position for this user
         const queuePosition = await getNextQueuePosition(article.user_id!);
 
         // Add to generation queue
         await db.insert(generationQueue).values({
-          article_id: article.id,
-          user_id: article.user_id!,
-          scheduled_for_date: article.scheduledAt,
-          queue_position: queuePosition,
-          scheduling_type: "manual", // Since automatic scheduling was removed
+          articleId: article.id,
+          userId: article.user_id!,
+          projectId: article.project_id,
+          scheduledForDate: article.scheduledAt,
+          queuePosition: queuePosition,
+          schedulingType: "manual", // Since automatic scheduling was removed
           status: "queued",
         });
 
@@ -274,24 +327,24 @@ export async function POST() {
     const queueItems = await db
       .select({
         id: generationQueue.id,
-        article_id: generationQueue.article_id,
-        user_id: generationQueue.user_id,
-        queue_position: generationQueue.queue_position,
+        articleId: generationQueue.articleId,
+        userId: generationQueue.userId,
+        queuePosition: generationQueue.queuePosition,
         attempts: generationQueue.attempts,
-        max_attempts: generationQueue.max_attempts,
+        maxAttempts: generationQueue.maxAttempts,
         status: generationQueue.status,
       })
       .from(generationQueue)
       .where(eq(generationQueue.status, "queued"))
-      .orderBy(generationQueue.queue_position, generationQueue.created_at);
+      .orderBy(generationQueue.queuePosition, generationQueue.createdAt);
 
     // Transform the queue items to match the expected type
     const typedQueueItems = queueItems.map((item) => ({
       id: item.id,
-      article_id: item.article_id,
-      user_id: item.user_id,
+      articleId: item.articleId,
+      userId: item.userId,
       attempts: item.attempts ?? undefined,
-      max_attempts: item.max_attempts ?? undefined,
+      maxAttempts: item.maxAttempts ?? undefined,
     }));
 
     console.log(`Found ${queueItems.length} items in generation queue`);
@@ -300,7 +353,7 @@ export async function POST() {
     for (const queueItem of typedQueueItems) {
       try {
         console.log(
-          `Processing queue item ${queueItem.id} (article ${queueItem.article_id})`,
+          `Processing queue item ${queueItem.id} (article ${queueItem.articleId})`,
         );
         const success = await processArticleGeneration(queueItem);
 

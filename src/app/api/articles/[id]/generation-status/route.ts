@@ -2,8 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { articles, articleGeneration, users, projects } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
 
 // Types colocated with this API route
@@ -46,7 +46,7 @@ export async function GET(
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -67,28 +67,21 @@ export async function GET(
 
     const articleId = parseInt(id);
 
-    // Check if article exists and belongs to current user
+    // Check if article exists and belongs to current user's project using JOIN
     const [article] = await db
-      .select()
+      .select({
+        id: articles.id,
+        projectId: articles.projectId,
+      })
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
     if (!article) {
       return NextResponse.json(
-        { success: false, error: "Article not found" } as ApiResponse,
+        { success: false, error: "Article not found or access denied" } as ApiResponse,
         { status: 404 },
-      );
-    }
-
-    // Verify article ownership
-    if (article.user_id !== userRecord.id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Access denied: Article does not belong to current user",
-        } as ApiResponse,
-        { status: 403 },
       );
     }
 
@@ -103,8 +96,11 @@ export async function GET(
     // If no generation record exists, return not found
     if (!latestGeneration) {
       return NextResponse.json(
-        { success: false, error: "No generation found for this article" } as ApiResponse,
-        { status: 404 }
+        {
+          success: false,
+          error: "No generation found for this article",
+        } as ApiResponse,
+        { status: 404 },
       );
     }
 
@@ -160,14 +156,22 @@ export async function GET(
       articleId: id,
       status: mapStatus(latestGeneration.status),
       progress: latestGeneration.progress,
-      currentStep: latestGeneration.status === "completed" 
-        ? undefined 
-        : getPhaseDescription(latestGeneration.status),
-      phase: latestGeneration.status === "researching" ? "research" :
-             latestGeneration.status === "writing" ? "writing" :
-             latestGeneration.status === "quality-control" ? "quality-control" :
-             latestGeneration.status === "validating" ? "validation" :
-             latestGeneration.status === "updating" ? "optimization" : undefined,
+      currentStep:
+        latestGeneration.status === "completed"
+          ? undefined
+          : getPhaseDescription(latestGeneration.status),
+      phase:
+        latestGeneration.status === "researching"
+          ? "research"
+          : latestGeneration.status === "writing"
+            ? "writing"
+            : latestGeneration.status === "quality-control"
+              ? "quality-control"
+              : latestGeneration.status === "validating"
+                ? "validation"
+                : latestGeneration.status === "updating"
+                  ? "optimization"
+                  : undefined,
       startedAt:
         latestGeneration.startedAt?.toISOString() ??
         latestGeneration.createdAt.toISOString(),

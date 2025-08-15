@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, users, articleGeneration } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, users, articleGeneration, projects } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 
 // API types for this endpoint
@@ -36,7 +36,7 @@ export async function POST(
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -54,26 +54,22 @@ export async function POST(
       );
     }
 
-    // Check if article exists and belongs to user
-    const [existingArticle] = await db
+    // Check if article exists and belongs to current user's project using JOIN
+    const [result] = await db
       .select()
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
-    if (!existingArticle) {
+    if (!result) {
       return NextResponse.json(
-        { success: false, error: "Article not found" } as RunNowResponse,
+        { success: false, error: "Article not found or access denied" } as RunNowResponse,
         { status: 404 }
       );
     }
 
-    if (existingArticle.user_id !== userRecord.id) {
-      return NextResponse.json(
-        { success: false, error: "Access denied" } as RunNowResponse,
-        { status: 403 }
-      );
-    }
+    const existingArticle = result.articles;
 
     // Check if article is scheduled for generation
     if (existingArticle.status !== "to_generate") {

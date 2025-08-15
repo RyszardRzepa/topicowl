@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArticleIdeaCard } from "./article-idea-card";
+import { useProject } from "@/contexts/project-context";
 import {
   Sparkles,
   RefreshCw,
@@ -39,14 +40,15 @@ interface GenerationState {
   requiresOnboarding: boolean;
 }
 
-// Local storage key for persisting generated ideas
-const STORAGE_KEY = "contentbot-generated-ideas";
+// Local storage key for persisting generated ideas (project-specific)
+const getStorageKey = (projectId: number) => `contentbot-generated-ideas-${projectId}`;
 
 export function ArticleIdeasGenerator({
   open,
   onOpenChange,
   onIdeaAdded,
 }: ArticleIdeasGeneratorProps) {
+  const { currentProject } = useProject();
   const [state, setState] = useState<GenerationState>({
     isGenerating: false,
     ideas: [],
@@ -60,8 +62,11 @@ export function ArticleIdeasGenerator({
 
   // Load previously generated ideas from localStorage on component mount
   useEffect(() => {
+    if (!currentProject) return;
+
     try {
-      const savedIdeas = localStorage.getItem(STORAGE_KEY);
+      const storageKey = getStorageKey(currentProject.id);
+      const savedIdeas = localStorage.getItem(storageKey);
       if (savedIdeas) {
         const parsedIdeas = JSON.parse(savedIdeas) as ArticleIdea[];
         if (Array.isArray(parsedIdeas) && parsedIdeas.length > 0) {
@@ -74,24 +79,38 @@ export function ArticleIdeasGenerator({
     } catch (error) {
       console.error("Failed to load saved ideas from localStorage:", error);
       // Clear corrupted data
-      localStorage.removeItem(STORAGE_KEY);
+      if (currentProject) {
+        const storageKey = getStorageKey(currentProject.id);
+        localStorage.removeItem(storageKey);
+      }
     }
-  }, []);
+  }, [currentProject]);
 
   // Save ideas to localStorage whenever ideas change
   const saveIdeasToStorage = useCallback((ideas: ArticleIdea[]) => {
+    if (!currentProject) return;
+
     try {
+      const storageKey = getStorageKey(currentProject.id);
       if (ideas.length > 0) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(ideas));
+        localStorage.setItem(storageKey, JSON.stringify(ideas));
       } else {
-        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(storageKey);
       }
     } catch (error) {
       console.error("Failed to save ideas to localStorage:", error);
     }
-  }, []);
+  }, [currentProject]);
 
   const generateIdeas = useCallback(async () => {
+    if (!currentProject) {
+      setState((prev) => ({
+        ...prev,
+        error: 'Please select a project first',
+      }));
+      return;
+    }
+
     setState((prev) => ({
       ...prev,
       isGenerating: true,
@@ -106,6 +125,9 @@ export function ArticleIdeasGenerator({
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          projectId: currentProject.id,
+        }),
       });
 
       const data = (await response.json()) as GenerateIdeasResponse;
@@ -147,7 +169,7 @@ export function ArticleIdeasGenerator({
             : "An unexpected error occurred",
       }));
     }
-  }, [saveIdeasToStorage]);
+  }, [currentProject, saveIdeasToStorage]);
 
   const handleIdeaSelection = useCallback(
     (index: number, selected: boolean) => {

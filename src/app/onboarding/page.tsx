@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useProject } from "@/contexts/project-context";
 import { WebsiteUrlForm } from "@/components/onboarding/website-url-form";
 import { OnboardingProgress } from "@/components/onboarding/onboarding-progress";
 import { AIAnalysisPreview } from "@/components/onboarding/ai-analysis-preview";
@@ -28,6 +29,7 @@ type AnalysisData = {
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const { switchProject, refreshProjects } = useProject();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("url");
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +74,8 @@ export default function OnboardingPage() {
   };
 
   const handleAnalysisConfirm = async () => {
+    if (!analysisData) return;
+    
     setIsLoading(true);
     setError(null);
 
@@ -81,17 +85,46 @@ export default function OnboardingPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          projectData: {
+            name: `${analysisData.companyName} Website`,
+            websiteUrl: `https://${analysisData.domain}`,
+            companyName: analysisData.companyName,
+            productDescription: analysisData.productDescription,
+            keywords: analysisData.suggestedKeywords,
+            toneOfVoice: analysisData.toneOfVoice,
+            articleStructure: analysisData.contentStrategy.articleStructure,
+            maxWords: analysisData.contentStrategy.maxWords,
+          },
+        }),
       });
 
       if (!response.ok) {
         throw new Error("Failed to complete onboarding");
       }
 
+      const result = await response.json() as {
+        success: boolean;
+        data?: { projectId?: number };
+        error?: string;
+      };
+
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to complete onboarding");
+      }
+
+      // Refresh projects list and switch to the newly created project
+  await refreshProjects();
+      
+      if (result.data?.projectId) {
+  await switchProject(result.data.projectId);
+      }
+
       setCurrentStep("complete");
       
       // Redirect to main app after a short delay
       setTimeout(() => {
-        router.push("/");
+        router.push("/dashboard");
       }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

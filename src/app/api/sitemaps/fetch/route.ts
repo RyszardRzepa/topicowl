@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articleSettings, users } from "@/server/db/schema";
+import { articleSettings } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeSitemapUrl, validateSitemapUrl } from "@/lib/utils/sitemap";
@@ -130,20 +130,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as unknown;
     const validatedData = fetchSitemapSchema.parse(body);
     
-    // Get user record
-    const [userRecord] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.clerk_user_id, userId))
-      .limit(1);
-
-    if (!userRecord) {
-      return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
     // Fetch sitemap data
     const sitemapResult = await fetchWebsiteSitemap(validatedData.websiteUrl);
     
@@ -158,7 +144,7 @@ export async function POST(req: NextRequest) {
     const [existingSettings] = await db
       .select({ id: articleSettings.id })
       .from(articleSettings)
-      .where(eq(articleSettings.user_id, userRecord.id))
+      .where(eq(articleSettings.userId, userId))
       .limit(1);
     
     if (existingSettings) {
@@ -166,15 +152,15 @@ export async function POST(req: NextRequest) {
       await db
         .update(articleSettings)
         .set({
-          sitemap_url: sitemapResult.sitemapUrl,
+          sitemapUrl: sitemapResult.sitemapUrl,
           updatedAt: new Date(),
         })
         .where(eq(articleSettings.id, existingSettings.id));
     } else {
       // Create new settings
       await db.insert(articleSettings).values({
-        user_id: userRecord.id,
-        sitemap_url: sitemapResult.sitemapUrl,
+        userId: userId,
+        sitemapUrl: sitemapResult.sitemapUrl,
       });
     }
 

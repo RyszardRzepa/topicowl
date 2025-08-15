@@ -19,7 +19,7 @@ export async function getUserExcludedDomains(clerkUserId: string): Promise<strin
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, clerkUserId))
+      .where(eq(users.id, clerkUserId))
       .limit(1);
 
     if (!userRecord) {
@@ -28,12 +28,12 @@ export async function getUserExcludedDomains(clerkUserId: string): Promise<strin
     }
 
     const settings = await db
-      .select({ excluded_domains: articleSettings.excluded_domains })
+      .select({ excludedDomains: articleSettings.excludedDomains })
       .from(articleSettings)
-      .where(eq(articleSettings.user_id, userRecord.id))
+      .where(eq(articleSettings.userId, userRecord.id))
       .limit(1);
 
-    const excludedDomains = settings.length > 0 ? settings[0]!.excluded_domains : [];
+    const excludedDomains = settings.length > 0 ? settings[0]!.excludedDomains : [];
     
     console.log(`[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`);
     

@@ -14,13 +14,14 @@ export default clerkMiddleware(async (auth, req) => {
     return;
   }
 
-  // For API routes, let them handle their own auth
-  if (req.nextUrl.pathname.startsWith("/api/")) {
+  // For non-API routes, require authentication
+  if (!req.nextUrl.pathname.startsWith("/api/")) {
+    await auth.protect();
     return;
   }
 
-  // For all other routes, require authentication
-  await auth.protect();
+  // For API routes, let them handle their own auth and project validation
+  return;
 });
 
 export const config = {

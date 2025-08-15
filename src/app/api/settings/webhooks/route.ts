@@ -2,12 +2,13 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { projects } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 // Types colocated with this API route
 export interface WebhookSettingsRequest {
+  projectId: number;
   webhookUrl?: string;
   webhookSecret?: string;
   webhookEnabled?: boolean;
@@ -17,6 +18,7 @@ export interface WebhookSettingsRequest {
 export interface WebhookSettingsResponse {
   success: boolean;
   data?: {
+    projectId: number;
     webhookUrl?: string;
     webhookEnabled: boolean;
     webhookEvents: string[];
@@ -27,6 +29,7 @@ export interface WebhookSettingsResponse {
 }
 
 export interface WebhookTestRequest {
+  projectId: number;
   webhookUrl: string;
   webhookSecret?: string;
 }
@@ -38,6 +41,7 @@ export interface WebhookTestResponse {
 }
 
 const webhookSettingsSchema = z.object({
+  projectId: z.number().int().positive(),
   webhookUrl: z.string().url().optional().or(z.literal("")),
   webhookSecret: z.string().min(16).optional().or(z.literal("")),
   webhookEnabled: z.boolean().optional(),
@@ -72,7 +76,7 @@ function validateWebhookUrl(url: string): { isValid: boolean; error?: string } {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
@@ -84,21 +88,41 @@ export async function GET() {
       );
     }
 
-    // Get user record with webhook settings
-    const [userRecord] = await db
+    // Get projectId from query parameters
+    const { searchParams } = new URL(request.url);
+    const projectIdParam = searchParams.get("projectId");
+
+    if (!projectIdParam) {
+      return NextResponse.json(
+        { success: false, error: "Project ID is required" } as WebhookSettingsResponse,
+        { status: 400 },
+      );
+    }
+
+    const projectId = parseInt(projectIdParam, 10);
+    if (isNaN(projectId)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid project ID" } as WebhookSettingsResponse,
+        { status: 400 },
+      );
+    }
+
+    // Get project record with webhook settings and ownership verification
+    const [projectRecord] = await db
       .select({
-        webhook_url: users.webhook_url,
-        webhook_enabled: users.webhook_enabled,
-        webhook_events: users.webhook_events,
-        webhook_secret: users.webhook_secret,
+        projectId: projects.id,
+        webhookUrl: projects.webhookUrl,
+        webhookEnabled: projects.webhookEnabled,
+        webhookEvents: projects.webhookEvents,
+        webhookSecret: projects.webhookSecret,
       })
-      .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
       .limit(1);
 
-    if (!userRecord) {
+    if (!projectRecord) {
       return NextResponse.json(
-        { success: false, error: 'User not found' } as WebhookSettingsResponse,
+        { success: false, error: 'Project not found or access denied' } as WebhookSettingsResponse,
         { status: 404 }
       );
     }
@@ -106,12 +130,13 @@ export async function GET() {
     const response: WebhookSettingsResponse = {
       success: true,
       data: {
-        webhookUrl: userRecord.webhook_url ?? undefined,
-        webhookEnabled: userRecord.webhook_enabled,
-        webhookEvents: Array.isArray(userRecord.webhook_events) 
-          ? userRecord.webhook_events as string[]
+        projectId: projectRecord.projectId,
+        webhookUrl: projectRecord.webhookUrl ?? undefined,
+        webhookEnabled: projectRecord.webhookEnabled ?? false,
+        webhookEvents: Array.isArray(projectRecord.webhookEvents) 
+          ? projectRecord.webhookEvents as string[]
           : ['article.published'],
-        hasSecret: !!(userRecord.webhook_secret && userRecord.webhook_secret.length > 0),
+        hasSecret: !!(projectRecord.webhookSecret && projectRecord.webhookSecret.length > 0),
       },
     };
 
@@ -151,43 +176,58 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Verify project ownership
+    const [existingProject] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, validatedData.projectId), eq(projects.userId, userId)))
+      .limit(1);
+
+    if (!existingProject) {
+      return NextResponse.json(
+        { success: false, error: 'Project not found or access denied' } as WebhookSettingsResponse,
+        { status: 404 }
+      );
+    }
+
     // Prepare update data
-    const updateData: Partial<typeof users.$inferInsert> = {};
+    const updateData: Partial<typeof projects.$inferInsert> = {};
     
     if (validatedData.webhookUrl !== undefined) {
-      updateData.webhook_url = validatedData.webhookUrl.trim() || null;
+      updateData.webhookUrl = validatedData.webhookUrl.trim() || null;
     }
     
     if (validatedData.webhookSecret !== undefined) {
-      updateData.webhook_secret = validatedData.webhookSecret.trim() || null;
+      updateData.webhookSecret = validatedData.webhookSecret.trim() || null;
     }
     
     if (validatedData.webhookEnabled !== undefined) {
-      updateData.webhook_enabled = validatedData.webhookEnabled;
+      updateData.webhookEnabled = validatedData.webhookEnabled;
     }
     
     if (validatedData.webhookEvents !== undefined) {
-      updateData.webhook_events = validatedData.webhookEvents;
+      updateData.webhookEvents = validatedData.webhookEvents;
     }
 
     // Add timestamp
     updateData.updatedAt = new Date();
 
-    // Update user webhook settings
-    const [updatedUser] = await db
-      .update(users)
+    // Update project webhook settings
+    const [updatedProject] = await db
+      .update(projects)
       .set(updateData)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(projects.id, validatedData.projectId))
       .returning({
-        webhook_url: users.webhook_url,
-        webhook_enabled: users.webhook_enabled,
-        webhook_events: users.webhook_events,
-        webhook_secret: users.webhook_secret,
+        projectId: projects.id,
+        webhookUrl: projects.webhookUrl,
+        webhookEnabled: projects.webhookEnabled,
+        webhookEvents: projects.webhookEvents,
+        webhookSecret: projects.webhookSecret,
       });
 
-    if (!updatedUser) {
+    if (!updatedProject) {
       return NextResponse.json(
-        { success: false, error: 'User not found' } as WebhookSettingsResponse,
+        { success: false, error: 'Project not found' } as WebhookSettingsResponse,
         { status: 404 }
       );
     }
@@ -195,12 +235,13 @@ export async function POST(req: NextRequest) {
     const response: WebhookSettingsResponse = {
       success: true,
       data: {
-        webhookUrl: updatedUser.webhook_url ?? undefined,
-        webhookEnabled: updatedUser.webhook_enabled,
-        webhookEvents: Array.isArray(updatedUser.webhook_events) 
-          ? updatedUser.webhook_events as string[]
+        projectId: updatedProject.projectId,
+        webhookUrl: updatedProject.webhookUrl ?? undefined,
+        webhookEnabled: updatedProject.webhookEnabled ?? false,
+        webhookEvents: Array.isArray(updatedProject.webhookEvents) 
+          ? updatedProject.webhookEvents as string[]
           : ['article.published'],
-        hasSecret: !!(updatedUser.webhook_secret && updatedUser.webhook_secret.length > 0),
+        hasSecret: !!(updatedProject.webhookSecret && updatedProject.webhookSecret.length > 0),
       },
     };
 

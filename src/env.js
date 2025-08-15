@@ -16,6 +16,10 @@ export const env = createEnv({
     UNSPLASH_SECRET_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY: z.string(),
     
+    // Reddit OAuth configuration
+    REDDIT_CLIENT_ID: z.string().min(1),
+    REDDIT_CLIENT_SECRET: z.string().min(1),
+    
     // Webhook configuration
     WEBHOOK_TIMEOUT_MS: z.string().default("30000"),
     WEBHOOK_MAX_RETRIES: z.string().default("3"),
@@ -34,7 +38,6 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_APP_URL: z.string().url().optional(),
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string(),
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
   },
@@ -60,10 +63,13 @@ export const env = createEnv({
     WEBHOOK_RATE_LIMIT_PER_HOUR: process.env.WEBHOOK_RATE_LIMIT_PER_HOUR,
     WEBHOOK_REQUIRE_HTTPS: process.env.WEBHOOK_REQUIRE_HTTPS,
     
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
 
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    
+    // Reddit OAuth configuration
+    REDDIT_CLIENT_ID: process.env.REDDIT_CLIENT_ID,
+    REDDIT_CLIENT_SECRET: process.env.REDDIT_CLIENT_SECRET,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

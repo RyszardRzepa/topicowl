@@ -35,7 +35,7 @@ async function getUserSettings(userId: string) {
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -46,7 +46,7 @@ async function getUserSettings(userId: string) {
     const [settings] = await db
       .select()
       .from(articleSettings)
-      .where(eq(articleSettings.user_id, userRecord.id))
+      .where(eq(articleSettings.userId, userRecord.id))
       .limit(1);
 
     if (!settings) {

@@ -37,17 +37,24 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
+      console.log("OnboardingChecker: Starting check", { isLoaded, pathname, user: !!user });
+      
       // Don't check if user data isn't loaded yet
-      if (!isLoaded) return;
+      if (!isLoaded) {
+        console.log("OnboardingChecker: User not loaded yet");
+        return;
+      }
 
       // Don't check for public routes
       if (publicRoutes.some((route) => pathname.startsWith(route))) {
+        console.log("OnboardingChecker: Public route, skipping check");
         setIsChecking(false);
         return;
       }
 
       // Don't check if user is not signed in
       if (!user) {
+        console.log("OnboardingChecker: No user, skipping check");
         setIsChecking(false);
         return;
       }
@@ -63,6 +70,8 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
             setOnboardingStatus(data.onboarding_completed);
 
             // Redirect logic based on onboarding status and current route
+            console.log("OnboardingChecker: Onboarding completed:", data.onboarding_completed, "Current path:", pathname);
+            
             if (!data.onboarding_completed) {
               // User hasn't completed onboarding
               if (
@@ -71,6 +80,7 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
                 )
               ) {
                 // Redirect to onboarding if trying to access protected routes
+                console.log("OnboardingChecker: Redirecting to onboarding");
                 router.push("/onboarding");
                 return;
               }
@@ -78,9 +88,11 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
               // User has completed onboarding
               if (pathname === "/onboarding") {
                 // Redirect away from onboarding if already completed
+                console.log("OnboardingChecker: Redirecting away from onboarding to dashboard");
                 router.push("/dashboard");
                 return;
               }
+              // Don't redirect if user is already on dashboard routes
             }
           } else {
             // Handle API errors gracefully

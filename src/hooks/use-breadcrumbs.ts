@@ -2,11 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
+import { useProject } from "@/contexts/project-context";
 
 interface BreadcrumbItem {
   label: string;
   href?: string;
   current?: boolean;
+  icon?: string;
 }
 
 interface ArticleResponse {
@@ -17,6 +19,7 @@ interface ArticleResponse {
 
 export function useBreadcrumbs(): BreadcrumbItem[] {
   const pathname = usePathname();
+  const { currentProject } = useProject();
   const [articleTitle, setArticleTitle] = useState<string | null>(null);
 
   // Extract article ID from path if present
@@ -63,6 +66,15 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     const segments = pathname.split("/").filter(Boolean);
     const breadcrumbs: BreadcrumbItem[] = [];
 
+    // Add project context as first breadcrumb for all dashboard pages
+    if (segments.length > 0 && segments[0] === "dashboard" && currentProject) {
+      breadcrumbs.push({
+        label: currentProject.domain ?? currentProject.name,
+        icon: "🌐",
+        current: false,
+      });
+    }
+
     // Only show breadcrumbs for dashboard sub-routes, not the dashboard root
     if (segments.length > 1 && segments[0] === "dashboard") {
       const section = segments[1];
@@ -93,6 +105,25 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
             });
             break;
 
+          case "projects":
+            if (segments[2] === "new") {
+              breadcrumbs.push({
+                label: "Projects",
+                href: "/dashboard/projects",
+                current: false,
+              });
+              breadcrumbs.push({
+                label: "New Project",
+                current: true,
+              });
+            } else {
+              breadcrumbs.push({
+                label: "Projects",
+                current: true,
+              });
+            }
+            break;
+
           default:
             // For any other sections, use the segment name
             const formattedLabel =
@@ -106,5 +137,5 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     }
 
     return breadcrumbs;
-  }, [pathname, articleTitle]);
+  }, [pathname, articleTitle, currentProject]);
 }

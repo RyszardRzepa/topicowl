@@ -81,22 +81,22 @@ export async function POST(request: Request) {
         `[DOMAIN_FILTER] Retrieving excluded domains for Clerk user: ${body.userId}`,
       );
 
-      // First, get the internal user ID from the Clerk user ID
+      // Verify user exists in database using Clerk user ID
       const [userRecord] = await db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.clerk_user_id, body.userId))
+        .where(eq(users.id, body.userId))
         .limit(1);
 
       if (userRecord) {
         const settings = await db
-          .select({ excluded_domains: articleSettings.excluded_domains })
+          .select({ excludedDomains: articleSettings.excludedDomains })
           .from(articleSettings)
-          .where(eq(articleSettings.user_id, userRecord.id))
+          .where(eq(articleSettings.userId, userRecord.id))
           .limit(1);
 
         excludedDomains =
-          settings.length > 0 ? settings[0]!.excluded_domains : [];
+          settings.length > 0 ? settings[0]!.excludedDomains : [];
 
         console.log(
           `[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
@@ -311,11 +311,11 @@ export async function POST(request: Request) {
 
     if (finalRelatedArticles.length === 0) {
       try {
-        // First get the internal user ID from Clerk user ID
+        // Verify user exists in database using Clerk user ID
         const [userRecord] = await db
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.clerk_user_id, body.userId))
+          .where(eq(users.id, body.userId))
           .limit(1);
 
         if (userRecord) {

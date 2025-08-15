@@ -52,21 +52,21 @@ export async function POST() {
     const retryDeliveries = await db
       .select({
         delivery_id: webhookDeliveries.id,
-        user_id: webhookDeliveries.user_id,
-        article_id: webhookDeliveries.article_id,
-        webhook_url: webhookDeliveries.webhook_url,
-        event_type: webhookDeliveries.event_type,
+        user_id: webhookDeliveries.userId,
+        article_id: webhookDeliveries.articleId,
+        webhook_url: webhookDeliveries.webhookUrl,
+        event_type: webhookDeliveries.eventType,
         attempts: webhookDeliveries.attempts,
-        max_attempts: webhookDeliveries.max_attempts,
-        request_payload: webhookDeliveries.request_payload,
-        webhook_secret: users.webhook_secret,
+        max_attempts: webhookDeliveries.maxAttempts,
+        request_payload: webhookDeliveries.requestPayload,
+        webhook_secret: users.webhookSecret,
       })
       .from(webhookDeliveries)
-      .innerJoin(users, eq(webhookDeliveries.user_id, users.id))
+      .innerJoin(users, eq(webhookDeliveries.userId, users.id))
       .where(
         and(
           eq(webhookDeliveries.status, 'retrying'),
-          lte(webhookDeliveries.next_retry_at, now)
+          lte(webhookDeliveries.nextRetryAt, now)
         )
       );
 
@@ -83,8 +83,8 @@ export async function POST() {
           .update(webhookDeliveries)
           .set({
             status: 'failed',
-            error_message: 'Maximum retry attempts exceeded',
-            failed_at: new Date(),
+            errorMessage: 'Maximum retry attempts exceeded',
+            failedAt: new Date(),
           })
           .where(eq(webhookDeliveries.id, delivery.delivery_id));
         
@@ -142,10 +142,10 @@ export async function POST() {
             .set({
               status: 'success',
               attempts: delivery.attempts + 1,
-              response_status: responseStatus,
-              response_body: responseBody,
-              delivery_time_ms: deliveryTime,
-              delivered_at: new Date(),
+              responseStatus: responseStatus,
+              responseBody: responseBody,
+              deliveryTimeMs: deliveryTime,
+              deliveredAt: new Date(),
             })
             .where(eq(webhookDeliveries.id, delivery.delivery_id));
 
@@ -162,12 +162,12 @@ export async function POST() {
               .set({
                 status: 'retrying',
                 attempts: nextAttempt,
-                response_status: responseStatus,
-                response_body: responseBody,
-                delivery_time_ms: deliveryTime,
-                error_message: errorMessage,
-                next_retry_at: new Date(Date.now() + retryDelay * 1000),
-                retry_backoff_seconds: retryDelay,
+                responseStatus: responseStatus,
+                responseBody: responseBody,
+                deliveryTimeMs: deliveryTime,
+                errorMessage: errorMessage,
+                nextRetryAt: new Date(Date.now() + retryDelay * 1000),
+                retryBackoffSeconds: retryDelay,
               })
               .where(eq(webhookDeliveries.id, delivery.delivery_id));
           } else {
@@ -177,11 +177,11 @@ export async function POST() {
               .set({
                 status: 'failed',
                 attempts: nextAttempt,
-                response_status: responseStatus,
-                response_body: responseBody,
-                delivery_time_ms: deliveryTime,
-                error_message: errorMessage,
-                failed_at: new Date(),
+                responseStatus: responseStatus,
+                responseBody: responseBody,
+                deliveryTimeMs: deliveryTime,
+                errorMessage: errorMessage,
+                failedAt: new Date(),
               })
               .where(eq(webhookDeliveries.id, delivery.delivery_id));
           }
@@ -212,11 +212,11 @@ export async function POST() {
             .set({
               status: 'retrying',
               attempts: nextAttempt,
-              delivery_time_ms: deliveryTime,
-              error_message: errorMessage,
-              error_details: { error: fetchError instanceof Error ? fetchError.message : 'Unknown error' },
-              next_retry_at: new Date(Date.now() + retryDelay * 1000),
-              retry_backoff_seconds: retryDelay,
+              deliveryTimeMs: deliveryTime,
+              errorMessage: errorMessage,
+              errorDetails: { error: fetchError instanceof Error ? fetchError.message : 'Unknown error' },
+              nextRetryAt: new Date(Date.now() + retryDelay * 1000),
+              retryBackoffSeconds: retryDelay,
             })
             .where(eq(webhookDeliveries.id, delivery.delivery_id));
         } else {
@@ -226,10 +226,10 @@ export async function POST() {
             .set({
               status: 'failed',
               attempts: nextAttempt,
-              delivery_time_ms: deliveryTime,
-              error_message: errorMessage,
-              error_details: { error: fetchError instanceof Error ? fetchError.message : 'Unknown error' },
-              failed_at: new Date(),
+              deliveryTimeMs: deliveryTime,
+              errorMessage: errorMessage,
+              errorDetails: { error: fetchError instanceof Error ? fetchError.message : 'Unknown error' },
+              failedAt: new Date(),
             })
             .where(eq(webhookDeliveries.id, delivery.delivery_id));
         }

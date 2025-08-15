@@ -1,14 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users, generationQueue } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { articles, articleGeneration, users, generationQueue, projects } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
+import { hasCredits } from "@/lib/utils/credits";
 
 const scheduleGenerationSchema = z.object({
   articleId: z.number(),
   scheduledAt: z.string().datetime(),
 });
+
+
 
 // API types for this endpoint
 export interface ScheduleGenerationRequest {
@@ -51,7 +54,7 @@ export async function POST(req: NextRequest) {
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -85,30 +88,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if article exists and belongs to user
+    // Check if article exists and belongs to user via project ownership
     const [existingArticle] = await db
-      .select()
+      .select({
+        id: articles.id,
+        userId: articles.userId,
+        projectId: articles.projectId,
+        status: articles.status,
+        title: articles.title,
+      })
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
     if (!existingArticle) {
       return NextResponse.json(
         {
           success: false,
-          error: "Article not found",
+          error: "Article not found or access denied",
         } as ScheduleGenerationResponse,
         { status: 404 },
       );
     }
 
-    if (existingArticle.user_id !== userRecord.id) {
+    // Check if user has credits before scheduling generation
+    const userHasCredits = await hasCredits(userRecord.id);
+    if (!userHasCredits) {
       return NextResponse.json(
         {
           success: false,
-          error: "Access denied: Article does not belong to current user",
+          error: "Insufficient credits. You need at least 1 credit to schedule article generation.",
         } as ScheduleGenerationResponse,
-        { status: 403 },
+        { status: 402 },
       );
     }
 
@@ -133,7 +145,7 @@ export async function POST(req: NextRequest) {
     // Clean up orphaned queue records for this article when rescheduling
     await db
       .delete(generationQueue)
-      .where(eq(generationQueue.article_id, articleId));
+      .where(eq(generationQueue.articleId, articleId));
 
     let generationRecord;
     if (existingRecord) {
@@ -157,6 +169,7 @@ export async function POST(req: NextRequest) {
         .values({
           articleId: articleId,
           userId: userRecord.id,
+          projectId: existingArticle.projectId,
           status: "pending",
           progress: 0,
           scheduledAt: scheduledDate,

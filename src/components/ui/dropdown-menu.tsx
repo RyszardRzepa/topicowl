@@ -37,7 +37,9 @@ const DropdownMenuContext = React.createContext<{
   setOpen: (open: boolean) => void;
 }>({
   open: false,
-  setOpen: () => {},
+  setOpen: () => {
+    // This is an intentionally empty function for the context default
+  },
 });
 
 export function DropdownMenu({ children }: DropdownMenuProps) {
@@ -45,7 +47,7 @@ export function DropdownMenu({ children }: DropdownMenuProps) {
 
   return (
     <DropdownMenuContext.Provider value={{ open, setOpen }}>
-      <div className="relative inline-block text-left">
+      <div className="relative inline-block text-left w-full">
         {children}
       </div>
     </DropdownMenuContext.Provider>
@@ -58,7 +60,7 @@ export function DropdownMenuTrigger({ asChild, children }: DropdownMenuTriggerPr
   const handleClick = () => setOpen(!open);
 
   if (asChild) {
-    const child = children as React.ReactElement;
+    const child = children as React.ReactElement<{ onClick?: () => void }>;
     return React.cloneElement(child, {
       ...child.props,
       onClick: handleClick,
@@ -143,7 +145,7 @@ export function DropdownMenuItem({
   };
 
   if (asChild) {
-    const child = children as React.ReactElement;
+    const child = children as React.ReactElement<{ className?: string; onClick?: () => void }>;
     return React.cloneElement(child, {
       ...child.props,
       className: cn(

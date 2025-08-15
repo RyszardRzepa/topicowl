@@ -2,6 +2,7 @@
 // API-specific request/response types are colocated with their routes
 
 import { z } from "zod";
+import type { projects } from "@/server/db/schema";
 import type { articleStatusEnum } from "@/server/db/schema";
 
 // OpenGraph metadata schema
@@ -73,12 +74,18 @@ export interface ArticleWorkflowStatus {
   isActive: boolean; // currently being processed
 }
 
+// Project types - inferred from database schema
+// Use Drizzle's type inference for consistency with database schema
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+
 // Article types - core domain entity
 export interface Article {
   id: string;
   title: string;
   content?: string;
   status: ArticleStatus;
+  projectId: number; // Required project association
   keywords?: string[];
   targetWordCount?: number;
   publishDate?: string;
@@ -108,6 +115,7 @@ export interface Article {
 // Settings types - domain entity for application configuration
 export interface ArticleSettings {
   id: string;
+  projectId: number; // Required project association
   name: string;
   defaultWordCount: number;
   tone: 'professional' | 'casual' | 'authoritative' | 'friendly';
@@ -126,6 +134,61 @@ export interface ArticleSettings {
   createdAt: string;
   updatedAt: string;
 }
+
+// Reddit integration types for project-specific connections
+export interface ProjectRedditConnection {
+  refreshToken: string;
+  redditUsername: string;
+  redditUserId: string;
+  connectedAt: string;
+  lastUsedAt?: string;
+  scopes: string[];
+}
+
+// Clerk private metadata structure for Reddit tokens
+export interface ClerkPrivateMetadata {
+  redditTokens?: Record<string, ProjectRedditConnection>;
+  // Other existing metadata fields can be added here as needed
+  [key: string]: unknown; // Index signature for Clerk compatibility
+}
+
+// Reddit token data from OAuth flow
+export interface RedditTokenData {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  scope: string;
+}
+
+// Reddit user data from API
+export interface RedditUserData {
+  name: string;
+  id: string;
+}
+
+// Reddit connection status response
+export interface RedditConnectionStatus {
+  connected: boolean;
+  connection?: {
+    projectId: number;
+    redditUsername: string;
+    connectedAt: string;
+    lastUsedAt?: string;
+    scopes: string[];
+  };
+}
+
+// Utility types for Reddit token management
+export type RedditTokens = {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+};
+
+export type RedditUserInfo = {
+  username: string;
+  userId: string;
+};
 
 // Shared API response wrapper - used across all API routes
 export interface ApiResponse<T = unknown> {

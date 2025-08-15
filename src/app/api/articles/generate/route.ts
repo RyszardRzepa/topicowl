@@ -8,8 +8,9 @@ import { fetcher } from "@/lib/utils";
 import { getUserExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { articles, articleGeneration, users, projects } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
+import { hasCredits, deductCredit } from "@/lib/utils/credits";
 import type { ResearchResponse } from "@/app/api/articles/research/route";
 import type { WriteResponse } from "@/app/api/articles/write/route";
 import type { ValidateResponse } from "@/app/api/articles/validate/route";
@@ -38,15 +39,23 @@ async function validateAndSetupGeneration(
   articleId: string,
   forceRegenerate?: boolean,
 ): Promise<GenerationContext> {
-  // Get user record from database
+  // Verify user exists in database
   const [userRecord] = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.clerk_user_id, userId))
+    .where(eq(users.id, userId))
     .limit(1);
 
   if (!userRecord) {
     throw new Error("User not found");
+  }
+
+  // Check if user has credits before starting generation
+  const userHasCredits = await hasCredits(userRecord.id);
+  if (!userHasCredits) {
+    throw new Error(
+      "Insufficient credits. You need at least 1 credit to generate an article.",
+    );
   }
 
   if (!articleId || isNaN(parseInt(articleId))) {
@@ -55,20 +64,19 @@ async function validateAndSetupGeneration(
 
   const id = parseInt(articleId);
 
-  // Check if article exists and belongs to the current user
-  const [existingArticle] = await db
+  // Check if article exists and belongs to current user's project using JOIN
+  const [result] = await db
     .select()
     .from(articles)
-    .where(eq(articles.id, id));
+    .innerJoin(projects, eq(articles.projectId, projects.id))
+    .where(and(eq(articles.id, id), eq(projects.userId, userRecord.id)))
+    .limit(1);
 
-  if (!existingArticle) {
-    throw new Error("Article not found");
+  if (!result) {
+    throw new Error("Article not found or access denied");
   }
 
-  // Verify article ownership
-  if (existingArticle.user_id !== userRecord.id) {
-    throw new Error("Access denied: Article does not belong to current user");
-  }
+  const existingArticle = result.articles;
 
   console.log("Article validation", {
     articleId: id,
@@ -117,10 +125,23 @@ async function validateAndSetupGeneration(
 }
 
 // Generation phase functions
-async function createOrReuseGenerationRecord(
+async function createOrResetArticleGeneration(
   articleId: number,
   userId: string,
 ): Promise<typeof articleGeneration.$inferSelect> {
+  // Get article details including projectId
+  const [article] = await db
+    .select({
+      projectId: articles.projectId,
+    })
+    .from(articles)
+    .where(eq(articles.id, articleId))
+    .limit(1);
+
+  if (!article) {
+    throw new Error(`Article ${articleId} not found`);
+  }
+
   // First, check if there's an existing generation record for this article
   const [existingRecord] = await db
     .select()
@@ -171,6 +192,7 @@ async function createOrReuseGenerationRecord(
     .values({
       articleId,
       userId,
+      projectId: article.projectId,
       status: "pending",
       progress: 0,
       startedAt: new Date(),
@@ -674,6 +696,7 @@ async function finalizeArticle(
   coverImageUrl: string,
   coverImageAlt: string,
   generationId: number,
+  userId: string,
   videos?: VideoEmbed[], // Add videos parameter
 ): Promise<void> {
   const updateData: {
@@ -738,6 +761,17 @@ async function finalizeArticle(
       updatedAt: new Date(),
     })
     .where(eq(articleGeneration.id, generationId));
+
+  // Deduct 1 credit from user after successful generation
+  const creditDeducted = await deductCredit(userId);
+  if (!creditDeducted) {
+    console.error("Failed to deduct credit after successful generation", {
+      userId,
+      articleId,
+    });
+  } else {
+    console.log("Credit deducted successfully", { userId, articleId });
+  }
 }
 
 async function handleGenerationError(
@@ -823,7 +857,12 @@ async function generateArticle(context: GenerationContext): Promise<void> {
     });
 
     // Create or reuse generation record
-    generationRecord = await createOrReuseGenerationRecord(articleId, userId);
+    generationRecord = await createOrResetArticleGeneration(articleId, userId);
+    
+    if (!generationRecord) {
+      throw new Error("Failed to create generation record");
+    }
+    
     console.log("Created generation record", {
       generationId: generationRecord.id,
     });
@@ -975,6 +1014,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       coverImageUrl,
       coverImageAlt,
       generationRecord.id,
+      userId,
       researchData.videos, // Pass videos to finalize function
     );
 
@@ -1059,6 +1099,8 @@ export async function POST(req: NextRequest) {
       status = 403;
     } else if (errorMessage.includes("already in progress")) {
       status = 409;
+    } else if (errorMessage.includes("Insufficient credits")) {
+      status = 402;
     }
 
     return NextResponse.json(

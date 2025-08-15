@@ -2,65 +2,76 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articleSettings, users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { projects } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { validateDomains } from "@/lib/utils/domain";
 
 // Types colocated with this API route
-export interface ArticleSettingsRequest {
+export interface ProjectSettingsRequest {
+  projectId: number;
+  // Project-specific settings
+  companyName?: string;
+  productDescription?: string;
+  keywords?: string[];
   // Article generation settings
   toneOfVoice?: string;
   articleStructure?: string;
   maxWords?: number;
-  excluded_domains?: string[];
-  sitemap_url?: string;
-  // Company/business settings
-  companyName?: string;
-  productDescription?: string;
-  keywords?: string[];
-  industryCategory?: string;
-  targetAudience?: string;
-  publishingFrequency?: string;
+  excludedDomains?: string[];
+  sitemapUrl?: string;
+  // Webhook configuration
+  webhookUrl?: string;
+  webhookSecret?: string;
+  webhookEnabled?: boolean;
+  webhookEvents?: string[];
 }
 
-export interface ArticleSettingsResponse {
-  // Article settings from articleSettings table
+export interface ProjectSettingsResponse {
   id: number;
+  name: string;
+  websiteUrl: string;
+  domain: string | null;
+  // Project-specific settings
+  companyName: string | null;
+  productDescription: string | null;
+  keywords: string[];
+  // Article generation settings
   toneOfVoice: string | null;
   articleStructure: string | null;
   maxWords: number | null;
-  excluded_domains: string[];
-  sitemap_url: string | null;
+  excludedDomains: string[];
+  sitemapUrl: string | null;
+  // Webhook configuration
+  webhookUrl: string | null;
+  webhookSecret: string | null;
+  webhookEnabled: boolean;
+  webhookEvents: string[];
   createdAt: Date;
   updatedAt: Date;
-  // Company settings from users table
-  companyName?: string;
-  productDescription?: string;
-  keywords?: string[];
-  domain?: string;
-  industryCategory?: string;
-  targetAudience?: string;
-  publishingFrequency?: string;
 }
 
-const articleSettingsSchema = z.object({
+const projectSettingsSchema = z.object({
+  projectId: z.number().int().positive(),
+  // Project-specific settings
+  companyName: z.string().min(1).max(255).optional(),
+  productDescription: z.string().max(1000).optional(),
+  keywords: z.array(z.string()).max(20).optional(),
   // Article generation settings
   toneOfVoice: z.string().optional(),
   articleStructure: z.string().optional(),
   maxWords: z.number().min(100).max(5000).optional(),
-  excluded_domains: z.array(z.string()).max(100).optional(),
-  sitemap_url: z.string().url().optional().or(z.literal("")),
-  // Company/business settings
-  companyName: z.string().min(1).max(255).optional(),
-  productDescription: z.string().max(1000).optional(),
-  keywords: z.array(z.string()).max(20).optional(),
-  industryCategory: z.string().optional(),
-  targetAudience: z.string().max(255).optional(),
-  publishingFrequency: z.enum(['daily', 'weekly', 'bi-weekly', 'monthly']).optional(),
+  excludedDomains: z.array(z.string()).max(100).optional(),
+  sitemapUrl: z.string().url().optional().or(z.literal("")),
+  // Webhook configuration
+  webhookUrl: z.string().url().optional().or(z.literal("")),
+  webhookSecret: z.string().optional(),
+  webhookEnabled: z.boolean().optional(),
+  webhookEvents: z.array(z.string()).optional(),
 });
 
-export async function GET() {
+// GET /api/settings?projectId=123 - Get project settings
+export async function GET(req: NextRequest) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
@@ -72,80 +83,73 @@ export async function GET() {
       );
     }
 
-    // Get user record to access company settings
-    const [userRecord] = await db
-      .select({
-        id: users.id,
-        company_name: users.company_name,
-        product_description: users.product_description,
-        keywords: users.keywords,
-        domain: users.domain,
-      })
-      .from(users)
-      .where(eq(users.clerk_user_id, userId))
-      .limit(1);
-
-    if (!userRecord) {
+    // Get projectId from query params
+    const { searchParams } = new URL(req.url);
+    const projectIdParam = searchParams.get('projectId');
+    
+    if (!projectIdParam) {
       return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+        { error: 'Project ID is required' },
+        { status: 400 }
       );
     }
 
-    // Get article settings
-    const [articleSettingsRecord] = await db
+    const projectId = parseInt(projectIdParam, 10);
+    if (isNaN(projectId)) {
+      return NextResponse.json(
+        { error: 'Invalid project ID' },
+        { status: 400 }
+      );
+    }
+
+    // Get project with ownership verification
+    const [project] = await db
       .select()
-      .from(articleSettings)
-      .where(eq(articleSettings.user_id, userRecord.id))
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
       .limit(1);
-    
-    if (!articleSettingsRecord) {
-            // Return default settings if no article settings exist
-      const defaultSettings: ArticleSettingsResponse = {
-        id: 0, // This will be set when actually created
-        toneOfVoice: "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.",
-        articleStructure: "Introduction • Main points with subheadings • Practical tips • Conclusion",
-        maxWords: 800,
-        excluded_domains: [],
-        sitemap_url: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        companyName: userRecord.company_name ?? undefined,
-        productDescription: userRecord.product_description ?? undefined,
-        keywords: Array.isArray(userRecord.keywords) ? userRecord.keywords as string[] : [],
-        domain: userRecord.domain ?? undefined,
-      };
-      
-      return NextResponse.json(defaultSettings);
+
+    if (!project) {
+      return NextResponse.json(
+        { error: 'Project not found or access denied' },
+        { status: 404 }
+      );
     }
     
-    // Combine article settings with user company data
-    const combinedSettings: ArticleSettingsResponse = {
-      id: articleSettingsRecord.id,
-      toneOfVoice: articleSettingsRecord.toneOfVoice,
-      articleStructure: articleSettingsRecord.articleStructure,
-      maxWords: articleSettingsRecord.maxWords,
-      excluded_domains: Array.isArray(articleSettingsRecord.excluded_domains) ? articleSettingsRecord.excluded_domains : [],
-      sitemap_url: articleSettingsRecord.sitemap_url,
-      createdAt: articleSettingsRecord.createdAt,
-      updatedAt: articleSettingsRecord.updatedAt,
-      companyName: userRecord.company_name ?? undefined,
-      productDescription: userRecord.product_description ?? undefined,
-      keywords: Array.isArray(userRecord.keywords) ? userRecord.keywords as string[] : [],
-      domain: userRecord.domain ?? undefined,
+    // Transform project data to response format
+    const settingsResponse: ProjectSettingsResponse = {
+      id: project.id,
+      name: project.name,
+      websiteUrl: project.websiteUrl,
+      domain: project.domain,
+      companyName: project.companyName,
+      productDescription: project.productDescription,
+      keywords: Array.isArray(project.keywords) ? project.keywords as string[] : [],
+      toneOfVoice: project.toneOfVoice,
+      articleStructure: project.articleStructure,
+      maxWords: project.maxWords,
+      excludedDomains: Array.isArray(project.excludedDomains) ? project.excludedDomains : [],
+      sitemapUrl: project.sitemapUrl,
+      webhookUrl: project.webhookUrl,
+      webhookSecret: project.webhookSecret,
+      webhookEnabled: project.webhookEnabled,
+      webhookEvents: Array.isArray(project.webhookEvents) ? project.webhookEvents as string[] : [],
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
     };
     
-    return NextResponse.json(combinedSettings);
+    return NextResponse.json(settingsResponse);
   } catch (error) {
-    console.error('Get settings error:', error);
+    console.error('Get project settings error:', error);
     return NextResponse.json(
-      { error: 'Failed to retrieve settings' },
+      { error: 'Failed to retrieve project settings' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(req: NextRequest) {
+// PUT /api/settings - Update project settings
+export async function PUT(req: NextRequest) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
@@ -158,11 +162,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json() as unknown;
-    const validatedData = articleSettingsSchema.parse(body);
+    const validatedData = projectSettingsSchema.parse(body);
     
     // Validate excluded domains if provided
-    if (validatedData.excluded_domains) {
-      const domainValidation = validateDomains(validatedData.excluded_domains);
+    if (validatedData.excludedDomains) {
+      const domainValidation = validateDomains(validatedData.excludedDomains);
       
       if (domainValidation.invalidDomains.length > 0) {
         return NextResponse.json(
@@ -175,122 +179,77 @@ export async function POST(req: NextRequest) {
       }
       
       // Use normalized domains for storage
-      validatedData.excluded_domains = domainValidation.normalizedDomains;
+      validatedData.excludedDomains = domainValidation.normalizedDomains;
     }
     
-    // Get user record
-    const [userRecord] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.clerk_user_id, userId))
+    // Verify project ownership
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, validatedData.projectId), eq(projects.userId, userId)))
       .limit(1);
 
-    if (!userRecord) {
+    if (!project) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'Project not found or access denied' },
         { status: 404 }
       );
     }
 
-    // Use transaction to update both tables
-    const result = await db.transaction(async (tx) => {
-      // Extract company settings for users table
-      const {
-        companyName,
-        productDescription,
-        keywords,
-        industryCategory,
-        targetAudience,
-        publishingFrequency,
-        ...articleSettingsData
-      } = validatedData;
-
-      // Sanitize sitemap_url - convert empty string to null
-      if ('sitemap_url' in articleSettingsData && articleSettingsData.sitemap_url === "") {
-        articleSettingsData.sitemap_url = undefined;
-      }
-
-      // Update user company data if provided
-      if (companyName !== undefined || productDescription !== undefined || keywords !== undefined) {
-        await tx
-          .update(users)
-          .set({
-            ...(companyName !== undefined && { company_name: companyName }),
-            ...(productDescription !== undefined && { product_description: productDescription }),
-            ...(keywords !== undefined && { keywords: keywords }),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.clerk_user_id, userId));
-      }
-
-      // Check if article settings already exist for this user
-      const [existingSettings] = await tx
-        .select({ id: articleSettings.id })
-        .from(articleSettings)
-        .where(eq(articleSettings.user_id, userRecord.id))
-        .limit(1);
-      
-      let updatedArticleSettings;
-      
-      if (existingSettings) {
-        // Update existing article settings
-        const updateResult = await tx
-          .update(articleSettings)
-          .set({
-            ...articleSettingsData,
-            updatedAt: new Date(),
-          })
-          .where(eq(articleSettings.id, existingSettings.id))
-          .returning();
-        updatedArticleSettings = updateResult[0];
-      } else {
-        // Create new article settings
-        const insertResult = await tx
-          .insert(articleSettings)
-          .values({
-            user_id: userRecord.id,
-            ...articleSettingsData,
-          })
-          .returning();
-        updatedArticleSettings = insertResult[0];
-      }
-
-      if (!updatedArticleSettings) {
-        throw new Error('Failed to create or update article settings');
-      }
-
-      // Get updated user data for response
-      const [updatedUser] = await tx
-        .select({
-          company_name: users.company_name,
-          product_description: users.product_description,
-          keywords: users.keywords,
-          domain: users.domain,
-        })
-        .from(users)
-        .where(eq(users.clerk_user_id, userId))
-        .limit(1);
-
-      // Combine for response
-      const combinedResponse: ArticleSettingsResponse = {
-        ...updatedArticleSettings,
-        excluded_domains: Array.isArray(updatedArticleSettings.excluded_domains) ? updatedArticleSettings.excluded_domains : [],
-        sitemap_url: updatedArticleSettings.sitemap_url,
-        companyName: updatedUser?.company_name ?? undefined,
-        productDescription: updatedUser?.product_description ?? undefined,
-        keywords: Array.isArray(updatedUser?.keywords) ? updatedUser.keywords as string[] : [],
-        domain: updatedUser?.domain ?? undefined,
-        industryCategory,
-        targetAudience,
-        publishingFrequency,
-      };
-
-      return combinedResponse;
-    });
+    // Prepare update data (exclude projectId from update)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { projectId: _, ...updateData } = validatedData;
     
-    return NextResponse.json(result);
+    // Handle empty string to null conversion for optional URLs
+    if ('sitemapUrl' in updateData && updateData.sitemapUrl === "") {
+      updateData.sitemapUrl = undefined;
+    }
+    if ('webhookUrl' in updateData && updateData.webhookUrl === "") {
+      updateData.webhookUrl = undefined;
+    }
+
+    // Update the project
+    const [updatedProject] = await db
+      .update(projects)
+      .set({
+        ...updateData,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, validatedData.projectId))
+      .returning();
+
+    if (!updatedProject) {
+      return NextResponse.json(
+        { error: 'Failed to update project settings' },
+        { status: 500 }
+      );
+    }
+    
+    // Transform to response format
+    const settingsResponse: ProjectSettingsResponse = {
+      id: updatedProject.id,
+      name: updatedProject.name,
+      websiteUrl: updatedProject.websiteUrl,
+      domain: updatedProject.domain,
+      companyName: updatedProject.companyName,
+      productDescription: updatedProject.productDescription,
+      keywords: Array.isArray(updatedProject.keywords) ? updatedProject.keywords as string[] : [],
+      toneOfVoice: updatedProject.toneOfVoice,
+      articleStructure: updatedProject.articleStructure,
+      maxWords: updatedProject.maxWords,
+      excludedDomains: Array.isArray(updatedProject.excludedDomains) ? updatedProject.excludedDomains : [],
+      sitemapUrl: updatedProject.sitemapUrl,
+      webhookUrl: updatedProject.webhookUrl,
+      webhookSecret: updatedProject.webhookSecret,
+      webhookEnabled: updatedProject.webhookEnabled,
+      webhookEvents: Array.isArray(updatedProject.webhookEvents) ? updatedProject.webhookEvents as string[] : [],
+      createdAt: updatedProject.createdAt,
+      updatedAt: updatedProject.updatedAt,
+    };
+    
+    return NextResponse.json(settingsResponse);
   } catch (error) {
-    console.error('Create/update settings error:', error);
+    console.error('Update project settings error:', error);
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -300,7 +259,7 @@ export async function POST(req: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: 'Failed to save settings' },
+      { error: 'Failed to save project settings' },
       { status: 500 }
     );
   }

@@ -3,9 +3,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import crypto from "crypto";
+import { db } from "@/server/db";
+import { projects } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
 // Types colocated with this API route
 export interface WebhookTestRequest {
+  projectId: number;
   webhookUrl: string;
   webhookSecret?: string;
 }
@@ -17,6 +21,7 @@ export interface WebhookTestResponse {
 }
 
 const webhookTestSchema = z.object({
+  projectId: z.number().int().positive(),
   webhookUrl: z.string().url(),
   webhookSecret: z.string().optional(),
 });
@@ -43,6 +48,20 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as unknown;
     const validatedData = webhookTestSchema.parse(body);
 
+    // Verify project ownership
+    const [existingProject] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, validatedData.projectId), eq(projects.userId, userId)))
+      .limit(1);
+
+    if (!existingProject) {
+      return NextResponse.json(
+        { success: false, error: 'Project not found or access denied' } as WebhookTestResponse,
+        { status: 404 }
+      );
+    }
+
     // Create test payload
     const testPayload = {
       event: 'webhook.test',
@@ -50,6 +69,7 @@ export async function POST(req: NextRequest) {
       data: {
         message: 'This is a test webhook from Contentbot',
         userId: userId,
+        projectId: validatedData.projectId,
       },
     };
 

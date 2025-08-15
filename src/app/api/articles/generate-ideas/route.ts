@@ -1,8 +1,9 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { users, articles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { users, articles, projects } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { google } from "@ai-sdk/google";
 import { generateText, generateObject } from "ai";
 import { z } from "zod";
@@ -49,7 +50,7 @@ const aiResponseSchema = z.object({
     .optional(),
 });
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
     console.log("[GENERATE_IDEAS_API] POST request received");
 
@@ -59,42 +60,96 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Parse request body for project ID
+    let projectId: number | undefined;
+    try {
+      const body = await req.json() as { projectId?: number };
+      if (body.projectId && typeof body.projectId === 'number') {
+        projectId = body.projectId;
+      }
+    } catch {
+      // Body parsing failed, will use fallback logic
+    }
+
     // Get user record from database
     const [userRecord] = await db
       .select({
         id: users.id,
-        domain: users.domain,
-        product_description: users.product_description,
-        keywords: users.keywords,
-        company_name: users.company_name,
       })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get existing article titles to avoid duplicates
+    // Get the specified project or fall back to most recent
+    let currentProject;
+    if (projectId) {
+      // Verify user owns the specified project
+      const [project] = await db
+        .select({
+          id: projects.id,
+          domain: projects.domain,
+          productDescription: projects.productDescription,
+          keywords: projects.keywords,
+          companyName: projects.companyName,
+          websiteUrl: projects.websiteUrl,
+        })
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)))
+        .limit(1);
+      
+      currentProject = project;
+    } else {
+      // Fall back to most recently created project (for backwards compatibility)
+      const [project] = await db
+        .select({
+          id: projects.id,
+          domain: projects.domain,
+          productDescription: projects.productDescription,
+          keywords: projects.keywords,
+          companyName: projects.companyName,
+          websiteUrl: projects.websiteUrl,
+        })
+        .from(projects)
+        .where(eq(projects.userId, userRecord.id))
+        .orderBy(desc(projects.createdAt))
+        .limit(1);
+      
+      currentProject = project;
+    }
+
+    if (!currentProject) {
+      return NextResponse.json(
+        { 
+          error: "No project found. Please create a project first.",
+          requiresOnboarding: true,
+        }, 
+        { status: 400 }
+      );
+    }
+
+    // Get existing article titles from this project to avoid duplicates
     const existingArticles = await db
       .select({ title: articles.title })
       .from(articles)
-      .where(eq(articles.user_id, userRecord.id));
+      .where(eq(articles.projectId, currentProject.id));
 
-    // Build user context for AI prompt
+    // Build project context for AI prompt
     const userContext = {
-      domain: userRecord.domain ?? "",
-      productDescription: userRecord.product_description ?? "",
-      keywords: Array.isArray(userRecord.keywords)
-        ? userRecord.keywords.filter((k): k is string => typeof k === "string")
-        : typeof userRecord.keywords === "string"
-          ? userRecord.keywords
+      domain: currentProject.domain ?? new URL(currentProject.websiteUrl).hostname,
+      productDescription: currentProject.productDescription ?? "",
+      keywords: Array.isArray(currentProject.keywords)
+        ? currentProject.keywords.filter((k): k is string => typeof k === "string")
+        : typeof currentProject.keywords === "string"
+          ? currentProject.keywords
               .split(",")
               .map((k) => k.trim())
               .filter((k) => k.length > 0)
           : ["business", "guide"],
-      companyName: userRecord.company_name ?? "",
+      companyName: currentProject.companyName ?? "",
       existingArticleTitles: existingArticles.map((article) => article.title),
     };
 

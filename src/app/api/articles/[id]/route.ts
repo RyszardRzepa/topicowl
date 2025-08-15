@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users, articleGeneration } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { articles, users, articleGeneration, projects } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ArticleStatus } from "@/types";
 import { videoEmbedSchema } from "@/types";
@@ -26,7 +26,8 @@ export interface GenerationLog {
 // Type for the raw article data from database
 type ArticleData = {
   id: number;
-  user_id: string | null;
+  userId: string | null;
+  projectId: number;
   title: string;
   description: string | null;
   keywords: unknown;
@@ -107,11 +108,11 @@ export async function GET(
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -131,15 +132,44 @@ export async function GET(
     }
 
     const article = await db
-      .select()
+      .select({
+        id: articles.id,
+        userId: articles.userId,
+        projectId: articles.projectId,
+        title: articles.title,
+        description: articles.description,
+        keywords: articles.keywords,
+        targetAudience: articles.targetAudience,
+        status: articles.status,
+        publishScheduledAt: articles.publishScheduledAt,
+        publishedAt: articles.publishedAt,
+        estimatedReadTime: articles.estimatedReadTime,
+        kanbanPosition: articles.kanbanPosition,
+        slug: articles.slug,
+        metaDescription: articles.metaDescription,
+        metaKeywords: articles.metaKeywords,
+        draft: articles.draft,
+        content: articles.content,
+        videos: articles.videos,
+        factCheckReport: articles.factCheckReport,
+        seoScore: articles.seoScore,
+        internalLinks: articles.internalLinks,
+        sources: articles.sources,
+        coverImageUrl: articles.coverImageUrl,
+        coverImageAlt: articles.coverImageAlt,
+        notes: articles.notes,
+        createdAt: articles.createdAt,
+        updatedAt: articles.updatedAt,
+      })
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
     if (article.length === 0) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Article not found' 
+        error: 'Article not found or access denied' 
       }, { status: 404 });
     }
 
@@ -154,14 +184,6 @@ export async function GET(
       .limit(1);
 
     // Verify article ownership and that it's not deleted
-    if (articleData.user_id !== userRecord.id) {
-      return NextResponse.json(
-        { success: false, error: 'Access denied: Article does not belong to current user' },
-        { status: 403 }
-      );
-    }
-
-    // Return 404 if article is deleted
     if (articleData.status === "deleted") {
       return NextResponse.json({ 
         success: false, 
@@ -355,11 +377,11 @@ export async function PUT(
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -381,26 +403,24 @@ export async function PUT(
     const body = await req.json() as unknown;
     const validatedData = updateArticleSchema.parse(body);
 
-    // Check if article exists and belongs to current user
+    // Check if article exists and belongs to current user via project ownership
     const existingArticle = await db
-      .select()
+      .select({
+        id: articles.id,
+        userId: articles.userId,
+        projectId: articles.projectId,
+        status: articles.status,
+      })
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
     if (existingArticle.length === 0) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Article not found' 
+        error: 'Article not found or access denied' 
       }, { status: 404 });
-    }
-
-    // Verify article ownership
-    if (existingArticle[0]!.user_id !== userRecord.id) {
-      return NextResponse.json(
-        { success: false, error: 'Access denied: Article does not belong to current user' },
-        { status: 403 }
-      );
     }
 
     // Prevent updating deleted articles
@@ -496,11 +516,11 @@ export async function DELETE(
       );
     }
 
-    // Get user record from database
+    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.clerk_user_id, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!userRecord) {
@@ -519,26 +539,24 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Check if article exists and belongs to current user
+    // Check if article exists and belongs to current user via project ownership
     const existingArticle = await db
-      .select()
+      .select({
+        id: articles.id,
+        userId: articles.userId,
+        projectId: articles.projectId,
+        status: articles.status,
+      })
       .from(articles)
-      .where(eq(articles.id, articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
     if (existingArticle.length === 0) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Article not found' 
+        error: 'Article not found or access denied' 
       }, { status: 404 });
-    }
-
-    // Verify article ownership
-    if (existingArticle[0]!.user_id !== userRecord.id) {
-      return NextResponse.json(
-        { success: false, error: 'Access denied: Article does not belong to current user' },
-        { status: 403 }
-      );
     }
 
     // Check if article is already deleted
