@@ -19,7 +19,7 @@ import { jsonb, pgSchema } from "drizzle-orm/pg-core";
  * @see https://orm.drizzle.team/docs/goodies#multi-project-schema
  */
 
-export const contentbotSchema = pgSchema("contentbot");
+export const contentbotSchema = pgSchema("topicowl");
 
 export const users = contentbotSchema.table("users", {
   id: text("id").primaryKey(),

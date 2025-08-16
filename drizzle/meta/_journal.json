@@ -288,6 +288,13 @@
       "when": 1754915714337,
       "tag": "0040_icy_catseye",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1755259469938,
+      "tag": "0041_cute_madame_web",
+      "breakpoints": true
     }
   ]
 }

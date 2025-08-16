@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { articleSettings, users } from "@/server/db/schema";
+import { articleSettings, projects, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeSitemapUrl, validateSitemapUrl } from "./sitemap";
 
@@ -10,29 +10,29 @@ export interface RelatedArticle {
   url: string;
 }
 
-// Function to fetch blog slugs from user's sitemap
-async function fetchUserBlogSlugs(userId: string): Promise<string[]> {
+// Function to fetch blog slugs from project's sitemap
+async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
   try {
-    // Get user's sitemap URL from settings
-    const [userSettings] = await db
+    // Get project's sitemap URL from settings
+    const [projectSettings] = await db
       .select({
         sitemap_url: articleSettings.sitemapUrl,
       })
       .from(articleSettings)
-      .where(eq(articleSettings.userId, userId))
+      .where(eq(articleSettings.projectId, projectId))
       .limit(1);
 
-    if (!userSettings?.sitemap_url) {
-      console.log(`No sitemap URL found for user ${userId}`);
+    if (!projectSettings?.sitemap_url) {
+      console.log(`No sitemap URL found for project ${projectId}`);
       return [];
     }
 
     // Normalize and validate the sitemap URL
-    const sitemapUrl = normalizeSitemapUrl(userSettings.sitemap_url);
+    const sitemapUrl = normalizeSitemapUrl(projectSettings.sitemap_url);
     const validation = validateSitemapUrl(sitemapUrl);
     
     if (!validation.isValid) {
-      console.log(`Invalid sitemap URL for user ${userId}: ${validation.error}`);
+      console.log(`Invalid sitemap URL for project ${projectId}: ${validation.error}`);
       return [];
     }
 
@@ -76,7 +76,7 @@ async function fetchUserBlogSlugs(userId: string): Promise<string[]> {
     }
 
     if (!urlMatches) {
-      console.log(`No blog URLs found in sitemap for user ${userId}`);
+      console.log(`No blog URLs found in sitemap for project ${projectId}`);
       return [];
     }
 
@@ -95,24 +95,24 @@ async function fetchUserBlogSlugs(userId: string): Promise<string[]> {
       })
       .filter((slug): slug is string => slug !== null && slug.length > 0 && !['blog', 'articles', 'posts'].includes(slug));
 
-    console.log(`Found ${blogSlugs.length} blog slugs for user ${userId}`);
+    console.log(`Found ${blogSlugs.length} blog slugs for project ${projectId}`);
     return blogSlugs;
 
   } catch (error) {
-    console.error(`Error fetching blog slugs for user ${userId}:`, error);
+    console.error(`Error fetching blog slugs for project ${projectId}:`, error);
     return [];
   }
 }
 
 // Function to select related articles based on keywords and topic similarity
 export async function getRelatedArticles(
-  userId: string,
+  projectId: number,
   currentTitle: string,
   keywords: string[],
   maxArticles = 3
 ): Promise<string[]> {
   try {
-    const blogSlugs = await fetchUserBlogSlugs(userId);
+    const blogSlugs = await fetchProjectBlogSlugs(projectId);
     
     if (blogSlugs.length === 0) {
       return [];
@@ -153,6 +153,34 @@ export async function getRelatedArticles(
 
   } catch (error) {
     console.error('Error getting related articles:', error);
+    return [];
+  }
+}
+
+// Backward compatibility function that takes userId and gets the first project
+export async function getRelatedArticlesByUserId(
+  userId: string,
+  currentTitle: string,
+  keywords: string[],
+  maxArticles = 3
+): Promise<string[]> {
+  try {
+    // Get the first project for this user (for backward compatibility)
+    const [userProject] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .limit(1);
+
+    if (!userProject) {
+      console.log(`No projects found for user ${userId}`);
+      return [];
+    }
+
+    // Use the new function with the project ID
+    return await getRelatedArticles(userProject.id, currentTitle, keywords, maxArticles);
+  } catch (error) {
+    console.error('Error getting related articles by user ID:', error);
     return [];
   }
 }

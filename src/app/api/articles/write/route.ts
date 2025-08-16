@@ -1,4 +1,3 @@
-import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 
 import { generateObject } from "ai";
@@ -10,7 +9,8 @@ import { articleSettings, users, articleGeneration } from "@/server/db/schema";
 import type { ResearchResponse } from "@/app/api/articles/research/route";
 import { blogPostSchema } from "@/types";
 import { eq } from "drizzle-orm";
-import { getRelatedArticles } from "@/lib/utils/related-articles";
+import { getUserExcludedDomains } from "@/lib/utils/article-generation";
+import { getRelatedArticlesByUserId } from "@/lib/utils/related-articles";
 
 // Set maximum duration for AI operations to prevent timeouts
 export const maxDuration = 800;
@@ -89,14 +89,7 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (userRecord) {
-        const settings = await db
-          .select({ excludedDomains: articleSettings.excludedDomains })
-          .from(articleSettings)
-          .where(eq(articleSettings.userId, userRecord.id))
-          .limit(1);
-
-        excludedDomains =
-          settings.length > 0 ? settings[0]!.excludedDomains : [];
+        excludedDomains = await getUserExcludedDomains(userRecord.id);
 
         console.log(
           `[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
@@ -319,7 +312,7 @@ export async function POST(request: Request) {
           .limit(1);
 
         if (userRecord) {
-          finalRelatedArticles = await getRelatedArticles(
+          finalRelatedArticles = await getRelatedArticlesByUserId(
             userRecord.id,
             body.title,
             body.keywords,

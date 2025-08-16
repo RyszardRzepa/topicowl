@@ -3,39 +3,73 @@
  */
 
 import { db } from '../../server/db';
-import { articleSettings, users } from '../../server/db/schema';
+import { articleSettings, projects } from '../../server/db/schema';
 import { eq } from 'drizzle-orm';
 import { isDomainExcluded } from './domain';
 
 /**
+ * Retrieves excluded domains for a project from article settings
+ * @param projectId - The project ID
+ */
+export async function getProjectExcludedDomains(projectId: number): Promise<string[]> {
+  try {
+    console.log(`[DOMAIN_FILTER] Retrieving excluded domains for project: ${projectId}`);
+    
+    // Try article settings first (new structure)
+    const settings = await db
+      .select({ excludedDomains: articleSettings.excludedDomains })
+      .from(articleSettings)
+      .where(eq(articleSettings.projectId, projectId))
+      .limit(1);
+
+    if (settings.length > 0) {
+      const excludedDomains = settings[0]!.excludedDomains;
+      console.log(`[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains from article_settings for project ${projectId}`);
+      return excludedDomains;
+    }
+
+    // Fallback to project table settings
+    const projectSettings = await db
+      .select({ excludedDomains: projects.excludedDomains })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+    const excludedDomains = projectSettings.length > 0 ? projectSettings[0]!.excludedDomains : [];
+    
+    console.log(`[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains from projects table for project ${projectId}`);
+    
+    return excludedDomains;
+  } catch (error) {
+    console.error(`[DOMAIN_FILTER] Error retrieving excluded domains for project ${projectId}:`, error);
+    // Return empty array on error to avoid blocking article generation
+    return [];
+  }
+}
+
+/**
  * Retrieves excluded domains for a user from their article settings
  * @param clerkUserId - The Clerk user ID from auth()
+ * @deprecated Use getProjectExcludedDomains instead
  */
 export async function getUserExcludedDomains(clerkUserId: string): Promise<string[]> {
   try {
     console.log(`[DOMAIN_FILTER] Retrieving excluded domains for Clerk user: ${clerkUserId}`);
     
-    // First, get the internal user ID from the Clerk user ID
-    const [userRecord] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.id, clerkUserId))
-      .limit(1);
+    // For backward compatibility, get all projects for the user and merge excluded domains
+    const userProjects = await db
+      .select({ excludedDomains: projects.excludedDomains })
+      .from(projects)
+      .where(eq(projects.userId, clerkUserId));
 
-    if (!userRecord) {
-      console.log(`[DOMAIN_FILTER] User not found for Clerk ID: ${clerkUserId}`);
-      return [];
-    }
-
-    const settings = await db
-      .select({ excludedDomains: articleSettings.excludedDomains })
-      .from(articleSettings)
-      .where(eq(articleSettings.userId, userRecord.id))
-      .limit(1);
-
-    const excludedDomains = settings.length > 0 ? settings[0]!.excludedDomains : [];
+    const allExcludedDomains = new Set<string>();
     
-    console.log(`[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`);
+    userProjects.forEach(project => {
+      project.excludedDomains.forEach(domain => allExcludedDomains.add(domain));
+    });
+    
+    const excludedDomains = Array.from(allExcludedDomains);
+    console.log(`[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for user ${clerkUserId}`);
     
     return excludedDomains;
   } catch (error) {

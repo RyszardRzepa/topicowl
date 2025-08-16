@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import type { ApiResponse, VideoEmbed } from "@/types";
 import { API_BASE_URL } from "@/constants";
 import { fetcher } from "@/lib/utils";
-import { getUserExcludedDomains } from "@/lib/utils/article-generation";
+import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
 import { articles, articleGeneration, users, projects } from "@/server/db/schema";
@@ -110,7 +110,7 @@ async function validateAndSetupGeneration(
 
   // Generate related articles early so we can include them in the immediate response
   const relatedArticles = await getRelatedArticles(
-    userRecord.id,
+    existingArticle.projectId,
     existingArticle.title,
     keywords,
   );
@@ -233,17 +233,15 @@ async function performResearch(
   keywords: string[],
   generationId: number,
   userId: string,
+  projectId: number,
   notes?: string,
 ): Promise<ResearchResponse> {
   await updateGenerationProgress(generationId, "researching", 10);
 
   console.log("Calling research API", { title, keywords, hasNotes: !!notes });
 
-  // Get the Clerk user ID to retrieve excluded domains
-  const { userId: clerkUserId } = await auth();
-  const excludedDomains = clerkUserId
-    ? await getUserExcludedDomains(clerkUserId)
-    : [];
+  // Get excluded domains for the project
+  const excludedDomains = await getProjectExcludedDomains(projectId);
 
   const researchData = await fetcher<ResearchResponse>(
     `${API_BASE_URL}/api/articles/research`,
@@ -875,6 +873,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       keywords,
       generationRecord.id,
       userId,
+      article.projectId,
       article.notes ?? undefined,
     );
     console.log("Research completed", {
