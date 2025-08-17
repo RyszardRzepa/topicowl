@@ -4,12 +4,6 @@ import { Analytics } from "@vercel/analytics/next";
 
 import { type Metadata } from "next";
 
-// const inter = Inter({
-//   subsets: ["latin"],
-//   weight: ["400", "500", "600", "700"],
-//   display: "swap",
-// });
-
 export const metadata: Metadata = {
   title: "Ship content that ranks and converts on autopilot",
   description:
@@ -47,7 +41,7 @@ export default function RootLayout({
         <body
           className={`text-15 bg-white font-sans leading-relaxed text-stone-700 antialiased`}
         >
-          <Analytics />
+          {process.env.NODE_ENV === "production" && <Analytics />}
           {children}
         </body>
       </html>

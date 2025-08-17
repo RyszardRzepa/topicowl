@@ -8,7 +8,7 @@ import { CreditProvider } from "@/components/dashboard/credit-context";
 import { ProjectProvider } from "@/contexts/project-context";
 import { Toaster } from "@/components/ui/sonner";
 import { db } from "@/server/db";
-import { projects } from "@/server/db/schema";
+import { projects, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { Project } from "@/types";
 
@@ -23,7 +23,38 @@ export default async function DashboardLayout({
     redirect("/sign-up");
   }
 
-  // Fetch user's projects for SSR hydration
+  // Check onboarding status on server-side first
+  let user;
+  try {
+    const result = await db
+      .select({ onboardingCompleted: users.onboardingCompleted })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    
+    user = result[0];
+  } catch (error) {
+    console.error("Database error checking onboarding status:", error);
+    // If we can't check onboarding status due to database error, redirect to onboarding for safety
+    // The onboarding API will handle creating the user record if needed
+    redirect("/onboarding");
+  }
+
+  // If user doesn't exist in database yet (webhook hasn't processed), redirect to onboarding
+  if (!user) {
+    console.log(`User ${userId} not found in database, redirecting to onboarding`);
+    redirect("/onboarding");
+  }
+
+  // If user exists but hasn't completed onboarding, redirect to onboarding
+  if (!user.onboardingCompleted) {
+    console.log(`User ${userId} hasn't completed onboarding, redirecting`);
+    redirect("/onboarding");
+  }
+
+  console.log(`User ${userId} is onboarded, proceeding to dashboard`);
+
+  // Only fetch projects if user is onboarded
   let initialProjects: Project[] = [];
   let initialProject: Project | undefined = undefined;
 
@@ -53,18 +84,20 @@ export default async function DashboardLayout({
   }
 
   return (
-    <OnboardingChecker>
-      <ProjectProvider
-        initialProjects={initialProjects}
-        initialProject={initialProject}
-      >
-        <ProjectRequiredChecker>
-          <CreditProvider>
-            <DashboardLayoutClient>{children}</DashboardLayoutClient>
-          </CreditProvider>
-        </ProjectRequiredChecker>
-      </ProjectProvider>
+    <>
+      <OnboardingChecker>
+        <ProjectProvider
+          initialProjects={initialProjects}
+          initialProject={initialProject}
+        >
+          <ProjectRequiredChecker>
+            <CreditProvider>
+              <DashboardLayoutClient>{children}</DashboardLayoutClient>
+            </CreditProvider>
+          </ProjectRequiredChecker>
+        </ProjectProvider>
+      </OnboardingChecker>
       <Toaster />
-    </OnboardingChecker>
+    </>
   );
 }

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { InputWithPrefix } from "@/components/ui/input-with-prefix";
+import { Label } from "@/components/ui/label";
 
 interface WebsiteUrlFormProps {
   onSubmit: (url: string) => Promise<void>;
@@ -8,81 +12,83 @@ interface WebsiteUrlFormProps {
 }
 
 export function WebsiteUrlForm({ onSubmit, isLoading }: WebsiteUrlFormProps) {
-  const [url, setUrl] = useState("");
+  const [domain, setDomain] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Basic URL validation
-    if (!url.trim()) {
-      setError("Please enter a website URL");
+    // Basic domain validation
+    if (!domain.trim()) {
+      setError("Please enter your website domain");
       return;
     }
 
-    // Add https:// if no protocol specified
-    let formattedUrl = url.trim();
-    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
-      formattedUrl = `https://${formattedUrl}`;
-    }
+    // Clean the domain input (remove any protocol, www, trailing slashes)
+    const cleanDomain = domain.trim()
+      .replace(/^https?:\/\//, '') // Remove protocol
+      .replace(/^www\./, '') // Remove www
+      .replace(/\/$/, ''); // Remove trailing slash
 
-    try {
-      new URL(formattedUrl);
-    } catch {
-      setError("Please enter a valid website URL");
+    // Basic domain format validation
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+    if (!domainRegex.test(cleanDomain)) {
+      setError("Please enter a valid domain (e.g., example.com)");
       return;
     }
 
-    await onSubmit(formattedUrl);
+    const fullUrl = `https://${cleanDomain}`;
+    await onSubmit(fullUrl);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Enter your website URL
-        </h2>
-        <p className="text-gray-600">
+    <Card>
+      <CardHeader className="text-center">
+        <CardTitle className="text-xl">
+          Enter your website domain
+        </CardTitle>
+        <CardDescription>
           We&apos;ll analyze your website to create personalized content settings
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="domain" className="pb-2">
+              Website Domain
+            </Label>
+            <InputWithPrefix
+              id="domain"
+              name="domain"
+              type="text"
+              placeholder="example.com"
+              value={domain}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDomain(e.target.value)}
+              disabled={isLoading}
+              required
+            />
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+          </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="website-url" className="block text-sm font-medium text-gray-700 mb-2">
-            Website URL
-          </label>
-          <input
-            id="website-url"
-            name="website-url"
-            type="url"
-            placeholder="https://yourwebsite.com"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={isLoading}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
-            required
-          />
-          {error && (
-            <p className="mt-2 text-sm text-red-600">{error}</p>
-          )}
+          <Button
+            type="submit"
+            disabled={isLoading || !domain.trim()}
+            className="w-full"
+            size="lg"
+          >
+            {isLoading ? "Analyzing..." : "Analyze Website"}
+          </Button>
+        </form>
+
+        <div className="text-center mt-6">
+          <p className="text-xs text-muted-foreground">
+            Don&apos;t have a website? You can set up your content preferences manually later.
+          </p>
         </div>
-
-        <button
-          type="submit"
-          disabled={isLoading || !url.trim()}
-          className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-        >
-          {isLoading ? "Analyzing..." : "Analyze Website"}
-        </button>
-      </form>
-
-      <div className="text-center">
-        <p className="text-xs text-gray-500">
-          Don&apos;t have a website? You can set up your content preferences manually later.
-        </p>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

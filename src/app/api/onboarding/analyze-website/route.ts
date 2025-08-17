@@ -10,10 +10,6 @@ export interface AnalyzeWebsiteRequest {
   websiteUrl: string;
 }
 
-// Removed default article structure template (handled during project creation)
-
-// Using shared schema/types via analyzeWebsitePure (fallback behavior retained there)
-
 export interface AnalyzeWebsiteResponse {
   success: boolean;
   data?: {
@@ -27,101 +23,112 @@ export interface AnalyzeWebsiteResponse {
     contentStrategy: {
       articleStructure: string;
       maxWords: number;
-      publishingFrequency: string;
     };
     onboardingCompleted: boolean;
   };
   error?: string;
 }
 
-// Content extraction + AI analysis now delegated to analyzeWebsitePure
-
-// Inline sitemap fetching function (same as in sitemap API)
 async function fetchWebsiteSitemap(websiteUrl: string): Promise<{
   blogSlugs: string[];
-  sitemapUrl: string;
+  sitemapUrl: string | null;
   error?: string;
 }> {
   try {
     // Normalize the sitemap URL
     const sitemapUrl = normalizeSitemapUrl(websiteUrl);
-    
+
     // Validate the sitemap URL
     const validation = validateSitemapUrl(sitemapUrl);
     if (!validation.isValid) {
       throw new Error(`Invalid sitemap URL: ${validation.error}`);
     }
-    
+
     console.log(`Fetching sitemap from: ${sitemapUrl}`);
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
+
     const response = await fetch(sitemapUrl, {
-      headers: {
-        'User-Agent': 'Contentbot Sitemap Fetcher',
-      },
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch sitemap: ${response.status} ${response.statusText}`);
+      // Return error object instead of throwing for 404s (sitemap not found)
+      return {
+        error: `Failed to fetch sitemap: ${response.status} ${response.statusText}`,
+        sitemapUrl: null,
+        blogSlugs: [],
+      };
     }
 
     const xmlData = await response.text();
-    
+
     // Simple regex parsing to extract blog URLs - support multiple patterns
     const blogPatterns = [
-      /<loc>[^<]+\/blog\/[^<]+<\/loc>/g,     // /blog/ pattern
+      /<loc>[^<]+\/blog\/[^<]+<\/loc>/g, // /blog/ pattern
       /<loc>[^<]+\/articles\/[^<]+<\/loc>/g, // /articles/ pattern
-      /<loc>[^<]+\/posts\/[^<]+<\/loc>/g,    // /posts/ pattern
+      /<loc>[^<]+\/posts\/[^<]+<\/loc>/g, // /posts/ pattern
     ];
-    
+
     let urlMatches: RegExpMatchArray | null = null;
-    let matchedPattern = '';
-    
+    let matchedPattern = "";
+
     for (const pattern of blogPatterns) {
       urlMatches = xmlData.match(pattern);
       if (urlMatches && urlMatches.length > 0) {
-        matchedPattern = pattern.source.includes('/blog/') ? 'blog' : 
-                        pattern.source.includes('/articles/') ? 'articles' : 'posts';
+        matchedPattern = pattern.source.includes("/blog/")
+          ? "blog"
+          : pattern.source.includes("/articles/")
+            ? "articles"
+            : "posts";
         break;
       }
     }
-    
+
     if (!urlMatches) {
-      console.log('No blog URLs found in sitemap');
+      console.log("No blog URLs found in sitemap");
       return { blogSlugs: [], sitemapUrl };
     }
-    
+
     // Convert URLs to slugs based on the matched pattern
     const blogSlugs = urlMatches
-      .map(match => {
-        const url = match.replace(/<\/?loc>/g, '');
+      .map((match) => {
+        const url = match.replace(/<\/?loc>/g, "");
         try {
           const urlPath = new URL(url).pathname;
           // Remove the appropriate prefix and trailing slash
           const prefix = `/${matchedPattern}/`;
-          return urlPath.replace(prefix, '').replace(/\/$/, '');
+          return urlPath.replace(prefix, "").replace(/\/$/, "");
         } catch {
           return null;
         }
       })
-      .filter((slug): slug is string => slug !== null && slug.length > 0 && !['blog', 'articles', 'posts'].includes(slug));
-    
-    console.log(`Found ${blogSlugs.length} blog posts in sitemap using pattern: /${matchedPattern}/`);
+      .filter(
+        (slug): slug is string =>
+          slug !== null &&
+          slug.length > 0 &&
+          !["blog", "articles", "posts"].includes(slug),
+      );
+
+    console.log(
+      `Found ${blogSlugs.length} blog posts in sitemap using pattern: /${matchedPattern}/`,
+    );
     return { blogSlugs, sitemapUrl };
-    
   } catch (error) {
-    console.error('Error fetching sitemap:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return { blogSlugs: [], sitemapUrl: normalizeSitemapUrl(websiteUrl), error: errorMessage };
+    console.error("Error fetching sitemap:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    return {
+      blogSlugs: [],
+      sitemapUrl: normalizeSitemapUrl(websiteUrl),
+      error: errorMessage,
+    };
   }
 }
 
-// analyzeWebsitePure already includes fallback behavior
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
@@ -174,7 +181,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       console.error("Website analysis failed:", error);
       const response: AnalyzeWebsiteResponse = {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to analyze website",
+        error:
+          error instanceof Error ? error.message : "Failed to analyze website",
       };
       return Response.json(response, { status: 500 });
     }
@@ -199,16 +207,22 @@ export async function POST(request: NextRequest): Promise<Response> {
       // Attempt to fetch sitemap (non-blocking)
       let sitemapUrl: string | null = null;
       try {
-        console.log(`Attempting to fetch sitemap for ${normalizedUrl} during onboarding`);
+        console.log(
+          `Attempting to fetch sitemap for ${normalizedUrl} during onboarding`,
+        );
         const sitemapResult = await fetchWebsiteSitemap(normalizedUrl);
         if (!sitemapResult.error) {
           sitemapUrl = sitemapResult.sitemapUrl;
-          console.log(`Successfully fetched sitemap: ${sitemapUrl}, found ${sitemapResult.blogSlugs.length} blog posts`);
+          console.log(
+            `Successfully fetched sitemap: ${sitemapUrl}, found ${sitemapResult.blogSlugs.length} blog posts`,
+          );
         } else {
           console.log(`Sitemap fetch failed: ${sitemapResult.error}`);
         }
       } catch (sitemapError) {
-        console.log(`Sitemap fetch failed during onboarding: ${sitemapError instanceof Error ? sitemapError.message : 'Unknown error'}`);
+        console.log(
+          `Sitemap fetch failed during onboarding: ${sitemapError instanceof Error ? sitemapError.message : "Unknown error"}`,
+        );
         // Continue onboarding regardless of sitemap failure
       }
 
@@ -227,12 +241,12 @@ export async function POST(request: NextRequest): Promise<Response> {
           })
           .where(eq(users.id, userId));
 
-  // NOTE: article_settings now project-scoped; onboarding does not create a project here.
-  // Creating default article settings should happen after project creation.
+        // NOTE: article_settings now project-scoped; onboarding does not create a project here.
+        // Creating default article settings should happen after project creation.
       });
 
       console.log(
-        `Successfully saved analysis data and completed onboarding for user ${userId}${sitemapUrl ? `, sitemap stored: ${sitemapUrl}` : ', no sitemap found'}`,
+        `Successfully saved analysis data and completed onboarding for user ${userId}${sitemapUrl ? `, sitemap stored: ${sitemapUrl}` : ", no sitemap found"}`,
       );
 
       const response: AnalyzeWebsiteResponse = {

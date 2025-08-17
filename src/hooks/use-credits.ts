@@ -25,10 +25,21 @@ export function useCredits(): UseCreditsReturn {
       const response = await fetch("/api/credits");
       
       if (!response.ok) {
-        throw new Error("Failed to fetch credits");
+        if (response.status >= 500) {
+          throw new Error("Server error occurred while fetching credits. Please try again.");
+        } else if (response.status === 401) {
+          throw new Error("Authentication required. Please sign in again.");
+        } else {
+          throw new Error("Failed to fetch credits");
+        }
       }
       
       const data = await response.json() as { credits: number };
+      
+      if (typeof data.credits !== 'number') {
+        throw new Error("Invalid response from server");
+      }
+      
       setCredits(data.credits);
       
       // Store credits in session storage
@@ -40,7 +51,8 @@ export function useCredits(): UseCreditsReturn {
       setSessionData(SESSION_KEYS.CREDITS_INITIALIZED, creditSession);
     } catch (err) {
       console.error("Error fetching credits:", err);
-      setError("Failed to load credits");
+      const errorMessage = err instanceof Error ? err.message : "Failed to load credits";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -23,6 +23,7 @@ interface ProjectContextValue {
   removeProject: (projectId: number) => void;
   updateProject: (project: Project) => void;
   clearError: () => void;
+  retryLoad: () => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -72,7 +73,13 @@ export function ProjectProvider({
       const response = await fetch("/api/projects");
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch projects: ${response.status}`);
+        if (response.status >= 500) {
+          throw new Error("Server error occurred. Please try again in a few moments.");
+        } else if (response.status === 401) {
+          throw new Error("Authentication required. Please sign in again.");
+        } else {
+          throw new Error(`Failed to fetch projects: ${response.status}`);
+        }
       }
       
       const data = (await response.json()) as ApiResponse<Project[]>;
@@ -82,8 +89,9 @@ export function ProjectProvider({
       }
 
       return data.data;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to load projects";
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to load projects";
+      console.error("Error loading projects:", error);
       setError(errorMessage);
       throw new Error(errorMessage);
     }
@@ -136,8 +144,8 @@ export function ProjectProvider({
           setCurrentProject(targetProject);
           saveProjectPreference(targetProject.id);
         }
-      } catch (err) {
-        console.error("Failed to initialize projects:", err);
+      } catch (error) {
+        console.error("Failed to initialize projects:", error);
         setError("Failed to load projects. Please try refreshing the page.");
       } finally {
         setIsLoading(false);
@@ -180,8 +188,8 @@ export function ProjectProvider({
         setCurrentProject(defaultProject);
         saveProjectPreference(defaultProject.id);
       }
-    } catch (err) {
-      console.error("Failed to refresh projects:", err);
+    } catch (error) {
+      console.error("Failed to refresh projects:", error);
       setError("Failed to refresh projects. Please try again.");
     } finally {
       setIsLoading(false);
@@ -201,8 +209,9 @@ export function ProjectProvider({
       saveProjectPreference(projectId);
       setError(null);
       toast.success(`Switched to ${targetProject.name}`);
-    } catch (err) {
+    } catch (error) {
       const errorMessage = "Failed to switch projects. Please try again.";
+      console.error("Error switching project:", error);
       setError(errorMessage);
       toast.error(errorMessage);
     }
@@ -265,6 +274,11 @@ export function ProjectProvider({
     setError(null);
   };
 
+  // Retry loading projects (same as refreshProjects but different semantic meaning)
+  const retryLoad = useCallback(async (): Promise<void> => {
+    await refreshProjects();
+  }, [refreshProjects]);
+
   const value: ProjectContextValue = {
     projects,
     currentProject,
@@ -276,6 +290,7 @@ export function ProjectProvider({
     removeProject,
     updateProject,
     clearError,
+    retryLoad,
   };
 
   return (

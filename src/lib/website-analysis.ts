@@ -1,7 +1,8 @@
-import { generateObject } from "ai";
+import { generateObject, generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { MODELS } from "@/constants";
 import { z } from "zod";
+import { prompts } from "@/prompts";
 
 // Schema for AI website analysis
 export const WebsiteAnalysisSchema = z.object({
@@ -12,13 +13,16 @@ export const WebsiteAnalysisSchema = z.object({
   toneOfVoice: z.string().min(1),
   suggestedKeywords: z.array(z.string()).max(10),
   contentStrategy: z.object({
-    articleStructure: z.string().min(1),
-    maxWords: z.number().int().min(200).max(2000),
-    publishingFrequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"]),
+    maxWords: z.number().int().min(800).max(2000),
   }),
 });
 
-export type WebsiteAnalysis = z.infer<typeof WebsiteAnalysisSchema> & { domain: string };
+export type WebsiteAnalysis = z.infer<typeof WebsiteAnalysisSchema> & {
+  domain: string;
+  contentStrategy: z.infer<typeof WebsiteAnalysisSchema>["contentStrategy"] & {
+    articleStructure: string;
+  };
+};
 
 // Fetch public website content via Jina (markdown)
 async function jinaUrlToMd(url: string): Promise<string> {
@@ -36,8 +40,12 @@ async function jinaUrlToMd(url: string): Promise<string> {
 }
 
 // Pure analysis (no DB side effects)
-export async function analyzeWebsitePure(rawUrl: string): Promise<WebsiteAnalysis> {
-  const urlObj = new URL(/^(https?:)?\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`);
+export async function analyzeWebsitePure(
+  rawUrl: string,
+): Promise<WebsiteAnalysis> {
+  const urlObj = new URL(
+    /^(https?:)?\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`,
+  );
   const normalizedUrl = urlObj.toString();
   const domain = urlObj.hostname.replace(/^www\./, "");
 
@@ -49,28 +57,76 @@ export async function analyzeWebsitePure(rawUrl: string): Promise<WebsiteAnalysi
     throw new Error(`Content extraction failed: ${msg}`);
   }
 
+  // First, use web search to gather additional context about the company
+  let researchData = "";
+  try {
+    console.log(`[WEBSITE_ANALYSIS] Starting web research for: ${domain}`);
+
+    const result = await generateText({
+      model: google(MODELS.GEMINI_FLASH_2_5),
+      providerOptions: {
+        google: {
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        },
+      },
+      tools: {
+        google_search: google.tools.googleSearch({}),
+      },
+      system: `Ensure the intent is current and based on real-time top results.`,
+      prompt: prompts.websiteAnalysis(normalizedUrl),
+    });
+
+    researchData = result.text;
+    console.log(
+      `[WEBSITE_ANALYSIS] Research completed, length: ${researchData.length} chars`,
+    );
+  } catch (err) {
+    console.warn(
+      `[WEBSITE_ANALYSIS] Research failed, using only website content:`,
+      err,
+    );
+    // If research fails, we'll still proceed with just the website content
+  }
+
+  // Combine website content with research data for analysis
+  const combinedContent = `
+# Website Content Analysis
+URL: ${normalizedUrl}
+Domain: ${domain}
+
+## Direct Website Content:
+${markdown}
+
+${
+  researchData
+    ? `## Additional Research Context:
+${researchData}`
+    : ""
+}
+  `.trim();
+
   try {
     const { object } = await generateObject({
       model: google(MODELS.GEMINI_FLASH_2_5),
       schema: WebsiteAnalysisSchema,
-      prompt: `Analyze the following company website content and extract structured info for content marketing setup.\nURL: ${normalizedUrl}\n\nContent:\n${markdown}\n\nReturn JSON only.`,
+      prompt: combinedContent,
     });
-    return { domain, ...object };
-  } catch {
-    // Fallback minimal analysis (still satisfies downstream expectations)
+
     return {
       domain,
-      companyName: domain,
-      productDescription: `${domain} provides professional services and solutions.`,
-      industryCategory: "business",
-      targetAudience: "business professionals",
-      toneOfVoice: "Professional and informative tone directed at business professionals.",
-      suggestedKeywords: [],
+      ...object,
       contentStrategy: {
-        articleStructure: "introduction, main points, conclusion",
-        maxWords: 800,
-        publishingFrequency: "weekly",
+        ...object.contentStrategy,
+        articleStructure: prompts.articleStructure(),
       },
     };
+  } catch (err) {
+    const aiErrorMsg =
+      err instanceof Error ? err.message : "AI analysis failed";
+    throw new Error(
+      `Unable to analyze website: ${aiErrorMsg}. Please try again.`,
+    );
   }
 }

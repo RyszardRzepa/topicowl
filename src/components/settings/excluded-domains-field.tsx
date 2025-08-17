@@ -94,7 +94,6 @@ export function ExcludedDomainsField({ domains, onChange, disabled = false }: Ex
               onKeyDown={handleKeyDown}
               placeholder="e.g., competitor.com"
               disabled={disabled}
-              className={inputError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}
             />
             {inputError && (
               <div className="flex items-center gap-1 mt-1 text-sm text-red-600">

@@ -6,13 +6,42 @@ import { eq, sql } from "drizzle-orm";
  * Get the current credit balance for a user
  */
 export async function getUserCredits(userId: string): Promise<number> {
-  const [creditRecord] = await db
-    .select({ amount: userCredits.amount })
-    .from(userCredits)
-    .where(eq(userCredits.userId, userId))
-    .limit(1);
+  try {
+    const [creditRecord] = await db
+      .select({ amount: userCredits.amount })
+      .from(userCredits)
+      .where(eq(userCredits.userId, userId))
+      .limit(1);
 
-  return creditRecord?.amount ?? 0;
+    // If no credits record exists, create one with default credits
+    if (!creditRecord) {
+      console.log(`No credits record found for user ${userId}, creating with 3 credits`);
+      
+      try {
+        await db.insert(userCredits).values({
+          userId: userId,
+          amount: 3,
+        });
+        return 3;
+      } catch (insertError) {
+        // Handle race condition where another process might have created the record
+        console.warn("Failed to create credits record, attempting to fetch again:", insertError);
+        
+        const [retryRecord] = await db
+          .select({ amount: userCredits.amount })
+          .from(userCredits)
+          .where(eq(userCredits.userId, userId))
+          .limit(1);
+        
+        return retryRecord?.amount ?? 0;
+      }
+    }
+
+    return creditRecord.amount;
+  } catch (error) {
+    console.error("Error getting user credits:", error);
+    throw error;
+  }
 }
 
 /**
