@@ -234,6 +234,7 @@ async function performResearch(
   generationId: number,
   userId: string,
   projectId: number,
+  authHeaders: Record<string, string>,
   notes?: string,
 ): Promise<ResearchResponse> {
   await updateGenerationProgress(generationId, "researching", 10);
@@ -247,6 +248,7 @@ async function performResearch(
     `${API_BASE_URL}/api/articles/research`,
     {
       method: "POST",
+      headers: authHeaders,
       body: {
         title,
         keywords,
@@ -269,58 +271,12 @@ async function performResearch(
   return researchData;
 }
 
-// COMMENTED OUT - OUTLINE GENERATION SKIPPED
-// async function createOutline(
-//   title: string,
-//   keywords: string[],
-//   researchData: string,
-//   sources: Array<{ url: string; title?: string }>,
-//   generationId: number,
-//   userId: string,
-//   videos?: Array<{ title: string; url: string }>,
-//   notes?: string,
-// ): Promise<string> {
-//   console.log("Calling outline API", { title, keywords });
-
-//   // Get excluded domains for the user
-//   const excludedDomains = await getUserExcludedDomains(userId);
-
-//   const outlineResult = await fetcher<ApiResponse<string>>(
-//     `${API_BASE_URL}/api/articles/outline`,
-//     {
-//       method: "POST",
-//       body: {
-//         title,
-//         keywords,
-//         researchData,
-//         sources,
-//         videos,
-//         notes,
-//         userId, // Pass the clerk user ID
-//         excludedDomains, // Pass excluded domains so outline API doesn't need to fetch them
-//       },
-//     },
-//   );
-
-//   if (!outlineResult.success || !outlineResult.data) {
-//     throw new Error("Failed to generate outline");
-//   }
-
-//   const outlineData = outlineResult.data;
-
-//   await db
-//     .update(articleGeneration)
-//     .set({ outline: outlineData, status: "outlining", progress: 40 })
-//     .where(eq(articleGeneration.id, generationId));
-
-//   return outlineData;
-// }
-
 async function selectCoverImage(
   articleId: number,
   generationId: number,
   title: string,
   keywords: string[],
+  authHeaders: Record<string, string>,
 ): Promise<{ coverImageUrl: string; coverImageAlt: string }> {
   try {
     console.log("Calling image selection API", {
@@ -334,6 +290,7 @@ async function selectCoverImage(
       `${API_BASE_URL}/api/articles/images/select-for-article`,
       {
         method: "POST",
+        headers: authHeaders,
         body: {
           articleId,
           generationId,
@@ -373,6 +330,7 @@ async function writeArticle(
   generationId: number,
   userId: string,
   relatedArticles: string[], // Pass pre-generated related articles
+  authHeaders: Record<string, string>,
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
 ): Promise<WriteResponse> {
@@ -389,6 +347,7 @@ async function writeArticle(
     `${API_BASE_URL}/api/articles/write`,
     {
       method: "POST",
+      headers: authHeaders,
       body: {
         researchData: researchData, // Pass research data instead of outline
         title,
@@ -422,6 +381,7 @@ async function performQualityControl(
   content: string,
   generationId: number,
   userId: string,
+  authHeaders: Record<string, string>,
 ): Promise<QualityControlResponse> {
   const startTime = Date.now();
 
@@ -462,6 +422,7 @@ async function performQualityControl(
       `${API_BASE_URL}/api/articles/quality-control`,
       {
         method: "POST",
+        headers: authHeaders,
         body: {
           articleContent: content,
           originalPrompt,
@@ -581,6 +542,7 @@ async function performQualityControl(
 async function validateArticle(
   content: string,
   generationId: number,
+  authHeaders: Record<string, string>,
 ): Promise<ValidateResponse> {
   console.log("Calling validate API", {
     contentLength: content.length,
@@ -591,6 +553,7 @@ async function validateArticle(
       `${API_BASE_URL}/api/articles/validate`,
       {
         method: "POST",
+        headers: authHeaders,
         body: {
           content,
         },
@@ -631,7 +594,8 @@ async function validateArticle(
 async function updateArticleIfNeeded(
   content: string,
   validationText: string,
-  qualityControlIssues?: string | null,
+  qualityControlIssues: string | null | undefined,
+  authHeaders: Record<string, string>,
 ): Promise<string> {
   // Determine if we need to update based on validation or quality control issues
   const hasValidationIssues =
@@ -671,6 +635,7 @@ async function updateArticleIfNeeded(
     `${API_BASE_URL}/api/articles/update`,
     {
       method: "POST",
+      headers: authHeaders,
       body: {
         article: content,
         validationText: combinedFeedback,
@@ -843,7 +808,7 @@ async function handleGenerationError(
 }
 
 // Main generation orchestration function
-async function generateArticle(context: GenerationContext): Promise<void> {
+async function generateArticle(context: GenerationContext, authHeaders: Record<string, string>): Promise<void> {
   const { articleId, userId, article, keywords } = context;
   let generationRecord: typeof articleGeneration.$inferSelect | null = null;
   const apiCallsLog: string[] = [];
@@ -874,28 +839,12 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       generationRecord.id,
       userId,
       article.projectId,
+      authHeaders,
       article.notes ?? undefined,
     );
     console.log("Research completed", {
       dataLength: researchData?.researchData?.length ?? 0,
     });
-
-    // Phase 2: Outline (COMMENTED OUT - SKIPPED)
-    // console.log("Starting outline phase");
-    // apiCallsLog.push("/outline");
-    // const outlineData = await createOutline(
-    //   article.title,
-    //   keywords,
-    //   researchData.researchData ?? "",
-    //   researchData.sources ?? [],
-    //   generationRecord.id,
-    //   userId,
-    //   researchData.videos,
-    //   article.notes ?? undefined,
-    // );
-    // console.log("Outline completed", {
-    //   outlineLength: outlineData?.length ?? 0,
-    // });
 
     // Phase 3: Image Selection
     console.log("Starting image selection phase");
@@ -905,6 +854,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       generationRecord.id,
       article.title,
       keywords,
+      authHeaders,
     );
     console.log("Image selection completed", { coverImageUrl });
 
@@ -919,6 +869,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       generationRecord.id,
       userId,
       context.relatedArticles,
+      authHeaders,
       researchData.videos,
       article.notes ?? undefined,
     );
@@ -937,6 +888,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       writeData.content ?? "",
       generationRecord.id,
       userId,
+      authHeaders,
     );
     const qualityControlProcessingTime = Date.now() - qualityControlStartTime;
 
@@ -968,6 +920,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
     const validationData = await validateArticle(
       writeData.content ?? "",
       generationRecord.id,
+      authHeaders,
     );
     console.log("Validation completed", {
       isValid: validationData.isValid,
@@ -981,6 +934,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       writeData.content ?? "",
       validationData.rawValidationText ?? "",
       qualityControlData.issues,
+      authHeaders,
     );
 
     // Log update API call if it was actually called
@@ -1049,6 +1003,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Extract cookies/headers for forwarding to internal API calls
+    const cookieHeader = req.headers.get('cookie');
+    const authHeaders: Record<string, string> = {};
+    if (cookieHeader) {
+      authHeaders.cookie = cookieHeader;
+    }
+
     const body = (await req.json()) as ArticleGenerationRequest;
     const { articleId, forceRegenerate } = body;
 
@@ -1071,7 +1032,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Use waitUntil to run generation in background
-    waitUntil(generateArticle(context));
+    waitUntil(generateArticle(context, authHeaders));
 
     console.log("Generation request processed successfully");
     return NextResponse.json({
