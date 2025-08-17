@@ -38,10 +38,12 @@ export default async function DashboardLayout({
     // Try to get current project from cookie
     const cookieStore = await cookies();
     const currentProjectIdCookie = cookieStore.get("currentProjectId");
-    
+
     if (currentProjectIdCookie && initialProjects.length > 0) {
       const currentProjectId = parseInt(currentProjectIdCookie.value, 10);
-      initialProject = initialProjects.find(p => p.id === currentProjectId) ?? initialProjects[0];
+      initialProject =
+        initialProjects.find((p) => p.id === currentProjectId) ??
+        initialProjects[0];
     } else if (initialProjects.length > 0) {
       initialProject = initialProjects[0];
     }
@@ -52,7 +54,7 @@ export default async function DashboardLayout({
 
   return (
     <OnboardingChecker>
-      <ProjectProvider 
+      <ProjectProvider
         initialProjects={initialProjects}
         initialProject={initialProject}
       >

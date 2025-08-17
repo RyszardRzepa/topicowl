@@ -190,6 +190,40 @@ export type RedditUserInfo = {
   userId: string;
 };
 
+// Session management types for preventing tab refetch
+export interface SessionData {
+  sessionId: string;
+  timestamp: number;
+  initialized: boolean;
+  data?: unknown;
+}
+
+export interface OnboardingSession {
+  status: boolean | null;
+  timestamp: number;
+  sessionId: string;
+}
+
+export interface ProjectProviderState {
+  isSessionInitialized: boolean;
+  lastFetchTimestamp: number;
+  sessionId: string;
+}
+
+export interface CreditSession {
+  credits: number | null;
+  lastFetch: number;
+  sessionId: string;
+}
+
+// Session storage keys
+export const SESSION_KEYS = {
+  ONBOARDING_STATUS: 'contentbot-onboarding-session',
+  PROJECTS_INITIALIZED: 'contentbot-projects-session', 
+  CREDITS_INITIALIZED: 'contentbot-credits-session',
+  SESSION_ID: 'contentbot-session-id'
+} as const;
+
 // Shared API response wrapper - used across all API routes
 export interface ApiResponse<T = unknown> {
   success: boolean;

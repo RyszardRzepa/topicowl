@@ -43,7 +43,7 @@ import type {
   RedditPost,
   RedditSubredditPostsResponse,
 } from "@/app/api/reddit/subreddit/posts/route";
-import { useProject } from "@/contexts/project-context";
+import { useCurrentProjectId } from "@/contexts/project-context";
 import Image from "next/image";
 
 // Types for scheduled posts
@@ -66,7 +66,7 @@ interface ScheduledPostsResponse {
 }
 
 export default function RedditDashboard() {
-  const { currentProject } = useProject();
+  const currentProjectId = useCurrentProjectId();
 
   // State management for all form data and API responses
   const [postForm, setPostForm] = useState({
@@ -130,12 +130,12 @@ export default function RedditDashboard() {
 
   // Load user profile
   const loadProfile = useCallback(async () => {
-    if (!currentProject?.id) return;
+    if (!currentProjectId) return;
 
     try {
       setLoading("profile", true);
       const response = await fetch(
-        `/api/reddit/user?action=profile&projectId=${currentProject.id}`,
+        `/api/reddit/user?action=profile&projectId=${currentProjectId}`,
       );
 
       if (!response.ok) {
@@ -156,16 +156,16 @@ export default function RedditDashboard() {
     } finally {
       setLoading("profile", false);
     }
-  }, [setLoading, currentProject?.id]);
+  }, [setLoading, currentProjectId]); // Use stable currentProjectId
 
   // Load subscribed subreddits
   const loadSubscriptions = useCallback(async () => {
-    if (!isConnected || !currentProject?.id) return;
+    if (!isConnected || !currentProjectId) return;
 
     try {
       setLoading("subscriptions", true);
       const response = await fetch(
-        `/api/reddit/user?action=subreddits&projectId=${currentProject.id}`,
+        `/api/reddit/user?action=subreddits&projectId=${currentProjectId}`,
       );
 
       if (!response.ok) {
@@ -183,7 +183,7 @@ export default function RedditDashboard() {
     } finally {
       setLoading("subscriptions", false);
     }
-  }, [setLoading, isConnected, currentProject?.id]);
+  }, [setLoading, isConnected, currentProjectId]); // Use stable currentProjectId
 
   // Search for subreddits
   const handleSearch = useCallback(async () => {
@@ -192,7 +192,7 @@ export default function RedditDashboard() {
       return;
     }
 
-    if (!currentProject) {
+    if (!currentProjectId) {
       toast.error("No project selected");
       return;
     }
@@ -200,7 +200,7 @@ export default function RedditDashboard() {
     try {
       setLoading("search", true);
       const response = await fetch(
-        `/api/reddit/subreddits?query=${encodeURIComponent(searchQuery)}&projectId=${currentProject.id}`,
+        `/api/reddit/subreddits?query=${encodeURIComponent(searchQuery)}&projectId=${currentProjectId}`,
       );
 
       if (!response.ok) {
@@ -221,7 +221,7 @@ export default function RedditDashboard() {
     } finally {
       setLoading("search", false);
     }
-  }, [searchQuery, setLoading, currentProject?.id]);
+  }, [searchQuery, setLoading, currentProjectId]); // Use stable currentProjectId
 
   // Fetch posts from subreddit
   const handleFetchPosts = useCallback(async () => {
@@ -230,7 +230,7 @@ export default function RedditDashboard() {
       return;
     }
 
-    if (!currentProject) {
+    if (!currentProjectId) {
       toast.error("No project selected");
       return;
     }
@@ -238,7 +238,7 @@ export default function RedditDashboard() {
     try {
       setLoading("posts", true);
       const response = await fetch(
-        `/api/reddit/subreddit/posts?subreddit=${encodeURIComponent(postsSubreddit)}&projectId=${currentProject.id}`,
+        `/api/reddit/subreddit/posts?subreddit=${encodeURIComponent(postsSubreddit)}&projectId=${currentProjectId}`,
       );
 
       if (!response.ok) {
@@ -257,16 +257,16 @@ export default function RedditDashboard() {
     } finally {
       setLoading("posts", false);
     }
-  }, [postsSubreddit, setLoading, currentProject?.id]);
+  }, [postsSubreddit, setLoading, currentProjectId]); // Use stable currentProjectId
 
   // Load scheduled posts
   const loadScheduledPosts = useCallback(async () => {
-    if (!currentProject?.id) return;
+    if (!currentProjectId) return;
 
     try {
       setLoading("scheduledPosts", true);
       const response = await fetch(
-        `/api/reddit/posts/scheduled?projectId=${currentProject.id}`,
+        `/api/reddit/posts/scheduled?projectId=${currentProjectId}`,
       );
 
       if (!response.ok) {
@@ -286,7 +286,7 @@ export default function RedditDashboard() {
     } finally {
       setLoading("scheduledPosts", false);
     }
-  }, [currentProject?.id, setLoading]);
+  }, [setLoading, currentProjectId]); // Use stable currentProjectId
 
   // Submit post to Reddit
   const handleSubmitPost = useCallback(
@@ -313,7 +313,7 @@ export default function RedditDashboard() {
         }
       }
 
-      if (!currentProject) {
+      if (!currentProjectId) {
         toast.error("No project selected");
         return;
       }
@@ -343,7 +343,7 @@ export default function RedditDashboard() {
           // Create new post
           const requestBody: RedditPostSubmissionRequest = {
             ...postForm,
-            projectId: currentProject.id,
+            projectId: currentProjectId,
           };
 
           if (isScheduling && scheduledDate) {
@@ -403,7 +403,7 @@ export default function RedditDashboard() {
       scheduledDate,
       editingPost,
       setLoading,
-      currentProject?.id,
+      currentProjectId,
       loadScheduledPosts,
     ],
   );
@@ -430,7 +430,7 @@ export default function RedditDashboard() {
   // Delete scheduled post
   const handleDeletePost = useCallback(
     async (postId: number) => {
-      if (!currentProject) return;
+      if (!currentProjectId) return;
 
       if (!confirm("Are you sure you want to delete this scheduled post?")) {
         return;
@@ -458,7 +458,7 @@ export default function RedditDashboard() {
         setLoading("deletePost", false);
       }
     },
-    [currentProject?.id, setLoading, loadScheduledPosts],
+    [setLoading, loadScheduledPosts], // Removed currentProject?.id dependency to prevent recreation on tab focus
   );
 
   // Cancel editing
@@ -546,7 +546,7 @@ export default function RedditDashboard() {
     } finally {
       setLoading("deletePost", false);
     }
-  }, [selectedPosts, setLoading, loadScheduledPosts]);
+  }, [selectedPosts, setLoading, loadScheduledPosts]); // loadScheduledPosts is stable now
 
   // Reschedule failed post
   const handleReschedulePost = useCallback((post: ScheduledRedditPost) => {
@@ -568,7 +568,7 @@ export default function RedditDashboard() {
   // Search subreddits for form dropdown
   const searchSubredditsForForm = useCallback(
     async (query: string) => {
-      if (!query.trim() || !currentProject) {
+      if (!query.trim() || !currentProjectId) {
         setSubredditSearchResults([]);
         return;
       }
@@ -576,7 +576,7 @@ export default function RedditDashboard() {
       try {
         setSubredditSearchLoading(true);
         const response = await fetch(
-          `/api/reddit/subreddits?query=${encodeURIComponent(query)}&projectId=${currentProject.id}`,
+          `/api/reddit/subreddits?query=${encodeURIComponent(query)}&projectId=${currentProjectId}`,
         );
 
         if (!response.ok) {
@@ -602,7 +602,7 @@ export default function RedditDashboard() {
         setSubredditSearchLoading(false);
       }
     },
-    [currentProject, subscribedSubreddits],
+    [subscribedSubreddits, currentProjectId], // Use stable currentProjectId
   );
 
   // Handle subreddit input change with debounced search
@@ -634,22 +634,22 @@ export default function RedditDashboard() {
   );
 
   // Load profile and subscriptions on component mount
-  // Only trigger when currentProject.id changes, not the entire object
+  // Using stable currentProjectId to prevent tab refetch issues (same pattern as articles page)
   useEffect(() => {
-    if (currentProject?.id) {
+    if (currentProjectId) {
       void loadProfile();
     }
-  }, [loadProfile, currentProject?.id]);
+  }, [loadProfile, currentProjectId]); // Stable dependencies prevent unnecessary refetches
 
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && currentProjectId) {
       void loadSubscriptions();
       void loadScheduledPosts();
     }
-  }, [isConnected, loadSubscriptions, loadScheduledPosts]);
+  }, [isConnected, loadSubscriptions, loadScheduledPosts, currentProjectId]); // Stable dependencies
 
   // Show loading state while checking connection or waiting for project
-  if (isConnected === null || !currentProject) {
+  if (isConnected === null || !currentProjectId) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-2xl">
@@ -689,13 +689,13 @@ export default function RedditDashboard() {
             <div className="space-y-4">
               <Button
                 onClick={() => {
-                  if (currentProject) {
-                    window.location.href = `/api/reddit/auth?projectId=${currentProject.id}`;
+                  if (currentProjectId) {
+                    window.location.href = `/api/reddit/auth?projectId=${currentProjectId}`;
                   }
                 }}
                 className="w-full"
                 size="lg"
-                disabled={!currentProject}
+                disabled={!currentProjectId}
               >
                 Connect Reddit Account
               </Button>

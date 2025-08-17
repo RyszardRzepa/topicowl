@@ -109,7 +109,7 @@ export default function HomePage() {
               {/* Modal Header */}
               <div className="flex items-center justify-between border-b border-gray-200 p-6">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Join Contentbot Waitlist
+                  Join TopicOwl Waitlist
                 </h2>
                 <Button onClick={closeModal} variant="ghost" size="icon">
                   <X className="h-5 w-5 text-gray-500" />

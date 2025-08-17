@@ -1,8 +1,6 @@
 import "@/styles/globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
-import { OnboardingChecker } from "@/components/auth/onboarding-checker";
-import { Toaster } from "@/components/ui/sonner";
-import { ConditionalHeader } from "@/components/layout/conditional-header";
+import { Analytics } from "@vercel/analytics/next";
 
 import { type Metadata } from "next";
 
@@ -49,6 +47,7 @@ export default function RootLayout({
         <body
           className={`text-15 bg-white font-sans leading-relaxed text-stone-700 antialiased`}
         >
+          <Analytics />
           {children}
         </body>
       </html>
