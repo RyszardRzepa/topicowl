@@ -84,33 +84,21 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ success: false, error: 'Failed to update project' }, { status: 500 });
       }
 
-      // Update or create article settings for the project
-      const existingSettings = await db
-        .select({ id: articleSettings.id })
-        .from(articleSettings)
-        .where(eq(articleSettings.projectId, newProject.id))
-        .limit(1);
-
-      if (existingSettings.length > 0) {
-        // Update existing article settings
-        await db
-          .update(articleSettings)
-          .set({
-            toneOfVoice: projectData.toneOfVoice,
-            articleStructure: projectData.articleStructure,
-            maxWords: projectData.maxWords,
-            updatedAt: new Date(),
-          })
-          .where(eq(articleSettings.projectId, newProject.id));
-      } else {
-        // Create new article settings
-        await db.insert(articleSettings).values({
-          projectId: newProject.id,
+      // Upsert article settings for the project
+      await db.insert(articleSettings).values({
+        projectId: newProject.id,
+        toneOfVoice: projectData.toneOfVoice,
+        articleStructure: projectData.articleStructure,
+        maxWords: projectData.maxWords,
+      }).onConflictDoUpdate({
+        target: articleSettings.projectId,
+        set: {
           toneOfVoice: projectData.toneOfVoice,
           articleStructure: projectData.articleStructure,
           maxWords: projectData.maxWords,
-        });
-      }
+          updatedAt: new Date(),
+        }
+      });
     } else {
       // Create new project
       const inserted = await db.insert(projects).values({
@@ -130,12 +118,20 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ success: false, error: 'Failed to create project' }, { status: 500 });
       }
 
-      // Create article settings for the project
+      // Create article settings for the project (using upsert in case settings already exist)
       await db.insert(articleSettings).values({
         projectId: newProject.id,
         toneOfVoice: projectData.toneOfVoice,
         articleStructure: projectData.articleStructure,
         maxWords: projectData.maxWords,
+      }).onConflictDoUpdate({
+        target: articleSettings.projectId,
+        set: {
+          toneOfVoice: projectData.toneOfVoice,
+          articleStructure: projectData.articleStructure,
+          maxWords: projectData.maxWords,
+          updatedAt: new Date(),
+        }
       });
     }
 

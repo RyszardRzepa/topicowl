@@ -9,6 +9,7 @@ import {
   varchar,
   serial,
   index,
+  unique,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 
@@ -306,6 +307,8 @@ export const articleSettings = contentbotSchema.table("article_settings", {
 }, (table) => ({
   // Index on project_id for efficient querying of project's article settings
   projectIdIdx: index("article_settings_project_id_idx").on(table.projectId),
+  // Unique constraint to ensure only one settings record per project
+  projectIdUnique: unique("article_settings_project_id_unique").on(table.projectId),
 }));
 
 // Reddit posts table for scheduling Reddit posts
