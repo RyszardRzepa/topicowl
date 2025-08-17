@@ -292,39 +292,19 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     void fetchArticles();
   }, [fetchArticles]);
 
-  // Refresh when returning from article preview
+  // Listen for storage changes from other tabs/windows only
+  // Removed automatic refresh on tab focus/visibility to prevent unwanted data refreshing
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        const statusChange = sessionStorage.getItem("articleStatusChanged");
-        if (statusChange) {
-          sessionStorage.removeItem("articleStatusChanged");
-          void fetchArticles();
-        }
-      }
-    };
-
-    const handleFocus = () => {
-      const statusChange = sessionStorage.getItem("articleStatusChanged");
-      if (statusChange) {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "articleStatusChanged" && e.newValue) {
         sessionStorage.removeItem("articleStatusChanged");
         void fetchArticles();
       }
     };
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "articleStatusChanged" && e.newValue) {
-        void fetchArticles();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
       window.removeEventListener("storage", handleStorageChange);
     };
   }, [fetchArticles]);

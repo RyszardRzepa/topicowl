@@ -18,19 +18,8 @@ interface CreditBalanceProps {
 export function CreditBalance({ className }: CreditBalanceProps) {
   const { credits, loading, error, refreshCredits } = useCreditContext();
 
-  // Refresh credits when the component becomes visible (e.g., after generation)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        void refreshCredits();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [refreshCredits]);
+  // Credits will only refresh when explicitly requested or when the component mounts
+  // Removed automatic refresh on tab focus to prevent unwanted data refreshing
 
   if (loading) {
     return (

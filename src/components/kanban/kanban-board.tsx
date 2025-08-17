@@ -111,45 +111,23 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     void fetchKanbanBoard();
   }, [fetchKanbanBoard]); // Now properly includes the dependency
 
-  // Refresh kanban board when returning from article preview
+  // Listen for storage changes from other tabs/windows only
+  // Removed automatic refresh on tab focus/visibility to prevent unwanted data refreshing
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Page became visible again, check for status changes and refresh
-        const statusChange = sessionStorage.getItem("articleStatusChanged");
-        if (statusChange) {
-          sessionStorage.removeItem("articleStatusChanged");
-          void fetchKanbanBoard();
-        }
-      }
-    };
-
-    const handleFocus = () => {
-      // Window gained focus, check for status changes and refresh
-      const statusChange = sessionStorage.getItem("articleStatusChanged");
-      if (statusChange) {
+    const handleStorageChange = (e: StorageEvent) => {
+      // Listen for storage changes from other tabs/windows
+      if (e.key === "articleStatusChanged" && e.newValue) {
         sessionStorage.removeItem("articleStatusChanged");
         void fetchKanbanBoard();
       }
     };
 
-    const handleStorageChange = (e: StorageEvent) => {
-      // Listen for storage changes from other tabs/windows
-      if (e.key === "articleStatusChanged" && e.newValue) {
-        void fetchKanbanBoard();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [fetchKanbanBoard]);
 
   const updateArticle = async (
     articleId: number,

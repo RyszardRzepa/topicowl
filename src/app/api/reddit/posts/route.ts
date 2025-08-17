@@ -2,7 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/env";
 import { db } from "@/server/db";
-import { projects } from "@/server/db/schema";
+import { projects, redditPosts } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { ClerkPrivateMetadata } from "@/types";
 
@@ -12,12 +12,17 @@ export interface RedditPostSubmissionRequest {
   title: string;
   text: string;
   projectId: number;
+  publishScheduledAt?: string; // ISO date string for scheduling
 }
 
 export interface RedditPostSubmissionResponse {
   success: boolean;
-  post_id?: string;
-  url?: string;
+  data?: {
+    id: number;
+    status: 'scheduled' | 'published';
+    publishScheduledAt?: string;
+    redditPostId?: string; // Only for immediate posts
+  };
   error?: string;
 }
 
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: RedditPostSubmissionRequest = await request.json();
-    const { subreddit, title, text, projectId } = body;
+    const { subreddit, title, text, projectId, publishScheduledAt } = body;
 
     // Validate required fields
     if (!subreddit || !title || !text || !projectId) {
@@ -76,6 +81,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Project not found or access denied" }, { status: 404 });
     }
 
+    // Validate scheduling date if provided
+    if (publishScheduledAt) {
+      const scheduledDate = new Date(publishScheduledAt);
+      const now = new Date();
+      
+      if (isNaN(scheduledDate.getTime())) {
+        return NextResponse.json({ error: "Invalid date format for publishScheduledAt" }, { status: 400 });
+      }
+      
+      if (scheduledDate <= now) {
+        return NextResponse.json({ error: "Scheduled date must be in the future" }, { status: 400 });
+      }
+      
+      // If scheduling, store in database and return
+      const [scheduledPost] = await db
+        .insert(redditPosts)
+        .values({
+          projectId,
+          userId,
+          subreddit,
+          title,
+          text,
+          status: "scheduled",
+          publishScheduledAt: scheduledDate,
+        })
+        .returning({ id: redditPosts.id });
+
+      if (!scheduledPost) {
+        return NextResponse.json({ error: "Failed to create scheduled post" }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: scheduledPost.id,
+          status: "scheduled" as const,
+          publishScheduledAt: scheduledDate.toISOString(),
+        },
+      } satisfies RedditPostSubmissionResponse);
+    }
+
+    // Continue with immediate posting logic
     // Get project-specific refresh token from Clerk private metadata
     const clerk = await clerkClient();
     const user = await clerk.users.getUser(userId);
@@ -108,8 +155,8 @@ export async function POST(request: NextRequest) {
 
     // Update last used timestamp for this project connection
     const updatedMetadata = { ...metadata };
-    if (updatedMetadata.redditTokens?.[projectId.toString()]) {
-      updatedMetadata.redditTokens[projectId.toString()].lastUsedAt = new Date().toISOString();
+    if (updatedMetadata.redditTokens && updatedMetadata.redditTokens[projectId.toString()]) {
+      updatedMetadata.redditTokens[projectId.toString()]!.lastUsedAt = new Date().toISOString();
       await clerk.users.updateUserMetadata(userId, {
         privateMetadata: updatedMetadata
       });
@@ -165,8 +212,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      post_id: submitData.json.data.id,
-      url: submitData.json.data.url,
+      data: {
+        id: 0, // No database ID for immediate posts
+        status: "published" as const,
+        redditPostId: submitData.json.data.id,
+      },
     } satisfies RedditPostSubmissionResponse);
 
   } catch (error) {

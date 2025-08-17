@@ -295,6 +295,20 @@
       "when": 1755259469938,
       "tag": "0041_cute_madame_web",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1755330589399,
+      "tag": "0042_sparkling_proteus",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1755331569228,
+      "tag": "0043_lame_young_avengers",
+      "breakpoints": true
     }
   ]
 }

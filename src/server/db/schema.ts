@@ -121,6 +121,7 @@ export const articleStatusEnum = contentbotSchema.enum("article_status", [
   "generating",
   "wait_for_publish",
   "published",
+  "failed",
   "deleted",
 ]);
 
@@ -305,6 +306,47 @@ export const articleSettings = contentbotSchema.table("article_settings", {
 }, (table) => ({
   // Index on project_id for efficient querying of project's article settings
   projectIdIdx: index("article_settings_project_id_idx").on(table.projectId),
+}));
+
+// Reddit posts table for scheduling Reddit posts
+export const redditPosts = contentbotSchema.table("reddit_posts", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  userId: text("user_id")
+    .references(() => users.id)
+    .notNull(),
+  subreddit: varchar("subreddit", { length: 255 }).notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  text: text("text").notNull(),
+  
+  // Reusing the existing enum for consistency with article scheduling
+  status: articleStatusEnum("status").default("scheduled").notNull(),
+  
+  // Scheduling fields
+  publishScheduledAt: timestamp("publish_scheduled_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  
+  // Error handling for failed posts
+  errorMessage: text("error_message"),
+  
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+}, (table) => ({
+  // Index on project_id for efficient querying of project's Reddit posts
+  projectIdIdx: index("reddit_posts_project_id_idx").on(table.projectId),
+  // Index on status for efficient filtering by status
+  statusIdx: index("reddit_posts_status_idx").on(table.status),
+  // Index on publishScheduledAt for efficient cron job queries
+  scheduledIdx: index("reddit_posts_scheduled_idx").on(table.publishScheduledAt),
+  // Composite index for user + project queries
+  userProjectIdx: index("reddit_posts_user_project_idx").on(table.userId, table.projectId),
 }));
 
 // Webhook delivery tracking table
