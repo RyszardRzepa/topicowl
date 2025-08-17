@@ -31,7 +31,7 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
       try {
         const response = await fetch(`/api/reddit/status?projectId=${currentProject.id}`);
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json() as { connected: boolean };
           setConnectionStatus(data.connected ? 'connected' : 'disconnected');
         } else {
           setConnectionStatus('disconnected');

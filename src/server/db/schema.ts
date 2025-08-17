@@ -57,7 +57,7 @@ export const projects = contentbotSchema.table("projects", {
     .references(() => users.id)
     .notNull(),
   name: text("name").notNull(),
-  websiteUrl: text("website_url").notNull().unique(),
+  websiteUrl: text("website_url").notNull(),
   domain: text("domain"), // Extracted from website_url for easy filtering
 
   // Project-specific settings

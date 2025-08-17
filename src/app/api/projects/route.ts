@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import { projects, articleSettings } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ApiResponse, Project } from "@/types";
 import { analyzeWebsitePure } from "@/lib/website-analysis";
@@ -124,10 +124,15 @@ export async function POST(request: NextRequest): Promise<Response> {
       return Response.json({ success: false, error: "Invalid website URL" } satisfies ApiResponse, { status: 400 });
     }
 
-    // Uniqueness check
-    const existing = await db.select({ id: projects.id }).from(projects).where(eq(projects.websiteUrl, normalized.websiteUrl)).limit(1);
+    // Per-user uniqueness check (prevent same user from creating duplicate projects)
+    const existing = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.websiteUrl, normalized.websiteUrl), eq(projects.userId, userId)))
+      .limit(1);
+    
     if (existing.length > 0) {
-      return Response.json({ success: false, error: "Website URL is already used by another project" } satisfies ApiResponse, { status: 400 });
+      return Response.json({ success: false, error: "You already have a project for this website URL" } satisfies ApiResponse, { status: 400 });
     }
 
     const analysisData = validated.analysisData;

@@ -15,6 +15,29 @@ export const API_BASE_URL =
 // Session Management Utilities
 // These utilities help prevent duplicate fetches on tab focus/visibility changes
 
+interface SessionData<T = unknown> {
+  sessionId: string;
+  timestamp: number;
+  initialized: boolean;
+  data?: T;
+}
+
+/**
+ * Type guard to check if parsed JSON is a valid SessionData object
+ */
+function isValidSessionData(obj: unknown): obj is SessionData {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'sessionId' in obj &&
+    'timestamp' in obj &&
+    'initialized' in obj &&
+    typeof (obj as SessionData).sessionId === 'string' &&
+    typeof (obj as SessionData).timestamp === 'number' &&
+    typeof (obj as SessionData).initialized === 'boolean'
+  );
+}
+
 /**
  * Generates a unique session ID for the current browser session
  */
@@ -46,11 +69,13 @@ export function isSessionInitialized(key: string): boolean {
     const data = sessionStorage.getItem(key);
     if (!data) return false;
     
-    const sessionData = JSON.parse(data);
+    const parsed: unknown = JSON.parse(data);
+    if (!isValidSessionData(parsed)) return false;
+    
     const currentSessionId = getSessionId();
     
     // Check if the stored session matches current session and is initialized
-    return sessionData.sessionId === currentSessionId && sessionData.initialized === true;
+    return parsed.sessionId === currentSessionId && parsed.initialized === true;
   } catch {
     return false;
   }
@@ -86,12 +111,14 @@ export function getSessionData<T = unknown>(key: string): T | null {
     const data = sessionStorage.getItem(key);
     if (!data) return null;
     
-    const sessionData = JSON.parse(data);
+    const parsed: unknown = JSON.parse(data);
+    if (!isValidSessionData(parsed)) return null;
+    
     const currentSessionId = getSessionId();
     
     // Only return data if it's from the current session
-    if (sessionData.sessionId === currentSessionId) {
-      return sessionData.data ?? null;
+    if (parsed.sessionId === currentSessionId) {
+      return (parsed.data as T) ?? null;
     }
     
     return null;

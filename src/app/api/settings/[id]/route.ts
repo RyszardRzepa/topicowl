@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articleSettings } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articleSettings, projects, users } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const articleSettingsUpdateSchema = z.object({
@@ -16,6 +17,30 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Verify user exists in database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const settingsId = parseInt(id);
     
@@ -23,6 +48,24 @@ export async function PUT(
       return NextResponse.json(
         { error: "Invalid settings ID" },
         { status: 400 }
+      );
+    }
+
+    // Verify that the article settings belong to a project owned by the current user
+    const [settingsRecord] = await db
+      .select({
+        id: articleSettings.id,
+        projectId: articleSettings.projectId,
+      })
+      .from(articleSettings)
+      .innerJoin(projects, eq(articleSettings.projectId, projects.id))
+      .where(and(eq(articleSettings.id, settingsId), eq(projects.userId, userRecord.id)))
+      .limit(1);
+
+    if (!settingsRecord) {
+      return NextResponse.json(
+        { error: "Settings not found or access denied" },
+        { status: 404 }
       );
     }
 
@@ -68,6 +111,30 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Verify user exists in database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const { id } = await params;
     const settingsId = parseInt(id);
     
@@ -75,6 +142,24 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Invalid settings ID" },
         { status: 400 }
+      );
+    }
+
+    // Verify that the article settings belong to a project owned by the current user
+    const [settingsRecord] = await db
+      .select({
+        id: articleSettings.id,
+        projectId: articleSettings.projectId,
+      })
+      .from(articleSettings)
+      .innerJoin(projects, eq(articleSettings.projectId, projects.id))
+      .where(and(eq(articleSettings.id, settingsId), eq(projects.userId, userRecord.id)))
+      .limit(1);
+
+    if (!settingsRecord) {
+      return NextResponse.json(
+        { error: "Settings not found or access denied" },
+        { status: 404 }
       );
     }
 

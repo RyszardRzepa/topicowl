@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "API Security Audit",
+  "description": "Monitors new API route files in the /api directory to ensure they implement proper security measures and user data isolation. Checks that users can only access their own data and not data from other users.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/app/api/**/route.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A new API route has been created or modified. Please review the code to ensure it implements proper security measures:\n\n1. **Authentication Check**: Verify the route properly authenticates users (using Clerk auth() or similar)\n2. **User Data Isolation**: Ensure users can only access their own data - check for proper user ID filtering in database queries\n3. **Project Context**: If applicable, verify project-based data isolation is implemented\n4. **Authorization**: Check that users have proper permissions for the requested operations\n5. **Input Validation**: Ensure request data is properly validated and sanitized\n6. **Error Handling**: Verify sensitive information is not leaked in error responses\n\nFocus on identifying any potential security vulnerabilities where users might be able to access data belonging to other users. Provide specific recommendations for fixing any security issues found."
+  }
+}

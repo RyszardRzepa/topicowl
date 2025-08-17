@@ -1,5 +1,6 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { env } from "@/env";
 import { db } from "@/server/db";
 import { projects } from "@/server/db/schema";
@@ -122,7 +123,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to refresh Reddit token" }, { status: 401 });
     }
 
-    const tokenData: RedditTokenResponse = await tokenResponse.json();
+    const tokenData = await tokenResponse.json() as RedditTokenResponse;
 
     // Update last used timestamp for this project connection
     const updatedMetadata = { ...metadata };
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Failed to fetch Reddit profile" }, { status: 500 });
       }
 
-      const profileData: RedditIdentityApiResponse = await profileResponse.json();
+      const profileData = await profileResponse.json() as RedditIdentityApiResponse;
 
       return NextResponse.json({
         profile: {
@@ -172,7 +173,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Failed to fetch subscribed subreddits" }, { status: 500 });
       }
 
-      const subredditsData: RedditSubredditsApiResponse = await subredditsResponse.json();
+      const subredditsData = await subredditsResponse.json() as RedditSubredditsApiResponse;
 
       const subreddits = subredditsData.data.children.map(child => ({
         display_name: child.data.display_name,

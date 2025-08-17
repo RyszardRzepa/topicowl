@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
 import { db } from '@/server/db';
 import { users, projects, articleSettings } from '@/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Project } from '@/types';
 
@@ -53,11 +53,11 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ success: false, error: 'Invalid website URL' }, { status: 400 });
     }
 
-    // Check if website URL already exists
+    // Check if this user already has a project for this website URL
     const existing = await db
       .select({ id: projects.id, userId: projects.userId })
       .from(projects)
-      .where(eq(projects.websiteUrl, normalized.websiteUrl))
+      .where(and(eq(projects.websiteUrl, normalized.websiteUrl), eq(projects.userId, userId)))
       .limit(1);
 
     let newProject: Project | undefined;
@@ -65,59 +65,51 @@ export async function POST(request: Request): Promise<Response> {
     if (existing.length > 0) {
       const existingProject = existing[0]!;
       
-      // If the existing project belongs to the same user, update it
-      if (existingProject.userId === userId) {
-        const updated = await db
-          .update(projects)
+      // Update the existing project for this user
+      const updated = await db
+        .update(projects)
+        .set({
+          name: projectData.name,
+          companyName: projectData.companyName,
+          productDescription: projectData.productDescription,
+          keywords: projectData.keywords,
+          updatedAt: new Date(),
+        })
+        .where(eq(projects.id, existingProject.id))
+        .returning();
+
+      newProject = updated[0] as Project | undefined;
+      
+      if (!newProject) {
+        return Response.json({ success: false, error: 'Failed to update project' }, { status: 500 });
+      }
+
+      // Update or create article settings for the project
+      const existingSettings = await db
+        .select({ id: articleSettings.id })
+        .from(articleSettings)
+        .where(eq(articleSettings.projectId, newProject.id))
+        .limit(1);
+
+      if (existingSettings.length > 0) {
+        // Update existing article settings
+        await db
+          .update(articleSettings)
           .set({
-            name: projectData.name,
-            companyName: projectData.companyName,
-            productDescription: projectData.productDescription,
-            keywords: projectData.keywords,
-            updatedAt: new Date(),
-          })
-          .where(eq(projects.id, existingProject.id))
-          .returning();
-
-        newProject = updated[0] as Project | undefined;
-        
-        if (!newProject) {
-          return Response.json({ success: false, error: 'Failed to update project' }, { status: 500 });
-        }
-
-        // Update or create article settings for the project
-        const existingSettings = await db
-          .select({ id: articleSettings.id })
-          .from(articleSettings)
-          .where(eq(articleSettings.projectId, newProject.id))
-          .limit(1);
-
-        if (existingSettings.length > 0) {
-          // Update existing article settings
-          await db
-            .update(articleSettings)
-            .set({
-              toneOfVoice: projectData.toneOfVoice,
-              articleStructure: projectData.articleStructure,
-              maxWords: projectData.maxWords,
-              updatedAt: new Date(),
-            })
-            .where(eq(articleSettings.projectId, newProject.id));
-        } else {
-          // Create new article settings
-          await db.insert(articleSettings).values({
-            projectId: newProject.id,
             toneOfVoice: projectData.toneOfVoice,
             articleStructure: projectData.articleStructure,
             maxWords: projectData.maxWords,
-          });
-        }
+            updatedAt: new Date(),
+          })
+          .where(eq(articleSettings.projectId, newProject.id));
       } else {
-        // Project belongs to different user
-        return Response.json({ 
-          success: false, 
-          error: 'Website URL is already used by another project' 
-        }, { status: 400 });
+        // Create new article settings
+        await db.insert(articleSettings).values({
+          projectId: newProject.id,
+          toneOfVoice: projectData.toneOfVoice,
+          articleStructure: projectData.articleStructure,
+          maxWords: projectData.maxWords,
+        });
       }
     } else {
       // Create new project

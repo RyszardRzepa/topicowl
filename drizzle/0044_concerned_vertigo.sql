@@ -1,0 +1,1 @@
+ALTER TABLE "topicowl"."projects" DROP CONSTRAINT "projects_website_url_unique";

@@ -40,6 +40,7 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
       generating: { text: 'Generating', color: 'text-brand-orange bg-brand-orange/10' },
       wait_for_publish: { text: 'Wait for Publish', color: 'text-brand-green bg-brand-green/10' },
       published: { text: 'Published', color: 'text-brand-green bg-brand-green/20' },
+      failed: { text: 'Failed', color: 'text-red-600 bg-red-100' },
       deleted: { text: 'Deleted', color: 'text-red-600 bg-red-100' },
     };
     return statusMap[status];
