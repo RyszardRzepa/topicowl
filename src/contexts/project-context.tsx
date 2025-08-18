@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { useUser } from "@clerk/nextjs";
@@ -23,31 +24,22 @@ interface ProjectContextValue {
   removeProject: (projectId: number) => void;
   updateProject: (project: Project) => void;
   clearError: () => void;
-  retryLoad: () => Promise<void>;
+  // New: Project change event system
+  onProjectChange: (callback: (project: Project | null) => void) => () => void;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 const PROJECT_STORAGE_KEY = "contentbot-current-project-id";
 
-interface ProjectProviderProps {
-  children: ReactNode;
-  initialProject?: Project;
-  initialProjects?: Project[];
-}
-
-export function ProjectProvider({
-  children,
-  initialProject,
-  initialProjects,
-}: ProjectProviderProps) {
+export function ProjectProvider({ children }: { children: ReactNode }) {
   const { user, isLoaded: userLoaded } = useUser();
-  const [projects, setProjects] = useState<Project[]>(initialProjects ?? []);
-  const [currentProject, setCurrentProject] = useState<Project | null>(
-    initialProject ?? null,
-  );
-  const [isLoading, setIsLoading] = useState(!userLoaded);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+  const projectChangeCallbacksRef = useRef<Set<(project: Project | null) => void>>(new Set());
 
   // Get stored project ID from localStorage
   const getStoredProjectId = (): number | null => {
@@ -56,16 +48,33 @@ export function ProjectProvider({
     return stored ? parseInt(stored, 10) : null;
   };
 
-  // Save project preference to localStorage and cookie
+  // Save project preference
   const saveProjectPreference = (projectId: number) => {
     if (typeof window === "undefined") return;
-
-    // Save to localStorage for client-side persistence
     localStorage.setItem(PROJECT_STORAGE_KEY, projectId.toString());
-
-    // Save to cookie for SSR hydration
     document.cookie = `currentProjectId=${projectId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
   };
+
+  // Notify all listeners when project changes
+  const notifyProjectChange = (project: Project | null) => {
+    projectChangeCallbacksRef.current.forEach((callback) => {
+      try {
+        callback(project);
+      } catch (error) {
+        console.error('Error in project change callback:', error);
+      }
+    });
+  };
+
+  // Register/unregister project change listeners
+  const onProjectChange = useCallback((callback: (project: Project | null) => void) => {
+    projectChangeCallbacksRef.current.add(callback);
+    
+    // Return cleanup function
+    return () => {
+      projectChangeCallbacksRef.current.delete(callback);
+    };
+  }, []);
 
   // Load projects from API
   const loadProjects = useCallback(async (): Promise<Project[]> => {
@@ -97,52 +106,38 @@ export function ProjectProvider({
     }
   }, []);
 
-  // Initialize projects when user loads
+  // Initialize projects only once when user loads
   useEffect(() => {
     const initializeProjects = async () => {
-      if (!userLoaded || !user) {
-        setIsLoading(false);
+      // Skip if already loaded or user not ready
+      if (hasLoadedRef.current || !userLoaded || !user) {
+        if (!user && userLoaded) {
+          setIsLoading(false);
+        }
         return;
       }
 
+      hasLoadedRef.current = true;
       setIsLoading(true);
       setError(null);
 
       try {
-        let projectsToUse: Project[] = [];
+        const loadedProjects = await loadProjects();
+        setProjects(loadedProjects);
 
-        // Use initial data from SSR if available
-        if (initialProjects && initialProjects.length > 0) {
-          projectsToUse = initialProjects;
-          setProjects(initialProjects);
-        } else {
-          // Load from API
-          const loadedProjects = await loadProjects();
-          projectsToUse = loadedProjects;
-          setProjects(loadedProjects);
-        }
-
-        // Set current project
-        if (projectsToUse.length > 0) {
-          let targetProject: Project | null = null;
-
-          // Priority 1: Use initialProject if provided
-          if (initialProject && projectsToUse.find((p) => p.id === initialProject.id)) {
-            targetProject = initialProject;
-          } else {
-            // Priority 2: Use stored preference if valid
-            const storedProjectId = getStoredProjectId();
-            const storedProject = projectsToUse.find((p) => p.id === storedProjectId);
-            if (storedProject) {
-              targetProject = storedProject;
-            } else {
-              // Priority 3: Use first available project
-              targetProject = projectsToUse[0]!;
-            }
+        if (loadedProjects.length > 0) {
+          // Try to restore previous selection or use first project
+          const storedProjectId = getStoredProjectId();
+          const targetProject = 
+            loadedProjects.find((p) => p.id === storedProjectId) ?? 
+            loadedProjects[0];
+          
+          if (targetProject) {
+            setCurrentProject(targetProject);
+            saveProjectPreference(targetProject.id);
+            // Notify listeners of initial project selection
+            notifyProjectChange(targetProject);
           }
-
-          setCurrentProject(targetProject);
-          saveProjectPreference(targetProject.id);
         }
       } catch (error) {
         console.error("Failed to initialize projects:", error);
@@ -153,131 +148,101 @@ export function ProjectProvider({
     };
 
     void initializeProjects();
-  }, [userLoaded, user, initialProjects, initialProject, loadProjects]);
+  }, [userLoaded, user, loadProjects]);
 
-  // Refresh projects from API
+  // Other methods with proper notifications
   const refreshProjects = useCallback(async (): Promise<void> => {
     if (!user) return;
-
-    setIsLoading(true);
-    setError(null);
 
     try {
       const loadedProjects = await loadProjects();
       setProjects(loadedProjects);
 
-      // Update current project if it still exists
       if (currentProject) {
         const updatedCurrentProject = loadedProjects.find(
           (p) => p.id === currentProject.id,
         );
         if (updatedCurrentProject) {
           setCurrentProject(updatedCurrentProject);
+          notifyProjectChange(updatedCurrentProject);
         } else if (loadedProjects.length > 0) {
-          // Current project was deleted, fallback to first project
           const defaultProject = loadedProjects[0]!;
           setCurrentProject(defaultProject);
           saveProjectPreference(defaultProject.id);
+          notifyProjectChange(defaultProject);
         } else {
-          // No projects left
           setCurrentProject(null);
+          notifyProjectChange(null);
         }
-      } else if (loadedProjects.length > 0 && !currentProject) {
-        // No current project but projects exist, select first one
+      } else if (loadedProjects.length > 0) {
         const defaultProject = loadedProjects[0]!;
         setCurrentProject(defaultProject);
         saveProjectPreference(defaultProject.id);
+        notifyProjectChange(defaultProject);
       }
+      setError(null);
     } catch (error) {
       console.error("Failed to refresh projects:", error);
       setError("Failed to refresh projects. Please try again.");
-    } finally {
-      setIsLoading(false);
     }
   }, [user, loadProjects, currentProject]);
 
-  // Switch to a different project
+  // Switch to a different project with proper notifications
   const switchProject = async (projectId: number): Promise<void> => {
-    try {
-      const targetProject = projects.find((p) => p.id === projectId);
-      if (!targetProject) {
-        setError("Selected project not found. Please refresh your project list.");
-        return;
-      }
-
-      setCurrentProject(targetProject);
-      saveProjectPreference(projectId);
-      setError(null);
-      toast.success(`Switched to ${targetProject.name}`);
-    } catch (error) {
-      const errorMessage = "Failed to switch projects. Please try again.";
-      console.error("Error switching project:", error);
-      setError(errorMessage);
-      toast.error(errorMessage);
+    const targetProject = projects.find((p) => p.id === projectId);
+    if (!targetProject) {
+      toast.error("Selected project not found");
+      return;
     }
+
+    // Optimistically update UI first
+    setCurrentProject(targetProject);
+    saveProjectPreference(projectId);
+    
+    // Notify all listeners immediately for instant UI updates
+    notifyProjectChange(targetProject);
+    
+    toast.success(`Switched to ${targetProject.name}`);
   };
 
-  // Add new project to state
   const addProject = (project: Project) => {
-    const updatedProjects = [...projects, project];
-    setProjects(updatedProjects);
-
-    // If this is the first project or no current project, make it current
+    setProjects(prev => [...prev, project]);
     if (projects.length === 0 || !currentProject) {
       setCurrentProject(project);
       saveProjectPreference(project.id);
+      notifyProjectChange(project);
     }
-
-    setError(null);
   };
 
-  // Remove project from state
   const removeProject = (projectId: number) => {
-    const updatedProjects = projects.filter((p) => p.id !== projectId);
-    setProjects(updatedProjects);
-
-    // If removed project was current, switch to first remaining project
+    setProjects(prev => prev.filter((p) => p.id !== projectId));
+    
     if (currentProject?.id === projectId) {
-      const defaultProject = updatedProjects[0] ?? null;
+      const remainingProjects = projects.filter((p) => p.id !== projectId);
+      const defaultProject = remainingProjects[0] ?? null;
       setCurrentProject(defaultProject);
+      
       if (defaultProject) {
         saveProjectPreference(defaultProject.id);
-      } else {
-        // No projects left, clear stored preference
-        if (typeof window !== "undefined") {
-          localStorage.removeItem(PROJECT_STORAGE_KEY);
-          document.cookie = "currentProjectId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-        }
+      } else if (typeof window !== "undefined") {
+        localStorage.removeItem(PROJECT_STORAGE_KEY);
       }
+      notifyProjectChange(defaultProject);
     }
-
-    setError(null);
   };
 
-  // Update existing project in state
   const updateProject = (updatedProject: Project) => {
-    const updatedProjects = projects.map((p) =>
-      p.id === updatedProject.id ? updatedProject : p,
-    );
-    setProjects(updatedProjects);
+    setProjects(prev => prev.map((p) =>
+      p.id === updatedProject.id ? updatedProject : p
+    ));
 
-    // Update current project if it's the one being updated
     if (currentProject?.id === updatedProject.id) {
       setCurrentProject(updatedProject);
+      notifyProjectChange(updatedProject);
     }
-
-    setError(null);
   };
 
-  // Clear error state
-  const clearError = () => {
-    setError(null);
-  };
-
-  // Retry loading projects (same as refreshProjects but different semantic meaning)
-  const retryLoad = useCallback(async (): Promise<void> => {
-    await refreshProjects();
-  }, [refreshProjects]);
+  const clearError = () => setError(null);
 
   const value: ProjectContextValue = {
     projects,
@@ -290,7 +255,7 @@ export function ProjectProvider({
     removeProject,
     updateProject,
     clearError,
-    retryLoad,
+    onProjectChange,
   };
 
   return (
