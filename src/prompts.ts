@@ -527,6 +527,8 @@ export const prompts = {
       maxWords?: number;
       notes?: string;
       faqCount?: number;
+      includeVideo?: boolean;
+      includeTables?: boolean;
     },
     relatedPosts?: string[],
     _excludedDomains?: string[],
@@ -606,11 +608,13 @@ ${data.researchData}
    - If a fact isn’t supported, omit it or say it’s unknown. No fabrication.
    - If Citations API is enabled by the caller, attach citations to lines/claims. If not, include a “## Sources” section listing only the links actually used.
 
-6) Videos (if any): place in the most relevant section using exactly:
+6) Videos (if any and enabled): ${settings?.includeVideo !== false ? `place in the most relevant section using exactly:
    ## {Contextual Video Title}
-   [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)
+   [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)` : 'do not include any video sections in the article'}
 
-7) Tie-breakers when rules conflict (in this order):
+7) Tables: ${settings?.includeTables !== false ? `use table format for structured data comparisons when relevant and supported by research` : 'do not include any table sections in the article'}
+
+8) Tie-breakers when rules conflict (in this order):
    Factual accuracy & grounding > Section order > Clarity/Readability > Tone > Word target.
 </constraints>
 
@@ -1227,6 +1231,10 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
     notes?: string,
     sources?: Array<{ url: string; title?: string }>,
     excludedDomains?: string[],
+    settings?: {
+      includeVideo?: boolean;
+      includeTables?: boolean;
+    },
   ) => `
   <system_prompt>
   You are an expert content strategist creating a complete article outline in markdown format from research data.
@@ -1252,16 +1260,16 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   
   Keywords focus: [relevant keywords from provided list]
   Links to integrate: [specific URLs from sources]
-    
+    ${settings?.includeVideo !== false ? `
   ## "Video Title Here" (if relevant video url available)
-  [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
- 
+  [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)` : ''}
+ ${settings?.includeTables !== false ? `
   ## Table Section (if relevant structured data available)
   
   **Table Title:** "Descriptive Table Title Here"
   Brief description of what the table shows and how it helps readers compare options or understand data.
   
-  Content guidance: This section should present structured data in table format. Include 2-6 columns with clear headers and organized information that helps readers make comparisons or understand relationships between data points.
+  Content guidance: This section should present structured data in table format. Include 2-6 columns with clear headers and organized information that helps readers make comparisons or understand relationships between data points.` : ''}
   
   ## Additional Content Section 1
   
@@ -1269,9 +1277,9 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   
   Keywords focus: [relevant keywords from provided list]
   Links to integrate: [specific URLs from sources]
-  
+  ${settings?.includeVideo !== false ? `
    ## "instagram or tiktok Title Here" (if relevant instagram or tiktok url available)
-  [![Watch on tiktok or instagram](https://img.instagram.com/vi/VIDEO_ID/hqdefault.jpg)](https://www.instagram.com/watch?v=VIDEO_ID)
+  [![Watch on tiktok or instagram](https://img.instagram.com/vi/VIDEO_ID/hqdefault.jpg)](https://www.instagram.com/watch?v=VIDEO_ID)` : ''}
 
   ## Additional Content Section 2
   
@@ -1300,25 +1308,25 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
 
   <section_flexibility>
   REQUIRED sections: Title, Intro, TL;DR, 3-5 content sections, FAQ
-  OPTIONAL sections: Video (only if relevant video exists), Table (only if structured data warrants it)
+  OPTIONAL sections: ${settings?.includeVideo !== false ? 'Video (only if relevant video exists), ' : ''}${settings?.includeTables !== false ? 'Table (only if structured data warrants it)' : ''}
   ADAPTIVE: Section order can be adjusted for logical flow while maintaining all required elements
   </section_flexibility>
 
-  <video_inclusion_criteria>
+  ${settings?.includeVideo !== false ? `<video_inclusion_criteria>
   Include video section ONLY when:
   - Video directly relates to article topic
   - Video adds unique value not covered in text
   - Video is from reputable source (official channels preferred)
   Skip if: Generic or low-quality videos
-  </video_inclusion_criteria>
+  </video_inclusion_criteria>` : ''}
 
-  <table_inclusion_criteria>
+  ${settings?.includeTables !== false ? `<table_inclusion_criteria>
   Include table section ONLY when:
   - Comparing 3+ items with multiple attributes
   - Presenting numerical data that benefits from structure
   - Showing relationships between data points
   Skip if: Simple lists or <3 comparison points
-  </table_inclusion_criteria>
+  </table_inclusion_criteria>` : ''}
   
   <critical_requirements>
   ⚠️ LINK HANDLING: Only use URLs from the 'sources' parameter provided below. Never use URLs from researchData or create new ones.

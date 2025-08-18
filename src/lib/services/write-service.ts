@@ -8,7 +8,7 @@ import { generateObject } from "ai";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { db } from "@/server/db";
-import { articleSettings, users, articleGeneration } from "@/server/db/schema";
+import { projects, users, articleGeneration } from "@/server/db/schema";
 import type { ResearchResponse } from "@/lib/services/research-service";
 import { blogPostSchema } from "@/types";
 import { eq } from "drizzle-orm";
@@ -170,31 +170,41 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
     }
   }
 
-  // Fetch article settings
+  // Fetch project settings 
   let settingsData;
   try {
-    const settings = await db.select().from(articleSettings).limit(1);
-    settingsData =
-      settings.length > 0
-        ? {
-            toneOfVoice: settings[0]!.toneOfVoice ?? "",
-            articleStructure: settings[0]!.articleStructure ?? "",
-            maxWords: settings[0]!.maxWords ?? 1800,
-            notes: request.notes ?? "",
-          }
+    const [projectSettings] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, request.projectId))
+      .limit(1);
+      
+    settingsData = projectSettings
+      ? {
+          toneOfVoice: projectSettings.toneOfVoice ?? "",
+          articleStructure: projectSettings.articleStructure ?? "",
+          maxWords: projectSettings.maxWords ?? 1800,
+          notes: request.notes ?? "",
+          includeVideo: projectSettings.includeVideo ?? true,
+          includeTables: projectSettings.includeTables ?? true,
+        }
         : {
-            toneOfVoice: "",
-            articleStructure: "",
-            maxWords: 1800,
-            notes: request.notes ?? "",
-          };
-    console.log("[WRITE_SERVICE] Article settings loaded", {
-      settingsFound: settings.length > 0,
+          toneOfVoice: "",
+          articleStructure: "",
+          maxWords: 1800,
+          notes: request.notes ?? "",
+          includeVideo: true,
+          includeTables: true,
+        };
+    console.log("[WRITE_SERVICE] Project settings loaded", {
+      settingsFound: !!projectSettings,
+      includeVideo: settingsData.includeVideo,
+      includeTables: settingsData.includeTables,
     });
   } catch (error) {
-    // If there's an error (like missing column), use defaults
+    // If there's an error loading project settings, use defaults
     console.log(
-      "[WRITE_SERVICE] Using default article settings due to database error",
+      "[WRITE_SERVICE] Using default project settings due to database error",
       error,
     );
     settingsData = {
@@ -202,10 +212,10 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
       articleStructure: "",
       maxWords: 1800,
       notes: request.notes ?? "",
+      includeVideo: true,
+      includeTables: true,
     };
-  }
-
-  // Check if videos are available for enhanced generation
+  }  // Check if videos are available for enhanced generation
   const hasVideos = request.videos && request.videos.length > 0;
 
   let articleObject;

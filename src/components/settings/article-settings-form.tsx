@@ -16,6 +16,7 @@ import { prompts } from "@/prompts";
 import { Textarea } from "../ui/textarea";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Switch } from "../ui/switch";
 
 // Form-specific type for component state
 interface ArticleSettingsForm {
@@ -25,6 +26,8 @@ interface ArticleSettingsForm {
   maxWords: number;
   excluded_domains: string[];
   sitemap_url: string;
+  includeVideo: boolean;
+  includeTables: boolean;
   // Company/business settings
   companyName: string;
   productDescription: string;
@@ -55,6 +58,8 @@ export function ArticleSettingsForm({
     maxWords: initialSettings.maxWords ?? 800,
     excluded_domains: initialSettings.excludedDomains ?? [],
     sitemap_url: initialSettings.sitemapUrl ?? "",
+    includeVideo: initialSettings.includeVideo ?? true,
+    includeTables: initialSettings.includeTables ?? true,
     // Company/business settings
     companyName: initialSettings.companyName ?? "",
     productDescription: initialSettings.productDescription ?? "",
@@ -74,7 +79,7 @@ export function ArticleSettingsForm({
 
   const handleInputChange = (
     field: keyof ArticleSettingsForm,
-    value: string | number | string[],
+    value: string | number | string[] | boolean,
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -112,6 +117,8 @@ export function ArticleSettingsForm({
         maxWords: formData.maxWords,
         excludedDomains: formData.excluded_domains,
         sitemapUrl: formData.sitemap_url || undefined,
+        includeVideo: formData.includeVideo,
+        includeTables: formData.includeTables,
         // Company/business settings
         companyName: formData.companyName || undefined,
         productDescription: formData.productDescription || undefined,
@@ -235,6 +242,8 @@ export function ArticleSettingsForm({
         maxWords: 800,
         excludedDomains: [],
         sitemapUrl: "",
+        includeVideo: true,
+        includeTables: true,
         companyName: "",
         productDescription: "",
         keywords: [],
@@ -265,6 +274,8 @@ export function ArticleSettingsForm({
         maxWords: settings.maxWords ?? 800,
         excluded_domains: settings.excludedDomains ?? [],
         sitemap_url: settings.sitemapUrl ?? "",
+        includeVideo: settings.includeVideo ?? true,
+        includeTables: settings.includeTables ?? true,
         companyName: settings.companyName ?? "",
         productDescription: settings.productDescription ?? "",
         keywords: settings.keywords ?? [],
@@ -642,6 +653,55 @@ export function ArticleSettingsForm({
                   Target word count for generated articles. Must be between 100
                   and 5,000 words.
                 </p>
+              </div>
+
+              {/* Content Section Preferences */}
+              <div>
+                <label className="mb-3 block text-sm font-medium text-gray-700">
+                  Content Sections
+                </label>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <label
+                        htmlFor="includeVideo"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Include video sections
+                      </label>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Add relevant video embeds to articles when available
+                      </p>
+                    </div>
+                    <Switch
+                      id="includeVideo"
+                      checked={formData.includeVideo}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("includeVideo", checked)
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <label
+                        htmlFor="includeTables"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Include table sections
+                      </label>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Add data tables and comparison charts when relevant
+                      </p>
+                    </div>
+                    <Switch
+                      id="includeTables"
+                      checked={formData.includeTables}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("includeTables", checked)
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

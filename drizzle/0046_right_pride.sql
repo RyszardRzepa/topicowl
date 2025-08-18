@@ -1,0 +1,2 @@
+ALTER TABLE "topicowl"."projects" ADD COLUMN "include_video" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "topicowl"."projects" ADD COLUMN "include_tables" boolean DEFAULT true NOT NULL;

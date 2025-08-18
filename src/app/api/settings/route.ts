@@ -25,6 +25,9 @@ export interface ProjectSettingsRequest {
   webhookSecret?: string;
   webhookEnabled?: boolean;
   webhookEvents?: string[];
+  // Content generation preferences
+  includeVideo?: boolean;
+  includeTables?: boolean;
 }
 
 export interface ProjectSettingsResponse {
@@ -47,6 +50,9 @@ export interface ProjectSettingsResponse {
   webhookSecret: string | null;
   webhookEnabled: boolean;
   webhookEvents: string[];
+  // Content generation preferences
+  includeVideo: boolean;
+  includeTables: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,6 +74,9 @@ const projectSettingsSchema = z.object({
   webhookSecret: z.string().optional(),
   webhookEnabled: z.boolean().optional(),
   webhookEvents: z.array(z.string()).optional(),
+  // Content generation preferences
+  includeVideo: z.boolean().optional(),
+  includeTables: z.boolean().optional(),
 });
 
 // GET /api/settings?projectId=123 - Get project settings
@@ -134,6 +143,8 @@ export async function GET(req: NextRequest) {
       webhookSecret: project.webhookSecret,
       webhookEnabled: project.webhookEnabled,
       webhookEvents: Array.isArray(project.webhookEvents) ? project.webhookEvents as string[] : [],
+      includeVideo: project.includeVideo,
+      includeTables: project.includeTables,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     };
@@ -243,6 +254,8 @@ export async function PUT(req: NextRequest) {
       webhookSecret: updatedProject.webhookSecret,
       webhookEnabled: updatedProject.webhookEnabled,
       webhookEvents: Array.isArray(updatedProject.webhookEvents) ? updatedProject.webhookEvents as string[] : [],
+      includeVideo: updatedProject.includeVideo,
+      includeTables: updatedProject.includeTables,
       createdAt: updatedProject.createdAt,
       updatedAt: updatedProject.updatedAt,
     };

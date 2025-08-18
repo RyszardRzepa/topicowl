@@ -84,6 +84,10 @@ export const projects = contentbotSchema.table("projects", {
     .default(["article.published"])
     .notNull(),
 
+  // Content generation preferences
+  includeVideo: boolean("include_video").default(true).notNull(),
+  includeTables: boolean("include_tables").default(true).notNull(),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),

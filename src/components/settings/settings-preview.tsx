@@ -178,6 +178,24 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
                   </div>
                 </div>
               </div>
+
+              <div>
+                <label className="text-sm font-medium text-green-700">Content Sections</label>
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${settings.includeVideo ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-sm text-green-800">
+                      Video sections {settings.includeVideo ? 'enabled' : 'disabled'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${settings.includeTables ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-sm text-green-800">
+                      Table sections {settings.includeTables ? 'enabled' : 'disabled'}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </TabsContent>
