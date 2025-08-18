@@ -1,118 +1,20 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { generateObject } from "ai";
 import { NextResponse } from "next/server";
-import { prompts } from "@/prompts";
-import { MODELS } from "@/constants";
-import { blogPostSchema } from "@/types";
+import { performUpdateLogic, performQualityControlUpdate, performGenericUpdate } from "@/lib/services/update-service";
 
 export const maxDuration = 800;
 
 // Types colocated with this API route
-interface ValidationIssue {
-  fact: string;
-  issue: string;
-  correction: string;
-}
-
-interface Correction {
-  fact: string;
-  issue: string;
-  correction: string;
-}
-
-export interface UpdateRequest {
+interface UpdateRequest {
   article: string;
-  corrections?: Correction[];
-  validationIssues?: ValidationIssue[];
-  validationText?: string; // Raw validation text from validation API
-  qualityControlIssues?: string; // Markdown-formatted quality control feedback
+  corrections?: string;
+  validationIssues?: string;
+  validationText?: string;
+  qualityControlIssues?: string;
   settings?: {
     toneOfVoice?: string;
     articleStructure?: string;
     maxWords?: number;
   };
-}
-
-export interface UpdateResponse {
-  updatedContent: string;
-}
-
-// Extracted update logic that can be called directly
-export async function performUpdateLogic(
-  article: string,
-  validationText: string,
-  settings?: {
-    toneOfVoice?: string;
-    articleStructure?: string;
-    maxWords?: number;
-  },
-): Promise<UpdateResponse> {
-  console.log("[UPDATE_LOGIC] Starting update", { 
-    contentLength: article.length,
-    validationTextLength: validationText.length,
-  });
-
-  if (!article || !validationText) {
-    throw new Error("Article and validationText are required");
-  }
-
-  const model = anthropic(MODELS.CLAUDE_SONET_4);
-
-  const { object: articleObject } = await generateObject({
-    model,
-    schema: blogPostSchema,
-    prompt: prompts.update(article, validationText, settings),
-    maxOutputTokens: 20000,
-  });
-
-  const response: UpdateResponse = {
-    updatedContent: articleObject.content,
-  };
-
-  console.log("[UPDATE_LOGIC] Update completed", {
-    updatedContentLength: response.updatedContent.length,
-  });
-
-  return response;
-}
-
-// Quality control specific update logic
-export async function performQualityControlUpdate(
-  article: string,
-  qualityControlIssues: string,
-  settings?: {
-    toneOfVoice?: string;
-    articleStructure?: string;
-    maxWords?: number;
-  },
-): Promise<UpdateResponse> {
-  console.log("[QUALITY_CONTROL_UPDATE] Starting update", { 
-    contentLength: article.length,
-    issuesLength: qualityControlIssues.length,
-  });
-
-  if (!article || !qualityControlIssues) {
-    throw new Error("Article and qualityControlIssues are required");
-  }
-
-  const model = anthropic(MODELS.CLAUDE_SONET_4);
-
-  const { object: articleObject } = await generateObject({
-    model,
-    schema: blogPostSchema,
-    prompt: prompts.updateWithQualityControl(article, qualityControlIssues, settings),
-    maxOutputTokens: 20000,
-  });
-
-  const response: UpdateResponse = {
-    updatedContent: articleObject.content,
-  };
-
-  console.log("[QUALITY_CONTROL_UPDATE] Update completed", {
-    updatedContentLength: response.updatedContent.length,
-  });
-
-  return response;
 }
 
 export async function POST(request: Request) {
@@ -138,50 +40,31 @@ export async function POST(request: Request) {
       );
     }
 
-    let response: UpdateResponse;
+    let result;
 
-    // Handle quality control issues with specialized logic
-    if (body.qualityControlIssues) {
-      response = await performQualityControlUpdate(
-        body.article,
-        body.qualityControlIssues,
-        body.settings
-      );
-    } else {
-      // Handle other types of updates (existing logic)
-      const model = anthropic(MODELS.CLAUDE_SONET_4);
-
-      let correctionsOrValidationText: Correction[] | string;
-
-      if (body.validationText) {
-        correctionsOrValidationText = body.validationText;
-      } else {
-        // Convert validationIssues to corrections format if provided
-        correctionsOrValidationText =
-          body.corrections ??
-          body.validationIssues?.map((issue) => ({
-            fact: issue.fact,
-            issue: issue.issue,
-            correction: issue.correction,
-          })) ??
-          [];
-      }
-
-      const { object: articleObject } = await generateObject({
-        model,
-        schema: blogPostSchema,
-        prompt: prompts.update(body.article, correctionsOrValidationText, body.settings),
+    // Determine which update function to call based on what's provided
+    if (body.validationText) {
+      result = await performUpdateLogic(body.article, body.validationText, body.settings);
+    } else if (body.qualityControlIssues) {
+      result = await performQualityControlUpdate(body.article, body.qualityControlIssues, body.settings);
+    } else if (body.corrections ?? body.validationIssues) {
+      const corrections = body.corrections ?? body.validationIssues ?? "";
+      // For generic update, we need to create a proper request object
+      result = await performGenericUpdate({
+        article: body.article,
+        corrections: [{ fact: "", issue: "", correction: corrections }],
+        settings: body.settings,
       });
-
-      response = {
-        updatedContent: articleObject.content,
-      };
+    } else {
+      return NextResponse.json(
+        {
+          error: "No valid correction method specified",
+        },
+        { status: 400 },
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: response,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Update endpoint error:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to update article";

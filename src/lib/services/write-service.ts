@@ -1,0 +1,358 @@
+/**
+ * Write service for article generation
+ * Extracted from the write API route to allow direct function calls
+ */
+
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateObject } from "ai";
+import { prompts } from "@/prompts";
+import { MODELS } from "@/constants";
+import { db } from "@/server/db";
+import { articleSettings, users, articleGeneration } from "@/server/db/schema";
+import type { ResearchResponse } from "@/lib/services/research-service";
+import { blogPostSchema } from "@/types";
+import { eq } from "drizzle-orm";
+import { getUserExcludedDomains } from "@/lib/utils/article-generation";
+import { getRelatedArticlesByUserId } from "@/lib/utils/related-articles";
+
+// Re-export types from the API route
+interface WriteRequest {
+  researchData: ResearchResponse;
+  title: string;
+  keywords: string[];
+  author?: string;
+  publicationName?: string;
+  coverImage?: string;
+  videos?: Array<{
+    title: string;
+    url: string;
+  }>;
+  sources?: Array<{
+    url: string;
+    title?: string;
+  }>;
+  notes?: string;
+  userId: string;
+  projectId: number;
+  relatedArticles?: string[];
+  generationId?: number;
+}
+
+export interface WriteResponse {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  metaDescription: string;
+  readingTime: string;
+  content: string;
+  author: string;
+  date: string;
+  coverImage?: string;
+  imageCaption?: string;
+  tags?: string[];
+  relatedPosts?: string[];
+  videos?: Array<{
+    title: string;
+    url: string;
+    sectionHeading: string;
+    contextMatch: string;
+  }>;
+  hasVideoIntegration?: boolean;
+}
+
+/**
+ * Core write function that can be called directly without HTTP
+ * Extracted from /api/articles/write/route.ts
+ */
+export async function performWriteLogic(request: WriteRequest): Promise<WriteResponse> {
+  console.log("[WRITE_SERVICE] Starting write process", {
+    title: request.title,
+    keywordsCount: request.keywords.length,
+    hasResearchData: !!request.researchData,
+    hasVideos: !!request.videos && request.videos.length > 0,
+  });
+
+  if (
+    !request.researchData ||
+    !request.title ||
+    !request.keywords ||
+    request.keywords.length === 0
+  ) {
+    throw new Error("Research data, title, and keywords are required");
+  }
+
+  // Retrieve user's excluded domains
+  let excludedDomains: string[] = [];
+  try {
+    console.log(
+      `[WRITE_SERVICE] Retrieving excluded domains for user: ${request.userId}`,
+    );
+
+    // Verify user exists in database using Clerk user ID
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, request.userId))
+      .limit(1);
+
+    if (userRecord) {
+      excludedDomains = await getUserExcludedDomains(userRecord.id);
+      console.log(
+        `[WRITE_SERVICE] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
+      );
+    } else {
+      console.log(
+        `[WRITE_SERVICE] User not found for ID: ${request.userId}`,
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[WRITE_SERVICE] Error retrieving excluded domains for user ${request.userId}:`,
+      error,
+    );
+    // Return empty array on error to avoid blocking article generation
+    excludedDomains = [];
+  }
+
+  // Filter sources to remove excluded domains
+  let filteredSources = request.sources;
+  if (request.sources && excludedDomains && excludedDomains.length > 0) {
+    filteredSources = request.sources.filter((source) => {
+      try {
+        const url = new URL(source.url);
+        const domain = url.hostname;
+
+        // Normalize domain (remove www and convert to lowercase)
+        const normalizedDomain = domain.toLowerCase().replace(/^www\./, "");
+
+        // Check if domain is excluded
+        const isExcluded = excludedDomains.some((excludedDomain) => {
+          const normalizedExcluded = excludedDomain
+            .toLowerCase()
+            .replace(/^www\./, "");
+
+          // Exact match
+          if (normalizedDomain === normalizedExcluded) {
+            return true;
+          }
+
+          // Check if the domain is a subdomain of the excluded domain
+          if (normalizedDomain.endsWith("." + normalizedExcluded)) {
+            return true;
+          }
+
+          return false;
+        });
+
+        if (isExcluded) {
+          console.log(
+            `[WRITE_SERVICE] Filtered out source: ${source.url} (domain: ${domain})`,
+          );
+        }
+
+        return !isExcluded;
+      } catch (error) {
+        // If URL parsing fails, keep the source (don't filter invalid URLs)
+        console.warn(
+          `[WRITE_SERVICE] Could not parse URL for filtering: ${source.url}`,
+          error,
+        );
+        return true;
+      }
+    });
+
+    const filteredCount = request.sources.length - filteredSources.length;
+    if (filteredCount > 0) {
+      console.log(
+        `[WRITE_SERVICE] Filtered out ${filteredCount} sources due to excluded domains`,
+      );
+    }
+  }
+
+  // Fetch article settings
+  let settingsData;
+  try {
+    const settings = await db.select().from(articleSettings).limit(1);
+    settingsData =
+      settings.length > 0
+        ? {
+            toneOfVoice: settings[0]!.toneOfVoice ?? "",
+            articleStructure: settings[0]!.articleStructure ?? "",
+            maxWords: settings[0]!.maxWords ?? 1800,
+            notes: request.notes ?? "",
+          }
+        : {
+            toneOfVoice: "",
+            articleStructure: "",
+            maxWords: 1800,
+            notes: request.notes ?? "",
+          };
+    console.log("[WRITE_SERVICE] Article settings loaded", {
+      settingsFound: settings.length > 0,
+    });
+  } catch (error) {
+    // If there's an error (like missing column), use defaults
+    console.log(
+      "[WRITE_SERVICE] Using default article settings due to database error",
+      error,
+    );
+    settingsData = {
+      toneOfVoice: "",
+      articleStructure: "",
+      maxWords: 1800,
+      notes: request.notes ?? "",
+    };
+  }
+
+  // Check if videos are available for enhanced generation
+  const hasVideos = request.videos && request.videos.length > 0;
+
+  let articleObject;
+  // Create excluded domains prompt instruction
+  const excludedDomainsInstruction =
+    excludedDomains && excludedDomains.length > 0
+      ? `\n\nIMPORTANT: Do not include any links to the following excluded domains in your response: ${excludedDomains.join(", ")}. If any of these domains appear in your source material, do not reference them or include links to them in the generated content.`
+      : "";
+
+  // Build the complete prompt
+  const writePrompt =
+    prompts.writing(
+      {
+        title: request.title,
+        researchData: request.researchData.researchData,
+        videos: request.videos,
+        sources: filteredSources ?? [],
+        notes: request.notes,
+      },
+      settingsData,
+      request.relatedArticles ?? [],
+      excludedDomains,
+    ) + excludedDomainsInstruction;
+
+  // Save the write prompt to the database if generationId is provided
+  if (request.generationId) {
+    try {
+      await db
+        .update(articleGeneration)
+        .set({
+          writePrompt: writePrompt,
+          updatedAt: new Date(),
+        })
+        .where(eq(articleGeneration.id, request.generationId));
+
+      console.log("[WRITE_SERVICE] Write prompt saved to database", {
+        generationId: request.generationId,
+        promptLength: writePrompt.length,
+      });
+    } catch (error) {
+      console.error("[WRITE_SERVICE] Failed to save write prompt to database", {
+        generationId: request.generationId,
+        error: error instanceof Error ? error.message : error,
+      });
+      // Continue with generation even if prompt saving fails
+    }
+  }
+
+  try {
+    const result = await generateObject({
+      model: anthropic(MODELS.CLAUDE_SONET_4),
+      schema: blogPostSchema,
+      prompt: writePrompt,
+      maxRetries: 2,
+      maxOutputTokens: 10000,
+    });
+    articleObject = result.object;
+  } catch (aiError) {
+    console.error("[WRITE_SERVICE] AI content generation failed", {
+      error:
+        aiError instanceof Error
+          ? {
+              name: aiError.name,
+              message: aiError.message,
+              stack: aiError.stack?.slice(0, 500),
+            }
+          : aiError,
+      model: MODELS.CLAUDE_SONET_4,
+      hasVideos,
+      schemaUsed: "blogPostSchema",
+      requiredFields: Object.keys(blogPostSchema.shape),
+    });
+    throw aiError;
+  }
+
+  // Log video usage for analytics
+  if (hasVideos) {
+    const videoCount =
+      "videos" in articleObject
+        ? ((articleObject as { videos?: Array<unknown> }).videos?.length ?? 0)
+        : 0;
+    console.log(
+      `[WRITE_SERVICE] Article generated with ${videoCount} videos embedded`,
+    );
+  }
+
+  // Validate the AI response has required fields
+  if (!articleObject.content || !articleObject.title || !articleObject.slug) {
+    console.error("[WRITE_SERVICE] AI generated invalid article object", {
+      hasContent: !!articleObject.content,
+      hasTitle: !!articleObject.title,
+      hasSlug: !!articleObject.slug,
+      articleObject: JSON.stringify(articleObject).slice(0, 500) + "...",
+    });
+    throw new Error(
+      "AI generated article is missing required fields (content, title, or slug)",
+    );
+  }
+
+  // Get related articles - use pre-generated ones if provided, otherwise generate them
+  let finalRelatedArticles: string[] = request.relatedArticles ?? [];
+
+  if (finalRelatedArticles.length === 0) {
+    try {
+      // Verify user exists in database using Clerk user ID
+      const [userRecord] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, request.userId))
+        .limit(1);
+
+      if (userRecord) {
+        finalRelatedArticles = await getRelatedArticlesByUserId(
+          userRecord.id,
+          request.title,
+          request.keywords,
+          3,
+        );
+        console.log("[WRITE_SERVICE] Generated related articles", {
+          count: finalRelatedArticles.length,
+          articles: finalRelatedArticles,
+        });
+      }
+    } catch (error) {
+      console.error("[WRITE_SERVICE] Error generating related articles:", error);
+      // Continue with empty array if related articles generation fails
+    }
+  } else {
+    console.log("[WRITE_SERVICE] Using pre-generated related articles", {
+      count: finalRelatedArticles.length,
+      articles: finalRelatedArticles,
+    });
+  }
+
+  // Include the cover image and related articles in the response
+  const responseObject = {
+    ...articleObject,
+    relatedPosts: finalRelatedArticles,
+    ...(request.coverImage && { coverImage: request.coverImage }),
+  } as WriteResponse;
+
+  console.log("[WRITE_SERVICE] Article write completed successfully", {
+    finalContentLength: responseObject.content.length,
+    hasMetaDescription: !!responseObject.metaDescription,
+    tagsCount: responseObject.tags?.length ?? 0,
+    relatedPostsCount: responseObject.relatedPosts?.length ?? 0,
+  });
+
+  return responseObject;
+}

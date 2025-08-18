@@ -1,9 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/server/db';
-import { articles, articleGeneration } from '@/server/db/schema';
-import { eq } from 'drizzle-orm';
-import type { ImageSearchResponse, UnsplashImage } from '../search/route';
+import { performImageSelectionLogic } from '@/lib/services/image-selection-service';
 
 // Types colocated with this API route
 export interface ArticleImageSelectionRequest {
@@ -12,6 +9,8 @@ export interface ArticleImageSelectionRequest {
   title: string;
   keywords: string[];
   orientation?: 'landscape' | 'portrait' | 'squarish';
+  userId?: string; // Optional for backward compatibility
+  projectId?: number; // Optional for backward compatibility
 }
 
 export interface ArticleImageSelectionResponse {
@@ -42,104 +41,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
-    // Get generation record (optional - may not exist for articles without user_id)
-    const generationRecords = await db.select()
-      .from(articleGeneration)
-      .where(eq(articleGeneration.id, body.generationId))
-      .limit(1);
-    
-    const generationRecord = generationRecords.length > 0 ? generationRecords[0] : null;
-    
-    if (generationRecord) {
-      console.log('[ARTICLE_IMAGE_SELECTION] Found generation record');
-    } else {
-      console.log('[ARTICLE_IMAGE_SELECTION] No generation record found, proceeding without it');
-    }
-    
-    // Search for images using the existing search endpoint
-    const searchUrl = new URL('/api/articles/images/search', request.url);
-    const imageSearchResponse = await fetch(searchUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: body.title,
-        keywords: body.keywords,
-        orientation: body.orientation ?? 'landscape',
-        contentFilter: 'low',
-        count: 1
-      })
+
+    console.log('[ARTICLE_IMAGE_SELECTION] Using image selection service');
+
+    // Use the service directly, providing defaults for missing fields
+    const result = await performImageSelectionLogic({
+      ...body,
+      userId: body.userId ?? "unknown", // Service needs userId but this route doesn't always have it
+      projectId: body.projectId ?? 0, // Service needs projectId but this route doesn't always have it
     });
-    
-    if (!imageSearchResponse.ok) {
-      throw new Error(`Image search failed: ${imageSearchResponse.status}`);
-    }
-    
-    const imageData = await imageSearchResponse.json() as ImageSearchResponse;
-    console.log('[ARTICLE_IMAGE_SELECTION] Image search completed');
-    
-    if (!imageData.success || !imageData.data.selectedImage) {
-      console.log('[ARTICLE_IMAGE_SELECTION] No suitable image found');
-      throw new Error('No suitable image found');
-    }
-    
-    const selectedImage: UnsplashImage = imageData.data.selectedImage;
-    const attribution = imageData.data.attribution;
-    
-    if (!attribution) {
-      throw new Error('Attribution data missing from image search response');
-    }
-    
-    console.log('[ARTICLE_IMAGE_SELECTION] Selected image:', selectedImage.id);
-    
-    // Update generation record with image data (if it exists)
-    if (generationRecord) {
-      try {
-        await db.update(articleGeneration)
-          .set({
-            selectedImageId: selectedImage.id,
-            imageAttribution: attribution,
-            imageQuery: body.title,
-            imageKeywords: body.keywords,
-            updatedAt: new Date()
-          })
-          .where(eq(articleGeneration.id, body.generationId));
-        
-        console.log('[ARTICLE_IMAGE_SELECTION] Updated generation record with image data');
-      } catch (error) {
-        console.warn('[ARTICLE_IMAGE_SELECTION] Failed to update generation record:', error);
-      }
-    } else {
-      console.log('[ARTICLE_IMAGE_SELECTION] Skipping generation record update (no record found)');
-    }
-    
-    // Update article with cover image
-    const imageAlt = selectedImage.altDescription ?? 
-                    selectedImage.description ?? 
-                    `Photo by ${attribution.photographer}`;
-    
-    await db.update(articles)
-      .set({
-        coverImageUrl: selectedImage.urls.regular,
-        coverImageAlt: imageAlt,
-        updatedAt: new Date()
-      })
-      .where(eq(articles.id, body.articleId));
-    
-    console.log('[ARTICLE_IMAGE_SELECTION] Updated article with cover image');
-    
-    const response: ArticleImageSelectionResponse = {
-      success: true,
-      data: {
-        coverImageUrl: selectedImage.urls.regular,
-        coverImageAlt: imageAlt,
-        attribution: attribution,
-        unsplashImageId: selectedImage.id
-      }
-    };
-    
-    console.log('[ARTICLE_IMAGE_SELECTION] Request completed successfully');
-    return NextResponse.json(response);
+
+    console.log('[ARTICLE_IMAGE_SELECTION] Service completed successfully');
+    return NextResponse.json(result);
     
   } catch (error) {
     console.error('[ARTICLE_IMAGE_SELECTION] Error:', error);

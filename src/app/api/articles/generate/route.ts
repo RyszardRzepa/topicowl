@@ -3,19 +3,24 @@ import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { auth } from "@clerk/nextjs/server";
 import type { ApiResponse, VideoEmbed } from "@/types";
-import { API_BASE_URL } from "@/constants";
-import { fetcher } from "@/lib/utils";
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
 import { articles, articleGeneration, users, projects } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { hasCredits, deductCredit } from "@/lib/utils/credits";
-import type { ResearchResponse } from "@/app/api/articles/research/route";
-import type { WriteResponse } from "@/app/api/articles/write/route";
-import type { ValidateResponse } from "@/app/api/articles/validate/route";
-import type { ArticleImageSelectionResponse } from "@/app/api/articles/images/select-for-article/route";
-import type { QualityControlResponse } from "@/app/api/articles/quality-control/route";
+
+// Import services instead of using HTTP calls
+import { performResearchDirect } from "@/lib/services/research-service";
+import type { ResearchResponse } from "@/lib/services/research-service";
+import { performWriteLogic } from "@/lib/services/write-service";
+import type { WriteResponse } from "@/lib/services/write-service";
+import { performQualityControlLogic } from "@/lib/services/quality-control-service";
+import type { QualityControlResponse } from "@/lib/services/quality-control-service";
+import { performValidateLogic } from "@/lib/services/validation-service";
+import type { ValidateResponse } from "@/lib/services/validation-service";
+import { performGenericUpdate } from "@/lib/services/update-service";
+import { performImageSelectionLogic } from "@/lib/services/image-selection-service";
 
 export const maxDuration = 800;
 
@@ -234,31 +239,23 @@ async function performResearch(
   generationId: number,
   userId: string,
   projectId: number,
-  authHeaders: Record<string, string>,
   notes?: string,
 ): Promise<ResearchResponse> {
   await updateGenerationProgress(generationId, "researching", 10);
 
-  console.log("Calling research API", { title, keywords, hasNotes: !!notes });
+  console.log("Starting research phase", { title, keywords, hasNotes: !!notes });
 
   // Get excluded domains for the project
   const excludedDomains = await getProjectExcludedDomains(projectId);
 
-  const researchData = await fetcher<ResearchResponse>(
-    `${API_BASE_URL}/api/articles/research`,
-    {
-      method: "POST",
-      headers: authHeaders,
-      body: {
-        title,
-        keywords,
-        notes,
-        excludedDomains,
-      },
-    },
-  );
+  const researchData = await performResearchDirect({
+    title,
+    keywords,
+    notes,
+    excludedDomains,
+  });
 
-  console.log("Research API response", {
+  console.log("Research completed", {
     hasResearchData: !!researchData.researchData,
     sourcesCount: researchData.sources?.length ?? 0,
     dataLength: researchData.researchData?.length ?? 0,
@@ -276,32 +273,28 @@ async function selectCoverImage(
   generationId: number,
   title: string,
   keywords: string[],
-  authHeaders: Record<string, string>,
+  userId: string,
+  projectId: number,
 ): Promise<{ coverImageUrl: string; coverImageAlt: string }> {
   try {
-    console.log("Calling image selection API", {
+    console.log("Starting image selection phase", {
       articleId,
       generationId,
       title,
       keywordsCount: keywords.length,
     });
 
-    const imageResult = await fetcher<ArticleImageSelectionResponse>(
-      `${API_BASE_URL}/api/articles/images/select-for-article`,
-      {
-        method: "POST",
-        headers: authHeaders,
-        body: {
-          articleId,
-          generationId,
-          title,
-          keywords,
-          orientation: "landscape",
-        },
-      },
-    );
+    const imageResult = await performImageSelectionLogic({
+      articleId,
+      generationId,
+      title,
+      keywords,
+      orientation: "landscape",
+      userId,
+      projectId,
+    });
 
-    console.log("Image selection API response", {
+    console.log("Image selection completed", {
       success: imageResult.success,
       hasCoverImageUrl: !!imageResult.data?.coverImageUrl,
     });
@@ -323,47 +316,41 @@ async function selectCoverImage(
 }
 
 async function writeArticle(
-  researchData: ResearchResponse, // Changed from OutlineResponse to ResearchResponse
+  researchData: ResearchResponse,
   title: string,
   keywords: string[],
   coverImageUrl: string,
   generationId: number,
   userId: string,
-  relatedArticles: string[], // Pass pre-generated related articles
-  authHeaders: Record<string, string>,
+  projectId: number,
+  relatedArticles: string[],
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
 ): Promise<WriteResponse> {
   await updateGenerationProgress(generationId, "writing", 50);
 
-  console.log("Calling write API", {
+  console.log("Starting write phase", {
     title,
     keywordsCount: keywords.length,
     hasCoverImage: !!coverImageUrl,
     videosCount: videos?.length ?? 0,
   });
 
-  const writeData = await fetcher<WriteResponse>(
-    `${API_BASE_URL}/api/articles/write`,
-    {
-      method: "POST",
-      headers: authHeaders,
-      body: {
-        researchData: researchData, // Pass research data instead of outline
-        title,
-        keywords,
-        coverImage: coverImageUrl || undefined,
-        videos,
-        userId,
-        relatedArticles,
-        generationId, // Pass the generationId to save the write prompt
-        sources: researchData.sources ?? [],
-        notes: notes ?? undefined,
-      },
-    },
-  );
+  const writeData = await performWriteLogic({
+    researchData: researchData,
+    title,
+    keywords,
+    coverImage: coverImageUrl || undefined,
+    videos,
+    userId,
+    projectId,
+    relatedArticles,
+    generationId,
+    sources: researchData.sources ?? [],
+    notes: notes ?? undefined,
+  });
 
-  console.log("Write API response", {
+  console.log("Write completed", {
     contentLength: writeData.content?.length ?? 0,
     hasMetaDescription: !!writeData.metaDescription,
     hasSlug: !!writeData.slug,
@@ -381,11 +368,11 @@ async function performQualityControl(
   content: string,
   generationId: number,
   userId: string,
-  authHeaders: Record<string, string>,
+  projectId: number,
 ): Promise<QualityControlResponse> {
   const startTime = Date.now();
 
-  console.log("Calling quality control API", {
+  console.log("Starting quality control phase", {
     contentLength: content.length,
     generationId,
     userId,
@@ -412,27 +399,21 @@ async function performQualityControl(
       };
     }
 
-    console.log("Fetching write prompt for quality control", {
+    console.log("Performing quality control with write prompt", {
       generationId,
       hasPrompt: !!originalPrompt,
       promptLength: originalPrompt.length,
     });
 
-    const qualityControlData = await fetcher<QualityControlResponse>(
-      `${API_BASE_URL}/api/articles/quality-control`,
-      {
-        method: "POST",
-        headers: authHeaders,
-        body: {
-          articleContent: content,
-          originalPrompt,
-          generationId,
-        },
-        timeout: 5 * 60 * 1000, // 5 minutes timeout for quality control
-      },
-    );
+    const qualityControlData = await performQualityControlLogic({
+      articleContent: content,
+      originalPrompt,
+      generationId,
+      userId,
+      projectId,
+    });
 
-    console.log("Quality control API response", {
+    console.log("Quality control completed", {
       isValid: qualityControlData.isValid,
       hasIssues: !!qualityControlData.issues,
       issuesLength: qualityControlData.issues?.length ?? 0,
@@ -456,7 +437,7 @@ async function performQualityControl(
       },
     });
 
-    // Note: Quality control API already saves the report to database
+    // Note: Quality control service already saves the report to database
     // We only update the progress here to avoid double-saving
     await updateGenerationProgress(generationId, "quality-control", 70);
 
@@ -542,26 +523,15 @@ async function performQualityControl(
 async function validateArticle(
   content: string,
   generationId: number,
-  authHeaders: Record<string, string>,
 ): Promise<ValidateResponse> {
-  console.log("Calling validate API", {
+  console.log("Starting validation phase", {
     contentLength: content.length,
   });
 
   try {
-    const validationData = await fetcher<ValidateResponse>(
-      `${API_BASE_URL}/api/articles/validate`,
-      {
-        method: "POST",
-        headers: authHeaders,
-        body: {
-          content,
-        },
-        timeout: 10 * 60 * 1000, // 10 minutes timeout for validation
-      },
-    );
+    const validationData = await performValidateLogic(content);
 
-    console.log("Validate API response", {
+    console.log("Validation completed", {
       isValid: validationData.isValid,
       issuesCount: validationData.issues?.length ?? 0,
       hasRawText: !!validationData.rawValidationText,
@@ -595,7 +565,6 @@ async function updateArticleIfNeeded(
   content: string,
   validationText: string,
   qualityControlIssues: string | null | undefined,
-  authHeaders: Record<string, string>,
 ): Promise<string> {
   // Determine if we need to update based on validation or quality control issues
   const hasValidationIssues =
@@ -625,31 +594,18 @@ async function updateArticleIfNeeded(
     combinedFeedback += `## Quality Control Issues\n\n${qualityControlIssues}\n\n`;
   }
 
-  console.log("Calling update API with combined feedback", {
+  console.log("Starting update with combined feedback", {
     hasValidationIssues,
     hasQualityControlIssues,
     combinedFeedbackLength: combinedFeedback.length,
   });
 
-  const updateResult = await fetcher<unknown>(
-    `${API_BASE_URL}/api/articles/update`,
-    {
-      method: "POST",
-      headers: authHeaders,
-      body: {
-        article: content,
-        validationText: combinedFeedback,
-      },
-    },
-  );
+  const updateResult = await performGenericUpdate({
+    article: content,
+    validationText: combinedFeedback,
+  });
 
-  // Handle both { updatedContent } and { success, data: { updatedContent } }
-  const updatedContent =
-    (updateResult as { updatedContent?: string })?.updatedContent ??
-    (updateResult as { data?: { updatedContent?: string } })?.data
-      ?.updatedContent;
-
-  return updatedContent ?? content;
+  return updateResult.updatedContent ?? content;
 }
 
 async function finalizeArticle(
@@ -808,7 +764,7 @@ async function handleGenerationError(
 }
 
 // Main generation orchestration function
-async function generateArticle(context: GenerationContext, authHeaders: Record<string, string>): Promise<void> {
+async function generateArticle(context: GenerationContext): Promise<void> {
   const { articleId, userId, article, keywords } = context;
   let generationRecord: typeof articleGeneration.$inferSelect | null = null;
   const apiCallsLog: string[] = [];
@@ -832,14 +788,13 @@ async function generateArticle(context: GenerationContext, authHeaders: Record<s
 
     // Phase 1: Research
     console.log("Starting research phase");
-    apiCallsLog.push("/research");
+    apiCallsLog.push("research-service");
     const researchData = await performResearch(
       article.title,
       keywords,
       generationRecord.id,
       userId,
       article.projectId,
-      authHeaders,
       article.notes ?? undefined,
     );
     console.log("Research completed", {
@@ -848,19 +803,20 @@ async function generateArticle(context: GenerationContext, authHeaders: Record<s
 
     // Phase 3: Image Selection
     console.log("Starting image selection phase");
-    apiCallsLog.push("/images/select-for-article");
+    apiCallsLog.push("image-selection-service");
     const { coverImageUrl, coverImageAlt } = await selectCoverImage(
       articleId,
       generationRecord.id,
       article.title,
       keywords,
-      authHeaders,
+      userId,
+      article.projectId,
     );
     console.log("Image selection completed", { coverImageUrl });
 
     // Phase 4: Writing
     console.log("Starting writing phase");
-    apiCallsLog.push("/write");
+    apiCallsLog.push("write-service");
     const writeData = await writeArticle(
       researchData, // Pass research data directly instead of outline
       article.title,
@@ -868,8 +824,8 @@ async function generateArticle(context: GenerationContext, authHeaders: Record<s
       coverImageUrl,
       generationRecord.id,
       userId,
+      article.projectId,
       context.relatedArticles,
-      authHeaders,
       researchData.videos,
       article.notes ?? undefined,
     );
@@ -881,14 +837,14 @@ async function generateArticle(context: GenerationContext, authHeaders: Record<s
     // Phase 5: Quality Control
     console.log("Starting quality control phase");
     await updateGenerationProgress(generationRecord.id, "quality-control", 60);
-    apiCallsLog.push("/quality-control");
+    apiCallsLog.push("quality-control-service");
 
     const qualityControlStartTime = Date.now();
     const qualityControlData = await performQualityControl(
       writeData.content ?? "",
       generationRecord.id,
       userId,
-      authHeaders,
+      article.projectId,
     );
     const qualityControlProcessingTime = Date.now() - qualityControlStartTime;
 
@@ -916,11 +872,10 @@ async function generateArticle(context: GenerationContext, authHeaders: Record<s
     // Phase 6: Validation
     console.log("Starting validation phase");
     await updateGenerationProgress(generationRecord.id, "validating", 80);
-    apiCallsLog.push("/validate");
+    apiCallsLog.push("validation-service");
     const validationData = await validateArticle(
       writeData.content ?? "",
       generationRecord.id,
-      authHeaders,
     );
     console.log("Validation completed", {
       isValid: validationData.isValid,
@@ -934,10 +889,9 @@ async function generateArticle(context: GenerationContext, authHeaders: Record<s
       writeData.content ?? "",
       validationData.rawValidationText ?? "",
       qualityControlData.issues,
-      authHeaders,
     );
 
-    // Log update API call if it was actually called
+    // Log update service call if it was actually called
     const hasValidationIssues =
       validationData.rawValidationText &&
       !validationData.rawValidationText.includes(
@@ -949,7 +903,7 @@ async function generateArticle(context: GenerationContext, authHeaders: Record<s
     const hasQualityControlIssues = qualityControlData.issues !== null;
 
     if (hasValidationIssues || hasQualityControlIssues) {
-      apiCallsLog.push("/update");
+      apiCallsLog.push("update-service");
     }
 
     console.log("Update completed", {
@@ -1032,7 +986,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Use waitUntil to run generation in background
-    waitUntil(generateArticle(context, authHeaders));
+    waitUntil(generateArticle(context));
 
     console.log("Generation request processed successfully");
     return NextResponse.json({

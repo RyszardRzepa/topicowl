@@ -11,7 +11,7 @@ import { getUserExcludedDomains } from "@/lib/utils/article-generation";
 export const maxDuration = 800;
 
 // Simplified schema that returns a markdown string outline
-export const outlineSchema = z.object({
+const outlineSchema = z.object({
   markdownOutline: z
     .string()
     .describe("Complete article outline in markdown format with full article structure including H1 title, introduction, TL;DR section, main content sections with H2 headings, and FAQ section"),
