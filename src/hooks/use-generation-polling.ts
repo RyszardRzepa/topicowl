@@ -22,7 +22,7 @@ interface UseGenerationPollingReturn {
 export function useGenerationPolling({
   articleId,
   enabled,
-  intervalMs = 30000, // 30 seconds - generation takes minutes, not seconds
+  intervalMs = 5000, // 5 seconds - consistent with other polling
   onStatusUpdate,
   onComplete,
   onError

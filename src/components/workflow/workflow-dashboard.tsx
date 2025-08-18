@@ -270,7 +270,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       !!firstGeneratingArticle &&
       !firstGeneratingArticle.generationError &&
       !isOnArticlePage, // Disable if on article page
-    intervalMs: 45000, // Poll less frequently from dashboard (45 seconds)
+    // Use default 5-second interval for consistent polling
     onStatusUpdate: (statusData) =>
       handleGenerationStatusUpdate(firstGeneratingArticle?.id ?? "", {
         progress: statusData.progress,
