@@ -83,36 +83,6 @@ export function ContentEditorWithPreview({
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
 
-  // Debug logging
-  console.log(
-    "ContentEditor - original content length:",
-    initialContent.length,
-  );
-  console.log(
-    "ContentEditor - sanitized content length:",
-    sanitizedInitialContent.length,
-  );
-  console.log("ContentEditor - currentContent length:", currentContent.length);
-
-  // Check if content was sanitized
-  if (initialContent !== sanitizedInitialContent) {
-    console.log("ContentEditor - content was converted to directives");
-    console.log(
-      "ContentEditor - original YouTube section:",
-      initialContent.substring(
-        Math.max(0, initialContent.indexOf("youtube.com") - 50),
-        initialContent.indexOf("youtube.com") + 150,
-      ),
-    );
-    console.log(
-      "ContentEditor - directive YouTube section:",
-      sanitizedInitialContent.substring(
-        Math.max(0, sanitizedInitialContent.indexOf("::youtube") - 10),
-        sanitizedInitialContent.indexOf("::youtube") + 100,
-      ),
-    );
-  }
-
   const handleSave = () => {
     const markdown = editorRef.current?.getMarkdown() ?? currentContent;
     // Convert directives back to markdown format for saving

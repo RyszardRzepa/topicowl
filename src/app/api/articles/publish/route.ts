@@ -1,15 +1,17 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, projects } from "@/server/db/schema";
+import { articles, articleGeneration, projects, webhookDeliveries, users } from "@/server/db/schema";
 import { eq, and, lte } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
 import crypto from "crypto";
 
-// Type for article data
+// Type for article data - updated to include failed status
 type ArticleData = {
   id: number;
   userId: string | null;
+  projectId: number;
   title: string;
   description: string | null;
   keywords: unknown;
@@ -22,6 +24,7 @@ type ArticleData = {
     | "generating"
     | "wait_for_publish"
     | "published"
+    | "failed"
     | "deleted";
   publishScheduledAt: Date | null;
   publishedAt: Date | null;
@@ -43,26 +46,26 @@ type ArticleData = {
   updatedAt: Date;
 };
 
-// Webhook delivery function
-async function sendWebhookAsync(
-  userId: string,
-  article: ArticleData,
-): Promise<void> {
+// Webhook delivery function with proper tracking
+async function deliverWebhook(article: ArticleData): Promise<void> {
   try {
-    // Get project webhook configuration through the article's project
+    // Get project webhook configuration
     const [projectConfig] = await db
       .select({
+        id: projects.id,
+        userId: projects.userId,
         webhookUrl: projects.webhookUrl,
         webhookSecret: projects.webhookSecret,
         webhookEnabled: projects.webhookEnabled,
+        webhookEvents: projects.webhookEvents,
       })
       .from(projects)
-      .innerJoin(articles, eq(articles.projectId, projects.id))
-      .where(eq(articles.id, article.id))
+      .where(eq(projects.id, article.projectId))
       .limit(1);
 
     // Check if webhook is configured and enabled
     if (!projectConfig?.webhookEnabled || !projectConfig.webhookUrl) {
+      console.log(`No webhook configured for project ${article.projectId}`);
       return; // No webhook configured, skip
     }
 
@@ -75,7 +78,9 @@ async function sendWebhookAsync(
         .where(eq(articleGeneration.articleId, article.id))
         .limit(1);
 
-      relatedArticles = generationRecord?.relatedArticles ?? [];
+      relatedArticles = Array.isArray(generationRecord?.relatedArticles) 
+        ? generationRecord.relatedArticles 
+        : [];
     } catch (error) {
       console.error("Error fetching related articles for webhook:", error);
       // Continue without related articles
@@ -105,11 +110,33 @@ async function sendWebhookAsync(
       updatedAt: article.updatedAt.toISOString(),
     };
 
+    // Create webhook delivery record
+    const [webhookDelivery] = await db
+      .insert(webhookDeliveries)
+      .values({
+        userId: projectConfig.userId,
+        projectId: projectConfig.id,
+        articleId: article.id,
+        webhookUrl: projectConfig.webhookUrl,
+        eventType: "article.published",
+        status: "pending",
+        attempts: 1,
+        maxAttempts: 3,
+        requestPayload: payload,
+        retryBackoffSeconds: 30,
+      })
+      .returning({ id: webhookDeliveries.id });
+
+    if (!webhookDelivery) {
+      throw new Error("Failed to create webhook delivery record");
+    }
+
     const payloadString = JSON.stringify(payload);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "User-Agent": "Contentbot-Webhook/1.0",
+      "X-Webhook-Event": "article.published",
+      "X-Webhook-Timestamp": Math.floor(Date.now() / 1000).toString(),
     };
 
     // Generate HMAC signature if secret is provided
@@ -121,56 +148,158 @@ async function sendWebhookAsync(
       headers["X-Webhook-Signature"] = `sha256=${signature}`;
     }
 
-    // Send webhook with simple fetch
+    // Attempt webhook delivery
+    const startTime = Date.now();
+    let responseStatus: number | undefined;
+    let responseBody: string | undefined;
+    let errorMessage: string | undefined;
+
     try {
       const response = await fetch(projectConfig.webhookUrl, {
         method: "POST",
         headers,
         body: payloadString,
+        signal: AbortSignal.timeout(30000), // 30 second timeout
       });
 
-      if (!response.ok) {
-        console.error(
-          `Webhook delivery failed: ${response.status} ${response.statusText}`,
-        );
-      } else {
+      responseStatus = response.status;
+      const deliveryTime = Date.now() - startTime;
+
+      try {
+        responseBody = await response.text();
+      } catch {
+        responseBody = "Unable to read response body";
+      }
+
+      if (response.ok) {
+        // Update delivery record as successful
+        await db
+          .update(webhookDeliveries)
+          .set({
+            status: "success",
+            responseStatus: responseStatus,
+            responseBody: responseBody,
+            deliveryTimeMs: deliveryTime,
+            deliveredAt: new Date(),
+          })
+          .where(eq(webhookDeliveries.id, webhookDelivery.id));
+
         console.log(`Webhook delivered successfully for article ${article.id}`);
+      } else {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        
+        // Set up for retry
+        await db
+          .update(webhookDeliveries)
+          .set({
+            status: "retrying",
+            responseStatus: responseStatus,
+            responseBody: responseBody,
+            deliveryTimeMs: deliveryTime,
+            errorMessage: errorMessage,
+            nextRetryAt: new Date(Date.now() + 30 * 1000), // Retry in 30 seconds
+          })
+          .where(eq(webhookDeliveries.id, webhookDelivery.id));
+
+        console.error(`Webhook delivery failed for article ${article.id}: ${errorMessage}`);
       }
     } catch (fetchError) {
-      console.error("Webhook delivery error:", fetchError);
+      const deliveryTime = Date.now() - startTime;
+      
+      if (fetchError instanceof Error) {
+        if (fetchError.name === "AbortError") {
+          errorMessage = "Request timeout (30 seconds)";
+        } else if (fetchError.name === "TypeError") {
+          errorMessage = "Network error or invalid URL";
+        } else {
+          errorMessage = fetchError.message;
+        }
+      } else {
+        errorMessage = "Unknown error";
+      }
+
+      // Set up for retry
+      await db
+        .update(webhookDeliveries)
+        .set({
+          status: "retrying",
+          deliveryTimeMs: deliveryTime,
+          errorMessage: errorMessage,
+          errorDetails: { 
+            error: fetchError instanceof Error ? fetchError.message : "Unknown error" 
+          },
+          nextRetryAt: new Date(Date.now() + 30 * 1000), // Retry in 30 seconds
+        })
+        .where(eq(webhookDeliveries.id, webhookDelivery.id));
+
+      console.error(`Webhook delivery error for article ${article.id}:`, fetchError);
     }
   } catch (error) {
-    console.error("Error in sendWebhookAsync:", error);
+    console.error("Error in webhook delivery for article", article.id, ":", error);
   }
 }
 
 // POST /api/articles/publish - Publish scheduled articles or single article
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json().catch(() => ({}))) as { articleId?: number };
-    const { articleId } = body;
+    // Authentication and authorization
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Verify user exists in database
+    const [userRecord] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
+    if (!userRecord) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const body = (await req.json().catch(() => ({}))) as { articleId?: number; projectId?: number };
+    const { articleId, projectId } = body;
 
     let articlesToPublish;
 
     if (articleId) {
       // Single article publishing (from manual publish button)
+      // Verify project ownership if projectId is provided
+      if (projectId) {
+        const [projectRecord] = await db.select({ id: projects.id }).from(projects)
+          .where(and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)));
+        if (!projectRecord) {
+          return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
+        }
+      }
+
       articlesToPublish = await db
         .select()
         .from(articles)
-        .where(eq(articles.id, articleId))
+        .innerJoin(projects, eq(articles.projectId, projects.id))
+        .where(
+          and(
+            eq(articles.id, articleId),
+            eq(projects.userId, userRecord.id) // Ensure user owns the project
+          )
+        )
         .limit(1);
+      
+      // Extract just the article data
+      articlesToPublish = articlesToPublish.map(row => row.articles);
     } else {
-      // Scheduled publishing (from cron job)
+      // Scheduled publishing (from cron job) - only for user's articles
       const now = new Date();
-      articlesToPublish = await db
-        .select()
+      const results = await db
+        .select({ articles })
         .from(articles)
+        .innerJoin(projects, eq(articles.projectId, projects.id))
         .where(
           and(
             eq(articles.status, "wait_for_publish"),
             lte(articles.publishScheduledAt, now),
+            eq(projects.userId, userRecord.id) // Ensure user owns the project
           ),
         );
+      
+      articlesToPublish = results.map(row => row.articles);
     }
 
     const publishedArticles = [];
@@ -195,19 +324,15 @@ export async function POST(req: NextRequest) {
         if (updatedArticle) {
           publishedArticles.push(updatedArticle);
 
-          // Send webhook directly if user has one configured
-          if (updatedArticle.userId) {
-            void sendWebhookAsync(updatedArticle.userId, updatedArticle).catch(
-              (error: unknown) => {
-                console.error(
-                  "Failed to send webhook for article",
-                  updatedArticle.id,
-                  ":",
-                  error,
-                );
-              },
+          // Send webhook with proper tracking
+          void deliverWebhook(updatedArticle).catch((error: unknown) => {
+            console.error(
+              "Failed to deliver webhook for article",
+              updatedArticle.id,
+              ":",
+              error,
             );
-          }
+          });
         }
       }
     }
