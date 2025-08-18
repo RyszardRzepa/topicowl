@@ -274,6 +274,17 @@ export const prompts = {
         You are an expert content researcher and SEO specialist tasked with analyzing grounded search results and organizing them into structured research data.
         </role_definition>
   
+        <tool_requirements>
+          MANDATORY: You must call the google_search tool to gather grounded search results.
+          Do not proceed without search data.
+        </tool_requirements>
+        
+        <grounding_data_structure>
+          You will receive search results in the format:
+          - groundingMetadata.attributions: Array of source URLs
+          - Search result content: Extracted text from each source
+        </grounding_data_structure>
+
         <critical_link_handling_requirement>
         ⚠️ EXTREMELY IMPORTANT: You may NOT invent URLs. Use only the URLs present in groundingMetadata/attributions that are provided to you by the search grounding system.
         - In the main text, cite sources as [S1], [S2]... Do not print raw URLs in the body.
@@ -666,9 +677,16 @@ Write to sound human:
 </human_writer_instructions>
 
 <thinking>
-Think step-by-step here to map claims → sections → links and to verify grounding.
-Do **not** include anything from <thinking> in <final>.
+  [Internal workspace for planning - DO NOT include in final output]
+  Map: claims → sections → links
+  Verify: grounding for each claim
+  Plan: section order and content distribution
 </thinking>
+
+<video_embedding>
+  If VIDEO_ID cannot be extracted from URL, skip the video section
+  Format: Extract ID from youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID
+</video_embedding>
 
 <final>
 Return only the finished Markdown article that passes <quality_checklist>. No preamble, no commentary.
@@ -690,6 +708,18 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   <accuracy_standard>Every claim must be verified through minimum 2 independent credible sources</accuracy_standard>
   </analysis_target>
   </system_prompt>
+  
+  <execution_optimization>
+  <early_termination>
+  If 3+ CRITICAL priority claims are CONTRADICTED, terminate validation early
+  Return immediate failure with critical issues only
+  </early_termination>
+  
+  <batch_processing>
+  Group similar claims for batch verification
+  Example: All contact information for same entity in one search
+  </batch_processing>
+  </execution_optimization>
   
   <execution_sequence>
   
@@ -1096,6 +1126,20 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   - Keep FAQPage schema structure if present
   </seo_preservation>
   
+  <conflict_resolution>
+  If corrections conflict with each other:
+  1. Prioritize factual accuracy over style
+  2. Maintain logical flow over exact word preservation
+  3. Document any unresolvable conflicts in output
+  </conflict_resolution>
+
+  <word_count_handling>
+  If corrections require exceeding word count by >50 words:
+  - Prioritize accuracy over length
+  - Note the variance in a comment
+  - Suggest areas for potential condensation
+  </word_count_handling>
+  
   <original_article>
   ${article}
   </original_article>
@@ -1253,6 +1297,28 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   🚨 KEYWORD CONSTRAINT: You MUST ONLY use these provided keywords: ${keywords.join(", ")}
   - Do NOT create, generate, or suggest any new keywords
   - Focus your outline strictly on the keywords given
+
+  <section_flexibility>
+  REQUIRED sections: Title, Intro, TL;DR, 3-5 content sections, FAQ
+  OPTIONAL sections: Video (only if relevant video exists), Table (only if structured data warrants it)
+  ADAPTIVE: Section order can be adjusted for logical flow while maintaining all required elements
+  </section_flexibility>
+
+  <video_inclusion_criteria>
+  Include video section ONLY when:
+  - Video directly relates to article topic
+  - Video adds unique value not covered in text
+  - Video is from reputable source (official channels preferred)
+  Skip if: Generic or low-quality videos
+  </video_inclusion_criteria>
+
+  <table_inclusion_criteria>
+  Include table section ONLY when:
+  - Comparing 3+ items with multiple attributes
+  - Presenting numerical data that benefits from structure
+  - Showing relationships between data points
+  Skip if: Simple lists or <3 comparison points
+  </table_inclusion_criteria>
   
   <critical_requirements>
   ⚠️ LINK HANDLING: Only use URLs from the 'sources' parameter provided below. Never use URLs from researchData or create new ones.
@@ -1408,29 +1474,40 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   <evaluation_objective>Identify specific quality issues that prevent the article from meeting user standards and provide actionable feedback for AI-driven corrections</evaluation_objective>
   </quality_evaluation_parameters>
   </system_prompt>
+
+  <issue_severity>
+  CRITICAL: Must fix - article unusable without correction
+  HIGH: Should fix - significant impact on quality
+  MEDIUM: Recommended fix - noticeable improvement
+  LOW: Optional fix - minor enhancement
+  </issue_severity>
   
   <quality_assessment_framework>
   
   <assessment_category_1>
-  <title>TONE OF VOICE COMPLIANCE</title>
+  <title>CONTENT QUALITY AND READABILITY</title>
   <evaluation_criteria>
-  Analyze whether the article's tone matches the user's specified tone of voice preferences
-  Check for consistency in voice throughout the article
-  Identify sections where tone deviates from requirements
-  Evaluate appropriateness for target audience
+  Evaluate overall content quality, clarity, readability, tone compliance, and writing consistency
+  Check for grammar, spelling, and formatting issues
+  Assess information accuracy and completeness
+  Verify proper use of markdown formatting and tone adherence
   </evaluation_criteria>
   
   <specific_checks>
   - Does the writing style match the specified tone (${userSettings.toneOfVoice ?? "user's preferred tone"})?
   - Is the tone consistent throughout all sections?
+  - Is the content clear, well-written, and easy to understand?
+  - Are there grammar, spelling, or punctuation errors?
+  - Is markdown formatting used correctly and consistently?
+  - Are paragraphs appropriately sized (max 3 sentences)?
+  - Is the reading level appropriate for the target audience?
   - Are word choices appropriate for the intended voice?
   - Does the level of formality/informality align with requirements?
-  - Are transitions and connecting phrases consistent with the tone?
   </specific_checks>
   </assessment_category_1>
   
   <assessment_category_2>
-  <title>ARTICLE STRUCTURE ADHERENCE</title>
+  <title>STRUCTURE AND ORGANIZATION</title>
   <evaluation_criteria>
   Verify that the article follows the user's specified structure preferences
   Check for proper heading hierarchy and organization
@@ -1444,98 +1521,31 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   - Is there a clear introduction and conclusion?
   - Are sections logically ordered and well-connected?
   - Does the structure support readability and user experience?
+  - Does the article meet the specified word count target (${userSettings.maxWords ?? "user's target"} words)?
+  - Are sections balanced in length and depth?
   </specific_checks>
   </assessment_category_2>
   
   <assessment_category_3>
-  <title>WORD COUNT AND LENGTH REQUIREMENTS</title>
+  <title>REQUIREMENTS COMPLIANCE</title>
   <evaluation_criteria>
-  Verify article length meets user specifications
-  Check for appropriate content density and depth
-  Ensure sections are properly balanced
-  Validate that content justifies the length
-  </evaluation_criteria>
-  
-  <specific_checks>
-  - Does the article meet the specified word count target (${userSettings.maxWords ?? "user's target"} words)?
-  - Is content appropriately detailed without being verbose?
-  - Are sections balanced in length and depth?
-  - Is there sufficient content to justify the article length?
-  - Are there areas that need expansion or condensation?
-  </specific_checks>
-  </assessment_category_3>
-  
-  <assessment_category_4>
-  <title>FAQ SECTION COMPLIANCE</title>
-  <evaluation_criteria>
-  Check if FAQ section meets user requirements
-  Validate question quality and relevance
-  Ensure answers are comprehensive and helpful
-  Verify proper formatting and structure
+  Check compliance with FAQ requirements, user notes, and original prompt adherence
+  Verify the article fulfills the requirements of the original writing prompt
+  Check that key topics and objectives are addressed
+  Ensure the article serves the intended purpose
   </evaluation_criteria>
   
   <specific_checks>
   - Does the article include the specified number of FAQ items (${userSettings.faqCount ?? "user's requirement"})?
   - Are FAQ questions relevant and valuable to readers?
   - Do answers provide comprehensive and actionable information?
-  - Is the FAQ section properly formatted and easy to read?
-  - Do questions address common user concerns about the topic?
-  </specific_checks>
-  </assessment_category_4>
-  
-  <assessment_category_5>
-  <title>ORIGINAL PROMPT ADHERENCE</title>
-  <evaluation_criteria>
-  Verify the article fulfills the requirements of the original writing prompt
-  Check that key topics and objectives are addressed
-  Ensure the article serves the intended purpose
-  Validate that specific instructions were followed
-  </evaluation_criteria>
-  
-  <specific_checks>
+  - Were all user notes and special requirements addressed (${userSettings.notes ?? "no specific notes provided"})?
   - Does the article address all key points from the original writing prompt?
   - Are the main objectives and goals of the prompt fulfilled?
   - Has the article maintained focus on the intended topic and scope?
-  - Were any specific instructions or requirements from the prompt ignored?
-  - Does the content align with the original intent and purpose?
-  </specific_checks>
-  </assessment_category_5>
-  
-  <assessment_category_6>
-  <title>CONTENT QUALITY AND READABILITY</title>
-  <evaluation_criteria>
-  Evaluate overall content quality, clarity, and readability
-  Check for grammar, spelling, and formatting issues
-  Assess information accuracy and completeness
-  Verify proper use of markdown formatting
-  </evaluation_criteria>
-  
-  <specific_checks>
-  - Is the content clear, well-written, and easy to understand?
-  - Are there grammar, spelling, or punctuation errors?
-  - Is markdown formatting used correctly and consistently?
-  - Are paragraphs appropriately sized (max 3 sentences)?
-  - Is the reading level appropriate for the target audience?
   - Are links properly formatted and contextually relevant?
   </specific_checks>
-  </assessment_category_6>
-  
-  <assessment_category_7>
-  <title>USER NOTES AND SPECIAL REQUIREMENTS</title>
-  <evaluation_criteria>
-  Check compliance with any specific user notes or requirements
-  Verify that custom instructions were followed
-  Ensure special preferences are reflected in the content
-  Validate adherence to any unique specifications
-  </evaluation_criteria>
-  
-  <specific_checks>
-  - Were all user notes and special requirements addressed (${userSettings.notes ?? "no specific notes provided"})?
-  - Are there any custom instructions that were not followed?
-  - Does the article reflect the user's specific preferences and requirements?
-  - Are there any unique specifications that need attention?
-  </specific_checks>
-  </assessment_category_7>
+  </assessment_category_3>
   
   </quality_assessment_framework>
   
@@ -1583,36 +1593,23 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   
   # Article Quality Issues
   
-  ## Tone of Voice Issues
-  - **Issue**: [Specific problem with tone]
+  ## Content Quality and Readability Issues
+  - **Issue**: [Specific problem with content/tone/readability]
+  - **Severity**: [CRITICAL/HIGH/MEDIUM/LOW]
   - **Location**: [Where in the article this occurs]
   - **Required Fix**: [Specific correction needed]
   - **Example**: [How it should be written instead]
   
-  ## Structure Issues
+  ## Structure and Organization Issues
   - **Issue**: [Specific structural problem]
+  - **Severity**: [CRITICAL/HIGH/MEDIUM/LOW]
   - **Location**: [Section or heading affected]
   - **Required Fix**: [Specific structural change needed]
   
-  ## Word Count Issues
-  - **Issue**: [Length-related problem]
-  - **Current Count**: [Estimated current word count]
-  - **Target Count**: [Required word count]
-  - **Required Fix**: [Specific content changes needed]
-  
-  ## FAQ Issues
-  - **Issue**: [Problem with FAQ section]
-  - **Required Fix**: [Specific FAQ improvements needed]
-  
-  ## Content Quality Issues
-  - **Issue**: [Specific quality problem]
-  - **Location**: [Where this occurs]
-  - **Required Fix**: [Specific improvement needed]
-  
-  ## User Requirements Issues
-  - **Issue**: [Specific requirement not met]
-  - **User Requirement**: [What the user specified]
-  - **Required Fix**: [How to meet the requirement]
+  ## Requirements Compliance Issues
+  - **Issue**: [Problem with requirements/FAQ/prompt adherence]
+  - **Severity**: [CRITICAL/HIGH/MEDIUM/LOW]
+  - **Required Fix**: [Specific requirement improvements needed]
   
   [Only include sections where issues are actually found]
   </markdown_format_template>
@@ -1735,11 +1732,25 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
 You are an expert content marketing strategist and website analyzer. Your task is to extract comprehensive business intelligence from website content to create an optimized content marketing strategy setup. You MUST analyze the website systematically and return structured data that enables effective content planning and execution.
 </role_definition>
 
+<tool_requirements>
+STEP 1: Call google_search with query: "site:${normalizedUrl}"
+STEP 2: Call google_search with query: "${normalizedUrl.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]} company information"
+STEP 3: Proceed with analysis only after search data received
+</tool_requirements>
+
 <analysis_target>
 <website_url>${normalizedUrl}</website_url>
 <content_analysis_objective>Extract business context, audience insights, and strategic recommendations for content marketing automation</content_analysis_objective>
 <output_format>Structured analysis for content marketing strategy</output_format>
 </analysis_target>
+
+<limited_information_handling>
+If website provides minimal information:
+- Use industry inference from available content
+- Provide ranges instead of specifics (e.g., "SMB to Enterprise")
+- Note confidence level for each extracted element
+- Search for additional company information using business name
+</limited_information_handling>
 </system_prompt>
 
 <execution_sequence>
@@ -1770,12 +1781,12 @@ Determine comprehensive product/service description:
 </product_service_analysis>
 
 <industry_categorization>
-Classify industry and market context:
-- Primary industry vertical and sector
-- Business-to-business or business-to-consumer focus
-- Market maturity and competitive landscape
+Classify industry and market context with specificity:
+- Primary industry vertical and specific sector (e.g., "SaaS - Project Management Tools", "Professional Services - Digital Marketing Agency")
+- Business-to-business or business-to-consumer focus with target market size
+- Market maturity and competitive landscape assessment
 - Regulatory environment and compliance considerations
-- Growth trends and market opportunities
+- Growth trends and market opportunities with confidence indicators
 </industry_categorization>
 </analysis_framework>
 </phase_1>
