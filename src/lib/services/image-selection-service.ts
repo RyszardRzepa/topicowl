@@ -11,6 +11,7 @@ import { google } from '@ai-sdk/google';
 import { generateObject } from 'ai';
 import { MODELS } from '@/constants';
 import { z } from 'zod';
+import { createClient } from 'pexels';
 
 // Types for image search - extracted from API route
 export interface ImageSearchRequest {
@@ -59,18 +60,59 @@ export interface UnsplashImage {
     downloadLocation: string;
   };
   relevanceScore: number;
+  source: 'unsplash';
 }
+
+export interface PexelsImage {
+  id: number;
+  description: string | null;
+  altDescription: string | null;
+  urls: {
+    raw: string;
+    full: string;
+    regular: string;
+    small: string;
+    thumb: string;
+  };
+  width: number;
+  height: number;
+  color: string;
+  blurHash?: string;
+  likes?: number;
+  downloads?: number;
+  user: {
+    id: number;
+    username: string;
+    name: string;
+    portfolioUrl: string | null;
+    profileImage: {
+      small: string;
+      medium: string;
+      large: string;
+    };
+  };
+  links: {
+    self: string;
+    html: string;
+    download: string;
+    downloadLocation: string;
+  };
+  relevanceScore: number;
+  source: 'pexels';
+}
+
+export type CombinedImage = UnsplashImage | PexelsImage;
 
 export interface ImageSearchResponse {
   success: boolean;
   data: {
-    images: UnsplashImage[];
-    selectedImage?: UnsplashImage;
+    images: CombinedImage[];
+    selectedImage?: CombinedImage;
     totalResults: number;
     searchQuery: string;
     attribution?: {
       photographer: string;
-      unsplashUrl: string;
+      sourceUrl: string;
       downloadUrl: string;
     };
     aiQueries?: string[];           
@@ -81,10 +123,22 @@ export interface ImageSearchResponse {
     processingTime: number;
     apiCallsUsed: number;
     ranking: 'algorithm' | 'hybrid-ai';
+    sources: {
+      unsplash: number;
+      pexels: number;
+    };
   };
 }
 
 export interface ImageAttribution {
+  photographer: string;
+  sourceUrl: string; // This will be used for both unsplashUrl and pexels url
+  downloadUrl: string;
+  source?: 'unsplash' | 'pexels'; // Optional field to identify the source
+}
+
+// Legacy interface for backward compatibility
+export interface UnsplashAttribution {
   photographer: string;
   unsplashUrl: string;
   downloadUrl: string;
@@ -156,6 +210,39 @@ interface UnsplashSearchResult {
   total: number;
   total_pages: number;
   results: UnsplashPhoto[];
+}
+
+// Pexels API types
+interface PexelsPhoto {
+  id: number;
+  width: number;
+  height: number;
+  url: string;
+  photographer: string;
+  photographer_url: string;
+  photographer_id: number;
+  avg_color: string;
+  src: {
+    original: string;
+    large2x: string;
+    large: string;
+    medium: string;
+    small: string;
+    portrait: string;
+    landscape: string;
+    tiny: string;
+  };
+  liked: boolean;
+  alt: string;
+}
+
+interface PexelsSearchResult {
+  total_results: number;
+  page: number;
+  per_page: number;
+  photos: PexelsPhoto[];
+  next_page?: string;
+  prev_page?: string;
 }
 
 // Helper functions for relevance scoring - extracted from API route
@@ -239,6 +326,44 @@ const transformUnsplashImage = (photo: UnsplashPhoto): Omit<UnsplashImage, 'rele
     download: photo.links.download,
     downloadLocation: photo.links.download_location,
   },
+  source: 'unsplash'
+});
+
+const transformPexelsImage = (photo: PexelsPhoto): Omit<PexelsImage, 'relevanceScore'> => ({
+  id: photo.id,
+  description: null, // Pexels doesn't provide descriptions
+  altDescription: photo.alt,
+  urls: {
+    raw: photo.src.original,
+    full: photo.src.large2x,
+    regular: photo.src.large,
+    small: photo.src.medium,
+    thumb: photo.src.tiny,
+  },
+  width: photo.width,
+  height: photo.height,
+  color: photo.avg_color,
+  blurHash: undefined,
+  likes: undefined, // Pexels doesn't provide likes count
+  downloads: undefined, // Pexels doesn't provide download count
+  user: {
+    id: photo.photographer_id,
+    username: photo.photographer.toLowerCase().replace(/\s+/g, ''),
+    name: photo.photographer,
+    portfolioUrl: photo.photographer_url,
+    profileImage: {
+      small: '',
+      medium: '',
+      large: '',
+    },
+  },
+  links: {
+    self: `https://www.pexels.com/photo/${photo.id}/`,
+    html: photo.url,
+    download: photo.src.original,
+    downloadLocation: photo.src.original,
+  },
+  source: 'pexels'
 });
 
 const fetchUnsplashSearch = async (query: string, baseParams: URLSearchParams): Promise<UnsplashSearchResult> => {
@@ -262,6 +387,22 @@ const fetchUnsplashSearch = async (query: string, baseParams: URLSearchParams): 
   return response.json() as Promise<UnsplashSearchResult>;
 };
 
+const fetchPexelsSearch = async (query: string, count: number) => {
+  const client = createClient(env.PEXELS_API_KEY);
+  
+  try {
+    const response = await client.photos.search({
+      query,
+      per_page: Math.min(count, 80), // Pexels max is 80
+      page: 1,
+    });
+    
+    return response;
+  } catch (error) {
+    throw new Error(`Pexels API error: ${String(error)}`);
+  }
+};
+
 // Zod schemas for AI structured outputs
 const queryRefinementSchema = z.object({
   primaryQuery: z.string(),
@@ -277,7 +418,7 @@ const aiRankingSchema = z.object({
   bestId: z.string().optional()
 });
 
-// Search for images based on article content - extracted from API route
+// Search for images based on article content - now searches both Unsplash and Pexels
 export async function searchForImages(
   query: string, 
   keywords: string[] = [],
@@ -290,7 +431,7 @@ export async function searchForImages(
     aiEnhance?: boolean;
   } = {}
 ): Promise<ImageSearchResponse> {
-  console.log('[IMAGE_SEARCH_SERVICE] Starting image search for query:', query);
+  console.log('[IMAGE_SEARCH_SERVICE] Starting combined image search for query:', query);
   
   if (!query?.trim()) {
     throw new Error('Search query is required');
@@ -299,9 +440,13 @@ export async function searchForImages(
   const startTime = Date.now();
   let apiCallsUsed = 0;
   
-  // Build base search parameters
+  const totalCount = options.count ?? 100;
+  const unsplashCount = Math.floor(totalCount / 2); // 50 images from Unsplash
+  const pexelsCount = totalCount - unsplashCount; // 50 images from Pexels
+  
+  // Build base search parameters for Unsplash
   const searchParams = new URLSearchParams({
-    per_page: '30',
+    per_page: Math.min(unsplashCount, 30).toString(),
     order_by: 'relevant',
     content_filter: options.contentFilter ?? 'low',
   });
@@ -320,7 +465,7 @@ export async function searchForImages(
   // Optional AI query refinement
   if (options.aiEnhance) {
     try {
-      const refinementPrompt = `You are generating optimal Unsplash photo search queries for an article title.
+      const refinementPrompt = `You are generating optimal photo search queries for an article title.
 Return ONLY JSON: {"primaryQuery":"...","alternatives":["...", "..."]}
 Instructions:
 - Extract any specific place names or proper nouns from the title and KEEP them intact in queries.
@@ -363,83 +508,122 @@ Keywords: ${keywords.join(', ')}`;
 
   console.log('[IMAGE_SEARCH_SERVICE] Effective queries:', effectiveQueries);
 
-  // Aggregate search results from queries until we have enough unique images
-  let allImages: UnsplashPhoto[] = [];
-  let searchResult: UnsplashSearchResult | null = null;
-  const maxDesired = Math.min(options.count ?? 10, 30) * 3;
+  // Search both Unsplash and Pexels concurrently
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const searchPromises: Promise<{ source: string; query: string; result?: any; error?: any }>[] = [];
   
-  for (const q of effectiveQueries) {
-    try {
-      console.log('[IMAGE_SEARCH_SERVICE] Searching Unsplash with query:', q);
-      const result = await fetchUnsplashSearch(q, searchParams);
+  // Search Unsplash
+  for (const q of effectiveQueries.slice(0, 2)) { // Limit Unsplash searches to avoid rate limits
+    searchPromises.push(
+      fetchUnsplashSearch(q, searchParams)
+        .then(result => ({ source: 'unsplash', query: q, result }))
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        .catch(error => ({ source: 'unsplash', query: q, error }))
+    );
+  }
+  
+  // Search Pexels
+  for (const q of effectiveQueries.slice(0, 2)) { // Limit Pexels searches
+    searchPromises.push(
+      fetchPexelsSearch(q, Math.min(pexelsCount, 40))
+        .then(result => ({ source: 'pexels', query: q, result }))
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        .catch(error => ({ source: 'pexels', query: q, error }))
+    );
+  }
+
+  const searchResults = await Promise.allSettled(searchPromises);
+  
+  // Process results
+  const allUnsplashImages: UnsplashPhoto[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allPexelsImages: any[] = [];
+  let totalResults = 0;
+  let unsplashCount_actual = 0;
+  let pexelsCount_actual = 0;
+  
+  for (const result of searchResults) {
+    if (result.status === 'fulfilled' && result.value && !result.value.error) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+      const { source, result: searchResult } = result.value as any;
       apiCallsUsed++;
-      searchResult = searchResult ?? result;
-      const existingIds = new Set(allImages.map(i => i.id));
-      for (const r of result.results) {
-        if (!existingIds.has(r.id)) {
-          allImages.push(r);
-          existingIds.add(r.id);
+      
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (source === 'unsplash' && searchResult?.results) {
+        const existingIds = new Set(allUnsplashImages.map(i => i.id));
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+        for (const img of searchResult.results as any[]) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
+          if (!existingIds.has(img.id)) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+            allUnsplashImages.push(img);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
+            existingIds.add(img.id);
+            unsplashCount_actual++;
+          }
         }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        totalResults += searchResult.total;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      } else if (source === 'pexels' && searchResult?.photos) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+        const existingIds = new Set(allPexelsImages.map(i => i.id));
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+        for (const img of searchResult.photos as any[]) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          if (!existingIds.has(img.id)) {
+            allPexelsImages.push(img);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            existingIds.add(img.id);
+            pexelsCount_actual++;
+          }
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        totalResults += searchResult.total_results ?? 0;
       }
-      console.log('[IMAGE_SEARCH_SERVICE] Accumulated images:', allImages.length);
-      if (allImages.length >= maxDesired) break;
-    } catch (searchErr) {
-      console.warn('[IMAGE_SEARCH_SERVICE] Query failed:', q, searchErr);
+    } else {
+      console.warn('[IMAGE_SEARCH_SERVICE] Search failed:', result);
     }
   }
-
-  // Fallback: if nothing retrieved
-  if (allImages.length === 0) {
-    console.log('[IMAGE_SEARCH_SERVICE] No images found from refined queries, doing fallback single search');
-    searchResult = await fetchUnsplashSearch(query, searchParams);
-    apiCallsUsed++;
-    allImages = searchResult.results;
-  }
-
-  let images = allImages;
-  searchResult ??= { total: images.length, total_pages: 1, results: images };
   
-  // Enhanced search if needed
-  if (images.length < 5 && keywords.length && !options.aiEnhance) {
-    console.log('[IMAGE_SEARCH_SERVICE] Enhancing search with keywords (non-AI path):', keywords);
-    const enhancedQuery = [query, ...keywords].join(' ');
-    try {
-      const enhancedResponse = await fetchUnsplashSearch(enhancedQuery, searchParams);
-      apiCallsUsed++;
-      if (enhancedResponse.results.length > images.length) {
-        images = enhancedResponse.results;
-        searchResult = enhancedResponse;
-        console.log('[IMAGE_SEARCH_SERVICE] Enhanced search returned', images.length, 'results');
-      }
-    } catch (enhErr) {
-      console.warn('[IMAGE_SEARCH_SERVICE] Enhanced keyword search failed:', enhancedQuery, enhErr);
-    }
-  }
+  // Transform and combine images
+  let allTransformedImages: CombinedImage[] = [];
+  
+  // Transform Unsplash images
+  const unsplashTransformed = allUnsplashImages.slice(0, unsplashCount).map(img => ({
+    ...transformUnsplashImage(img),
+    relevanceScore: calculateRelevanceScore(img, [query, ...keywords])
+  }));
+  allTransformedImages.push(...unsplashTransformed);
+  
+  // Transform Pexels images
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pexelsTransformed = allPexelsImages.slice(0, pexelsCount).map((img: any) => ({
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    ...transformPexelsImage(img),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
+    relevanceScore: calculateTextRelevance(img.alt ?? '', [query, ...keywords]) * 0.8 + 0.2 // Simple relevance for Pexels
+  }));
+  allTransformedImages.push(...pexelsTransformed);
   
   // Filter excluded images
   if (options.excludeIds?.length) {
-    images = images.filter(img => !options.excludeIds!.includes(img.id));
-    console.log('[IMAGE_SEARCH_SERVICE] Filtered excluded images, remaining:', images.length);
+    allTransformedImages = allTransformedImages.filter(img => 
+      !options.excludeIds!.includes(String(img.id))
+    );
+    console.log('[IMAGE_SEARCH_SERVICE] Filtered excluded images, remaining:', allTransformedImages.length);
   }
   
-  // Process and rank images
-  const searchTerms = [query, ...keywords];
-  let processedImages = images
-    .map(img => ({
-      ...transformUnsplashImage(img),
-      relevanceScore: calculateRelevanceScore(img, searchTerms)
-    }));
-
   // Optional AI ranking (hybrid)
   let rankingMode: 'algorithm' | 'hybrid-ai' = 'algorithm';
-  if (options.aiEnhance && processedImages.length > 1) {
+  if (options.aiEnhance && allTransformedImages.length > 1) {
     try {
-      const candidateCount = Math.min(12, processedImages.length);
-      const candidates = processedImages
+      const candidateCount = Math.min(12, allTransformedImages.length);
+      const candidates = allTransformedImages
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
         .slice(0, candidateCount);
         
-      const aiRankingPrompt = `You are selecting the best Unsplash image for an article.
+      const aiRankingPrompt = `You are selecting the best image for an article.
 Article topic: ${query}
 Keywords: ${keywords.join(', ')}
 
@@ -447,7 +631,7 @@ Rate each candidate image from 0-100 (higher is better) based on semantic releva
 Return ONLY JSON in the structure: {"scores":[{"id":"<id>","score":90,"reason":"short reason"},...],"bestId":"<id>"}
 Be concise. If unsure, approximate.
 
-Candidates:\n${candidates.map(c => `ID:${c.id}\nAlt:${c.altDescription ?? ''}\nDesc:${c.description ?? ''}\nLikes:${c.likes}\n`).join('\n')}`;
+Candidates:\n${candidates.map(c => `ID:${c.id}\nAlt:${c.altDescription ?? ''}\nDesc:${c.description ?? ''}\nSource:${c.source}\n`).join('\n')}`;
 
       const { object: ranking } = await generateObject({
         model: google(MODELS.GEMINI_2_5_FLASH),
@@ -460,10 +644,10 @@ Candidates:\n${candidates.map(c => `ID:${c.id}\nAlt:${c.altDescription ?? ''}\nD
         rankingMode = 'hybrid-ai';
         const aiScoreMap = new Map<string, number>();
         ranking.scores.forEach(s => {
-          if (typeof s.score === 'number') aiScoreMap.set(s.id, Math.max(0, Math.min(100, s.score)));
+          if (typeof s.score === 'number') aiScoreMap.set(String(s.id), Math.max(0, Math.min(100, s.score)));
         });
-        processedImages = processedImages.map(img => {
-          const aiScore = aiScoreMap.get(img.id);
+        allTransformedImages = allTransformedImages.map(img => {
+          const aiScore = aiScoreMap.get(String(img.id));
           if (aiScore !== undefined) {
             const combined = (img.relevanceScore * 0.4) + ((aiScore / 100) * 0.6);
             return { ...img, relevanceScore: combined };
@@ -471,63 +655,72 @@ Candidates:\n${candidates.map(c => `ID:${c.id}\nAlt:${c.altDescription ?? ''}\nD
           return img;
         });
         console.log('[IMAGE_SEARCH_SERVICE] Applied AI ranking to images');
-      } else {
-        console.log('[IMAGE_SEARCH_SERVICE] AI ranking parse failed, using algorithmic scores');
       }
     } catch (aiRankError) {
       console.warn('[IMAGE_SEARCH_SERVICE] AI ranking error, continuing with algorithmic ranking:', aiRankError);
     }
   }
 
-  processedImages = processedImages
+  // Sort and limit results
+  allTransformedImages = allTransformedImages
     .sort((a, b) => b.relevanceScore - a.relevanceScore)
-    .slice(0, options.count ?? 10);
+    .slice(0, totalCount);
 
-  console.log('[IMAGE_SEARCH_SERVICE] Processed and ranked', processedImages.length, 'images (mode:', processedImages.length > 0 ? 'success' : 'none', ')');
+  console.log('[IMAGE_SEARCH_SERVICE] Combined results:', {
+    unsplash: unsplashCount_actual,
+    pexels: pexelsCount_actual,
+    total: allTransformedImages.length
+  });
 
-  const selectedImage = processedImages[0];
+  const selectedImage = allTransformedImages[0];
   
-  // Track download for attribution compliance
-  let attribution: { photographer: string; unsplashUrl: string; downloadUrl: string; } | undefined = undefined;
+  // Track attribution
+  let attribution: { photographer: string; sourceUrl: string; downloadUrl: string; } | undefined = undefined;
   if (selectedImage) {
     try {
-      console.log('[IMAGE_SEARCH_SERVICE] Tracking download for attribution');
-      await fetch(selectedImage.links.downloadLocation, {
-        headers: {
-          'Authorization': `Client-ID ${env.UNSPLASH_ACCESS_KEY}`
-        }
-      });
-      apiCallsUsed++;
+      if (selectedImage.source === 'unsplash') {
+        // Track download for Unsplash attribution compliance
+        await fetch(selectedImage.links.downloadLocation, {
+          headers: {
+            'Authorization': `Client-ID ${env.UNSPLASH_ACCESS_KEY}`
+          }
+        });
+        apiCallsUsed++;
+      }
       
       attribution = {
         photographer: selectedImage.user.name,
-        unsplashUrl: selectedImage.links.html,
+        sourceUrl: selectedImage.links.html,
         downloadUrl: selectedImage.links.downloadLocation
       };
     } catch (downloadError) {
-      console.error('[IMAGE_SEARCH_SERVICE] Failed to track download:', downloadError);
+      console.error('[IMAGE_SEARCH_SERVICE] Failed to track attribution:', downloadError);
     }
   }
   
   const processingTime = Date.now() - startTime;
-  console.log('[IMAGE_SEARCH_SERVICE] Search completed successfully in', processingTime, 'ms');
+  console.log('[IMAGE_SEARCH_SERVICE] Combined search completed successfully in', processingTime, 'ms');
   
   return {
     success: true,
     data: {
-      images: processedImages,
+      images: allTransformedImages,
       selectedImage,
-      totalResults: searchResult.total,
+      totalResults,
       searchQuery: query,
       attribution,
       aiQueries: aiQueries.length > 0 ? aiQueries : undefined,
       aiUsed: aiUsed || (options.aiEnhance ?? false)
     },
     metadata: {
-      searchTerms,
+      searchTerms: [query, ...keywords],
       processingTime,
       apiCallsUsed,
-      ranking: rankingMode
+      ranking: rankingMode,
+      sources: {
+        unsplash: unsplashCount_actual,
+        pexels: pexelsCount_actual,
+      }
     }
   };
 }
@@ -563,7 +756,7 @@ export async function performImageSelectionLogic(request: ArticleImageSelectionR
     console.log('[IMAGE_SELECTION_SERVICE] No generation record found, proceeding without it');
   }
   
-  // Search for images using the extracted search logic (no HTTP calls!)
+  // Search for images using the combined search logic 
   const imageData = await searchForImages(
     request.title,
     request.keywords,
@@ -582,22 +775,29 @@ export async function performImageSelectionLogic(request: ArticleImageSelectionR
     throw new Error('No suitable image found');
   }
   
-  const selectedImage: UnsplashImage = imageData.data.selectedImage;
+  const selectedImage: CombinedImage = imageData.data.selectedImage;
   const attribution = imageData.data.attribution;
   
   if (!attribution) {
     throw new Error('Attribution data missing from image search response');
   }
   
-  console.log('[IMAGE_SELECTION_SERVICE] Selected image:', selectedImage.id);
+  console.log('[IMAGE_SELECTION_SERVICE] Selected image:', selectedImage.id, 'from', selectedImage.source);
+  
+  // Create backward-compatible attribution for database storage
+  const legacyAttribution: UnsplashAttribution = {
+    photographer: attribution.photographer,
+    unsplashUrl: attribution.sourceUrl, // Store the source URL as unsplashUrl for compatibility
+    downloadUrl: attribution.downloadUrl
+  };
   
   // Update generation record with image data (if it exists)
   if (generationRecord) {
     try {
       await db.update(articleGeneration)
         .set({
-          selectedImageId: selectedImage.id,
-          imageAttribution: attribution,
+          selectedImageId: String(selectedImage.id), // Convert to string for consistency
+          imageAttribution: legacyAttribution,
           imageQuery: request.title,
           imageKeywords: request.keywords,
           updatedAt: new Date()
@@ -632,8 +832,8 @@ export async function performImageSelectionLogic(request: ArticleImageSelectionR
     data: {
       coverImageUrl: selectedImage.urls.regular,
       coverImageAlt: imageAlt,
-      attribution: attribution,
-      unsplashImageId: selectedImage.id
+      attribution: legacyAttribution, // Use legacy format for backward compatibility
+      unsplashImageId: String(selectedImage.id) // Convert to string for consistency
     }
   };
   

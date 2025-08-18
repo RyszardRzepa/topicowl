@@ -45,7 +45,7 @@ Contentbot is an AI-powered content generation platform that helps businesses cr
 - **Kanban Board**: Visual article management through idea → scheduled → generating → published pipeline
 - **SEO Optimization**: Automated keyword research, internal linking, and meta tag generation
 - **Publishing Automation**: Scheduled content publishing with webhook notifications
-- **Image Integration**: Unsplash integration for cover images with proper attribution
+- **Image Integration**: Unsplash and Pexels integration for cover images with proper attribution
 - **Video Embedding**: YouTube video integration for enhanced content
 - **Reddit Integration**: Research content ideas and trends from Reddit communities
 - **User Onboarding**: Website analysis and automated content strategy setup
@@ -331,6 +331,7 @@ Make sure that we don't create new util functions, we should inline code where i
 - **Anthropic Claude** via @ai-sdk/anthropic 2.0.1 (Sonnet 4)
 - **OpenAI GPT** via @ai-sdk/openai 2.0.7 (GPT-5)
 - **Unsplash API** for image search and selection
+- **Pexels API** for additional image search and selection
 - **Reddit API** integration for content research
 
 ## UI & Styling

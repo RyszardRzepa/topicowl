@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { X, ImageIcon, Edit3, Link, Search } from "lucide-react";
 import Image from "next/image";
-import { UnsplashImagePicker } from "./unsplash-image-picker";
-import type { UnsplashImage } from "@/app/api/articles/images/search/route";
+import { ImagePicker } from "./image-picker";
+import type { CombinedImage } from "@/lib/services/image-selection-service";
 
 interface CoverImageDisplayProps {
   coverImageUrl?: string;
@@ -26,7 +26,7 @@ export function CoverImageDisplay({
   const [tempImageUrl, setTempImageUrl] = useState(coverImageUrl);
   const [tempImageAlt, setTempImageAlt] = useState(coverImageAlt);
   const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
-  const [selectedUnsplashImage, setSelectedUnsplashImage] = useState<UnsplashImage | null>(null);
+  const [selectedImage, setSelectedImage] = useState<CombinedImage | null>(null);
 
   const handleSave = () => {
     onImageUpdate({
@@ -41,7 +41,7 @@ export function CoverImageDisplay({
     setTempImageAlt(coverImageAlt);
     setIsEditing(false);
     setImageInputMode("url");
-    setSelectedUnsplashImage(null);
+    setSelectedImage(null);
   };
 
   const handleRemove = () => {
@@ -54,10 +54,10 @@ export function CoverImageDisplay({
     setIsEditing(false);
   };
 
-  const handleUnsplashImageSelect = (image: UnsplashImage) => {
-    setSelectedUnsplashImage(image);
+  const handleImageSelect = (image: CombinedImage) => {
+    setSelectedImage(image);
     setTempImageUrl(image.urls.regular);
-    setTempImageAlt(image.altDescription ?? image.description ?? `Photo by ${image.user.name} on Unsplash`);
+    setTempImageAlt(image.altDescription ?? image.description ?? `Photo by ${image.user.name}`);
   };
 
   if (!coverImageUrl && !isEditing) {
@@ -150,15 +150,15 @@ export function CoverImageDisplay({
           ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
-                Search Unsplash Images
+                Search Images
               </label>
-              <UnsplashImagePicker
-                onImageSelect={handleUnsplashImageSelect}
-                selectedImageId={selectedUnsplashImage?.id}
+              <ImagePicker
+                onImageSelect={handleImageSelect}
+                selectedImageId={selectedImage?.id}
               />
               
-              {/* Show alt text input for selected Unsplash image */}
-              {selectedUnsplashImage && (
+              {/* Show alt text input for selected image */}
+              {selectedImage && (
                 <div className="mt-4">
                   <label
                     htmlFor="coverImageAlt"

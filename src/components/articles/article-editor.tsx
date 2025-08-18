@@ -13,9 +13,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Save, XCircle, Link, Search } from "lucide-react";
 import Image from "next/image";
-import { UnsplashImagePicker } from "./unsplash-image-picker";
+import { ImagePicker } from "./image-picker";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
-import type { UnsplashImage } from "@/app/api/articles/images/search/route";
+import type { CombinedImage } from "@/lib/services/image-selection-service";
 
 interface ArticleEditorProps {
   article: ArticleDetailResponse["data"];
@@ -45,7 +45,7 @@ export function ArticleEditor({
 
   const [newKeyword, setNewKeyword] = useState("");
   const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
-  const [selectedUnsplashImage, setSelectedUnsplashImage] = useState<UnsplashImage | null>(null);
+  const [selectedUnsplashImage, setSelectedUnsplashImage] = useState<CombinedImage | null>(null);
 
   const handleAddKeyword = () => {
     if (newKeyword.trim() && !formData.metaKeywords.includes(newKeyword.trim())) {
@@ -64,12 +64,12 @@ export function ArticleEditor({
     }));
   };
 
-  const handleUnsplashImageSelect = (image: UnsplashImage) => {
+  const handleUnsplashImageSelect = (image: CombinedImage) => {
     setSelectedUnsplashImage(image);
     setFormData((prev) => ({
       ...prev,
       coverImageUrl: image.urls.regular,
-      coverImageAlt: image.altDescription ?? image.description ?? `Photo by ${image.user.name} on Unsplash`,
+      coverImageAlt: image.altDescription ?? image.description ?? `Photo by ${image.user.name}`,
     }));
   };
 
@@ -250,14 +250,14 @@ export function ArticleEditor({
           ) : (
             <div>
               <label className="mb-3 block text-sm font-medium text-gray-700">
-                Search Unsplash Images
+                Search Images
               </label>
-              <UnsplashImagePicker
+              <ImagePicker
                 onImageSelect={handleUnsplashImageSelect}
                 selectedImageId={selectedUnsplashImage?.id}
               />
               
-              {/* Show alt text input for selected Unsplash image */}
+              {/* Show alt text input for selected image */}
               {selectedUnsplashImage && (
                 <div className="mt-4">
                   <label

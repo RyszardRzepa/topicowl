@@ -14,6 +14,7 @@ export const env = createEnv({
     CLERK_WEBHOOK_SECRET: z.string(),
     UNSPLASH_ACCESS_KEY: z.string().min(1),
     UNSPLASH_SECRET_KEY: z.string().min(1).optional(),
+    PEXELS_API_KEY: z.string().min(1),
     OPENAI_API_KEY: z.string(),
     
     // Reddit OAuth configuration
@@ -55,6 +56,7 @@ export const env = createEnv({
     CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET,
     UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
     UNSPLASH_SECRET_KEY: process.env.UNSPLASH_SECRET_KEY,
+    PEXELS_API_KEY: process.env.PEXELS_API_KEY,
     
     // Webhook configuration
     WEBHOOK_TIMEOUT_MS: process.env.WEBHOOK_TIMEOUT_MS,

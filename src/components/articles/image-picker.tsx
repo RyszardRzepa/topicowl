@@ -133,6 +133,8 @@ export function ImagePicker({
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
                         <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
                           by {image.user.name}
+                          {image.source === 'unsplash' && ' on Unsplash'}
+                          {image.source === 'pexels' && ' on Pexels'}
                         </p>
                       </div>
                     </div>
