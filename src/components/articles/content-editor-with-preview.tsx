@@ -41,33 +41,91 @@ interface ContentEditorWithPreviewProps {
   placeholder?: string;
 }
 
-// Convert YouTube markdown links to clean directive format
+// Convert YouTube/video markdown links to iframe directive format
 function sanitizeContentForEditor(content: string): string {
-  console.log("Original content:", content);
+  let result = content;
 
-  // Use the correct directive syntax: ::youtube[Title]{#videoId}
-  const result = content.replace(
-    /\[!\[([^\]]*)\]\([^)]+\)\]\(https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:[^)]*)\)/g,
-    (_match: string, altText: string, videoId: string) => {
-      console.log("Found YouTube link, videoId:", videoId);
-      const title = altText || "Watch on YouTube";
-      return `\n\n::youtube[${title}]{#${videoId}}\n\n`;
-    },
+  // 1. Convert legacy markdown thumbnail links to leaf iframe directive
+  result = result.replace(
+    /\[!\[[^\]]*\]\([^)]+\)\]\(https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:[^)]*)\)/g,
+    (_m, videoId: string) => `\n\n:iframe[https://www.youtube.com/watch?v=${videoId}]\n\n`
   );
 
-  console.log("Converted content:", result);
+  // 2. Normalize container forms (multiline) to leaf
+  result = result.replace(
+    /:::\s*@?iframe\s*\n+\s*(https?:\/\/[^\n\r]+?)\s*\n+:::/g,
+    (_m, url: string) => `:iframe[${url.trim()}]`
+  );
+
+  // 3. Normalize single line container form
+  result = result.replace(
+    /:::\s*@?iframe\s+(https?:\/\/[^\n\r]+?)\s*:::/g,
+    (_m, url: string) => `:iframe[${url.trim()}]`
+  );
+
+  // 4. Normalize bracket container variant
+  result = result.replace(/:::iframe\[([^\]]+)\]/g, (_m, url: string) => `:iframe[${url.trim()}]`);
+
+  // 5. Remove accidental whitespace inside leaf directive brackets
+  result = result.replace(/:iframe\[\s*([^\]]*?)\s*\]/g, (_m, url: string) => `:iframe[${url}]`);
+
   return result;
 }
-
-// Convert directives back to standard format for saving
+// Convert iframe directives back to standard format for saving
 function convertDirectivesToMarkdown(content: string): string {
-  return content.replace(
-    /::youtube\[([^\]]*)\]\{#([^}]+)\}/g,
-    (_match: string, title: string, videoId: string) => {
-      const linkTitle = title || "Watch on YouTube";
-      return `[![${linkTitle}](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)](https://www.youtube.com/watch?v=${videoId})`;
+  // Handle leaf directive syntax: :iframe[URL]
+  let result = content.replace(
+    /:iframe\[([^\]]+)\]/g,
+    (_match: string, url: string) => {
+      // Extract video ID from YouTube URL for thumbnail
+      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+      const youtubeMatch = youtubeRegex.exec(url);
+      if (youtubeMatch) {
+        const videoId = youtubeMatch[1];
+        const linkTitle = "Watch on YouTube";
+        return `[![${linkTitle}](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)](${url})`;
+      }
+      // For non-YouTube URLs, just create a basic link
+      return `[View Content](${url})`;
     },
   );
+
+  // Handle container syntax: ::: iframe URL :::
+  result = result.replace(
+    /:::\s*iframe\s*\n([^\n\r]+?)\n:::/g,
+    (_match: string, url: string) => {
+      const cleanUrl = url.trim();
+      // Extract video ID from YouTube URL for thumbnail
+      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+      const youtubeMatch = youtubeRegex.exec(cleanUrl);
+      if (youtubeMatch) {
+        const videoId = youtubeMatch[1];
+        const linkTitle = "Watch on YouTube";
+        return `[![${linkTitle}](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)](${cleanUrl})`;
+      }
+      // For non-YouTube URLs, just create a basic link
+      return `[View Content](${cleanUrl})`;
+    },
+  );
+
+  // Handle bracket syntax: :::iframe[URL]
+  result = result.replace(
+    /:::iframe\[([^\]]+)\]/g,
+    (_match: string, url: string) => {
+      // Extract video ID from YouTube URL for thumbnail
+      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+      const youtubeMatch = youtubeRegex.exec(url);
+      if (youtubeMatch) {
+        const videoId = youtubeMatch[1];
+        const linkTitle = "Watch on YouTube";
+        return `[![${linkTitle}](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)](${url})`;
+      }
+      // For non-YouTube URLs, just create a basic link
+      return `[View Content](${url})`;
+    },
+  );
+
+  return result;
 }
 
 export function ContentEditorWithPreview({

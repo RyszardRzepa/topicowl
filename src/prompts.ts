@@ -1993,7 +1993,7 @@ Keywords should be:
   Links to integrate: [specific URLs from sources]
     
   ## "Video Title Here that matches article content" (if relevant video url available)
-  [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+  :iframe[https://www.youtube.com/embed/_qiurB6YDv0]
  
   ## Table Section (if relevant structured data available)
   
