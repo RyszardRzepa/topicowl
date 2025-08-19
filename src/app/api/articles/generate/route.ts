@@ -6,7 +6,12 @@ import type { ApiResponse, VideoEmbed } from "@/types";
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users, projects } from "@/server/db/schema";
+import {
+  articles,
+  articleGeneration,
+  users,
+  projects,
+} from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { hasCredits, deductCredit } from "@/lib/utils/credits";
 
@@ -178,6 +183,7 @@ async function createOrResetArticleGeneration(
         researchData: {},
         seoReport: {},
         imageKeywords: [],
+        relatedArticles: [], // Clear previous related articles to avoid stale data
         updatedAt: new Date(),
       })
       .where(eq(articleGeneration.id, existingRecord.id))
@@ -243,7 +249,11 @@ async function performResearch(
 ): Promise<ResearchResponse> {
   await updateGenerationProgress(generationId, "researching", 10);
 
-  console.log("Starting research phase", { title, keywords, hasNotes: !!notes });
+  console.log("Starting research phase", {
+    title,
+    keywords,
+    hasNotes: !!notes,
+  });
 
   // Get excluded domains for the project
   const excludedDomains = await getProjectExcludedDomains(projectId);
@@ -777,11 +787,11 @@ async function generateArticle(context: GenerationContext): Promise<void> {
 
     // Create or reuse generation record
     generationRecord = await createOrResetArticleGeneration(articleId, userId);
-    
+
     if (!generationRecord) {
       throw new Error("Failed to create generation record");
     }
-    
+
     console.log("Created generation record", {
       generationId: generationRecord.id,
     });
@@ -958,7 +968,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract cookies/headers for forwarding to internal API calls
-    const cookieHeader = req.headers.get('cookie');
+    const cookieHeader = req.headers.get("cookie");
     const authHeaders: Record<string, string> = {};
     if (cookieHeader) {
       authHeaders.cookie = cookieHeader;

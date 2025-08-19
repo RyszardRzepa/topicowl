@@ -10,25 +10,38 @@ export interface RelatedArticle {
   url: string;
 }
 
-// Function to fetch blog slugs from project's sitemap
+// Function to fetch blog slugs from project's sitemap (project settings first, fallback to legacy articleSettings)
 async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
   try {
-    // Get project's sitemap URL from settings
-    const [projectSettings] = await db
-      .select({
-        sitemap_url: articleSettings.sitemapUrl,
-      })
-      .from(articleSettings)
-      .where(eq(articleSettings.projectId, projectId))
+    // 1. Prefer sitemapUrl from projects table (per-project setup)
+    const [projectRecord] = await db
+      .select({ sitemapUrl: projects.sitemapUrl })
+      .from(projects)
+      .where(eq(projects.id, projectId))
       .limit(1);
 
-    if (!projectSettings?.sitemap_url) {
-      console.log(`No sitemap URL found for project ${projectId}`);
+    let rawSitemapUrl: string | null = projectRecord?.sitemapUrl ?? null;
+
+    // 2. Fallback: legacy article_settings table
+    if (!rawSitemapUrl) {
+      const [legacySettings] = await db
+        .select({ sitemap_url: articleSettings.sitemapUrl })
+        .from(articleSettings)
+        .where(eq(articleSettings.projectId, projectId))
+        .limit(1);
+      rawSitemapUrl = legacySettings?.sitemap_url ?? null;
+      if (rawSitemapUrl) {
+        console.log(`Using legacy article_settings sitemap URL for project ${projectId}`);
+      }
+    }
+
+    if (!rawSitemapUrl) {
+      console.log(`No sitemap URL configured for project ${projectId} (projects or article_settings)`);
       return [];
     }
 
     // Normalize and validate the sitemap URL
-    const sitemapUrl = normalizeSitemapUrl(projectSettings.sitemap_url);
+    const sitemapUrl = normalizeSitemapUrl(rawSitemapUrl);
     const validation = validateSitemapUrl(sitemapUrl);
     
     if (!validation.isValid) {
@@ -76,7 +89,7 @@ async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
     }
 
     if (!urlMatches) {
-      console.log(`No blog URLs found in sitemap for project ${projectId}`);
+      console.log(`No blog URLs found in sitemap for project ${projectId} (${sitemapUrl})`);
       return [];
     }
 
@@ -95,7 +108,7 @@ async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
       })
       .filter((slug): slug is string => slug !== null && slug.length > 0 && !['blog', 'articles', 'posts'].includes(slug));
 
-    console.log(`Found ${blogSlugs.length} blog slugs for project ${projectId}`);
+  console.log(`Found ${blogSlugs.length} blog slugs for project ${projectId}`);
     return blogSlugs;
 
   } catch (error) {

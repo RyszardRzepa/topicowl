@@ -13,7 +13,7 @@ import type { ResearchResponse } from "@/lib/services/research-service";
 import { blogPostSchema } from "@/types";
 import { eq } from "drizzle-orm";
 import { getUserExcludedDomains } from "@/lib/utils/article-generation";
-import { getRelatedArticlesByUserId } from "@/lib/utils/related-articles";
+import { getRelatedArticles } from "@/lib/utils/related-articles";
 
 // Re-export types from the API route
 interface WriteRequest {
@@ -320,25 +320,17 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
 
   if (finalRelatedArticles.length === 0) {
     try {
-      // Verify user exists in database using Clerk user ID
-      const [userRecord] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.id, request.userId))
-        .limit(1);
-
-      if (userRecord) {
-        finalRelatedArticles = await getRelatedArticlesByUserId(
-          userRecord.id,
-          request.title,
-          request.keywords,
-          3,
-        );
-        console.log("[WRITE_SERVICE] Generated related articles", {
-          count: finalRelatedArticles.length,
-          articles: finalRelatedArticles,
-        });
-      }
+      finalRelatedArticles = await getRelatedArticles(
+        request.projectId,
+        request.title,
+        request.keywords,
+        3,
+      );
+      console.log("[WRITE_SERVICE] Generated related articles (project-scoped)", {
+        projectId: request.projectId,
+        count: finalRelatedArticles.length,
+        articles: finalRelatedArticles,
+      });
     } catch (error) {
       console.error("[WRITE_SERVICE] Error generating related articles:", error);
       // Continue with empty array if related articles generation fails
