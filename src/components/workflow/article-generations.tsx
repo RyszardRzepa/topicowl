@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArticleCard } from "./article-card";
 import type { Article } from "@/types";
 import type { GenerationStatus } from "@/app/api/articles/[id]/generation-status/route";
@@ -28,6 +28,7 @@ export function ArticleGenerations({
   onUpdateArticleStatus,
 }: ArticleGenerationsProps) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [generatingArticleIds, setGeneratingArticleIds] = useState<Set<string>>(new Set());
 
   // Wrapper function to convert onUpdateArticleStatus to the format expected by ArticleCard
   const handleUpdateArticle = async (articleId: string, updates: Partial<Article>) => {
@@ -38,8 +39,17 @@ export function ArticleGenerations({
 
   // Wrapper function to convert onRetryGeneration to the format expected by ArticleCard  
   const handleGenerateArticle = async (articleId: string) => {
-    if (_onRetryGeneration) {
-      _onRetryGeneration(articleId);
+    setGeneratingArticleIds((prev) => new Set(prev).add(articleId));
+    try {
+      if (_onRetryGeneration) {
+        _onRetryGeneration(articleId);
+      }
+    } finally {
+      setGeneratingArticleIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(articleId);
+        return newSet;
+      });
     }
   };
 
@@ -223,6 +233,7 @@ export function ArticleGenerations({
                   onGenerate={handleGenerateArticle}
                   onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
+                  isButtonLoading={generatingArticleIds.has(article.id)}
                 />
               ))}
             </div>

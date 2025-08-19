@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { StatusIndicator, formatRelativeTime } from "./status-indicator";
-import { Play, Calendar, Edit3, Trash2, Check, X, Clock } from "lucide-react";
+import { Play, Calendar, Edit3, Trash2, Check, X, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import type { Article, WorkflowPhase } from "@/types";
@@ -22,6 +22,7 @@ import type { Article, WorkflowPhase } from "@/types";
 interface ArticleCardProps {
   article: Article;
   mode: WorkflowPhase;
+  isButtonLoading?: boolean;
   onUpdate?: (articleId: string, updates: Partial<Article>) => Promise<void>;
   onDelete?: (articleId: string) => Promise<void>;
   onGenerate?: (articleId: string) => Promise<void>;
@@ -42,6 +43,7 @@ interface ArticleCardProps {
 export function ArticleCard({
   article,
   mode,
+  isButtonLoading = false,
   onUpdate,
   onDelete,
   onGenerate,
@@ -539,9 +541,14 @@ export function ArticleCard({
                       size="sm"
                       variant="destructive"
                       className="w-full"
+                      disabled={isButtonLoading}
                     >
-                      <Play className="mr-2 h-4 w-4" />
-                      Retry Generation
+                      {isButtonLoading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="mr-2 h-4 w-4" />
+                      )}
+                      {isButtonLoading ? "Generating..." : "Retry Generation"}
                     </Button>
                   ) : (
                     <div className="flex w-full gap-2">
@@ -551,9 +558,14 @@ export function ArticleCard({
                           void handleGenerate();
                         }}
                         size="sm"
+                        disabled={isButtonLoading}
                       >
-                        <Play className="mr-2 h-4 w-4" />
-                        Generate
+                        {isButtonLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="mr-2 h-4 w-4" />
+                        )}
+                        {isButtonLoading ? "Generating..." : "Generate"}
                       </Button>
                       <Button
                         onClick={(e) => {
@@ -563,6 +575,7 @@ export function ArticleCard({
                         size="sm"
                         variant="outline"
                         className="flex-1"
+                        disabled={isButtonLoading}
                       >
                         <Calendar className="mr-2 h-4 w-4" />
                         Schedule Generation
@@ -618,9 +631,14 @@ export function ArticleCard({
                     }}
                     size="sm"
                     className="flex-1"
+                    disabled={isButtonLoading}
                   >
-                    <Play className="mr-2 h-4 w-4" />
-                    Generate Now
+                    {isButtonLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-4 w-4" />
+                    )}
+                    {isButtonLoading ? "Generating..." : "Generate Now"}
                   </Button>
                   <Button
                     onClick={(e) => {
@@ -630,6 +648,7 @@ export function ArticleCard({
                     size="sm"
                     variant="outline"
                     className="flex-1"
+                    disabled={isButtonLoading}
                   >
                     <Calendar className="mr-2 h-4 w-4" />
                     Reschedule Generation

@@ -27,6 +27,7 @@ import {
   Trash2,
   Play,
   CalendarClock,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ProjectConfirmation } from "@/components/ui/project-context-indicator";
@@ -42,6 +43,7 @@ const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
   to_generate: ["generating"], // Only through generate button, not drag
   generating: ["wait_for_publish"], // Automatically moved by system after generation
   wait_for_publish: ["published"],
+  failed: ["failed"],
   published: [], // Cannot be moved
   deleted: [], // Deleted articles cannot be moved
 };
@@ -725,6 +727,7 @@ function ArticleCard({
         : article.title,
   });
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isGenerationLoading, setIsGenerationLoading] = useState(false);
 
   // Notify parent when edit mode changes
   const handleEditModeChange = (editing: boolean) => {
@@ -785,11 +788,14 @@ function ArticleCard({
 
   const handleGenerate = async () => {
     console.log("Generate button clicked for article:", article.id);
+    setIsGenerationLoading(true);
     try {
       await onGenerate(article.id);
       console.log("Generate API call completed for article:", article.id);
     } catch (error) {
       console.error("Failed to generate article:", error);
+    } finally {
+      setIsGenerationLoading(false);
     }
   };
 
@@ -1178,15 +1184,23 @@ function ArticleCard({
                   onClick={handleGenerate}
                   size="sm"
                   className="h-7 bg-green-600 px-2 text-xs text-white hover:bg-green-700"
+                  disabled={isGenerationLoading}
                 >
-                  <Play className="mr-1 h-3 w-3 flex-shrink-0" />
-                  <span className="truncate">Generate</span>
+                  {isGenerationLoading ? (
+                    <Loader2 className="mr-1 h-3 w-3 flex-shrink-0 animate-spin" />
+                  ) : (
+                    <Play className="mr-1 h-3 w-3 flex-shrink-0" />
+                  )}
+                  <span className="truncate">
+                    {isGenerationLoading ? "Generating..." : "Generate"}
+                  </span>
                 </Button>
                 <Button
                   onClick={() => setIsScheduling(true)}
                   size="sm"
                   variant="outline"
                   className="h-7 px-2 text-xs"
+                  disabled={isGenerationLoading}
                 >
                   <CalendarClock className="mr-1 h-3 w-3 flex-shrink-0" />
                   <span className="truncate">Schedule</span>

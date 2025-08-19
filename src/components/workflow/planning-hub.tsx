@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { ArticleCard } from "./article-card";
 import { ArticleIdeasGenerator } from "@/components/articles/article-ideas-generator";
-import { Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles, Loader2 } from "lucide-react";
 import type { Article } from "@/types";
 import type { ArticleIdea } from "@/app/api/articles/generate-ideas/route";
 import { Input } from "../ui/input";
@@ -52,6 +52,8 @@ export function PlanningHub({
 }: PlanningHubProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [showIdeasGenerator, setShowIdeasGenerator] = useState(false);
+  const [generatingArticleIds, setGeneratingArticleIds] = useState<Set<string>>(new Set());
+  const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const [newArticleData, setNewArticleData] = useState({
     title: "",
     keywords: "",
@@ -71,19 +73,26 @@ export function PlanningHub({
   const handleCreateArticle = async () => {
     if (!newArticleData.title.trim()) return;
 
-    const keywords = newArticleData.keywords
-      .split(",")
-      .map((k) => k.trim())
-      .filter((k) => k.length > 0);
+    setIsCreatingArticle(true);
+    try {
+      const keywords = newArticleData.keywords
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0);
 
-    await onCreateArticle({
-      title: newArticleData.title.trim(),
-      keywords: keywords.length > 0 ? keywords : undefined,
-      notes: newArticleData.notes.trim() || undefined,
-    });
+      await onCreateArticle({
+        title: newArticleData.title.trim(),
+        keywords: keywords.length > 0 ? keywords : undefined,
+        notes: newArticleData.notes.trim() || undefined,
+      });
 
-    setNewArticleData({ title: "", keywords: "", notes: "" });
-    setIsCreating(false);
+      setNewArticleData({ title: "", keywords: "", notes: "" });
+      setIsCreating(false);
+    } catch (error) {
+      console.error("Failed to create article:", error);
+    } finally {
+      setIsCreatingArticle(false);
+    }
   };
 
   const handleIdeaAdded = async (idea: ArticleIdea) => {
@@ -93,6 +102,19 @@ export function PlanningHub({
       keywords: idea.keywords,
       targetAudience: idea.targetAudience,
     });
+  };
+
+  const handleGenerateArticle = async (articleId: string) => {
+    setGeneratingArticleIds((prev) => new Set(prev).add(articleId));
+    try {
+      await onGenerateArticle(articleId);
+    } finally {
+      setGeneratingArticleIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(articleId);
+        return newSet;
+      });
+    }
   };
 
   return (
@@ -158,6 +180,7 @@ export function PlanningHub({
                 }
                 placeholder="Enter your article title..."
                 autoFocus
+                disabled={isCreatingArticle}
               />
             </div>
 
@@ -175,6 +198,7 @@ export function PlanningHub({
                   })
                 }
                 placeholder="keyword1, keyword2, keyword3..."
+                disabled={isCreatingArticle}
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 Separate keywords with commas
@@ -196,6 +220,7 @@ export function PlanningHub({
                 placeholder="Add specific requirements, context, or information you want the AI to consider when generating this article..."
                 rows={4}
                 className="resize-none"
+                disabled={isCreatingArticle}
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 These notes will guide the AI throughout research, outlining, and writing phases.
@@ -205,9 +230,12 @@ export function PlanningHub({
           <CardFooter className="gap-2">
             <Button
               onClick={handleCreateArticle}
-              disabled={!newArticleData.title.trim()}
+              disabled={!newArticleData.title.trim() || isCreatingArticle}
             >
-              Create Article
+              {isCreatingArticle ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {isCreatingArticle ? "Creating..." : "Create Article"}
             </Button>
             <Button
               variant="outline"
@@ -215,6 +243,7 @@ export function PlanningHub({
                 setIsCreating(false);
                 setNewArticleData({ title: "", keywords: "", notes: "" });
               }}
+              disabled={isCreatingArticle}
             >
               Cancel
             </Button>
@@ -240,9 +269,10 @@ export function PlanningHub({
                   mode="planning"
                   onUpdate={onUpdateArticle}
                   onDelete={onDeleteArticle}
-                  onGenerate={onGenerateArticle}
+                  onGenerate={handleGenerateArticle}
                   onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
+                  isButtonLoading={generatingArticleIds.has(article.id)}
                 />
               ))}
             </div>
@@ -265,9 +295,10 @@ export function PlanningHub({
                   mode="planning"
                   onUpdate={onUpdateArticle}
                   onDelete={onDeleteArticle}
-                  onGenerate={onGenerateArticle}
+                  onGenerate={handleGenerateArticle}
                   onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
+                  isButtonLoading={generatingArticleIds.has(article.id)}
                 />
               ))}
             </div>
@@ -288,9 +319,10 @@ export function PlanningHub({
                   key={article.id}
                   article={article}
                   mode="planning"
-                  onGenerate={onGenerateArticle}
+                  onGenerate={handleGenerateArticle}
                   onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
+                  isButtonLoading={generatingArticleIds.has(article.id)}
                 />
               ))}
             </div>
