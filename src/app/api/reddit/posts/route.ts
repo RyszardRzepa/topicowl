@@ -1,5 +1,6 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { env } from "@/env";
 import { db } from "@/server/db";
 import { projects, redditPosts } from "@/server/db/schema";
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body: RedditPostSubmissionRequest = await request.json();
+    const body = await request.json() as RedditPostSubmissionRequest;
     const { subreddit, title, text, projectId, publishScheduledAt } = body;
 
     // Validate required fields
@@ -151,11 +152,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to refresh Reddit token" }, { status: 401 });
     }
 
-    const tokenData: RedditTokenResponse = await tokenResponse.json();
+    const tokenData = await tokenResponse.json() as RedditTokenResponse;
 
     // Update last used timestamp for this project connection
     const updatedMetadata = { ...metadata };
-    if (updatedMetadata.redditTokens && updatedMetadata.redditTokens[projectId.toString()]) {
+    if (updatedMetadata.redditTokens?.[projectId.toString()]) {
       updatedMetadata.redditTokens[projectId.toString()]!.lastUsedAt = new Date().toISOString();
       await clerk.users.updateUserMetadata(userId, {
         privateMetadata: updatedMetadata
@@ -193,7 +194,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to submit post to Reddit" }, { status: 500 });
     }
 
-    const submitData: RedditSubmitApiResponse = await submitResponse.json();
+    const submitData = await submitResponse.json() as RedditSubmitApiResponse;
 
     // Check for Reddit API errors
     if (submitData.json.errors && submitData.json.errors.length > 0) {

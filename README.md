@@ -85,6 +85,7 @@ Business owners, content teams, and digital marketers who need to scale their co
 - Webhook delivery to external systems (CMS, websites)
 - Publishing status tracking and retry mechanisms
 - Article preview and final review before publishing
+- Cancel scheduled publishing: hover a scheduled article card in the Publishing Pipeline and click the X icon to move it back to Ready to Publish (API: POST /api/articles/[id]/cancel-publish-schedule)
 
 ## Architecture Highlights
 

@@ -1,5 +1,6 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { env } from "@/env";
 import { db } from "@/server/db";
 import { projects } from "@/server/db/schema";
@@ -117,7 +118,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to refresh Reddit token" }, { status: 401 });
     }
 
-    const tokenData: RedditTokenResponse = await tokenResponse.json();
+    const tokenData = await tokenResponse.json() as RedditTokenResponse;
 
     // Update last used timestamp for this project connection
     const updatedMetadata = { ...metadata };
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch subreddit posts" }, { status: 500 });
     }
 
-    const postsData: RedditPostsApiResponse = await postsResponse.json();
+    const postsData = await postsResponse.json() as RedditPostsApiResponse;
 
     // Format post data
     const posts = postsData.data.children.map(child => ({

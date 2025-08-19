@@ -34,6 +34,7 @@ interface ArticleCardProps {
     articleId: string,
     scheduledAt: Date,
   ) => Promise<void>;
+  onCancelPublishSchedule?: (articleId: string) => Promise<void>;
   onNavigate?: (articleId: string) => void;
   className?: string;
 }
@@ -47,6 +48,7 @@ export function ArticleCard({
   onScheduleGeneration,
   onPublish,
   onSchedulePublishing,
+  onCancelPublishSchedule,
   onNavigate,
   className,
 }: ArticleCardProps) {
@@ -168,6 +170,17 @@ export function ArticleCard({
         status: "idea",
         generationScheduledAt: undefined,
       });
+    }
+  };
+
+  const handleCancelPublishSchedule = async () => {
+    if (!onCancelPublishSchedule) return;
+    if (
+      window.confirm(
+        "Cancel the publishing schedule and move article back to Ready to Publish?",
+      )
+    ) {
+      await onCancelPublishSchedule(article.id);
     }
   };
 
@@ -326,49 +339,72 @@ export function ArticleCard({
       </CardHeader>
 
       {/* Hover action buttons - positioned absolutely in top-right corner */}
-      {!isEditing && (canEdit || canDelete || canRemoveSchedule) && (
-        <div className="absolute top-3 right-3 z-10 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-          {canEdit && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsEditing(true);
-              }}
-            >
-              <Edit3 className="h-4 w-4" />
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleDelete();
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-          {canRemoveSchedule && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleRemoveSchedule();
-              }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      )}
+      {(() => {
+        const showHoverActions = [
+          canEdit,
+          canDelete,
+          canRemoveSchedule,
+          mode === "publishing" && !!article.publishScheduledAt,
+        ].some(Boolean);
+        if (isEditing || !showHoverActions) return null;
+        return (
+          <div className="absolute top-3 right-3 z-10 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            {canEdit && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditing(true);
+                }}
+              >
+                <Edit3 className="h-4 w-4" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleDelete();
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            {canRemoveSchedule && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleRemoveSchedule();
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+            {mode === "publishing" && article.publishScheduledAt && (
+              <Button
+                variant="secondary"
+                size="sm"
+                title="Cancel publishing schedule"
+                className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleCancelPublishSchedule();
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        );
+      })()}
 
       <CardContent className="space-y-3">
         {/* Status indicator - only show for generating articles or if there's an error */}

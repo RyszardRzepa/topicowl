@@ -14,6 +14,7 @@ interface PublishingPipelineProps {
   ) => Promise<void>;
   onPublishArticle: (articleId: string) => Promise<void>;
   onSchedulePublishing: (articleId: string, scheduledAt: Date) => Promise<void>;
+  onCancelPublishSchedule?: (articleId: string) => Promise<void>;
   onBulkPublish: (articleIds: string[]) => Promise<void>;
   onBulkSchedule: (articleIds: string[], scheduledAt: Date) => Promise<void>;
   onNavigateToArticle: (articleId: string) => void;
@@ -24,6 +25,7 @@ export function PublishingPipeline({
   onUpdateArticle,
   onPublishArticle,
   onSchedulePublishing,
+  onCancelPublishSchedule,
   onBulkPublish: _onBulkPublish,
   onBulkSchedule: _onBulkSchedule,
   onNavigateToArticle,
@@ -135,6 +137,7 @@ export function PublishingPipeline({
                     onUpdate={onUpdateArticle}
                     onPublish={onPublishArticle}
                     onSchedulePublishing={onSchedulePublishing}
+                    onCancelPublishSchedule={onCancelPublishSchedule}
                     onNavigate={onNavigateToArticle}
                   />
                 ))}

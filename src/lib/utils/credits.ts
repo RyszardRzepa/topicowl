@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { userCredits } from "@/server/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 
 /**
  * Get the current credit balance for a user
@@ -58,17 +58,23 @@ export async function hasCredits(userId: string): Promise<boolean> {
  */
 export async function deductCredit(userId: string): Promise<boolean> {
   try {
+    // Only decrement when current amount > 0 to avoid negative balances.
+    // Using a single UPDATE with a guard ensures atomicity at the DB level.
     const result = await db
       .update(userCredits)
       .set({
         amount: sql`amount - 1`,
         updatedAt: new Date(),
       })
-      .where(eq(userCredits.userId, userId))
+      .where(and(eq(userCredits.userId, userId), gt(userCredits.amount, 0)))
       .returning({ newAmount: userCredits.amount });
 
     const updatedRecord = result[0];
-    return updatedRecord?.newAmount !== undefined && updatedRecord.newAmount >= 0;
+    if (!updatedRecord) {
+      // No row matched (either no record or zero credits)
+      return false;
+    }
+    return updatedRecord.newAmount >= 0; // Should always be true if guard worked
   } catch (error) {
     console.error("Failed to deduct credit", { userId, error });
     return false;
