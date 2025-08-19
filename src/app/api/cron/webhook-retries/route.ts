@@ -45,7 +45,8 @@ function shouldRetry(error: unknown, responseStatus?: number): boolean {
   return true;
 }
 
-export async function POST() {
+// Internal retry processing function (per architecture guidelines - no shared helpers)
+async function processWebhookRetries(): Promise<WebhookRetryResponse> {
   try {
     // Find webhook deliveries that need retry
     const now = new Date();
@@ -236,13 +237,56 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({
+    return {
       success: true,
       processedCount,
       successCount,
       failedCount,
-    } as WebhookRetryResponse);
+    };
 
+  } catch (error) {
+    console.error('Webhook retry processing error:', error);
+    
+    return { 
+      success: false, 
+      processedCount: 0,
+      successCount: 0,
+      failedCount: 0,
+      error: 'Failed to process webhook retries',
+    };
+  }
+}
+
+// GET /api/cron/webhook-retries - Vercel Cron calls this with GET
+export async function GET() {
+  try {
+    console.log("Webhook retries cron started at", new Date().toISOString());
+    
+    const result = await processWebhookRetries();
+    
+    console.log(`Webhook retries completed: processed ${result.processedCount}, succeeded ${result.successCount}, failed ${result.failedCount}`);
+    
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('Webhook retry cron error:', error);
+    
+    return NextResponse.json(
+      { 
+        success: false, 
+        processedCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        error: 'Failed to process webhook retries',
+      } as WebhookRetryResponse,
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST() {
+  try {
+    const result = await processWebhookRetries();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Webhook retry cron error:', error);
     

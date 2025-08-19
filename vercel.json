@@ -5,7 +5,7 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/articles/publish", 
+      "path": "/api/cron/publish-articles",
       "schedule": "*/5 * * * *"
     },
     {

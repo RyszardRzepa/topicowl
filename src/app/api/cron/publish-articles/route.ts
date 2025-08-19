@@ -1,13 +1,24 @@
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, projects, webhookDeliveries, users } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
-import type { ApiResponse } from "@/types";
+import { articles, articleGeneration, projects, webhookDeliveries } from "@/server/db/schema";
+import { eq, and, lte } from "drizzle-orm";
 import crypto from "crypto";
 
-// Type for article data - updated to include failed status
+// Types colocated with this API route
+export interface CronPublishResponse {
+  success: boolean;
+  data: {
+    publishedCount: number;
+    publishedArticles: Array<{
+      id: string;
+      title: string;
+      projectId: number;
+    }>;
+  };
+  message: string;
+}
+
+// Type for article data - using schema enum values
 type ArticleData = {
   id: number;
   userId: string | null;
@@ -16,16 +27,7 @@ type ArticleData = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status:
-    | "idea"
-    | "scheduled"
-    | "queued"
-    | "to_generate"
-    | "generating"
-    | "wait_for_publish"
-    | "published"
-    | "failed"
-    | "deleted";
+  status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published" | "failed" | "deleted";
   publishScheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
@@ -46,7 +48,7 @@ type ArticleData = {
   updatedAt: Date;
 };
 
-// Webhook delivery function with proper tracking
+// Webhook delivery function with proper tracking - duplicated per architecture guidelines
 async function deliverWebhook(article: ArticleData): Promise<void> {
   try {
     // Get project webhook configuration
@@ -239,124 +241,128 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
   }
 }
 
-// POST /api/articles/publish - Manual publish single article
-// Note: Scheduled publishing is handled by /api/cron/publish-articles cron job
-export async function POST(req: NextRequest) {
-  try {
-    // Authentication and authorization
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Verify user exists in database
-    const [userRecord] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
-    if (!userRecord) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const body = (await req.json().catch(() => ({}))) as { articleId?: number; projectId?: number };
-    const { articleId, projectId } = body;
-
-    // Require articleId and projectId for manual publishing
-    if (!articleId || !projectId) {
-      return NextResponse.json({ error: 'articleId and projectId are required' }, { status: 400 });
-    }
-
-    // Verify project ownership
-    const [projectRecord] = await db.select({ id: projects.id }).from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)));
-    if (!projectRecord) {
-      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
-    }
-
-    // Get the article and verify ownership
-    const articlesToPublish = await db
-      .select()
-      .from(articles)
-      .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(
-        and(
-          eq(articles.id, articleId),
-          eq(projects.userId, userRecord.id) // Ensure user owns the project
-        )
+// Core publish logic - extracts articles due for publishing and updates them
+async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> {
+  const now = new Date();
+  
+  // Find articles ready for publishing (no user filtering - system-wide)
+  const articlesToPublish = await db
+    .select()
+    .from(articles)
+    .where(
+      and(
+        eq(articles.status, "wait_for_publish"),
+        lte(articles.publishScheduledAt, now)
       )
-      .limit(1);
+    );
+
+  console.log(`Found ${articlesToPublish.length} articles ready for publishing`);
+
+  const publishedArticles = [];
+
+  // Update each article to published status and send webhook
+  for (const article of articlesToPublish) {
+    try {
+      // Atomic update with concurrency protection - only update if still wait_for_publish
+      const [updatedArticle] = await db
+        .update(articles)
+        .set({
+          status: "published",
+          content: article.draft, // Freeze draft as published content
+          publishScheduledAt: null, // Clear scheduled time when publishing
+          updatedAt: new Date(),
+          // Set publishedAt if not already set
+          ...(!article.publishedAt && { publishedAt: new Date() }),
+        })
+        .where(
+          and(
+            eq(articles.id, article.id),
+            eq(articles.status, "wait_for_publish") // Ensure status hasn't changed
+          )
+        )
+        .returning();
+
+      if (updatedArticle) {
+        publishedArticles.push(updatedArticle);
+        console.log(`Published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`);
+
+        // Send webhook with proper tracking
+        void deliverWebhook(updatedArticle).catch((error: unknown) => {
+          console.error(
+            "Failed to deliver webhook for article",
+            updatedArticle.id,
+            ":",
+            error,
+          );
+        });
+      } else {
+        console.log(`Article ${article.id} was already processed by another instance`);
+      }
+    } catch (error) {
+      console.error(`Error publishing article ${article.id}:`, error);
+    }
+  }
+
+  return {
+    publishedCount: publishedArticles.length,
+    publishedArticles: publishedArticles.map((a) => ({
+      id: a.id.toString(),
+      title: a.title,
+      projectId: a.projectId,
+    })),
+  };
+}
+
+// GET /api/cron/publish-articles - Vercel Cron calls this with GET
+export async function GET() {
+  try {
+    console.log("Cron publish articles started at", new Date().toISOString());
     
-    if (articlesToPublish.length === 0) {
-      return NextResponse.json({ error: 'Article not found or access denied' }, { status: 404 });
-    }
+    const result = await publishScheduledArticles();
+    
+    console.log(`Cron publish completed: ${result.publishedCount} articles published`);
 
-    // Extract just the article data
-    const article = articlesToPublish[0]!.articles;
-
-    // Only update status if not already published
-    if (article.status === "published") {
-      return NextResponse.json({
-        success: true,
-        data: {
-          publishedCount: 0,
-          publishedArticles: [],
-        },
-        message: "Article is already published",
-      } as ApiResponse);
-    }
-
-    // Update article to published status
-    const [updatedArticle] = await db
-      .update(articles)
-      .set({
-        status: "published",
-        content: article.draft, // Freeze draft as published content
-        publishScheduledAt: null, // Clear scheduled time when publishing
-        updatedAt: new Date(),
-        // Set publishedAt if not already set
-        ...(!article.publishedAt && { publishedAt: new Date() }),
-      })
-      .where(eq(articles.id, article.id))
-      .returning();
-
-    if (updatedArticle) {
-      console.log(`Manually published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`);
-
-      // Send webhook with proper tracking
-      void deliverWebhook(updatedArticle).catch((error: unknown) => {
-        console.error(
-          "Failed to deliver webhook for article",
-          updatedArticle.id,
-          ":",
-          error,
-        );
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          publishedCount: 1,
-          publishedArticles: [{
-            id: updatedArticle.id.toString(),
-            title: updatedArticle.title,
-          }],
-        },
-        message: "Article published successfully",
-      } as ApiResponse);
-    } else {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to update article status",
-        } as ApiResponse,
-        { status: 500 },
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: `Published ${result.publishedCount} scheduled articles`,
+    } as CronPublishResponse);
   } catch (error) {
-    console.error("Manual publish article error:", error);
+    console.error("Cron publish articles error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to publish article",
-      } as ApiResponse,
-      { status: 500 },
+        data: { publishedCount: 0, publishedArticles: [] },
+        message: "Failed to publish scheduled articles",
+      } as CronPublishResponse,
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/cron/publish-articles - Optional manual trigger for testing
+export async function POST() {
+  try {
+    console.log("Manual publish articles trigger started at", new Date().toISOString());
+    
+    const result = await publishScheduledArticles();
+    
+    console.log(`Manual publish completed: ${result.publishedCount} articles published`);
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: `Published ${result.publishedCount} scheduled articles`,
+    } as CronPublishResponse);
+  } catch (error) {
+    console.error("Manual publish articles error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        data: { publishedCount: 0, publishedArticles: [] },
+        message: "Failed to publish scheduled articles",
+      } as CronPublishResponse,
+      { status: 500 }
     );
   }
 }
