@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Waitlist } from "@clerk/nextjs";
-import { X } from "lucide-react";
+import { X, ArrowRight } from "lucide-react";
 import Image from "next/image";
 
 export default function HomePage() {
@@ -14,104 +14,122 @@ export default function HomePage() {
   const closeModal = () => setIsModalOpen(false);
 
   return (
-    <main className="bg-white relative min-h-screen overflow-hidden text-gray-900">
-      {/* Logo in top left */}
-      <div className="absolute top-6 left-6 z-20">
-        <Image
-          src="/logo.svg"
-          alt="Contentbot"
-          width={120}
-          height={40}
-          className="h-10 w-auto"
-        />
-      </div>
+    <main className="relative min-h-screen bg-[#F6F4ED] text-gray-900">
+      {/* Navigation */}
 
-      {/* Background decorative elements */}
-      <div className="absolute inset-0">
-        {/* Left side dots */}
-        <div className="bg-brand-orange absolute top-20 left-10 h-2 w-2 rounded-full opacity-60"></div>
-        <div className="bg-brand-orange absolute bottom-40 left-20 h-1.5 w-1.5 rounded-full opacity-50"></div>
-        <div className="bg-brand-orange absolute top-96 left-16 h-1.5 w-1.5 rounded-full opacity-55"></div>
-        <div className="bg-brand-orange absolute bottom-32 left-8 h-2 w-2 rounded-full opacity-40"></div>
-        <div className="bg-brand-orange absolute top-44 left-8 h-1 w-1 rounded-full opacity-50"></div>
+      <nav className="relative z-20 w-full">
+        <div className="mx-auto flex max-w-6xl items-center justify-between p-6">
+          <div className="flex items-center">
+            <Image
+              src="/logo-text.svg"
+              alt="Contentbot"
+              width={140}
+              height={45}
+              className="h-8 w-auto"
+            />
+          </div>
+          <div className="hidden items-center gap-6 md:flex">
+            <Button
+              onClick={openModal}
+              variant="default"
+              size="sm"
+              className="rounded-full"
+            >
+              Get started
+            </Button>
+          </div>
+        </div>
+      </nav>
 
-        {/* Right side dots */}
-        <div className="bg-brand-orange absolute top-40 right-20 h-1 w-1 rounded-full opacity-40"></div>
-        <div className="bg-brand-orange absolute right-10 bottom-20 h-2 w-2 rounded-full opacity-60"></div>
-        <div className="bg-brand-orange absolute top-80 right-32 h-1.5 w-1.5 rounded-full opacity-45"></div>
-        <div className="bg-brand-orange absolute right-16 bottom-60 h-1 w-1 rounded-full opacity-40"></div>
-        <div className="bg-brand-orange absolute top-72 right-20 h-1.5 w-1.5 rounded-full opacity-35"></div>
-      </div>
-
-      {/* Main Content */}
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
+      {/* Hero Section */}
+      <div className="relative flex min-h-[80vh] flex-col items-center justify-center px-6 py-20">
         <div className="mx-auto max-w-4xl text-center">
-          {/* Badge */}
-          {/* <div className="mb-8 flex justify-center">
-            <span>🧠 </span>
-            Powered by Google Search & Top AI Models
-          </div> */}
-
           {/* Main Headline */}
-          <h1 className="mb-6 text-4xl leading-tight font-bold tracking-tight md:text-6xl lg:text-7xl">
-            <span className="text-gray-900">
-              Ship content that ranks and converts on autopilot.
-            </span>
+          <h1 className="mb-6 text-5xl leading-[0.9] font-bold tracking-tight md:text-7xl lg:text-8xl">
+            Professional SEO articles
           </h1>
 
           {/* Subheadline */}
-          <p className="mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-gray-600 md:text-xl">
-            For B2B teams and SEO agencies, Contentbot plans topics for
-            you, drafts them on time, and publishes to your blog, X, and Reddit.
+          <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed font-light text-gray-600 md:text-xl">
+            Research-backed, on-brand SEO articles in &lt;24h — ideas, drafting
+            & scheduling on autopilot.
           </p>
 
-          {/* Join Waitlist Button */}
-          <div className="mx-auto max-w-md">
-            <Button
-              onClick={openModal}
-              size="lg"
-              className="bg-brand-orange px-8 py-6 text-lg font-semibold text-white shadow-lg hover:bg-brand-orange/90"
-            >
-              Get early access
-            </Button>
+          {/* Value Proposition Bar */}
+          <div className="mb-4 flex flex-wrap justify-center gap-6 text-sm text-gray-600">
+            <span className="flex items-center gap-1">
+              <span className="bg-brand-orange-500 h-1 w-1 rounded-full" />
+              Up to 10× cheaper than content agencies
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-brand-orange-500 h-1 w-1 rounded-full" />
+              Reddit scheduling
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-brand-orange-500 h-1 w-1 rounded-full" />X
+              coming soon
+            </span>
           </div>
 
-          {/* Decorative arrow */}
-          <div className="mt-8 flex justify-center">
-            <svg
-              width="40"
-              height="40"
-              viewBox="0 0 40 40"
-              className="text-brand-orange"
-              fill="currentColor"
-            >
-              <path d="M20 5 L35 20 L25 20 L25 35 L15 35 L15 20 L5 20 Z" />
-            </svg>
+          {/* CTA Buttons */}
+          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Button onClick={openModal} variant="default" size="lg">
+              Get early access
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Bottom decorative elements */}
-      <div className="absolute right-0 bottom-0 left-0 h-32 bg-gradient-to-t from-gray-100/20 to-transparent"></div>
+      {/* Abstract decoration similar to Medium's geometric elements */}
+      <div className="pointer-events-none absolute top-0 right-0 h-96 w-96 opacity-5">
+        <svg viewBox="0 0 400 400" className="h-full w-full">
+          <circle
+            cx="200"
+            cy="100"
+            r="80"
+            fill="currentColor"
+            className="text-brand-orange-500"
+          />
+          <rect
+            x="150"
+            y="200"
+            width="100"
+            height="100"
+            fill="currentColor"
+            className="text-brand-green-500"
+            transform="rotate(45 200 250)"
+          />
+          <polygon
+            points="300,300 350,350 250,350"
+            fill="currentColor"
+            className="text-gray-400"
+          />
+        </svg>
+      </div>
 
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={closeModal}
           />
 
           {/* Modal Content */}
           <div className="relative z-10 mx-4 w-full max-w-md">
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
+            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl">
               {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-gray-200 p-6">
+              <div className="flex items-center justify-between border-b border-gray-100 p-6">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Join TopicOwl Waitlist
+                  Get early access
                 </h2>
-                <Button onClick={closeModal} variant="ghost" size="icon">
+                <Button
+                  onClick={closeModal}
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                >
                   <X className="h-5 w-5 text-gray-500" />
                 </Button>
               </div>

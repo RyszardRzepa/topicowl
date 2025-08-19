@@ -10,7 +10,7 @@ export const MODELS = {
 export const API_BASE_URL =
   process.env.NODE_ENV === "development"
     ? "http://localhost:3000"
-    : (process.env.NEXT_PUBLIC_BASE_URL ?? `https://${process.env.VERCEL_URL}`);
+    : `https://www.topicowl.com`;
 
 // Session Management Utilities
 // These utilities help prevent duplicate fetches on tab focus/visibility changes
