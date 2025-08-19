@@ -38,13 +38,21 @@ export function DateTimePicker({
     }
   }, [value]);
 
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
       const [hours, minutes] = timeValue.split(":").map(Number);
       const newDate = new Date(date);
       newDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
       setSelectedDate(newDate);
-      onChange(newDate);
+      // Only propagate if respects minDate, otherwise wait for valid time
+      if (!minDate || newDate >= minDate) {
+        onChange(newDate);
+      }
     } else {
       setSelectedDate(undefined);
       onChange(undefined);
@@ -58,19 +66,31 @@ export function DateTimePicker({
       const newDate = new Date(selectedDate);
       newDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
       setSelectedDate(newDate);
-      onChange(newDate);
+      if (!minDate || newDate >= minDate) {
+        onChange(newDate);
+      }
     }
   };
 
-  const handleConfirm = () => {
-    if (selectedDate) {
-      const [hours, minutes] = timeValue.split(":").map(Number);
-      const finalDate = new Date(selectedDate);
-      finalDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-      onChange(finalDate);
-    }
-    setOpen(false);
+  const getSelectedDateTime = () => {
+    if (!selectedDate) return undefined;
+    const [hours, minutes] = timeValue.split(":").map(Number);
+    const dt = new Date(selectedDate);
+    dt.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+    return dt;
   };
+
+  const handleConfirm = () => {
+    const finalDate = getSelectedDateTime();
+    if (finalDate && (!minDate || finalDate >= minDate)) {
+      onChange(finalDate);
+      setOpen(false);
+    }
+  };
+
+  const selectedDateTime = getSelectedDateTime();
+  const sameDayAsMin = !!(minDate && selectedDate && isSameDay(selectedDate, minDate));
+  const minTimeForSelectedDay = sameDayAsMin && minDate ? format(minDate, "HH:mm") : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -95,8 +115,13 @@ export function DateTimePicker({
             selected={selectedDate}
             onSelect={handleDateSelect}
             disabled={(date) => {
-              if (minDate && date < minDate) return true;
-              return date < new Date(new Date().setHours(0, 0, 0, 0));
+              // Effective minimum calendar day is start of minDate's day if provided, else today
+              const todayStart = new Date();
+              todayStart.setHours(0, 0, 0, 0);
+              const effectiveMinDay = minDate
+                ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())
+                : todayStart;
+              return date < effectiveMinDay; // allow selecting current day even if minDate is today but earlier time
             }}
             autoFocus
           />
@@ -105,6 +130,7 @@ export function DateTimePicker({
             <input
               type="time"
               value={timeValue}
+              min={minTimeForSelectedDay}
               onChange={(e) => handleTimeChange(e.target.value)}
               className="flex-1 px-2 py-1 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
             />
@@ -120,7 +146,7 @@ export function DateTimePicker({
             <Button
               size="sm"
               onClick={handleConfirm}
-              disabled={!selectedDate}
+              disabled={!selectedDate || (minDate ? !selectedDateTime || selectedDateTime < minDate : false)}
             >
               Confirm
             </Button>
