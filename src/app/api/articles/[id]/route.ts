@@ -51,6 +51,8 @@ type ArticleData = {
   sources: unknown;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
+  coverImageDescription: string | null;
+  coverImageKeywords: unknown;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -78,6 +80,8 @@ const updateArticleSchema = z.object({
   optimizedContent: z.string().optional(), // Deprecated - for backward compatibility
   coverImageUrl: z.string().optional(),
   coverImageAlt: z.string().optional(),
+  coverImageDescription: z.string().optional(),
+  coverImageKeywords: z.array(z.string()).optional(),
   // Add scheduling fields
   scheduledAt: z.string().datetime().optional(), // For publishing schedule
   publishScheduledAt: z.string().datetime().optional().or(z.undefined()), // Frontend compatibility

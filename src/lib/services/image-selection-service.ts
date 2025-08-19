@@ -816,6 +816,26 @@ export async function performImageSelectionLogic(request: ArticleImageSelectionR
   const imageAlt = selectedImage.altDescription ?? 
                   selectedImage.description ?? 
                   `Photo by ${attribution.photographer}`;
+                  
+  
+  // Generate keywords from image metadata
+  const imageKeywords: string[] = [];
+  if (selectedImage.description) {
+    // Extract potential keywords from description (simple word extraction)
+    const descWords = selectedImage.description
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, '')
+      .split(/\s+/)
+      .filter(word => word.length > 3) // Filter out short words
+      .slice(0, 5); // Limit to first 5 meaningful words
+    imageKeywords.push(...descWords);
+  }
+  // Add photographer name as a keyword
+  if (selectedImage.user.name) {
+    imageKeywords.push(selectedImage.user.name);
+  }
+  // Add source as keyword
+  imageKeywords.push(selectedImage.source);
   
   await db.update(articles)
     .set({

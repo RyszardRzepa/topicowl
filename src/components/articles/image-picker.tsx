@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Search, Loader2, Check } from "lucide-react";
 import Image from "next/image";
 import type { ImageSearchResponse, CombinedImage } from "@/lib/services/image-selection-service";
@@ -62,7 +63,8 @@ export function ImagePicker({
   };
 
   return (
-    <div className="space-y-4">
+    <TooltipProvider>
+      <div className="space-y-4">
       {/* Search Input */}
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -104,40 +106,71 @@ export function ImagePicker({
               <div className="max-h-[400px] overflow-y-auto pr-1">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   {images.map((image) => (
-                    <div
-                      key={String(image.id)}
-                      className={`group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all hover:border-blue-400 ${
-                        String(selectedImageId) === String(image.id)
-                          ? "border-blue-500 ring-2 ring-blue-200"
-                          : "border-gray-200"
-                      }`}
-                      onClick={() => onImageSelect(image)}
-                    >
-                      <div className="aspect-video">
-                        <Image
-                          src={image.urls.small}
-                          alt={image.altDescription ?? image.description ?? "Stock image"}
-                          width={400}
-                          height={300}
-                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                          unoptimized
-                        />
-                      </div>
-                      {/* Selection indicator */}
-                      {String(selectedImageId) === String(image.id) && (
-                        <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
-                          <Check className="h-4 w-4" />
+                    <Tooltip key={String(image.id)}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={`group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all hover:border-blue-400 ${
+                            String(selectedImageId) === String(image.id)
+                              ? "border-blue-500 ring-2 ring-blue-200"
+                              : "border-gray-200"
+                          }`}
+                          onClick={() => onImageSelect(image)}
+                        >
+                          <div className="aspect-video">
+                            <Image
+                              src={image.urls.small}
+                              alt={image.altDescription ?? image.description ?? "Stock image"}
+                              width={400}
+                              height={300}
+                              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                              unoptimized
+                            />
+                          </div>
+                          {/* Selection indicator */}
+                          {String(selectedImageId) === String(image.id) && (
+                            <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                              <Check className="h-4 w-4" />
+                            </div>
+                          )}
+                          {/* Image info overlay */}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                            <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                              by {image.user.name}
+                              {image.source === 'unsplash' && ' on Unsplash'}
+                              {image.source === 'pexels' && ' on Pexels'}
+                            </p>
+                          </div>
                         </div>
-                      )}
-                      {/* Image info overlay */}
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                        <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                          by {image.user.name}
-                          {image.source === 'unsplash' && ' on Unsplash'}
-                          {image.source === 'pexels' && ' on Pexels'}
-                        </p>
-                      </div>
-                    </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm" side="top">
+                        <div className="space-y-2">
+                          {image.description && (
+                            <div>
+                              <p className="font-medium text-sm">Description:</p>
+                              <p className="text-xs text-muted-foreground">{image.description}</p>
+                            </div>
+                          )}
+                          {image.altDescription && image.altDescription !== image.description && (
+                            <div>
+                              <p className="font-medium text-sm">Alt text:</p>
+                              <p className="text-xs text-muted-foreground">{image.altDescription}</p>
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-medium text-sm">Source:</p>
+                            <p className="text-xs text-muted-foreground">
+                              Photo by {image.user.name} on {image.source === 'unsplash' ? 'Unsplash' : 'Pexels'}
+                            </p>
+                          </div>
+                          {image.likes !== undefined && (
+                            <div>
+                              <p className="font-medium text-sm">Likes:</p>
+                              <p className="text-xs text-muted-foreground">{image.likes.toLocaleString()}</p>
+                            </div>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   ))}
                 </div>
               </div>
@@ -169,6 +202,7 @@ export function ImagePicker({
           </a>
         </p>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

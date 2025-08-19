@@ -7,12 +7,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { X, ImageIcon, Edit3, Link, Search } from "lucide-react";
 import Image from "next/image";
 import { ImagePicker } from "./image-picker";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CombinedImage } from "@/lib/services/image-selection-service";
 
 interface CoverImageDisplayProps {
   coverImageUrl?: string;
   coverImageAlt?: string;
-  onImageUpdate: (imageData: { coverImageUrl: string; coverImageAlt: string }) => void;
+  onImageUpdate: (imageData: { 
+    coverImageUrl: string; 
+    coverImageAlt: string;
+  }) => void;
   isLoading?: boolean;
 }
 
@@ -213,41 +217,78 @@ export function CoverImageDisplay({
   }
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="group relative overflow-hidden">
-          <Image
-            src={coverImageUrl}
-            alt={coverImageAlt || "Cover image"}
-            width={800}
-            height={400}
-            className="w-full h-64 lg:h-80 object-cover"
-            unoptimized
-          />
-          
-          {/* Hover overlay */}
-          <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-3">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsEditing(true)}
-              className="bg-white/90 hover:bg-white text-gray-900"
-            >
-              <Edit3 className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleRemove}
-              className="bg-red-600/90 hover:bg-red-600"
-            >
-              <X className="mr-2 h-4 w-4" />
-              Remove
-            </Button>
+    <TooltipProvider>
+      <Card>
+        <CardContent className="p-0">
+          <div className="group relative overflow-hidden">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Image
+                  src={coverImageUrl}
+                  alt={coverImageAlt || "Cover image"}
+                  width={800}
+                  height={400}
+                  className="w-full h-64 lg:h-80 object-cover cursor-pointer"
+                  unoptimized
+                />
+              </TooltipTrigger>
+              {selectedImage && (selectedImage.description ?? selectedImage.altDescription) ? (
+                <TooltipContent className="max-w-sm">
+                  <div className="space-y-2">
+                    {selectedImage.description && (
+                      <div>
+                        <p className="font-medium text-sm">Description:</p>
+                        <p className="text-xs text-muted-foreground">{selectedImage.description}</p>
+                      </div>
+                    )}
+                    {selectedImage.altDescription && selectedImage.altDescription !== selectedImage.description && (
+                      <div>
+                        <p className="font-medium text-sm">Alt text:</p>
+                        <p className="text-xs text-muted-foreground">{selectedImage.altDescription}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-sm">Source:</p>
+                      <p className="text-xs text-muted-foreground">
+                        Photo by {selectedImage.user.name} on {selectedImage.source === 'unsplash' ? 'Unsplash' : 'Pexels'}
+                      </p>
+                    </div>
+                  </div>
+                </TooltipContent>
+              ) : coverImageAlt && (
+                <TooltipContent className="max-w-sm">
+                  <div>
+                    <p className="font-medium text-sm">Alt text:</p>
+                    <p className="text-xs text-muted-foreground">{coverImageAlt}</p>
+                  </div>
+                </TooltipContent>
+              )}
+            </Tooltip>
+            
+            {/* Hover overlay */}
+            <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsEditing(true)}
+                className="bg-white/90 hover:bg-white text-gray-900"
+              >
+                <Edit3 className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleRemove}
+                className="bg-red-600/90 hover:bg-red-600"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Remove
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </TooltipProvider>
   );
 }
