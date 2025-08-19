@@ -42,21 +42,22 @@ export default function HomePage() {
       </nav>
 
       {/* Hero Section */}
-      <div className="relative flex min-h-[80vh] flex-col items-center justify-center px-6 py-20">
-        <div className="mx-auto max-w-4xl text-center">
+      <div className="relative flex min-h-[80vh] items-center justify-center overflow-hidden px-6 py-20">
+        {/* Main Content - Takes more space */}
+        <div className="relative z-10 mx-auto max-w-4xl text-center lg:text-left">
           {/* Main Headline */}
           <h1 className="mb-6 text-5xl leading-[0.9] font-bold tracking-tight md:text-7xl lg:text-8xl">
-            Professional SEO articles
+            Ship content that ranks and convert
           </h1>
 
           {/* Subheadline */}
-          <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed font-light text-gray-600 md:text-xl">
-            Research-backed, on-brand SEO articles in &lt;24h — ideas, drafting
+          <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed font-light text-gray-600 md:text-xl lg:mx-0">
+            Research-backed, on-brand SEO articles in minutes — ideas, drafting
             & scheduling on autopilot.
           </p>
 
           {/* Value Proposition Bar */}
-          <div className="mb-4 flex flex-wrap justify-center gap-6 text-sm text-gray-600">
+          <div className="mb-4 flex flex-wrap justify-center gap-6 text-sm text-gray-600 lg:justify-start">
             <span className="flex items-center gap-1">
               <span className="bg-brand-orange-500 h-1 w-1 rounded-full" />
               Up to 10× cheaper than content agencies
@@ -72,39 +73,26 @@ export default function HomePage() {
           </div>
 
           {/* CTA Buttons */}
-          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start">
             <Button onClick={openModal} variant="default" size="lg">
               Get early access
             </Button>
           </div>
         </div>
-      </div>
 
-      {/* Abstract decoration similar to Medium's geometric elements */}
-      <div className="pointer-events-none absolute top-0 right-0 h-96 w-96 opacity-5">
-        <svg viewBox="0 0 400 400" className="h-full w-full">
-          <circle
-            cx="200"
-            cy="100"
-            r="80"
-            fill="currentColor"
-            className="text-brand-orange-500"
-          />
-          <rect
-            x="150"
-            y="200"
-            width="100"
-            height="100"
-            fill="currentColor"
-            className="text-brand-green-500"
-            transform="rotate(45 200 250)"
-          />
-          <polygon
-            points="300,300 350,350 250,350"
-            fill="currentColor"
-            className="text-gray-400"
-          />
-        </svg>
+        {/* Absolutely Positioned Illustration - Larger and closer to right edge */}
+        <div className="absolute top-1/2 right-0 hidden -translate-y-1/2 lg:block">
+          <div className="-mr-20 h-[500px] w-[600px]">
+            <Image
+              src="/landingpage-ilu.svg"
+              alt="Hand writing illustration representing content creation"
+              width={600}
+              height={500}
+              className="h-full w-full object-contain"
+              priority
+            />
+          </div>
+        </div>
       </div>
 
       {/* Modal */}

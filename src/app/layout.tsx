@@ -15,7 +15,7 @@ export const metadata: Metadata = {
       " Plan, Generate, Schedule Publishing content for blog, reddit, X.",
     images: [
       {
-        url: "/contentbot-preview.png",
+        url: "/og-preview.png",
         width: 1200,
         height: 630,
         alt: "Contentbot - AI SEO Content Platform",
