@@ -21,11 +21,29 @@ export async function OPTIONS() {
 }
 export async function GET(request: Request) {
   try {
+    // Debug: Log all headers
+    console.log("=== DEBUG: All request headers ===");
+    for (const [key, value] of request.headers.entries()) {
+      console.log(`${key}: ${value}`);
+    }
+    console.log("=== END DEBUG ===");
+    
+    // Try different ways to get the Authorization header
     const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    const authHeaderLower = request.headers.get("authorization");
+    const authHeaderCapital = request.headers.get("AUTHORIZATION");
+    
+    console.log("Authorization header (normal case):", authHeader);
+    console.log("Authorization header (lowercase):", authHeaderLower);
+    console.log("Authorization header (uppercase):", authHeaderCapital);
+    
+    // Use whichever one exists
+    const finalAuthHeader = authHeader ?? authHeaderLower ?? authHeaderCapital;
+    
+    if (!finalAuthHeader?.startsWith("Bearer ")) {
       console.log(
         "Missing or invalid Authorization header (expected Bearer token)",
-        authHeader,
+        finalAuthHeader,
       );
       return NextResponse.json(
         {
@@ -35,7 +53,7 @@ export async function GET(request: Request) {
         { status: 401 },
       );
     }
-    const providedKey = authHeader.slice(7).trim();
+    const providedKey = finalAuthHeader.slice(7).trim();
     if (!providedKey) {
       return NextResponse.json({ error: "Empty API key" }, { status: 401 });
     }
