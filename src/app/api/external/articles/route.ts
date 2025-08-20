@@ -21,7 +21,8 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
-    if (!authHeader?.toLowerCase().startsWith("bearer ")) {
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.log("Missing or invalid Authorization header (expected Bearer token)");
       return NextResponse.json(
         {
           error:
