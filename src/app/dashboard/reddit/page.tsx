@@ -1648,11 +1648,11 @@ export default function RedditDashboard() {
                                   {post.title}
                                 </p>
                                 <p className="text-xs text-gray-600">
-                                  by u/{post.author} • {post.score} upvotes
+                                  by u/{post.author} • {post?.ups ?? 0} upvotes
                                 </p>
                               </div>
                               <a
-                                href={`https://reddit.com${post.permalink}`}
+                                href={`https://reddit.com${post.url}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="ml-2 text-gray-400 hover:text-gray-600"

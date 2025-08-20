@@ -399,3 +399,22 @@ export const webhookDeliveries = contentbotSchema.table("webhook_deliveries", {
   // Index on project_id for efficient querying of project's webhook deliveries
   projectIdIdx: index("webhook_deliveries_project_id_idx").on(table.projectId),
 }));
+
+// API Keys table for external access (one key per project)
+export const apiKeys = contentbotSchema.table("api_keys", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  keyHash: text("key_hash").notNull().unique(), // Store SHA-256 hash of the API key
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }), // Track usage for audit
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull()
+    .$onUpdate(() => new Date()),
+}, (table) => ({
+  projectIdIdx: index("api_keys_project_id_idx").on(table.projectId),
+}));

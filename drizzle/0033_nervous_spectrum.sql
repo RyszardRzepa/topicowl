@@ -1,1 +1,0 @@
-ALTER TABLE "contentbot"."users" ALTER COLUMN "id" SET DEFAULT 'C5ZG5AZY';

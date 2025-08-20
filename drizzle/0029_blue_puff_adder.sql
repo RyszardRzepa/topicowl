@@ -1,2 +1,0 @@
-ALTER TABLE "contentbot"."users" ALTER COLUMN "id" SET DEFAULT '9B9RDFE6';--> statement-breakpoint
-ALTER TABLE "contentbot"."article_generation" ADD COLUMN "related_articles" jsonb DEFAULT '[]'::jsonb NOT NULL;

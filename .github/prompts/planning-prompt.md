@@ -1,5 +1,82 @@
 Before writing any code create.
 
-Create first doc md file in dir /docs for the plan implementation based on this template /ai-seo-writer.
+Create first doc md file in dir /docs for the plan implementation based on this todo template:
 
-Always use the folder /steering contnet for context of the project.
+# Implementation Plan
+
+- [x] 1. Set up core API route for SEO strategy analysis
+  - Create `/api/tools/seo-cluster-map/analyze/route.ts` with POST endpoint
+  - Implement URL validation and sanitization logic
+  - Integrate Vercel AI SDK with Google Gemini 2.5 Flash model
+  - Configure `google.tools.urlContext({})` for website content extraction
+  - Add structured system prompt for SEO strategy generation
+  - Implement error handling for invalid URLs and API failures
+  - Add retry logic (up to 3 attempts) for failed AI requests
+  - Remove authentication requirements (public endpoint)
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 5.4_
+
+- [x] 2. Create URL input form component
+  - Build `UrlInputForm` component with URL validation
+  - Implement client-side URL format validation using URL constructor
+  - Add form submission handling with loading states
+  - Create responsive form layout using existing UI components
+  - Add proper error messaging for invalid URLs
+  - _Requirements: 4.1, 4.2, 4.5, 4.6_
+
+- [x] 3. Implement analysis progress tracking component
+  - Create `AnalysisProgress` component with loading indicators
+  - Add progress states (validating URL, analyzing content, generating strategy)
+  - Implement timeout handling after 60 seconds
+  - Use existing UI components for consistent styling
+  - _Requirements: 4.2, 4.5_
+
+- [x] 4. Build strategy report display component
+  - Create `StrategyReport` component to render AI-generated strategy
+  - Parse and format the strategy text into structured sections
+  - Implement responsive layout for pillar topic and cluster topics
+  - Add syntax highlighting for keywords and recommendations
+  - Create collapsible sections for better readability
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.3_
+
+- [x] 5. Create signup CTA component
+  - Build `SignupCTA` component with compelling messaging
+  - Add prominent call-to-action button linking to Topicowl signup
+  - Include value proposition text connecting strategy to article creation
+  - Design eye-catching layout that encourages conversion
+  - Add preview of how articles could be created from clusters
+  - _Requirements: 5.1, 5.2, 5.3, 7.1, 7.2, 7.5_
+
+- [x] 6. Create main SEO cluster map page
+  - Build `/tools/seo-cluster-map/page.tsx` as a public page (no authentication required)
+  - Integrate URL input form, progress tracking, strategy display, and signup CTA
+  - Implement state management for the analysis workflow
+  - Add proper error boundaries and fallback UI
+  - Ensure the page works without any authentication checks
+  - _Requirements: 4.1, 4.3, 5.4, 5.6_
+
+
+  # Design Document: AI SEO Writer
+
+## Overview
+
+The AI SEO Writer is a sophisticated multi-agent system built on Next.js App Router that automates the entire SEO content creation process. It leverages Google Gemini AI for search and research capabilities, Claude Sonnet for high-quality content writing, and integrates with various external APIs for comprehensive SEO analysis and content optimization.
+
+This document outlines the technical architecture, components, data models, and integration points required to implement the system according to the requirements.
+
+## Architecture
+
+The system follows a microservices-oriented architecture with a central orchestration layer managing multiple specialized AI agents. Each agent is responsible for specific tasks within the content creation workflow.
+
+
+### 2. Agent Components
+
+#### Website Analysis Agent
+- **Purpose**: Analyze website content and generate article settings
+- **Inputs**: Website URL, user preferences
+- **Outputs**: Article settings configuration
+- **Technologies**: Google Gemini Pro, web scraping
+- **Key Methods**:
+  - `analyzeWebsite(url: string): WebsiteAnalysis`
+  - `extractWebsiteMetadata(analysis: WebsiteAnalysis): WebsiteMetadata`
+  - `identifyTargetAudience(analysis: WebsiteAnalysis): AudienceProfile`
+  - `generateArticleSettings(metadata: WebsiteMetadata, audience: AudienceProfile): ArticleSettings`

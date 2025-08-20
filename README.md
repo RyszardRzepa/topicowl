@@ -389,3 +389,14 @@ npm run check           # Run lint + typecheck together
 - **Vercel Functions 2.2.5** for serverless functions
 - Environment variables managed through Vercel dashboard
 - Automatic deployments on git push
+
+## API Key (MVP)
+
+You can create a single per-user API key in the dashboard (Settings > API Key) to fetch your published articles.
+
+Endpoints:
+- `POST /api/api-keys` (authenticated) – create key if none exists, returns plaintext once
+- `GET /api/api-keys` (authenticated) – metadata only (exists, createdAt, lastUsedAt)
+- `GET /api/external/articles` (Authorization: Bearer <API_KEY>) – list of published articles (optional `projectId` query param)
+
+See `docs/api-key.md` for full usage instructions and examples.

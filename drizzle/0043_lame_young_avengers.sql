@@ -1,1 +1,0 @@
-ALTER TYPE "topicowl"."article_status" ADD VALUE 'failed' BEFORE 'deleted';

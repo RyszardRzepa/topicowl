@@ -8,7 +8,8 @@ import { ArticleSettingsForm } from "@/components/settings/article-settings-form
 import { WebhookSettings } from "@/components/settings/webhook-settings";
 import { RedditSettings } from "@/components/settings/reddit-settings";
 import { useProject } from "@/contexts/project-context";
-import { Settings, Webhook, MessageSquare } from "lucide-react";
+import { Settings, Webhook, MessageSquare, KeyRound } from "lucide-react";
+import { ApiKeyManager } from "@/components/settings/api-key-manager";
 import type { ProjectSettingsResponse } from "@/app/api/settings/route";
 
 export default function SettingsPage() {
@@ -171,6 +172,11 @@ export default function SettingsPage() {
                 label: "Reddit",
                 icon: <MessageSquare className="h-4 w-4" />,
               },
+              {
+                value: "api",
+                label: "API Key",
+                icon: <KeyRound className="h-4 w-4" />,
+              },
             ]}
           />
 
@@ -190,6 +196,10 @@ export default function SettingsPage() {
 
             <TabsContent value="reddit" className="mt-0">
               <RedditSettings />
+            </TabsContent>
+
+            <TabsContent value="api" className="mt-0">
+              <ApiKeyManager />
             </TabsContent>
           </Tabs>
         </div>

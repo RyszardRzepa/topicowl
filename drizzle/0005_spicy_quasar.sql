@@ -1,1 +1,0 @@
-ALTER TABLE "content-machine"."users" ALTER COLUMN "id" SET DEFAULT 'AFCHBJSC';

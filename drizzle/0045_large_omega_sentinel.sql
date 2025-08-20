@@ -1,1 +1,0 @@
-ALTER TABLE "topicowl"."article_settings" ADD CONSTRAINT "article_settings_project_id_unique" UNIQUE("project_id");
