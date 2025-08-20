@@ -25,6 +25,7 @@ export async function GET(request: Request) {
     if (!authHeader?.startsWith("Bearer ")) {
       console.log(
         "Missing or invalid Authorization header (expected Bearer token)",
+        authHeader,
       );
       return NextResponse.json(
         {
