@@ -1,16 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/generate-articles",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/publish-articles",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/webhook-retries",
-      "schedule": "*/2 * * * *"
     }
   ]
 }

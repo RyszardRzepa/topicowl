@@ -4,25 +4,28 @@ import { apiKeys, users, articles, projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createHash } from "crypto";
 
-const ALLOWED_ORIGIN = "*";
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
 
 export async function OPTIONS() {
   return new Response(null, {
-    status: 200,
+    status: 204,
     headers: {
-      "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Credentials": "true",
+      ...CORS_HEADERS,
+      "Access-Control-Max-Age": "600", // optional, cache preflight
     },
   });
 }
-
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get("authorization");
+    const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      console.log("Missing or invalid Authorization header (expected Bearer token)");
+      console.log(
+        "Missing or invalid Authorization header (expected Bearer token)",
+      );
       return NextResponse.json(
         {
           error:
@@ -135,7 +138,7 @@ export async function GET(request: Request) {
       .orderBy(articles.publishedAt ?? articles.createdAt);
 
     return new NextResponse(JSON.stringify({ articles: rows }), {
-      headers: { "Access-Control-Allow-Origin": ALLOWED_ORIGIN },
+      headers: CORS_HEADERS,
     });
   } catch (error) {
     console.error("External articles fetch error:", error);
