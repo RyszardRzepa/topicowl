@@ -366,9 +366,11 @@ export function useWorkflowArticles() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-project-id": project,
         },
-        body: JSON.stringify({ articleId }),
+        body: JSON.stringify({ 
+          articleId: parseInt(articleId), 
+          projectId: parseInt(project) 
+        }),
       });
       if (!response.ok) {
         const errorData = (await response.json()) as { error?: string };
