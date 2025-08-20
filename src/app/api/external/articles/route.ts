@@ -4,6 +4,28 @@ import { apiKeys, users, articles, projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createHash } from "crypto";
 
+// Response type for external articles API
+interface ExternalArticle {
+  id: number;
+  title: string;
+  description: string | null;
+  keywords: unknown; // left as unknown because DB returns JSONB; callers can parse
+  status: string; // status enum from DB (string)
+  slug: string | null;
+  content: string | null;
+  metaDescription: string | null;
+  metaKeywords: unknown; // JSONB from DB
+  estimatedReadTime: number | null;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  videos: unknown; // JSONB array from DB
+  sources: unknown; // JSONB array from DB
+}
+
+export interface ExternalArticlesResponse {
+  articles: ExternalArticle[];
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -117,14 +139,16 @@ export async function GET(request: Request) {
         title: articles.title,
         description: articles.description,
         keywords: articles.keywords,
+        status: articles.status,
         slug: articles.slug,
         content: articles.content,
         metaDescription: articles.metaDescription,
         metaKeywords: articles.metaKeywords,
-        publishedAt: articles.publishedAt,
-        projectId: articles.projectId,
-        createdAt: articles.createdAt,
-        updatedAt: articles.updatedAt,
+        estimatedReadTime: articles.estimatedReadTime,
+        coverImageUrl: articles.coverImageUrl,
+        coverImageAlt: articles.coverImageAlt,
+        videos: articles.videos,
+        sources: articles.sources,
       })
       .from(articles)
       .where(
@@ -135,7 +159,11 @@ export async function GET(request: Request) {
       )
       .orderBy(articles.publishedAt ?? articles.createdAt);
 
-    return new NextResponse(JSON.stringify({ articles: rows }), {
+    const response: ExternalArticlesResponse = { 
+      articles: rows as ExternalArticle[]
+    };
+
+    return new NextResponse(JSON.stringify(response), {
       headers: CORS_HEADERS,
     });
   } catch (error) {
