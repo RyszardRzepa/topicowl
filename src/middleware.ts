@@ -6,7 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks/clerk",
-  "/api/external/*",
+  "/api/external(.*)",
   "/api/tools/seo-cluster-map/analyze",
 ]);
 
