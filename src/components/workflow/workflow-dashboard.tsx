@@ -257,6 +257,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           <PublishingPipeline
             articles={publishingArticles}
             onUpdateArticle={actions.update}
+            onDeleteArticle={actions.delete}
             onPublishArticle={actions.publish}
             onSchedulePublishing={actions.schedulePublishing}
             onCancelPublishSchedule={actions.cancelPublishSchedule}

@@ -12,6 +12,7 @@ interface PublishingPipelineProps {
     articleId: string,
     updates: Partial<Article>,
   ) => Promise<void>;
+  onDeleteArticle: (articleId: string) => Promise<void>;
   onPublishArticle: (articleId: string) => Promise<void>;
   onSchedulePublishing: (articleId: string, scheduledAt: Date) => Promise<void>;
   onCancelPublishSchedule?: (articleId: string) => Promise<void>;
@@ -23,6 +24,7 @@ interface PublishingPipelineProps {
 export function PublishingPipeline({
   articles,
   onUpdateArticle,
+  onDeleteArticle,
   onPublishArticle,
   onSchedulePublishing,
   onCancelPublishSchedule,
@@ -86,6 +88,7 @@ export function PublishingPipeline({
                   article={article}
                   mode="publishing"
                   onUpdate={onUpdateArticle}
+                  onDelete={onDeleteArticle}
                   onPublish={onPublishArticle}
                   onSchedulePublishing={onSchedulePublishing}
                   onNavigate={onNavigateToArticle}

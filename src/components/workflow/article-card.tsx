@@ -190,7 +190,9 @@ export function ArticleCard({
   const canEdit =
     mode === "planning" &&
     (article.status === "idea" || article.status === "to_generate");
-  const canDelete = mode === "planning" && article.status === "idea";
+  const canDelete = 
+    (mode === "planning" && article.status === "idea") ||
+    (mode === "publishing" && article.status === "wait_for_publish");
   const canGenerate =
     mode === "planning" &&
     (article.status === "idea" ||
