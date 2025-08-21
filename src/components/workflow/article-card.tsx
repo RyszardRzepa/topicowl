@@ -722,7 +722,7 @@ export function ArticleCard({
                       className="flex-1"
                     >
                       <Calendar className="mr-2 h-4 w-4" />
-                      Schedule Publishing
+                      Schedule
                     </Button>
                   </div>
                 )}
@@ -776,7 +776,7 @@ export function ArticleCard({
                     className="flex-1"
                   >
                     <Check className="mr-2 h-4 w-4" />
-                    Publish Now
+                    Publish
                   </Button>
                   <Button
                     onClick={(e) => {

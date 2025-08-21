@@ -740,7 +740,7 @@ export default function RedditDashboard() {
             },
             {
               value: "settings",
-              label: "Settings & Browse",
+              label: "Browse",
               icon: <Settings className="h-4 w-4" />,
               count:
                 subscribedSubreddits.length > 0

@@ -52,7 +52,9 @@ export function PlanningHub({
 }: PlanningHubProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [showIdeasGenerator, setShowIdeasGenerator] = useState(false);
-  const [generatingArticleIds, setGeneratingArticleIds] = useState<Set<string>>(new Set());
+  const [generatingArticleIds, setGeneratingArticleIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const [newArticleData, setNewArticleData] = useState({
     title: "",
@@ -127,30 +129,21 @@ export function PlanningHub({
       {/* Header with actions */}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <h2 className="text-xl font-semibold">
-            Article Planning Hub
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className="text-xl font-semibold">Article Planning Hub</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
             Create ideas and manage article generation
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {/* Generate AI ideas */}
-          <Button
-            onClick={() => setShowIdeasGenerator(true)}
-            variant="accent"
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            Generate Ideas
-          </Button>
-          
-          {/* Create new article */}
-          <Button
-            onClick={() => setIsCreating(true)}
-          >
+          <Button onClick={() => setIsCreating(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Add Article Idea
+          </Button>
+
+          <Button onClick={() => setShowIdeasGenerator(true)} variant="accent">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Generate Ideas
           </Button>
         </div>
       </div>
@@ -166,7 +159,7 @@ export function PlanningHub({
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">
+              <label className="text-foreground mb-2 block text-sm font-medium">
                 Article Title *
               </label>
               <Input
@@ -185,7 +178,7 @@ export function PlanningHub({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">
+              <label className="text-foreground mb-2 block text-sm font-medium">
                 Keywords (optional)
               </label>
               <Input
@@ -200,13 +193,13 @@ export function PlanningHub({
                 placeholder="keyword1, keyword2, keyword3..."
                 disabled={isCreatingArticle}
               />
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-1 text-xs">
                 Separate keywords with commas
               </p>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">
+              <label className="text-foreground mb-2 block text-sm font-medium">
                 Article Notes (optional)
               </label>
               <Textarea
@@ -222,8 +215,9 @@ export function PlanningHub({
                 className="resize-none"
                 disabled={isCreatingArticle}
               />
-              <p className="mt-1 text-xs text-muted-foreground">
-                These notes will guide the AI throughout research, outlining, and writing phases.
+              <p className="text-muted-foreground mt-1 text-xs">
+                These notes will guide the AI throughout research, outlining,
+                and writing phases.
               </p>
             </div>
           </CardContent>
@@ -257,7 +251,7 @@ export function PlanningHub({
         {ideaArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-                                          <h3 className="text-lg font-medium">
+              <h3 className="text-lg font-medium">
                 Idea Collection ({ideaArticles.length})
               </h3>
             </div>
@@ -309,7 +303,7 @@ export function PlanningHub({
         {generatingArticles.length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-foreground">
+              <h3 className="text-foreground text-lg font-medium">
                 Generating ({generatingArticles.length})
               </h3>
             </div>
@@ -337,12 +331,16 @@ export function PlanningHub({
         ).length > 0 && (
           <section>
             <div className="mb-3 flex items-center justify-between">
-                            <h3 className="text-lg font-medium">
-                Scheduled for Generation ({articles.filter(
-                  (a) =>
-                    a.generationScheduledAt &&
-                    !["generating", "published"].includes(a.status),
-                ).length})
+              <h3 className="text-lg font-medium">
+                Scheduled for Generation (
+                {
+                  articles.filter(
+                    (a) =>
+                      a.generationScheduledAt &&
+                      !["generating", "published"].includes(a.status),
+                  ).length
+                }
+                )
               </h3>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -370,15 +368,11 @@ export function PlanningHub({
             <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
               <Plus className="h-8 w-8" />
             </div>
-            <h3 className="mb-2 text-lg font-medium">
-              No articles yet
-            </h3>
+            <h3 className="mb-2 text-lg font-medium">No articles yet</h3>
             <p className="mb-4">
               Get started by creating your first article idea
             </p>
-            <Button
-              onClick={() => setIsCreating(true)}
-            >
+            <Button onClick={() => setIsCreating(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Your First Article
             </Button>

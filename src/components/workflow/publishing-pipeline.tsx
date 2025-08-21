@@ -73,12 +73,12 @@ export function PublishingPipeline({
           {/* Column: Ready Now */}
           <div className="flex flex-col rounded-lg border bg-card p-3">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold tracking-wide">Ready to Publish</h3>
+              <h3 className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold tracking-wide text-gray-700">Ready to Publish</h3>
               <span className="text-xs text-muted-foreground">{readyNow.length}</span>
             </div>
             <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
               {readyNow.length === 0 && (
-                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                <div className="rounded-md border border-dashed bg-white/50 p-4 text-center text-xs text-muted-foreground">
                   None ready now
                 </div>
               )}
@@ -100,7 +100,7 @@ export function PublishingPipeline({
           <div className="flex flex-col rounded-lg border bg-card p-3">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold tracking-wide">Scheduled Articles</h3>
+                <h3 className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold tracking-wide text-orange-700">Scheduled Articles</h3>
                 <Badge variant="blue" className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   <span className="text-[10px]">Queued</span>
@@ -122,7 +122,7 @@ export function PublishingPipeline({
             )}
             <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
               {scheduledToPublish.length === 0 && (
-                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                <div className="rounded-md border border-dashed bg-white/50 p-4 text-center text-xs text-muted-foreground">
                   Nothing scheduled
                 </div>
               )}
@@ -149,12 +149,12 @@ export function PublishingPipeline({
           {/* Column: Published */}
           <div className="flex flex-col rounded-lg border bg-card p-3">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold tracking-wide">Published</h3>
+              <h3 className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold tracking-wide text-green-700">Published</h3>
               <span className="text-xs text-muted-foreground">{publishedArticles.length}</span>
             </div>
             <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
               {publishedArticles.length === 0 && (
-                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                <div className="rounded-md border border-dashed bg-white/50 p-4 text-center text-xs text-muted-foreground">
                   None published yet
                 </div>
               )}
@@ -164,7 +164,6 @@ export function PublishingPipeline({
                     new Date(b.publishedAt ?? b.updatedAt).getTime() -
                     new Date(a.publishedAt ?? a.updatedAt).getTime(),
                 )
-                .slice(0, 25) // show more in column context
                 .map((article) => (
                   <ArticleCard
                     key={article.id}
