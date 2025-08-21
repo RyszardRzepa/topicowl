@@ -31,21 +31,27 @@ async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
         .limit(1);
       rawSitemapUrl = legacySettings?.sitemap_url ?? null;
       if (rawSitemapUrl) {
-        console.log(`Using legacy article_settings sitemap URL for project ${projectId}`);
+        console.log(
+          `Using legacy article_settings sitemap URL for project ${projectId}`,
+        );
       }
     }
 
     if (!rawSitemapUrl) {
-      console.log(`No sitemap URL configured for project ${projectId} (projects or article_settings)`);
+      console.log(
+        `No sitemap URL configured for project ${projectId} (projects or article_settings)`,
+      );
       return [];
     }
 
     // Normalize and validate the sitemap URL
     const sitemapUrl = normalizeSitemapUrl(rawSitemapUrl);
     const validation = validateSitemapUrl(sitemapUrl);
-    
+
     if (!validation.isValid) {
-      console.log(`Invalid sitemap URL for project ${projectId}: ${validation.error}`);
+      console.log(
+        `Invalid sitemap URL for project ${projectId}: ${validation.error}`,
+      );
       return [];
     }
 
@@ -56,7 +62,7 @@ async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
 
     const response = await fetch(sitemapUrl, {
       headers: {
-        'User-Agent': 'Contentbot Related Articles Fetcher',
+        "User-Agent": "Contentbot Related Articles Fetcher",
       },
       signal: controller.signal,
     });
@@ -64,53 +70,66 @@ async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch sitemap: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch sitemap: ${response.status} ${response.statusText}`,
+      );
     }
 
     const xmlData = await response.text();
 
     // Support multiple blog URL patterns
     const blogPatterns = [
-      /<loc>[^<]+\/blog\/[^<]+<\/loc>/g,     // /blog/ pattern
+      /<loc>[^<]+\/blog\/[^<]+<\/loc>/g, // /blog/ pattern
       /<loc>[^<]+\/articles\/[^<]+<\/loc>/g, // /articles/ pattern
-      /<loc>[^<]+\/posts\/[^<]+<\/loc>/g,    // /posts/ pattern
+      /<loc>[^<]+\/posts\/[^<]+<\/loc>/g, // /posts/ pattern
     ];
 
     let urlMatches: RegExpMatchArray | null = null;
-    let matchedPattern = '';
+    let matchedPattern = "";
 
     for (const pattern of blogPatterns) {
       urlMatches = xmlData.match(pattern);
       if (urlMatches && urlMatches.length > 0) {
-        matchedPattern = pattern.source.includes('/blog/') ? 'blog' : 
-                        pattern.source.includes('/articles/') ? 'articles' : 'posts';
+        matchedPattern = pattern.source.includes("/blog/")
+          ? "blog"
+          : pattern.source.includes("/articles/")
+            ? "articles"
+            : "posts";
         break;
       }
     }
 
     if (!urlMatches) {
-      console.log(`No blog URLs found in sitemap for project ${projectId} (${sitemapUrl})`);
+      console.log(
+        `No blog URLs found in sitemap for project ${projectId} (${sitemapUrl})`,
+      );
       return [];
     }
 
     // Convert URLs to slugs based on the matched pattern
     const blogSlugs = urlMatches
-      .map(match => {
-        const url = match.replace(/<\/?loc>/g, '');
+      .map((match) => {
+        const url = match.replace(/<\/?loc>/g, "");
         try {
           const urlPath = new URL(url).pathname;
           // Remove the appropriate prefix and trailing slash
           const prefix = `/${matchedPattern}/`;
-          return urlPath.replace(prefix, '').replace(/\/$/, '');
+          return urlPath.replace(prefix, "").replace(/\/$/, "");
         } catch {
           return null;
         }
       })
-      .filter((slug): slug is string => slug !== null && slug.length > 0 && !['blog', 'articles', 'posts'].includes(slug));
+      .filter(
+        (slug): slug is string =>
+          slug !== null &&
+          slug.length > 0 &&
+          !["blog", "articles", "posts"].includes(slug),
+      );
 
-  console.log(`Found ${blogSlugs.length} blog slugs for project ${projectId}`);
+    console.log(
+      `Found ${blogSlugs.length} blog slugs for project ${projectId}`,
+    );
     return blogSlugs;
-
   } catch (error) {
     console.error(`Error fetching blog slugs for project ${projectId}:`, error);
     return [];
@@ -122,50 +141,61 @@ export async function getRelatedArticles(
   projectId: number,
   currentTitle: string,
   keywords: string[],
-  maxArticles = 3
+  maxArticles = 3,
 ): Promise<string[]> {
   try {
     const blogSlugs = await fetchProjectBlogSlugs(projectId);
-    
+
     if (blogSlugs.length === 0) {
       return [];
     }
 
     // Simple relevance scoring based on keyword matches in slug
     const scoredArticles = blogSlugs
-      .map(slug => {
+      .map((slug) => {
         const slugWords = slug.toLowerCase().split(/[-_\s]+/);
         const titleWords = currentTitle.toLowerCase().split(/\s+/);
-        const keywordWords = keywords.map(k => k.toLowerCase());
+        const keywordWords = keywords.map((k) => k.toLowerCase());
 
         let score = 0;
 
         // Score based on keyword matches
-        keywordWords.forEach(keyword => {
-          if (slugWords.some(word => word.includes(keyword) || keyword.includes(word))) {
+        keywordWords.forEach((keyword) => {
+          if (
+            slugWords.some(
+              (word) => word.includes(keyword) || keyword.includes(word),
+            )
+          ) {
             score += 3;
           }
         });
 
         // Score based on title word matches
-        titleWords.forEach(titleWord => {
-          if (titleWord.length > 3 && slugWords.some(word => word.includes(titleWord) || titleWord.includes(word))) {
+        titleWords.forEach((titleWord) => {
+          if (
+            titleWord.length > 3 &&
+            slugWords.some(
+              (word) => word.includes(titleWord) || titleWord.includes(word),
+            )
+          ) {
             score += 1;
           }
         });
 
         return { slug, score };
       })
-      .filter(item => item.score > 0) // Only include articles with some relevance
+      .filter((item) => item.score > 0) // Only include articles with some relevance
       .sort((a, b) => b.score - a.score) // Sort by relevance score
       .slice(0, maxArticles) // Take top articles
-      .map(item => item.slug);
+      .map((item) => item.slug);
 
-    console.log(`Selected ${scoredArticles.length} related articles for "${currentTitle}":`, scoredArticles);
+    console.log(
+      `Selected ${scoredArticles.length} related articles for "${currentTitle}":`,
+      scoredArticles,
+    );
     return scoredArticles;
-
   } catch (error) {
-    console.error('Error getting related articles:', error);
+    console.error("Error getting related articles:", error);
     return [];
   }
 }
@@ -175,7 +205,7 @@ export async function getRelatedArticlesByUserId(
   userId: string,
   currentTitle: string,
   keywords: string[],
-  maxArticles = 3
+  maxArticles = 3,
 ): Promise<string[]> {
   try {
     // Get the first project for this user (for backward compatibility)
@@ -191,9 +221,14 @@ export async function getRelatedArticlesByUserId(
     }
 
     // Use the new function with the project ID
-    return await getRelatedArticles(userProject.id, currentTitle, keywords, maxArticles);
+    return await getRelatedArticles(
+      userProject.id,
+      currentTitle,
+      keywords,
+      maxArticles,
+    );
   } catch (error) {
-    console.error('Error getting related articles by user ID:', error);
+    console.error("Error getting related articles by user ID:", error);
     return [];
   }
 }
@@ -209,7 +244,7 @@ export async function getUserDomain(userId: string): Promise<string | null> {
 
     return userRecord?.domain ?? null;
   } catch (error) {
-    console.error('Error getting user domain:', error);
+    console.error("Error getting user domain:", error);
     return null;
   }
 }

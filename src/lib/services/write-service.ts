@@ -3,7 +3,7 @@
  * Extracted from the write API route to allow direct function calls
  */
 
-import { anthropic } from '@ai-sdk/anthropic';
+import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
@@ -65,7 +65,9 @@ export interface WriteResponse {
  * Core write function that can be called directly without HTTP
  * Extracted from /api/articles/write/route.ts
  */
-export async function performWriteLogic(request: WriteRequest): Promise<WriteResponse> {
+export async function performWriteLogic(
+  request: WriteRequest,
+): Promise<WriteResponse> {
   console.log("[WRITE_SERVICE] Starting write process", {
     title: request.title,
     keywordsCount: request.keywords.length,
@@ -102,9 +104,7 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
         `[WRITE_SERVICE] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
       );
     } else {
-      console.log(
-        `[WRITE_SERVICE] User not found for ID: ${request.userId}`,
-      );
+      console.log(`[WRITE_SERVICE] User not found for ID: ${request.userId}`);
     }
   } catch (error) {
     console.error(
@@ -170,7 +170,7 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
     }
   }
 
-  // Fetch project settings 
+  // Fetch project settings
   let settingsData;
   try {
     const [projectSettings] = await db
@@ -178,7 +178,7 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
       .from(projects)
       .where(eq(projects.id, request.projectId))
       .limit(1);
-      
+
     settingsData = projectSettings
       ? {
           toneOfVoice: projectSettings.toneOfVoice ?? "",
@@ -188,7 +188,7 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
           includeVideo: projectSettings.includeVideo ?? true,
           includeTables: projectSettings.includeTables ?? true,
         }
-        : {
+      : {
           toneOfVoice: "",
           articleStructure: "",
           maxWords: 1800,
@@ -215,7 +215,7 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
       includeVideo: true,
       includeTables: true,
     };
-  }  // Check if videos are available for enhanced generation
+  } // Check if videos are available for enhanced generation
   const hasVideos = request.videos && request.videos.length > 0;
 
   let articleObject;
@@ -326,13 +326,19 @@ export async function performWriteLogic(request: WriteRequest): Promise<WriteRes
         request.keywords,
         3,
       );
-      console.log("[WRITE_SERVICE] Generated related articles (project-scoped)", {
-        projectId: request.projectId,
-        count: finalRelatedArticles.length,
-        articles: finalRelatedArticles,
-      });
+      console.log(
+        "[WRITE_SERVICE] Generated related articles (project-scoped)",
+        {
+          projectId: request.projectId,
+          count: finalRelatedArticles.length,
+          articles: finalRelatedArticles,
+        },
+      );
     } catch (error) {
-      console.error("[WRITE_SERVICE] Error generating related articles:", error);
+      console.error(
+        "[WRITE_SERVICE] Error generating related articles:",
+        error,
+      );
       // Continue with empty array if related articles generation fails
     }
   } else {

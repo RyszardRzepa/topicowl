@@ -19,7 +19,9 @@ export function ArticlePreviewClient({
   initialArticle,
 }: ArticlePreviewClientProps) {
   const [article, setArticle] = useState(initialArticle);
-  const [currentContent, setCurrentContent] = useState(getArticleContent(initialArticle));
+  const [currentContent, setCurrentContent] = useState(
+    getArticleContent(initialArticle),
+  );
   const [currentMetadata, setCurrentMetadata] = useState({
     title: initialArticle.title ?? "",
     description: initialArticle.description ?? "",
@@ -121,9 +123,12 @@ export function ArticlePreviewClient({
   }, []);
 
   // Handle metadata changes without saving (for unified save)
-  const handleMetadataChange = useCallback((metadata: typeof currentMetadata) => {
-    setCurrentMetadata(metadata);
-  }, []);
+  const handleMetadataChange = useCallback(
+    (metadata: typeof currentMetadata) => {
+      setCurrentMetadata(metadata);
+    },
+    [],
+  );
 
   // Unified save function for both content and metadata
   const handleUnifiedSave = useCallback(async () => {
@@ -190,7 +195,6 @@ export function ArticlePreviewClient({
         </div>
       )}
 
-
       {/* Generation Progress - Show when article is generating and we have status */}
       {article.status === "generating" && generationStatus && (
         <GenerationProgress status={generationStatus} />
@@ -206,7 +210,7 @@ export function ArticlePreviewClient({
             coverImageAlt={article.coverImageAlt ?? undefined}
             onImageUpdate={handleCoverImageSave}
             isLoading={isSaving}
-          />        
+          />
 
           {/* Content Editor */}
           <ContentEditorWithPreview

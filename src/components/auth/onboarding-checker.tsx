@@ -30,7 +30,9 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState<
+    boolean | null
+  >(null);
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
@@ -54,20 +56,24 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
 
       try {
         setIsChecking(true);
-        
+
         const response = await fetch("/api/onboarding/status");
-        
+
         if (response.ok) {
           const data = (await response.json()) as OnboardingStatusResponse;
-          
+
           if (data.success) {
             const completed = data.onboarding_completed;
             setOnboardingCompleted(completed);
-            
+
             // Handle redirects
             if (!completed) {
               // User hasn't completed onboarding
-              if (!allowedDuringOnboarding.some((route) => pathname.startsWith(route))) {
+              if (
+                !allowedDuringOnboarding.some((route) =>
+                  pathname.startsWith(route),
+                )
+              ) {
                 router.push("/onboarding");
               }
             } else {
@@ -79,14 +85,20 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
           } else {
             // API error - assume not onboarded for safety
             setOnboardingCompleted(false);
-            if (!allowedDuringOnboarding.some((route) => pathname.startsWith(route))) {
+            if (
+              !allowedDuringOnboarding.some((route) =>
+                pathname.startsWith(route),
+              )
+            ) {
               router.push("/onboarding");
             }
           }
         } else {
           // HTTP error - assume not onboarded for safety
           setOnboardingCompleted(false);
-          if (!allowedDuringOnboarding.some((route) => pathname.startsWith(route))) {
+          if (
+            !allowedDuringOnboarding.some((route) => pathname.startsWith(route))
+          ) {
             router.push("/onboarding");
           }
         }
@@ -94,7 +106,9 @@ export function OnboardingChecker({ children }: OnboardingCheckerProps) {
         console.error("Error checking onboarding status:", error);
         // Network error - assume not onboarded for safety
         setOnboardingCompleted(false);
-        if (!allowedDuringOnboarding.some((route) => pathname.startsWith(route))) {
+        if (
+          !allowedDuringOnboarding.some((route) => pathname.startsWith(route))
+        ) {
           router.push("/onboarding");
         }
       } finally {

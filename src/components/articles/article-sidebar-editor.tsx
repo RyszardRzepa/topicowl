@@ -51,11 +51,12 @@ export function ArticleSidebarEditor({
   const [formData, setFormData] = useState({
     title: currentMetadata?.title ?? article.title ?? "",
     description: currentMetadata?.description ?? article.description ?? "",
-    keywords: currentMetadata?.keywords ?? (Array.isArray(article.keywords)
-      ? (article.keywords as string[])
-      : []),
+    keywords:
+      currentMetadata?.keywords ??
+      (Array.isArray(article.keywords) ? (article.keywords as string[]) : []),
     slug: currentMetadata?.slug ?? article.slug ?? "",
-    metaDescription: currentMetadata?.metaDescription ?? article.metaDescription ?? "",
+    metaDescription:
+      currentMetadata?.metaDescription ?? article.metaDescription ?? "",
     // For now, we'll use a simple string field for type
     // You can extend this to map to your existing data structure
     articleType: "blog" as string,

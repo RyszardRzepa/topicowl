@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ArticleStatus } from "@/types";
@@ -7,7 +7,7 @@ import type { ArticleStatus } from "@/types";
 interface ArticleMetadataData {
   id: number;
   title: string;
-  status: ArticleStatus,
+  status: ArticleStatus;
   scheduledAt?: Date | null;
   publishedAt: Date | null;
   createdAt: Date;
@@ -21,27 +21,42 @@ interface ArticleMetadataProps {
 export function ArticleMetadata({ article }: ArticleMetadataProps) {
   // Format date helper
   const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(date);
   };
 
   // Get status display text and color
-  const getStatusDisplay = (status: ArticleMetadataData['status']) => {
+  const getStatusDisplay = (status: ArticleMetadataData["status"]) => {
     const statusMap = {
-      idea: { text: 'Idea', color: 'text-brand-white bg-brand-white/10' },
-      scheduled: { text: 'Scheduled', color: 'text-brand-green bg-brand-green/10' },
-      queued: { text: 'Queued', color: 'text-brand-orange bg-brand-orange/10' },
-      to_generate: { text: 'To Generate', color: 'text-brand-green bg-brand-green/10' },
-      generating: { text: 'Generating', color: 'text-brand-orange bg-brand-orange/10' },
-      wait_for_publish: { text: 'Wait for Publish', color: 'text-brand-green bg-brand-green/10' },
-      published: { text: 'Published', color: 'text-brand-green bg-brand-green/20' },
-      failed: { text: 'Failed', color: 'text-red-600 bg-red-100' },
-      deleted: { text: 'Deleted', color: 'text-red-600 bg-red-100' },
+      idea: { text: "Idea", color: "text-brand-white bg-brand-white/10" },
+      scheduled: {
+        text: "Scheduled",
+        color: "text-brand-green bg-brand-green/10",
+      },
+      queued: { text: "Queued", color: "text-brand-orange bg-brand-orange/10" },
+      to_generate: {
+        text: "To Generate",
+        color: "text-brand-green bg-brand-green/10",
+      },
+      generating: {
+        text: "Generating",
+        color: "text-brand-orange bg-brand-orange/10",
+      },
+      wait_for_publish: {
+        text: "Wait for Publish",
+        color: "text-brand-green bg-brand-green/10",
+      },
+      published: {
+        text: "Published",
+        color: "text-brand-green bg-brand-green/20",
+      },
+      failed: { text: "Failed", color: "text-red-600 bg-red-100" },
+      deleted: { text: "Deleted", color: "text-red-600 bg-red-100" },
     };
     return statusMap[status];
   };
@@ -54,11 +69,10 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
       <div>
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${statusDisplay.color}`}
+            className={`rounded-full px-2 py-1 text-xs font-medium ${statusDisplay.color}`}
           >
             {statusDisplay.text}
           </span>
-          
         </div>
       </div>
 
@@ -71,14 +85,22 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
           <CardContent>
             {article.scheduledAt && (
               <div className="mb-2">
-                <span className="font-medium text-gray-900">Scheduled for: </span>
-                <span className="text-gray-700">{formatDate(article.scheduledAt)}</span>
+                <span className="font-medium text-gray-900">
+                  Scheduled for:{" "}
+                </span>
+                <span className="text-gray-700">
+                  {formatDate(article.scheduledAt)}
+                </span>
               </div>
             )}
             {article.publishedAt && (
               <div>
-                <span className="font-medium text-gray-900">Published at: </span>
-                <span className="text-gray-700">{formatDate(article.publishedAt)}</span>
+                <span className="font-medium text-gray-900">
+                  Published at:{" "}
+                </span>
+                <span className="text-gray-700">
+                  {formatDate(article.publishedAt)}
+                </span>
               </div>
             )}
           </CardContent>

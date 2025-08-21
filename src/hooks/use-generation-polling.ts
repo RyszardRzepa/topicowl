@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useCallback, useState } from 'react';
-import type { GenerationStatus } from '@/app/api/articles/[id]/generation-status/route';
-import type { ApiResponse } from '@/types';
+import { useEffect, useRef, useCallback, useState } from "react";
+import type { GenerationStatus } from "@/app/api/articles/[id]/generation-status/route";
+import type { ApiResponse } from "@/types";
 
 interface UseGenerationPollingOptions {
   articleId: string;
@@ -25,7 +25,7 @@ export function useGenerationPolling({
   intervalMs = 5000,
   onStatusUpdate,
   onComplete,
-  onError
+  onError,
 }: UseGenerationPollingOptions): UseGenerationPollingReturn {
   // state
   const [status, setStatus] = useState<GenerationStatus | null>(null);
@@ -38,9 +38,11 @@ export function useGenerationPolling({
   const live = useRef(true);
 
   // keep latest callbacks without re-subscribing
-  const useLatest = <T,>(value: T) => {
+  const useLatest = <T>(value: T) => {
     const ref = useRef(value);
-    useEffect(() => { ref.current = value; }, [value]);
+    useEffect(() => {
+      ref.current = value;
+    }, [value]);
     return ref;
   };
   const statusCb = useLatest(onStatusUpdate);
@@ -48,8 +50,14 @@ export function useGenerationPolling({
   const errorCb = useLatest(onError);
 
   const clearAll = useCallback(() => {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
   }, []);
 
   const fetchStatus = useCallback(async () => {
@@ -61,10 +69,10 @@ export function useGenerationPolling({
       abortRef.current = new AbortController();
       const res = await fetch(`/api/articles/${articleId}/generation-status`, {
         signal: abortRef.current.signal,
-        headers: { 'Cache-Control': 'no-cache' }
+        headers: { "Cache-Control": "no-cache" },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json() as ApiResponse & GenerationStatus;
+      const result = (await res.json()) as ApiResponse & GenerationStatus;
       if (!live.current) return;
       if (!result.success) {
         setStatus(null);
@@ -85,17 +93,17 @@ export function useGenerationPolling({
       };
       setStatus(newStatus);
       statusCb.current?.(newStatus);
-      if (newStatus.status === 'completed') {
+      if (newStatus.status === "completed") {
         completeCb.current?.();
         clearAll();
-      } else if (newStatus.status === 'failed') {
-        errorCb.current?.(newStatus.error ?? 'Generation failed');
+      } else if (newStatus.status === "failed") {
+        errorCb.current?.(newStatus.error ?? "Generation failed");
         clearAll();
       }
     } catch (e) {
       if (!live.current) return;
-      if (e instanceof Error && e.name === 'AbortError') return; // ignore aborts
-      const msg = e instanceof Error ? e.message : 'Unknown error';
+      if (e instanceof Error && e.name === "AbortError") return; // ignore aborts
+      const msg = e instanceof Error ? e.message : "Unknown error";
       setError(msg);
       errorCb.current?.(msg);
       clearAll();
@@ -109,12 +117,20 @@ export function useGenerationPolling({
     clearAll();
     if (!enabled || !articleId) return; // nothing to do
     void fetchStatus(); // immediate first check
-    timerRef.current = setInterval(() => { void fetchStatus(); }, intervalMs);
+    timerRef.current = setInterval(() => {
+      void fetchStatus();
+    }, intervalMs);
     return clearAll;
   }, [enabled, articleId, intervalMs, fetchStatus, clearAll]);
 
   // unmount safeguard
-  useEffect(() => () => { live.current = false; clearAll(); }, [clearAll]);
+  useEffect(
+    () => () => {
+      live.current = false;
+      clearAll();
+    },
+    [clearAll],
+  );
 
   return { status, isLoading, error };
 }

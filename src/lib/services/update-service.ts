@@ -52,7 +52,7 @@ export async function performUpdateLogic(
     maxWords?: number;
   },
 ): Promise<UpdateResponse> {
-  console.log("[UPDATE_SERVICE] Starting update", { 
+  console.log("[UPDATE_SERVICE] Starting update", {
     contentLength: article.length,
     validationTextLength: validationText.length,
   });
@@ -93,7 +93,7 @@ export async function performQualityControlUpdate(
     maxWords?: number;
   },
 ): Promise<UpdateResponse> {
-  console.log("[UPDATE_SERVICE] Starting quality control update", { 
+  console.log("[UPDATE_SERVICE] Starting quality control update", {
     contentLength: article.length,
     issuesLength: qualityControlIssues.length,
   });
@@ -107,7 +107,11 @@ export async function performQualityControlUpdate(
   const { object: articleObject } = await generateObject({
     model,
     schema: blogPostSchema,
-    prompt: prompts.updateWithQualityControl(article, qualityControlIssues, settings),
+    prompt: prompts.updateWithQualityControl(
+      article,
+      qualityControlIssues,
+      settings,
+    ),
     maxOutputTokens: 20000,
   });
 
@@ -125,7 +129,9 @@ export async function performQualityControlUpdate(
 /**
  * Generic update function that handles different types of corrections
  */
-export async function performGenericUpdate(request: UpdateRequest): Promise<UpdateResponse> {
+export async function performGenericUpdate(
+  request: UpdateRequest,
+): Promise<UpdateResponse> {
   console.log("[UPDATE_SERVICE] Starting generic update", {
     hasCorrections: !!request.corrections,
     hasValidationIssues: !!request.validationIssues,
@@ -137,7 +143,12 @@ export async function performGenericUpdate(request: UpdateRequest): Promise<Upda
     throw new Error("Article is required");
   }
 
-  if (!request.corrections && !request.validationIssues && !request.validationText && !request.qualityControlIssues) {
+  if (
+    !request.corrections &&
+    !request.validationIssues &&
+    !request.validationText &&
+    !request.qualityControlIssues
+  ) {
     throw new Error(
       "Either corrections, validationIssues, validationText, or qualityControlIssues are required",
     );
@@ -150,7 +161,7 @@ export async function performGenericUpdate(request: UpdateRequest): Promise<Upda
     response = await performQualityControlUpdate(
       request.article,
       request.qualityControlIssues,
-      request.settings
+      request.settings,
     );
   } else {
     // Handle other types of updates (existing logic)
@@ -175,7 +186,11 @@ export async function performGenericUpdate(request: UpdateRequest): Promise<Upda
     const { object: articleObject } = await generateObject({
       model,
       schema: blogPostSchema,
-      prompt: prompts.update(request.article, correctionsOrValidationText, request.settings),
+      prompt: prompts.update(
+        request.article,
+        correctionsOrValidationText,
+        request.settings,
+      ),
     });
 
     response = {

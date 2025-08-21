@@ -30,9 +30,17 @@ import {
 import { IFrame } from "@/components/IFrame";
 
 // Lightweight typed shapes (subset of mdast) to avoid unsafe any usage
-interface BaseNode { type: string }
-interface TextNode extends BaseNode { type: 'text'; value: string }
-interface ParagraphNode extends BaseNode { type: 'paragraph'; children: Array<TextNode | BaseNode> }
+interface BaseNode {
+  type: string;
+}
+interface TextNode extends BaseNode {
+  type: "text";
+  value: string;
+}
+interface ParagraphNode extends BaseNode {
+  type: "paragraph";
+  children: Array<TextNode | BaseNode>;
+}
 interface DirectiveNode extends BaseNode {
   name?: string;
   label?: string;
@@ -41,18 +49,34 @@ interface DirectiveNode extends BaseNode {
 }
 
 function isText(node: unknown): node is TextNode {
-  return typeof node === 'object' && node !== null && (node as { type?: string }).type === 'text' && typeof (node as { value?: unknown }).value === 'string';
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    (node as { type?: string }).type === "text" &&
+    typeof (node as { value?: unknown }).value === "string"
+  );
 }
 function isParagraph(node: unknown): node is ParagraphNode {
-  return typeof node === 'object' && node !== null && (node as { type?: string }).type === 'paragraph' && Array.isArray((node as { children?: unknown }).children);
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    (node as { type?: string }).type === "paragraph" &&
+    Array.isArray((node as { children?: unknown }).children)
+  );
 }
 function isDirective(node: unknown): node is DirectiveNode {
-  return typeof node === 'object' && node !== null && typeof (node as { type?: string }).type === 'string' && 'name' in node;
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    typeof (node as { type?: string }).type === "string" &&
+    "name" in node
+  );
 }
 
 function extractUrlFromDirective(node: DirectiveNode): string | undefined {
   // Direct sources first
-  const direct = node.label?.trim() ?? node.attributes?.src ?? node.attributes?.url;
+  const direct =
+    node.label?.trim() ?? node.attributes?.src ?? node.attributes?.url;
   if (direct) return direct;
 
   // Scan children paragraphs and text for a URL looking string
@@ -68,8 +92,9 @@ function extractUrlFromDirective(node: DirectiveNode): string | undefined {
       } else if (isText(child)) {
         const candidate = child.value.trim();
         if (/^https?:\/\//i.test(candidate)) return candidate;
-      } else if (isDirective(child) && child.name === 'iframe') {
-        const nested = child.label?.trim() ?? child.attributes?.src ?? child.attributes?.url;
+      } else if (isDirective(child) && child.name === "iframe") {
+        const nested =
+          child.label?.trim() ?? child.attributes?.src ?? child.attributes?.url;
         if (nested) return nested;
       }
     }
@@ -92,14 +117,16 @@ const IFrameDirectiveDescriptor: DirectiveDescriptor = {
 
     if (!url) {
       return (
-        <div className="rounded border border-red-300 bg-red-50 p-3 text-left text-xs space-y-1">
-          <p className="text-red-600 text-sm">IFrame: URL not detected</p>
-          <p className="text-[10px] text-red-700/80">Use :iframe[https://...] syntax. (Containers auto-convert.)</p>
+        <div className="space-y-1 rounded border border-red-300 bg-red-50 p-3 text-left text-xs">
+          <p className="text-sm text-red-600">IFrame: URL not detected</p>
+          <p className="text-[10px] text-red-700/80">
+            Use :iframe[https://...] syntax. (Containers auto-convert.)
+          </p>
         </div>
       );
     }
     return <IFrame src={url} />;
-  }
+  },
 };
 
 // Only import this to the next file

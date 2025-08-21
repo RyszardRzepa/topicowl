@@ -22,12 +22,7 @@ export function BackButton({
   };
 
   return (
-    <Button
-      variant={variant}
-      size={size}
-      onClick={handleBack}
-      className="mb-4"
-    >
+    <Button variant={variant} size={size} onClick={handleBack} className="mb-4">
       <ChevronLeft className="h-4 w-4" />
       {label}
     </Button>

@@ -35,8 +35,8 @@ export function ProjectSwitcher({ className }: ProjectSwitcherProps) {
   if (isLoading) {
     return (
       <div className={cn("w-full", className)}>
-        <div className="flex items-center w-full h-auto py-2.5">
-          <Building2 className="mr-3 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+        <div className="flex h-auto w-full items-center py-2.5">
+          <Building2 className="text-muted-foreground mr-3 h-5 w-5 flex-shrink-0" />
           <div className="bg-muted h-4 w-32 animate-pulse rounded" />
         </div>
       </div>
@@ -49,7 +49,7 @@ export function ProjectSwitcher({ className }: ProjectSwitcherProps) {
         <Button
           variant="ghost"
           onClick={handleCreateProject}
-          className="w-full justify-start h-auto py-2.5 text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground h-auto w-full justify-start py-2.5"
         >
           <Plus className="mr-3 h-5 w-5 flex-shrink-0" />
           <span className="text-sm font-medium">Create Project</span>
@@ -64,8 +64,8 @@ export function ProjectSwitcher({ className }: ProjectSwitcherProps) {
         value={currentProject?.id.toString()}
         onValueChange={handleProjectChange}
       >
-        <SelectTrigger className="w-full justify-start h-auto py-2.5 border-none bg-transparent hover:bg-accent/50 focus:ring-0 focus:ring-offset-0">
-          <div className="flex items-center w-full">
+        <SelectTrigger className="hover:bg-accent/50 h-auto w-full justify-start border-none bg-transparent py-2.5 focus:ring-0 focus:ring-offset-0">
+          <div className="flex w-full items-center">
             <Building2 className="mr-3 h-5 w-5 flex-shrink-0" />
             <SelectValue>
               <div className="flex flex-col items-start text-left">

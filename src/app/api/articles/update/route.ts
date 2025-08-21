@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { performUpdateLogic, performQualityControlUpdate, performGenericUpdate } from "@/lib/services/update-service";
+import {
+  performUpdateLogic,
+  performQualityControlUpdate,
+  performGenericUpdate,
+} from "@/lib/services/update-service";
 
 export const maxDuration = 800;
 
@@ -30,7 +34,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.corrections && !body.validationIssues && !body.validationText && !body.qualityControlIssues) {
+    if (
+      !body.corrections &&
+      !body.validationIssues &&
+      !body.validationText &&
+      !body.qualityControlIssues
+    ) {
       return NextResponse.json(
         {
           error:
@@ -44,9 +53,17 @@ export async function POST(request: Request) {
 
     // Determine which update function to call based on what's provided
     if (body.validationText) {
-      result = await performUpdateLogic(body.article, body.validationText, body.settings);
+      result = await performUpdateLogic(
+        body.article,
+        body.validationText,
+        body.settings,
+      );
     } else if (body.qualityControlIssues) {
-      result = await performQualityControlUpdate(body.article, body.qualityControlIssues, body.settings);
+      result = await performQualityControlUpdate(
+        body.article,
+        body.qualityControlIssues,
+        body.settings,
+      );
     } else if (body.corrections ?? body.validationIssues) {
       const corrections = body.corrections ?? body.validationIssues ?? "";
       // For generic update, we need to create a proper request object
@@ -67,10 +84,8 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Update endpoint error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Failed to update article";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 },
-    );
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to update article";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

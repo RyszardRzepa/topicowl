@@ -32,12 +32,15 @@ export default function SettingsPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/settings?projectId=${currentProject.id}`);
+      const response = await fetch(
+        `/api/settings?projectId=${currentProject.id}`,
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch settings");
       }
 
-      const currentSettings = (await response.json()) as ProjectSettingsResponse;
+      const currentSettings =
+        (await response.json()) as ProjectSettingsResponse;
       setSettings(currentSettings);
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -51,11 +54,12 @@ export default function SettingsPage() {
     void loadSettings();
   }, [loadSettings]);
 
-  const handleSettingsUpdate = useCallback(async (
-    updatedSettings: ProjectSettingsResponse,
-  ) => {
-    setSettings(updatedSettings);
-  }, []);
+  const handleSettingsUpdate = useCallback(
+    async (updatedSettings: ProjectSettingsResponse) => {
+      setSettings(updatedSettings);
+    },
+    [],
+  );
 
   if (!currentProject) {
     return (
@@ -147,8 +151,9 @@ export default function SettingsPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Project Settings</h1>
-          <p className="text-gray-600 mt-1">
-            Configure your content generation settings and integrations for {currentProject.name}
+          <p className="mt-1 text-gray-600">
+            Configure your content generation settings and integrations for{" "}
+            {currentProject.name}
           </p>
         </div>
 
@@ -163,7 +168,7 @@ export default function SettingsPage() {
                 icon: <Settings className="h-4 w-4" />,
               },
               {
-                value: "webhooks", 
+                value: "webhooks",
                 label: "Webhooks",
                 icon: <Webhook className="h-4 w-4" />,
               },

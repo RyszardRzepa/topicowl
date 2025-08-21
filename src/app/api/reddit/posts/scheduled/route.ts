@@ -33,18 +33,24 @@ export async function GET(request: NextRequest) {
     // Get projectId from query parameters
     const { searchParams } = new URL(request.url);
     const projectIdParam = searchParams.get("projectId");
-    
+
     if (!projectIdParam) {
-      return NextResponse.json({ 
-        error: "Missing required parameter: projectId" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Missing required parameter: projectId",
+        },
+        { status: 400 },
+      );
     }
 
     const projectId = parseInt(projectIdParam, 10);
     if (isNaN(projectId)) {
-      return NextResponse.json({ 
-        error: "Invalid projectId format" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Invalid projectId format",
+        },
+        { status: 400 },
+      );
     }
 
     // Verify project exists and user owns it
@@ -55,9 +61,12 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (!project) {
-      return NextResponse.json({ 
-        error: "Project not found or access denied" 
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: "Project not found or access denied",
+        },
+        { status: 404 },
+      );
     }
 
     // Query all Reddit posts for this project (scheduled, published, failed), sorted by scheduled time
@@ -77,13 +86,13 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           eq(redditPosts.projectId, projectId),
-          eq(redditPosts.userId, userId)
-        )
+          eq(redditPosts.userId, userId),
+        ),
       )
       .orderBy(asc(redditPosts.publishScheduledAt));
 
     // Transform the data to match the response interface
-    const responseData: ScheduledRedditPost[] = scheduledPosts.map(post => ({
+    const responseData: ScheduledRedditPost[] = scheduledPosts.map((post) => ({
       id: post.id,
       subreddit: post.subreddit,
       title: post.title,
@@ -99,13 +108,15 @@ export async function GET(request: NextRequest) {
       success: true,
       data: responseData,
     } satisfies ScheduledPostsResponse);
-
   } catch (error) {
     console.error("Error fetching scheduled Reddit posts:", error);
-    return NextResponse.json({ 
-      success: false,
-      data: [],
-      error: "Internal server error" 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: [],
+        error: "Internal server error",
+      },
+      { status: 500 },
+    );
   }
 }

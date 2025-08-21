@@ -6,7 +6,7 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
-  transpilePackages: ['@mdxeditor/editor'],
+  transpilePackages: ["@mdxeditor/editor"],
   eslint: {
     // Warning: This allows production builds to successfully complete even if
     // your project has ESLint errors.

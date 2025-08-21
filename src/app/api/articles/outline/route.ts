@@ -14,7 +14,9 @@ export const maxDuration = 800;
 const outlineSchema = z.object({
   markdownOutline: z
     .string()
-    .describe("Complete article outline in markdown format with full article structure including H1 title, introduction, TL;DR section, main content sections with H2 headings, and FAQ section"),
+    .describe(
+      "Complete article outline in markdown format with full article structure including H1 title, introduction, TL;DR section, main content sections with H2 headings, and FAQ section",
+    ),
 });
 
 // Types colocated with this API route

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InputWithPrefix } from "@/components/ui/input-with-prefix";
 import { Label } from "@/components/ui/label";
@@ -26,13 +32,15 @@ export function WebsiteUrlForm({ onSubmit, isLoading }: WebsiteUrlFormProps) {
     }
 
     // Clean the domain input (remove any protocol, www, trailing slashes)
-    const cleanDomain = domain.trim()
-      .replace(/^https?:\/\//, '') // Remove protocol
-      .replace(/^www\./, '') // Remove www
-      .replace(/\/$/, ''); // Remove trailing slash
+    const cleanDomain = domain
+      .trim()
+      .replace(/^https?:\/\//, "") // Remove protocol
+      .replace(/^www\./, "") // Remove www
+      .replace(/\/$/, ""); // Remove trailing slash
 
     // Basic domain format validation
-    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+    const domainRegex =
+      /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
     if (!domainRegex.test(cleanDomain)) {
       setError("Please enter a valid domain (e.g., example.com)");
       return;
@@ -45,11 +53,10 @@ export function WebsiteUrlForm({ onSubmit, isLoading }: WebsiteUrlFormProps) {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">
-          Enter your website domain
-        </CardTitle>
+        <CardTitle className="text-xl">Enter your website domain</CardTitle>
         <CardDescription>
-          We&apos;ll analyze your website to create personalized content settings
+          We&apos;ll analyze your website to create personalized content
+          settings
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -64,13 +71,13 @@ export function WebsiteUrlForm({ onSubmit, isLoading }: WebsiteUrlFormProps) {
               type="text"
               placeholder="example.com"
               value={domain}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDomain(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setDomain(e.target.value)
+              }
               disabled={isLoading}
               required
             />
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {error && <p className="text-destructive text-sm">{error}</p>}
           </div>
 
           <Button
@@ -83,9 +90,10 @@ export function WebsiteUrlForm({ onSubmit, isLoading }: WebsiteUrlFormProps) {
           </Button>
         </form>
 
-        <div className="text-center mt-6">
-          <p className="text-xs text-muted-foreground">
-            Don&apos;t have a website? You can set up your content preferences manually later.
+        <div className="mt-6 text-center">
+          <p className="text-muted-foreground text-xs">
+            Don&apos;t have a website? You can set up your content preferences
+            manually later.
           </p>
         </div>
       </CardContent>

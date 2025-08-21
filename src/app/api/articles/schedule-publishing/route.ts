@@ -33,10 +33,7 @@ export async function POST(req: NextRequest) {
     // Get current user from Clerk
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get user record from database
@@ -47,13 +44,10 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const body = await req.json() as unknown;
+    const body = (await req.json()) as unknown;
     const validatedData = schedulePublishingSchema.parse(body);
     const { articleId, publishAt } = validatedData;
 
@@ -75,43 +69,40 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (!existingArticle) {
-      return NextResponse.json(
-        { error: 'Article not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Article not found" }, { status: 404 });
     }
 
     // Verify ownership
     if (existingArticle.user_id !== userRecord.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     // Allow scheduling for articles that are ready to publish:
     // 1. Articles with "wait_for_publish" status
     // 2. Articles with completed generation (status="scheduled" + generationStatus="completed")
-    const isReadyForPublishing = 
+    const isReadyForPublishing =
       existingArticle.status === "wait_for_publish" ||
-      (existingArticle.status === "scheduled" && 
-       existingArticle.generationStatus === "completed" && 
-       existingArticle.generationProgress === 100);
+      (existingArticle.status === "scheduled" &&
+        existingArticle.generationStatus === "completed" &&
+        existingArticle.generationProgress === 100);
 
     if (!isReadyForPublishing) {
       return NextResponse.json(
-        { error: 'Only articles with completed generation can be scheduled for publishing' },
-        { status: 400 }
+        {
+          error:
+            "Only articles with completed generation can be scheduled for publishing",
+        },
+        { status: 400 },
       );
     }
 
     const publishDate = new Date(publishAt);
-    
+
     // Validate future date
     if (publishDate <= new Date()) {
       return NextResponse.json(
-        { error: 'Publish date must be in the future' },
-        { status: 400 }
+        { error: "Publish date must be in the future" },
+        { status: 400 },
       );
     }
 
@@ -128,8 +119,8 @@ export async function POST(req: NextRequest) {
 
     if (!updatedArticle) {
       return NextResponse.json(
-        { error: 'Failed to update article' },
-        { status: 500 }
+        { error: "Failed to update article" },
+        { status: 500 },
       );
     }
 
@@ -139,24 +130,24 @@ export async function POST(req: NextRequest) {
         id: updatedArticle.id,
         title: updatedArticle.title,
         status: updatedArticle.status,
-        publishScheduledAt: updatedArticle.publishScheduledAt?.toISOString() ?? "",
+        publishScheduledAt:
+          updatedArticle.publishScheduledAt?.toISOString() ?? "",
       },
       message: "Article scheduled for publishing successfully",
     } as SchedulePublishingResponse);
-
   } catch (error) {
     console.error("Schedule publishing error:", error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
+        { error: "Invalid request data", details: error.errors },
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
-      { error: 'Failed to schedule publishing' },
-      { status: 500 }
+      { error: "Failed to schedule publishing" },
+      { status: 500 },
     );
   }
 }

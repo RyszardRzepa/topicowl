@@ -1,14 +1,22 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, Target, Layers, Link, TrendingUp, FileText } from 'lucide-react';
-import { StrategyExport } from './strategy-export';
+import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  ChevronDown,
+  ChevronRight,
+  Target,
+  Layers,
+  Link,
+  TrendingUp,
+  FileText,
+} from "lucide-react";
+import { StrategyExport } from "./strategy-export";
 
 interface StrategyReportProps {
   strategy: string;
@@ -37,8 +45,14 @@ interface ParsedStrategy {
   strategicValue: string[];
 }
 
-export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReportProps) {
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+export function StrategyReport({
+  strategy,
+  sources,
+  websiteUrl,
+}: StrategyReportProps) {
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({
     pillar: true,
     clusters: true,
     linking: false,
@@ -47,94 +61,97 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
   });
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: !prev[section],
     }));
   };
 
   const parseStrategy = (strategyText: string): ParsedStrategy => {
-    const lines = strategyText.split('\n');
-    
+    const lines = strategyText.split("\n");
+
     const parsed: ParsedStrategy = {
       pillarTopic: {
-        title: '',
-        keyword: '',
-        description: ''
+        title: "",
+        keyword: "",
+        description: "",
       },
       clusterCategories: [],
       linkingStrategy: [],
-      strategicValue: []
+      strategicValue: [],
     };
 
-    let currentSection = '';
-    let currentCategory = '';
+    let currentSection = "";
+    let currentCategory = "";
     let currentCategoryTopics: Array<{ title: string; keyword: string }> = [];
     let pillarContent: string[] = [];
     let linkingContent: string[] = [];
     let valueContent: string[] = [];
 
     for (const currentLine of lines) {
-      const line = currentLine ?? '';
+      const line = currentLine ?? "";
       const trimmedLine = line.trim();
-      
+
       // Skip empty lines
       if (!trimmedLine) continue;
-      
+
       // Detect main sections (more flexible matching)
       if (/🎯.*PILLAR|PILLAR.*TOPIC/i.exec(trimmedLine)) {
-        currentSection = 'pillar';
+        currentSection = "pillar";
         pillarContent = [];
         continue;
       }
       if (/🗂.*CLUSTER|CLUSTER.*ARTICLES/i.exec(trimmedLine)) {
-        currentSection = 'clusters';
+        currentSection = "clusters";
         // Process collected pillar content
         if (pillarContent.length > 0) {
-          const pillarText = pillarContent.join('\n');
+          const pillarText = pillarContent.join("\n");
           // Extract title from quotes or bold text
-          const titleMatch = /"([^"]+)"|'([^']+)'|\*\*([^*]+)\*\*/.exec(pillarText);
+          const titleMatch = /"([^"]+)"|'([^']+)'|\*\*([^*]+)\*\*/.exec(
+            pillarText,
+          );
           if (titleMatch) {
-            parsed.pillarTopic.title = titleMatch[1] ?? titleMatch[2] ?? titleMatch[3] ?? '';
+            parsed.pillarTopic.title =
+              titleMatch[1] ?? titleMatch[2] ?? titleMatch[3] ?? "";
           }
           // Extract keyword
           const keywordMatch = /keyword[:\s]*([^\n]+)/i.exec(pillarText);
           if (keywordMatch) {
-            parsed.pillarTopic.keyword = keywordMatch[1]?.trim() ?? '';
+            parsed.pillarTopic.keyword = keywordMatch[1]?.trim() ?? "";
           }
           parsed.pillarTopic.description = pillarText;
         }
         continue;
       }
       if (/🔗.*LINKING|LINKING.*STRUCTURE/i.exec(trimmedLine)) {
-        currentSection = 'linking';
+        currentSection = "linking";
         linkingContent = [];
         continue;
       }
       if (/📈.*STRATEGIC|STRATEGIC.*VALUE/i.exec(trimmedLine)) {
-        currentSection = 'value';
+        currentSection = "value";
         valueContent = [];
         continue;
       }
 
       // Collect content based on current section
-      if (currentSection === 'pillar') {
+      if (currentSection === "pillar") {
         pillarContent.push(line);
-      } else if (currentSection === 'clusters') {
+      } else if (currentSection === "clusters") {
         // Look for category headers (lines with colons)
         if (/^[-*]\s*([^:]+):\s*(\d+[-–]\d+|$)/.exec(trimmedLine)) {
           // Save previous category
           if (currentCategory && currentCategoryTopics.length > 0) {
             parsed.clusterCategories.push({
               category: currentCategory,
-              topics: [...currentCategoryTopics]
+              topics: [...currentCategoryTopics],
             });
           }
           // Start new category
           const categoryMatch = /^[-*]\s*([^:]+):/.exec(trimmedLine);
-          currentCategory = categoryMatch?.[1]?.trim() ?? '';
+          currentCategory = categoryMatch?.[1]?.trim() ?? "";
           currentCategoryTopics = [];
-        } 
+        }
         // Look for cluster topics (indented items)
         else if (/^\s+[-*]\s+(.+)/.exec(trimmedLine)) {
           const topicMatch = /^\s+[-*]\s+(.+)/.exec(trimmedLine);
@@ -142,34 +159,37 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
             const topicText = topicMatch[1].trim();
             currentCategoryTopics.push({
               title: topicText,
-              keyword: topicText.toLowerCase()
+              keyword: topicText.toLowerCase(),
             });
           }
         }
         // Also catch direct bullet points that might be cluster topics
-        else if ((/^[-*]\s+(.+)/.exec(trimmedLine)) && !trimmedLine.includes(':')) {
+        else if (
+          /^[-*]\s+(.+)/.exec(trimmedLine) &&
+          !trimmedLine.includes(":")
+        ) {
           const topicMatch = /^[-*]\s+(.+)/.exec(trimmedLine);
           if (topicMatch?.[1] && !currentCategory) {
             // If no category set, create a default one
             if (!currentCategory) {
-              currentCategory = 'Cluster Topics';
+              currentCategory = "Cluster Topics";
             }
             const topicText = topicMatch[1].trim();
             currentCategoryTopics.push({
               title: topicText,
-              keyword: topicText.toLowerCase()
+              keyword: topicText.toLowerCase(),
             });
           }
         }
-      } else if (currentSection === 'linking') {
+      } else if (currentSection === "linking") {
         linkingContent.push(line);
-        if (trimmedLine.startsWith('-') || trimmedLine.startsWith('*')) {
-          parsed.linkingStrategy.push(trimmedLine.replace(/^[-*]\s*/, ''));
+        if (trimmedLine.startsWith("-") || trimmedLine.startsWith("*")) {
+          parsed.linkingStrategy.push(trimmedLine.replace(/^[-*]\s*/, ""));
         }
-      } else if (currentSection === 'value') {
+      } else if (currentSection === "value") {
         valueContent.push(line);
-        if (trimmedLine.startsWith('-') || trimmedLine.startsWith('*')) {
-          parsed.strategicValue.push(trimmedLine.replace(/^[-*]\s*/, ''));
+        if (trimmedLine.startsWith("-") || trimmedLine.startsWith("*")) {
+          parsed.strategicValue.push(trimmedLine.replace(/^[-*]\s*/, ""));
         }
       }
     }
@@ -178,7 +198,7 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
     if (currentCategory && currentCategoryTopics.length > 0) {
       parsed.clusterCategories.push({
         category: currentCategory,
-        topics: [...currentCategoryTopics]
+        topics: [...currentCategoryTopics],
       });
     }
 
@@ -188,13 +208,13 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
       const clusterMatches = strategyText.match(/[-*]\s+[^:\n]+(?:\n|$)/g);
       if (clusterMatches && clusterMatches.length > 3) {
         // Create a single category with all found topics
-        const topics = clusterMatches.map(match => {
-          const text = match.replace(/^[-*]\s+/, '').trim();
+        const topics = clusterMatches.map((match) => {
+          const text = match.replace(/^[-*]\s+/, "").trim();
           return { title: text, keyword: text.toLowerCase() };
         });
         parsed.clusterCategories.push({
-          category: 'Cluster Topics',
-          topics: topics
+          category: "Cluster Topics",
+          topics: topics,
         });
       }
     }
@@ -206,7 +226,10 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
 
   const highlightKeywords = (text: string) => {
     // Simple keyword highlighting - look for quoted text or capitalized phrases
-    return text.replace(/["']([^"']+)["']/g, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
+    return text.replace(
+      /["']([^"']+)["']/g,
+      '<mark class="bg-yellow-200 px-1 rounded">$1</mark>',
+    );
   };
 
   return (
@@ -222,9 +245,13 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => toggleSection('pillar')}
+              onClick={() => toggleSection("pillar")}
             >
-              {expandedSections.pillar ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              {expandedSections.pillar ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </CardHeader>
@@ -232,15 +259,20 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
           <CardContent className="space-y-4">
             {parsedStrategy.pillarTopic.title && (
               <div>
-                <h4 className="font-semibold text-lg mb-2">Recommended Pillar Article</h4>
-                <p className="text-lg font-medium text-blue-700" dangerouslySetInnerHTML={{ 
-                  __html: highlightKeywords(parsedStrategy.pillarTopic.title) 
-                }} />
+                <h4 className="mb-2 text-lg font-semibold">
+                  Recommended Pillar Article
+                </h4>
+                <p
+                  className="text-lg font-medium text-blue-700"
+                  dangerouslySetInnerHTML={{
+                    __html: highlightKeywords(parsedStrategy.pillarTopic.title),
+                  }}
+                />
               </div>
             )}
             {parsedStrategy.pillarTopic.keyword && (
               <div>
-                <h4 className="font-semibold mb-2">Target Keyword</h4>
+                <h4 className="mb-2 font-semibold">Target Keyword</h4>
                 <Badge variant="secondary" className="text-sm">
                   {parsedStrategy.pillarTopic.keyword}
                 </Badge>
@@ -248,10 +280,15 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
             )}
             {parsedStrategy.pillarTopic.description && (
               <div>
-                <h4 className="font-semibold mb-2">Strategy Overview</h4>
-                <p className="text-gray-700" dangerouslySetInnerHTML={{ 
-                  __html: highlightKeywords(parsedStrategy.pillarTopic.description.trim()) 
-                }} />
+                <h4 className="mb-2 font-semibold">Strategy Overview</h4>
+                <p
+                  className="text-gray-700"
+                  dangerouslySetInnerHTML={{
+                    __html: highlightKeywords(
+                      parsedStrategy.pillarTopic.description.trim(),
+                    ),
+                  }}
+                />
               </div>
             )}
           </CardContent>
@@ -265,14 +302,24 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
             <div className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-green-600" />
               <CardTitle className="text-xl">Cluster Articles</CardTitle>
-              <Badge variant="outline">{parsedStrategy.clusterCategories.reduce((acc, cat) => acc + cat.topics.length, 0)} topics</Badge>
+              <Badge variant="outline">
+                {parsedStrategy.clusterCategories.reduce(
+                  (acc, cat) => acc + cat.topics.length,
+                  0,
+                )}{" "}
+                topics
+              </Badge>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => toggleSection('clusters')}
+              onClick={() => toggleSection("clusters")}
             >
-              {expandedSections.clusters ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              {expandedSections.clusters ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </CardHeader>
@@ -281,16 +328,19 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
             <div className="grid gap-6 md:grid-cols-2">
               {parsedStrategy.clusterCategories.map((category, index) => (
                 <div key={index} className="space-y-3">
-                  <h4 className="font-semibold text-lg text-green-700 border-b border-green-200 pb-1">
+                  <h4 className="border-b border-green-200 pb-1 text-lg font-semibold text-green-700">
                     {category.category}
                   </h4>
                   <ul className="space-y-2">
                     {category.topics.map((topic, topicIndex) => (
                       <li key={topicIndex} className="flex items-start gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-                        <span className="text-gray-700" dangerouslySetInnerHTML={{ 
-                          __html: highlightKeywords(topic.title) 
-                        }} />
+                        <div className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-green-500" />
+                        <span
+                          className="text-gray-700"
+                          dangerouslySetInnerHTML={{
+                            __html: highlightKeywords(topic.title),
+                          }}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -313,9 +363,13 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => toggleSection('linking')}
+                onClick={() => toggleSection("linking")}
               >
-                {expandedSections.linking ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                {expandedSections.linking ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </CardHeader>
@@ -324,10 +378,13 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
               <ul className="space-y-3">
                 {parsedStrategy.linkingStrategy.map((item, index) => (
                   <li key={index} className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0" />
-                    <span className="text-gray-700" dangerouslySetInnerHTML={{ 
-                      __html: highlightKeywords(item) 
-                    }} />
+                    <div className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-purple-500" />
+                    <span
+                      className="text-gray-700"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightKeywords(item),
+                      }}
+                    />
                   </li>
                 ))}
               </ul>
@@ -348,9 +405,13 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => toggleSection('value')}
+                onClick={() => toggleSection("value")}
               >
-                {expandedSections.value ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                {expandedSections.value ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </CardHeader>
@@ -359,10 +420,13 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
               <ul className="space-y-3">
                 {parsedStrategy.strategicValue.map((item, index) => (
                   <li key={index} className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0" />
-                    <span className="text-gray-700" dangerouslySetInnerHTML={{ 
-                      __html: highlightKeywords(item) 
-                    }} />
+                    <div className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-orange-500" />
+                    <span
+                      className="text-gray-700"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightKeywords(item),
+                      }}
+                    />
                   </li>
                 ))}
               </ul>
@@ -381,12 +445,12 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
             <ul className="space-y-2">
               {sources.map((source, index) => (
                 <li key={index} className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full flex-shrink-0" />
-                  <a 
-                    href={source.url} 
-                    target="_blank" 
+                  <div className="h-2 w-2 flex-shrink-0 rounded-full bg-gray-400" />
+                  <a
+                    href={source.url}
+                    target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline text-sm truncate"
+                    className="truncate text-sm text-blue-600 hover:underline"
                   >
                     {source.title ?? source.url}
                   </a>
@@ -406,35 +470,79 @@ export function StrategyReport({ strategy, sources, websiteUrl }: StrategyReport
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-gray-600" />
-              <CardTitle className="text-xl">Complete Strategy Report</CardTitle>
+              <CardTitle className="text-xl">
+                Complete Strategy Report
+              </CardTitle>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => toggleSection('full')}
+              onClick={() => toggleSection("full")}
             >
-              {expandedSections.full ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              {expandedSections.full ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </CardHeader>
         {expandedSections.full && (
           <CardContent>
-            <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-900">
+            <div className="prose prose-sm prose-headings:text-gray-900 prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-900 max-w-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
                   // Custom styling for markdown elements
-                  h1: ({ children }) => <h1 className="text-2xl font-bold text-gray-900 mb-4">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-xl font-semibold text-gray-900 mb-3 mt-6">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-lg font-semibold text-gray-900 mb-2 mt-4">{children}</h3>,
-                  ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-4">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-4">{children}</ol>,
-                  li: ({ children }) => <li className="text-gray-700">{children}</li>,
-                  p: ({ children }) => <p className="text-gray-700 mb-3">{children}</p>,
-                  strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                  em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
-                  code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
-                  blockquote: ({ children }) => <blockquote className="border-l-4 border-blue-200 pl-4 italic text-gray-600 my-4">{children}</blockquote>,
+                  h1: ({ children }) => (
+                    <h1 className="mb-4 text-2xl font-bold text-gray-900">
+                      {children}
+                    </h1>
+                  ),
+                  h2: ({ children }) => (
+                    <h2 className="mt-6 mb-3 text-xl font-semibold text-gray-900">
+                      {children}
+                    </h2>
+                  ),
+                  h3: ({ children }) => (
+                    <h3 className="mt-4 mb-2 text-lg font-semibold text-gray-900">
+                      {children}
+                    </h3>
+                  ),
+                  ul: ({ children }) => (
+                    <ul className="mb-4 list-inside list-disc space-y-1">
+                      {children}
+                    </ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol className="mb-4 list-inside list-decimal space-y-1">
+                      {children}
+                    </ol>
+                  ),
+                  li: ({ children }) => (
+                    <li className="text-gray-700">{children}</li>
+                  ),
+                  p: ({ children }) => (
+                    <p className="mb-3 text-gray-700">{children}</p>
+                  ),
+                  strong: ({ children }) => (
+                    <strong className="font-semibold text-gray-900">
+                      {children}
+                    </strong>
+                  ),
+                  em: ({ children }) => (
+                    <em className="text-gray-700 italic">{children}</em>
+                  ),
+                  code: ({ children }) => (
+                    <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-sm">
+                      {children}
+                    </code>
+                  ),
+                  blockquote: ({ children }) => (
+                    <blockquote className="my-4 border-l-4 border-blue-200 pl-4 text-gray-600 italic">
+                      {children}
+                    </blockquote>
+                  ),
                 }}
               >
                 {strategy}

@@ -94,7 +94,9 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
 
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/articles/board?projectId=${currentProject.id}`);
+      const response = await fetch(
+        `/api/articles/board?projectId=${currentProject.id}`,
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch kanban board");
       }
@@ -555,7 +557,7 @@ export function KanbanBoard({ className: _className }: KanbanBoardProps) {
     return (
       <div className="flex h-96 items-center justify-center">
         <div className="text-center">
-          <p className="mb-4 text-muted-foreground">
+          <p className="text-muted-foreground mb-4">
             Please select a project to view your articles
           </p>
         </div>

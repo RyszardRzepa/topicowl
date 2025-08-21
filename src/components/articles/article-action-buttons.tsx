@@ -22,7 +22,9 @@ export function ArticleActionButtons({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [showSchedulingUI, setShowSchedulingUI] = useState(false);
-  const [selectedScheduleTime, setSelectedScheduleTime] = useState<Date | undefined>(undefined);
+  const [selectedScheduleTime, setSelectedScheduleTime] = useState<
+    Date | undefined
+  >(undefined);
 
   // Make button text context-aware based on article status
   const getScheduleButtonText = () => {
@@ -41,7 +43,7 @@ export function ArticleActionButtons({
 
   const handleConfirmSchedule = async () => {
     if (!selectedScheduleTime) return;
-    
+
     setIsScheduling(true);
     try {
       let endpoint: string;
@@ -165,8 +167,8 @@ export function ArticleActionButtons({
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <div className="space-y-3">
             <div className="text-sm font-medium text-gray-700">
-              {article.status === "idea" || article.status === "to_generate" 
-                ? "Schedule Generation" 
+              {article.status === "idea" || article.status === "to_generate"
+                ? "Schedule Generation"
                 : "Schedule Publishing"}
             </div>
             <DateTimePicker

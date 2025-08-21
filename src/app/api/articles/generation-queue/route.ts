@@ -45,11 +45,13 @@ async function getNextQueuePosition(userId: string): Promise<number> {
   const maxPositionResult = await db
     .select({ maxPosition: max(generationQueue.queuePosition) })
     .from(generationQueue)
-    .where(and(
-      eq(generationQueue.userId, userId),
-      eq(generationQueue.status, "queued")
-    ));
-  
+    .where(
+      and(
+        eq(generationQueue.userId, userId),
+        eq(generationQueue.status, "queued"),
+      ),
+    );
+
   return (maxPositionResult[0]?.maxPosition ?? -1) + 1;
 }
 
@@ -59,10 +61,7 @@ export async function GET(_req: NextRequest) {
     // Get current user from Clerk
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify user exists in database
@@ -73,10 +72,7 @@ export async function GET(_req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Get generation queue items for this user with article details
@@ -99,20 +95,27 @@ export async function GET(_req: NextRequest) {
       .orderBy(generationQueue.queuePosition, generationQueue.createdAt);
 
     // Find currently processing item
-    const currentlyProcessing = queueItems.find(item => item.status === "processing")?.articleId;
+    const currentlyProcessing = queueItems.find(
+      (item) => item.status === "processing",
+    )?.articleId;
 
     const response: GenerationQueueResponse = {
       success: true,
       data: {
-        articles: queueItems.map(item => ({
+        articles: queueItems.map((item) => ({
           id: item.id,
           articleId: item.articleId,
           title: item.title,
           addedToQueueAt: item.addedToQueueAt.toISOString(),
-          scheduledForDate: item.scheduledForDate?.toISOString() ?? new Date().toISOString(),
+          scheduledForDate:
+            item.scheduledForDate?.toISOString() ?? new Date().toISOString(),
           queuePosition: item.queuePosition ?? 0,
           schedulingType: item.schedulingType as "manual" | "automatic",
-          status: item.status as "queued" | "processing" | "completed" | "failed",
+          status: item.status as
+            | "queued"
+            | "processing"
+            | "completed"
+            | "failed",
           attempts: item.attempts ?? 0,
           errorMessage: item.errorMessage ?? undefined,
         })),
@@ -122,12 +125,11 @@ export async function GET(_req: NextRequest) {
     };
 
     return NextResponse.json(response);
-
   } catch (error) {
-    console.error('Get generation queue error:', error);
+    console.error("Get generation queue error:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch generation queue' },
-      { status: 500 }
+      { error: "Failed to fetch generation queue" },
+      { status: 500 },
     );
   }
 }
@@ -138,10 +140,7 @@ export async function POST(req: NextRequest) {
     // Get current user from Clerk
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify user exists in database
@@ -152,13 +151,10 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const body = await req.json() as unknown;
+    const body = (await req.json()) as unknown;
     const validatedData = addToQueueSchema.parse(body);
     const { articleId, scheduledForDate } = validatedData;
 
@@ -174,13 +170,15 @@ export async function POST(req: NextRequest) {
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (!result) {
       return NextResponse.json(
-        { error: 'Article not found or access denied' },
-        { status: 404 }
+        { error: "Article not found or access denied" },
+        { status: 404 },
       );
     }
 
@@ -189,8 +187,8 @@ export async function POST(req: NextRequest) {
     // Validate the article has required fields
     if (!existingArticle.title && !existingArticle.keywords) {
       return NextResponse.json(
-        { error: 'Article must have title and keywords before being queued' },
-        { status: 400 }
+        { error: "Article must have title and keywords before being queued" },
+        { status: 400 },
       );
     }
 
@@ -198,17 +196,19 @@ export async function POST(req: NextRequest) {
     const [existingQueueItem] = await db
       .select()
       .from(generationQueue)
-      .where(and(
-        eq(generationQueue.articleId, articleId),
-        eq(generationQueue.userId, userRecord.id),
-        eq(generationQueue.status, "queued")
-      ))
+      .where(
+        and(
+          eq(generationQueue.articleId, articleId),
+          eq(generationQueue.userId, userRecord.id),
+          eq(generationQueue.status, "queued"),
+        ),
+      )
       .limit(1);
 
     if (existingQueueItem) {
       return NextResponse.json(
-        { error: 'Article is already in the generation queue' },
-        { status: 400 }
+        { error: "Article is already in the generation queue" },
+        { status: 400 },
       );
     }
 
@@ -222,17 +222,19 @@ export async function POST(req: NextRequest) {
         articleId: articleId,
         userId: userRecord.id,
         projectId: existingArticle.projectId,
-        scheduledForDate: scheduledForDate ? new Date(scheduledForDate) : new Date(),
+        scheduledForDate: scheduledForDate
+          ? new Date(scheduledForDate)
+          : new Date(),
         queuePosition: queuePosition,
-        schedulingType: 'manual', // Manual addition to queue
-        status: 'queued',
+        schedulingType: "manual", // Manual addition to queue
+        status: "queued",
       })
       .returning();
 
     if (!queueItem) {
       return NextResponse.json(
-        { error: 'Failed to add item to queue' },
-        { status: 500 }
+        { error: "Failed to add item to queue" },
+        { status: 500 },
       );
     }
 
@@ -240,7 +242,7 @@ export async function POST(req: NextRequest) {
     const [updatedArticle] = await db
       .update(articles)
       .set({
-        status: 'queued',
+        status: "queued",
         updatedAt: new Date(),
       })
       .where(eq(articles.id, articleId))
@@ -248,8 +250,8 @@ export async function POST(req: NextRequest) {
 
     if (!updatedArticle) {
       return NextResponse.json(
-        { error: 'Failed to update article status' },
-        { status: 500 }
+        { error: "Failed to update article status" },
+        { status: 500 },
       );
     }
 
@@ -263,20 +265,19 @@ export async function POST(req: NextRequest) {
         queuePosition: queueItem.queuePosition,
         addedAt: queueItem.addedToQueueAt.toISOString(),
       },
-      message: 'Article added to generation queue',
+      message: "Article added to generation queue",
     });
-
   } catch (error) {
-    console.error('Add to queue error:', error);
+    console.error("Add to queue error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input data', details: error.errors },
-        { status: 400 }
+        { error: "Invalid input data", details: error.errors },
+        { status: 400 },
       );
     }
     return NextResponse.json(
-      { error: 'Failed to add article to queue' },
-      { status: 500 }
+      { error: "Failed to add article to queue" },
+      { status: 500 },
     );
   }
 }
@@ -287,10 +288,7 @@ export async function DELETE(req: NextRequest) {
     // Get current user from Clerk
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify user exists in database
@@ -301,19 +299,16 @@ export async function DELETE(req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const { searchParams } = new URL(req.url);
-    const queueItemIdParam = searchParams.get('queueItemId');
-    
+    const queueItemIdParam = searchParams.get("queueItemId");
+
     if (!queueItemIdParam) {
       return NextResponse.json(
-        { error: 'Queue item ID is required' },
-        { status: 400 }
+        { error: "Queue item ID is required" },
+        { status: 400 },
       );
     }
 
@@ -331,30 +326,33 @@ export async function DELETE(req: NextRequest) {
       })
       .from(generationQueue)
       .innerJoin(projects, eq(generationQueue.projectId, projects.id))
-      .where(and(eq(generationQueue.id, queueItemId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(
+          eq(generationQueue.id, queueItemId),
+          eq(projects.userId, userRecord.id),
+        ),
+      )
       .limit(1);
 
     if (!result) {
       return NextResponse.json(
-        { error: 'Queue item not found or access denied' },
-        { status: 404 }
+        { error: "Queue item not found or access denied" },
+        { status: 404 },
       );
     }
 
     const existingQueueItem = result;
 
     // Don't allow removing if currently processing
-    if (existingQueueItem.status === 'processing') {
+    if (existingQueueItem.status === "processing") {
       return NextResponse.json(
-        { error: 'Cannot remove article while it is being processed' },
-        { status: 400 }
+        { error: "Cannot remove article while it is being processed" },
+        { status: 400 },
       );
     }
 
     // Remove from queue
-    await db
-      .delete(generationQueue)
-      .where(eq(generationQueue.id, queueItemId));
+    await db.delete(generationQueue).where(eq(generationQueue.id, queueItemId));
 
     // Update article status back to scheduled or idea
     const [article] = await db
@@ -382,10 +380,12 @@ export async function DELETE(req: NextRequest) {
     const remainingItems = await db
       .select()
       .from(generationQueue)
-      .where(and(
-        eq(generationQueue.userId, userRecord.id),
-        eq(generationQueue.status, "queued")
-      ))
+      .where(
+        and(
+          eq(generationQueue.userId, userRecord.id),
+          eq(generationQueue.status, "queued"),
+        ),
+      )
       .orderBy(generationQueue.queuePosition);
 
     // Update positions to be sequential
@@ -400,14 +400,13 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Article removed from generation queue',
+      message: "Article removed from generation queue",
     });
-
   } catch (error) {
-    console.error('Remove from queue error:', error);
+    console.error("Remove from queue error:", error);
     return NextResponse.json(
-      { error: 'Failed to remove article from queue' },
-      { status: 500 }
+      { error: "Failed to remove article from queue" },
+      { status: 500 },
     );
   }
 }

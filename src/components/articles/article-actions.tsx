@@ -1,54 +1,54 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Calendar, Trash2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { Calendar, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 // Import colocated types from API routes for type safety
-import type { SchedulePublishingRequest } from '@/app/api/articles/schedule-publishing/route';
-import type { ArticleDetailResponse } from '@/app/api/articles/[id]/route';
+import type { SchedulePublishingRequest } from "@/app/api/articles/schedule-publishing/route";
+import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 
 interface ArticleActionsProps {
-  article: ArticleDetailResponse['data'];
+  article: ArticleDetailResponse["data"];
   onEdit: () => void;
   onStatusChange?: (newStatus: string) => void;
   className?: string;
 }
 
-export function ArticleActions({ 
-  article, 
-  onEdit: _onEdit, 
+export function ArticleActions({
+  article,
+  onEdit: _onEdit,
   onStatusChange,
-  className = '' 
+  className = "",
 }: ArticleActionsProps) {
   const [isScheduling, setIsScheduling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledDate, setScheduledDate] = useState("");
   const router = useRouter();
 
   const handleSchedule = async () => {
     if (!scheduledDate) {
-      toast.error('Please select a date and time for scheduling.');
+      toast.error("Please select a date and time for scheduling.");
       return;
     }
 
     setIsScheduling(true);
     try {
-      const response = await fetch('/api/articles/schedule-publishing', {
-        method: 'POST',
+      const response = await fetch("/api/articles/schedule-publishing", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           articleId: article.id,
@@ -56,19 +56,22 @@ export function ArticleActions({
         } as SchedulePublishingRequest),
       });
 
-      const result = await response.json() as { success: boolean; error?: string };
-      
+      const result = (await response.json()) as {
+        success: boolean;
+        error?: string;
+      };
+
       if (result.success) {
-        onStatusChange?.('wait_for_publish');
+        onStatusChange?.("wait_for_publish");
         setShowScheduleDialog(false);
-        setScheduledDate('');
-        toast.success('Article scheduled successfully!');
+        setScheduledDate("");
+        toast.success("Article scheduled successfully!");
       } else {
-        throw new Error(result.error ?? 'Failed to schedule article');
+        throw new Error(result.error ?? "Failed to schedule article");
       }
     } catch (error) {
-      console.error('Scheduling error:', error);
-      toast.error('Failed to schedule article. Please try again.');
+      console.error("Scheduling error:", error);
+      toast.error("Failed to schedule article. Please try again.");
     } finally {
       setIsScheduling(false);
     }
@@ -78,36 +81,37 @@ export function ArticleActions({
     setIsDeleting(true);
     try {
       const response = await fetch(`/api/articles/${article.id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
-      const result = await response.json() as { success: boolean; error?: string };
-      
+      const result = (await response.json()) as {
+        success: boolean;
+        error?: string;
+      };
+
       if (result.success) {
-        toast.success('Article deleted successfully!');
+        toast.success("Article deleted successfully!");
         // Navigate back to kanban board
-        router.push('/');
+        router.push("/");
       } else {
-        throw new Error(result.error ?? 'Failed to delete article');
+        throw new Error(result.error ?? "Failed to delete article");
       }
     } catch (error) {
-      console.error('Delete error:', error);
-      toast.error('Failed to delete article. Please try again.');
+      console.error("Delete error:", error);
+      toast.error("Failed to delete article. Please try again.");
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
   };
 
-  const canSchedule = article.status === 'wait_for_publish' || (article.draft && article.status !== 'generating');
+  const canSchedule =
+    article.status === "wait_for_publish" ||
+    (article.draft && article.status !== "generating");
 
   return (
     <>
       <div className={`flex flex-wrap gap-2 ${className}`}>
-       
-
-      
-
         <Button
           onClick={() => setShowScheduleDialog(true)}
           disabled={!canSchedule || isScheduling}
@@ -127,7 +131,7 @@ export function ArticleActions({
           className="flex items-center gap-2"
         >
           <Trash2 className="h-4 w-4" />
-          {isDeleting ? 'Deleting...' : 'Delete'}
+          {isDeleting ? "Deleting..." : "Delete"}
         </Button>
       </div>
 
@@ -137,10 +141,11 @@ export function ArticleActions({
           <DialogHeader>
             <DialogTitle>Delete Article</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete &ldquo;{article.title}&rdquo;? This action cannot be undone.
+              Are you sure you want to delete &ldquo;{article.title}&rdquo;?
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex gap-3 justify-end mt-6">
+          <div className="mt-6 flex justify-end gap-3">
             <Button
               onClick={() => setShowDeleteConfirm(false)}
               variant="outline"
@@ -155,7 +160,7 @@ export function ArticleActions({
               size="sm"
               disabled={isDeleting}
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </div>
         </DialogContent>
@@ -171,7 +176,10 @@ export function ArticleActions({
             </DialogDescription>
           </DialogHeader>
           <div className="mb-6">
-            <label htmlFor="scheduledDate" className="block text-sm font-medium mb-2">
+            <label
+              htmlFor="scheduledDate"
+              className="mb-2 block text-sm font-medium"
+            >
               Publication Date & Time
             </label>
             <input
@@ -179,15 +187,15 @@ export function ArticleActions({
               type="datetime-local"
               value={scheduledDate}
               onChange={(e) => setScheduledDate(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              className="border-input focus:ring-ring w-full rounded-md border px-3 py-2 focus:border-transparent focus:ring-2 focus:outline-none"
               min={new Date().toISOString().slice(0, 16)}
             />
           </div>
-          <div className="flex gap-3 justify-end">
+          <div className="flex justify-end gap-3">
             <Button
               onClick={() => {
                 setShowScheduleDialog(false);
-                setScheduledDate('');
+                setScheduledDate("");
               }}
               variant="outline"
               size="sm"
@@ -201,7 +209,7 @@ export function ArticleActions({
               size="sm"
               disabled={isScheduling || !scheduledDate}
             >
-              {isScheduling ? 'Scheduling...' : 'Schedule'}
+              {isScheduling ? "Scheduling..." : "Schedule"}
             </Button>
           </div>
         </DialogContent>

@@ -14,7 +14,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { StatusIndicator, formatRelativeTime } from "./status-indicator";
-import { Play, Calendar, Edit3, Trash2, Check, X, Clock, Loader2 } from "lucide-react";
+import {
+  Play,
+  Calendar,
+  Edit3,
+  Trash2,
+  Check,
+  X,
+  Clock,
+  Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import type { Article, WorkflowPhase } from "@/types";
@@ -190,7 +199,7 @@ export function ArticleCard({
   const canEdit =
     mode === "planning" &&
     (article.status === "idea" || article.status === "to_generate");
-  const canDelete = 
+  const canDelete =
     (mode === "planning" && article.status === "idea") ||
     (mode === "publishing" && article.status === "wait_for_publish");
   const canGenerate =

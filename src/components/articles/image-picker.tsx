@@ -3,19 +3,27 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Search, Loader2, Check } from "lucide-react";
 import Image from "next/image";
-import type { ImageSearchResponse, CombinedImage } from "@/lib/services/image-selection-service";
+import type {
+  ImageSearchResponse,
+  CombinedImage,
+} from "@/lib/services/image-selection-service";
 
 interface ImagePickerProps {
   onImageSelect: (image: CombinedImage) => void;
   selectedImageId?: string | number;
 }
 
-export function ImagePicker({ 
-  onImageSelect, 
-  selectedImageId 
+export function ImagePicker({
+  onImageSelect,
+  selectedImageId,
 }: ImagePickerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -43,7 +51,7 @@ export function ImagePicker({
         throw new Error("Failed to search images");
       }
 
-      const data = await response.json() as ImageSearchResponse;
+      const data = (await response.json()) as ImageSearchResponse;
       if (data.success) {
         setImages(data.data.images);
         setSearchPerformed(true);
@@ -65,143 +73,161 @@ export function ImagePicker({
   return (
     <TooltipProvider>
       <div className="space-y-4">
-      {/* Search Input */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Search for images (e.g., 'technology', 'business meeting', 'nature')"
-            className="pl-10"
-            disabled={isSearching}
-          />
+        {/* Search Input */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Search for images (e.g., 'technology', 'business meeting', 'nature')"
+              className="pl-10"
+              disabled={isSearching}
+            />
+          </div>
+          <Button
+            onClick={handleSearch}
+            disabled={isSearching || !searchQuery.trim()}
+            size="default"
+          >
+            {isSearching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+          </Button>
         </div>
-        <Button 
-          onClick={handleSearch} 
-          disabled={isSearching || !searchQuery.trim()}
-          size="default"
-        >
-          {isSearching ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Search className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
 
-      {/* Search Results */}
-      {searchPerformed && (
-        <div>
-          {images.length === 0 ? (
-            <p className="py-8 text-center text-gray-500">
-              No images found. Try a different search term.
-            </p>
-          ) : (
-            <>
-              <p className="mb-3 text-sm text-gray-600">
-                Found {images.length} images. Click to select:
+        {/* Search Results */}
+        {searchPerformed && (
+          <div>
+            {images.length === 0 ? (
+              <p className="py-8 text-center text-gray-500">
+                No images found. Try a different search term.
               </p>
-              <div className="max-h-[400px] overflow-y-auto pr-1">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {images.map((image) => (
-                    <Tooltip key={String(image.id)}>
-                      <TooltipTrigger asChild>
-                        <div
-                          className={`group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all hover:border-blue-400 ${
-                            String(selectedImageId) === String(image.id)
-                              ? "border-blue-500 ring-2 ring-blue-200"
-                              : "border-gray-200"
-                          }`}
-                          onClick={() => onImageSelect(image)}
-                        >
-                          <div className="aspect-video">
-                            <Image
-                              src={image.urls.small}
-                              alt={image.altDescription ?? image.description ?? "Stock image"}
-                              width={400}
-                              height={300}
-                              className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                              unoptimized
-                            />
+            ) : (
+              <>
+                <p className="mb-3 text-sm text-gray-600">
+                  Found {images.length} images. Click to select:
+                </p>
+                <div className="max-h-[400px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {images.map((image) => (
+                      <Tooltip key={String(image.id)}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={`group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all hover:border-blue-400 ${
+                              String(selectedImageId) === String(image.id)
+                                ? "border-blue-500 ring-2 ring-blue-200"
+                                : "border-gray-200"
+                            }`}
+                            onClick={() => onImageSelect(image)}
+                          >
+                            <div className="aspect-video">
+                              <Image
+                                src={image.urls.small}
+                                alt={
+                                  image.altDescription ??
+                                  image.description ??
+                                  "Stock image"
+                                }
+                                width={400}
+                                height={300}
+                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                unoptimized
+                              />
+                            </div>
+                            {/* Selection indicator */}
+                            {String(selectedImageId) === String(image.id) && (
+                              <div className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                                <Check className="h-4 w-4" />
+                              </div>
+                            )}
+                            {/* Image info overlay */}
+                            <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                              <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                                by {image.user.name}
+                                {image.source === "unsplash" && " on Unsplash"}
+                                {image.source === "pexels" && " on Pexels"}
+                              </p>
+                            </div>
                           </div>
-                          {/* Selection indicator */}
-                          {String(selectedImageId) === String(image.id) && (
-                            <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
-                              <Check className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm" side="top">
+                          <div className="space-y-2">
+                            {image.description && (
+                              <div>
+                                <p className="text-sm font-medium">
+                                  Description:
+                                </p>
+                                <p className="text-muted-foreground text-xs">
+                                  {image.description}
+                                </p>
+                              </div>
+                            )}
+                            {image.altDescription &&
+                              image.altDescription !== image.description && (
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    Alt text:
+                                  </p>
+                                  <p className="text-muted-foreground text-xs">
+                                    {image.altDescription}
+                                  </p>
+                                </div>
+                              )}
+                            <div>
+                              <p className="text-sm font-medium">Source:</p>
+                              <p className="text-muted-foreground text-xs">
+                                Photo by {image.user.name} on{" "}
+                                {image.source === "unsplash"
+                                  ? "Unsplash"
+                                  : "Pexels"}
+                              </p>
                             </div>
-                          )}
-                          {/* Image info overlay */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                            <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                              by {image.user.name}
-                              {image.source === 'unsplash' && ' on Unsplash'}
-                              {image.source === 'pexels' && ' on Pexels'}
-                            </p>
+                            {image.likes !== undefined && (
+                              <div>
+                                <p className="text-sm font-medium">Likes:</p>
+                                <p className="text-muted-foreground text-xs">
+                                  {image.likes.toLocaleString()}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-sm" side="top">
-                        <div className="space-y-2">
-                          {image.description && (
-                            <div>
-                              <p className="font-medium text-sm">Description:</p>
-                              <p className="text-xs text-muted-foreground">{image.description}</p>
-                            </div>
-                          )}
-                          {image.altDescription && image.altDescription !== image.description && (
-                            <div>
-                              <p className="font-medium text-sm">Alt text:</p>
-                              <p className="text-xs text-muted-foreground">{image.altDescription}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-medium text-sm">Source:</p>
-                            <p className="text-xs text-muted-foreground">
-                              Photo by {image.user.name} on {image.source === 'unsplash' ? 'Unsplash' : 'Pexels'}
-                            </p>
-                          </div>
-                          {image.likes !== undefined && (
-                            <div>
-                              <p className="font-medium text-sm">Likes:</p>
-                              <p className="text-xs text-muted-foreground">{image.likes.toLocaleString()}</p>
-                            </div>
-                          )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+              </>
+            )}
+          </div>
+        )}
 
-      {/* Attribution notice */}
-      {images.length > 0 && (
-        <p className="text-xs text-gray-500">
-          Images provided by{" "}
-          <a
-            href="https://unsplash.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-gray-700"
-          >
-            Unsplash
-          </a>
-          {" "}and{" "}
-          <a
-            href="https://pexels.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-gray-700"
-          >
-            Pexels
-          </a>
-        </p>
-      )}
+        {/* Attribution notice */}
+        {images.length > 0 && (
+          <p className="text-xs text-gray-500">
+            Images provided by{" "}
+            <a
+              href="https://unsplash.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              Unsplash
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://pexels.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-700"
+            >
+              Pexels
+            </a>
+          </p>
+        )}
       </div>
     </TooltipProvider>
   );

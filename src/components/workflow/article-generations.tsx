@@ -9,7 +9,10 @@ interface ArticleGenerationsProps {
   articles: Article[];
   onCancelGeneration?: (articleId: string) => void;
   onRetryGeneration?: (articleId: string) => void;
-  onScheduleGeneration?: (articleId: string, scheduledAt: Date) => Promise<void>;
+  onScheduleGeneration?: (
+    articleId: string,
+    scheduledAt: Date,
+  ) => Promise<void>;
   onNavigateToArticle?: (articleId: string) => void;
   onRefresh?: () => void;
   onUpdateArticleStatus?: (
@@ -28,16 +31,21 @@ export function ArticleGenerations({
   onUpdateArticleStatus,
 }: ArticleGenerationsProps) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [generatingArticleIds, setGeneratingArticleIds] = useState<Set<string>>(new Set());
+  const [generatingArticleIds, setGeneratingArticleIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Wrapper function to convert onUpdateArticleStatus to the format expected by ArticleCard
-  const handleUpdateArticle = async (articleId: string, updates: Partial<Article>) => {
+  const handleUpdateArticle = async (
+    articleId: string,
+    updates: Partial<Article>,
+  ) => {
     if (onUpdateArticleStatus) {
       onUpdateArticleStatus(articleId, updates);
     }
   };
 
-  // Wrapper function to convert onRetryGeneration to the format expected by ArticleCard  
+  // Wrapper function to convert onRetryGeneration to the format expected by ArticleCard
   const handleGenerateArticle = async (articleId: string) => {
     setGeneratingArticleIds((prev) => new Set(prev).add(articleId));
     try {
@@ -76,7 +84,8 @@ export function ArticleGenerations({
                   `/api/articles/${article.id}/generation-status`,
                 );
                 if (response.ok) {
-                  const statusData = await response.json() as GenerationStatus;
+                  const statusData =
+                    (await response.json()) as GenerationStatus;
                   return { articleId: article.id, statusData };
                 }
               } catch (error) {
@@ -162,15 +171,15 @@ export function ArticleGenerations({
     (article) => article.status === "generating",
   );
   const scheduledArticles = articles.filter(
-    (article) => article.status === "to_generate" && article.generationScheduledAt,
+    (article) =>
+      article.status === "to_generate" && article.generationScheduledAt,
   );
   const completedArticles = articles.filter(
-    (article) => article.status === "wait_for_publish" || 
-    (article.generationProgress === 100 && !article.generationError),
+    (article) =>
+      article.status === "wait_for_publish" ||
+      (article.generationProgress === 100 && !article.generationError),
   );
-  const failedArticles = articles.filter(
-    (article) => article.generationError,
-  );
+  const failedArticles = articles.filter((article) => article.generationError);
 
   return (
     <div
@@ -182,10 +191,8 @@ export function ArticleGenerations({
       {/* Header with actions */}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <h2 className="text-xl font-semibold">
-            Article Generations
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className="text-xl font-semibold">Article Generations</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
             Monitor and manage article generation progress
           </p>
         </div>
@@ -291,7 +298,7 @@ export function ArticleGenerations({
               <h3 className="mb-2 text-lg font-medium">
                 No generations in progress
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Articles you generate will appear here
               </p>
             </div>

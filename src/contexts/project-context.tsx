@@ -39,7 +39,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
-  const projectChangeCallbacksRef = useRef<Set<(project: Project | null) => void>>(new Set());
+  const projectChangeCallbacksRef = useRef<
+    Set<(project: Project | null) => void>
+  >(new Set());
 
   // Get stored project ID from localStorage
   const getStoredProjectId = (): number | null => {
@@ -61,36 +63,41 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       try {
         callback(project);
       } catch (error) {
-        console.error('Error in project change callback:', error);
+        console.error("Error in project change callback:", error);
       }
     });
   };
 
   // Register/unregister project change listeners
-  const onProjectChange = useCallback((callback: (project: Project | null) => void) => {
-    projectChangeCallbacksRef.current.add(callback);
-    
-    // Return cleanup function
-    return () => {
-      projectChangeCallbacksRef.current.delete(callback);
-    };
-  }, []);
+  const onProjectChange = useCallback(
+    (callback: (project: Project | null) => void) => {
+      projectChangeCallbacksRef.current.add(callback);
+
+      // Return cleanup function
+      return () => {
+        projectChangeCallbacksRef.current.delete(callback);
+      };
+    },
+    [],
+  );
 
   // Load projects from API
   const loadProjects = useCallback(async (): Promise<Project[]> => {
     try {
       const response = await fetch("/api/projects");
-      
+
       if (!response.ok) {
         if (response.status >= 500) {
-          throw new Error("Server error occurred. Please try again in a few moments.");
+          throw new Error(
+            "Server error occurred. Please try again in a few moments.",
+          );
         } else if (response.status === 401) {
           throw new Error("Authentication required. Please sign in again.");
         } else {
           throw new Error(`Failed to fetch projects: ${response.status}`);
         }
       }
-      
+
       const data = (await response.json()) as ApiResponse<Project[]>;
 
       if (!data.success || !data.data) {
@@ -99,7 +106,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
       return data.data;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to load projects";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to load projects";
       console.error("Error loading projects:", error);
       setError(errorMessage);
       throw new Error(errorMessage);
@@ -128,10 +136,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (loadedProjects.length > 0) {
           // Try to restore previous selection or use first project
           const storedProjectId = getStoredProjectId();
-          const targetProject = 
-            loadedProjects.find((p) => p.id === storedProjectId) ?? 
+          const targetProject =
+            loadedProjects.find((p) => p.id === storedProjectId) ??
             loadedProjects[0];
-          
+
           if (targetProject) {
             setCurrentProject(targetProject);
             saveProjectPreference(targetProject.id);
@@ -198,15 +206,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     // Optimistically update UI first
     setCurrentProject(targetProject);
     saveProjectPreference(projectId);
-    
+
     // Notify all listeners immediately for instant UI updates
     notifyProjectChange(targetProject);
-    
+
     toast.success(`Switched to ${targetProject.name}`);
   };
 
   const addProject = (project: Project) => {
-    setProjects(prev => [...prev, project]);
+    setProjects((prev) => [...prev, project]);
     if (projects.length === 0 || !currentProject) {
       setCurrentProject(project);
       saveProjectPreference(project.id);
@@ -215,13 +223,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const removeProject = (projectId: number) => {
-    setProjects(prev => prev.filter((p) => p.id !== projectId));
-    
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+
     if (currentProject?.id === projectId) {
       const remainingProjects = projects.filter((p) => p.id !== projectId);
       const defaultProject = remainingProjects[0] ?? null;
       setCurrentProject(defaultProject);
-      
+
       if (defaultProject) {
         saveProjectPreference(defaultProject.id);
       } else if (typeof window !== "undefined") {
@@ -232,9 +240,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const updateProject = (updatedProject: Project) => {
-    setProjects(prev => prev.map((p) =>
-      p.id === updatedProject.id ? updatedProject : p
-    ));
+    setProjects((prev) =>
+      prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+    );
 
     if (currentProject?.id === updatedProject.id) {
       setCurrentProject(updatedProject);

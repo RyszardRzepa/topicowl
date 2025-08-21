@@ -367,9 +367,9 @@ export function useWorkflowArticles() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          articleId: parseInt(articleId), 
-          projectId: parseInt(project) 
+        body: JSON.stringify({
+          articleId: parseInt(articleId),
+          projectId: parseInt(project),
         }),
       });
       if (!response.ok) {
@@ -477,7 +477,11 @@ export function useWorkflowArticles() {
       setArticles((prev) =>
         prev.map((a) =>
           a.id === articleId
-            ? { ...a, publishScheduledAt: undefined, status: "wait_for_publish" }
+            ? {
+                ...a,
+                publishScheduledAt: undefined,
+                status: "wait_for_publish",
+              }
             : a,
         ),
       );
@@ -568,7 +572,7 @@ export function useWorkflowArticles() {
       scheduleGeneration: handleScheduleGeneration,
       publish: handlePublishArticle,
       schedulePublishing: handleSchedulePublishing,
-  cancelPublishSchedule: handleCancelPublishSchedule,
+      cancelPublishSchedule: handleCancelPublishSchedule,
       bulkGenerate: handleBulkGenerate,
       bulkScheduleGeneration: handleBulkScheduleGeneration,
       bulkPublish: handleBulkPublish,

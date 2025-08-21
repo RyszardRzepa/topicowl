@@ -2,7 +2,12 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users, projects } from "@/server/db/schema";
+import {
+  articles,
+  articleGeneration,
+  users,
+  projects,
+} from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
 
@@ -75,12 +80,17 @@ export async function GET(
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (!article) {
       return NextResponse.json(
-        { success: false, error: "Article not found or access denied" } as ApiResponse,
+        {
+          success: false,
+          error: "Article not found or access denied",
+        } as ApiResponse,
         { status: 404 },
       );
     }

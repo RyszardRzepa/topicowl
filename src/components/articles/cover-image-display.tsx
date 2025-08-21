@@ -7,14 +7,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { X, ImageIcon, Edit3, Link, Search } from "lucide-react";
 import Image from "next/image";
 import { ImagePicker } from "./image-picker";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { CombinedImage } from "@/lib/services/image-selection-service";
 
 interface CoverImageDisplayProps {
   coverImageUrl?: string;
   coverImageAlt?: string;
-  onImageUpdate: (imageData: { 
-    coverImageUrl: string; 
+  onImageUpdate: (imageData: {
+    coverImageUrl: string;
     coverImageAlt: string;
   }) => void;
   isLoading?: boolean;
@@ -30,7 +35,9 @@ export function CoverImageDisplay({
   const [tempImageUrl, setTempImageUrl] = useState(coverImageUrl);
   const [tempImageAlt, setTempImageAlt] = useState(coverImageAlt);
   const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
-  const [selectedImage, setSelectedImage] = useState<CombinedImage | null>(null);
+  const [selectedImage, setSelectedImage] = useState<CombinedImage | null>(
+    null,
+  );
 
   const handleSave = () => {
     onImageUpdate({
@@ -61,7 +68,11 @@ export function CoverImageDisplay({
   const handleImageSelect = (image: CombinedImage) => {
     setSelectedImage(image);
     setTempImageUrl(image.urls.regular);
-    setTempImageAlt(image.altDescription ?? image.description ?? `Photo by ${image.user.name}`);
+    setTempImageAlt(
+      image.altDescription ??
+        image.description ??
+        `Photo by ${image.user.name}`,
+    );
   };
 
   if (!coverImageUrl && !isEditing) {
@@ -73,7 +84,9 @@ export function CoverImageDisplay({
               <ImageIcon className="h-12 w-12 text-gray-400" />
             </div>
             <div>
-              <h3 className="text-lg font-medium text-gray-900">No cover image</h3>
+              <h3 className="text-lg font-medium text-gray-900">
+                No cover image
+              </h3>
               <p className="text-sm text-gray-500">
                 Add a cover image to make your article more engaging
               </p>
@@ -95,9 +108,9 @@ export function CoverImageDisplay({
   if (isEditing) {
     return (
       <Card>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="space-y-4 p-6">
           {/* Mode Toggle */}
-          <div className="flex justify-center gap-2 mb-4">
+          <div className="mb-4 flex justify-center gap-2">
             <Button
               type="button"
               variant={imageInputMode === "url" ? "default" : "outline"}
@@ -123,7 +136,7 @@ export function CoverImageDisplay({
               <div>
                 <label
                   htmlFor="coverImageUrl"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="mb-2 block text-sm font-medium text-gray-700"
                 >
                   Image URL
                 </label>
@@ -135,11 +148,11 @@ export function CoverImageDisplay({
                   placeholder="https://example.com/image.jpg"
                 />
               </div>
-              
+
               <div>
                 <label
                   htmlFor="coverImageAlt"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="mb-2 block text-sm font-medium text-gray-700"
                 >
                   Alt Text
                 </label>
@@ -153,20 +166,20 @@ export function CoverImageDisplay({
             </>
           ) : (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="mb-3 block text-sm font-medium text-gray-700">
                 Search Images
               </label>
               <ImagePicker
                 onImageSelect={handleImageSelect}
                 selectedImageId={selectedImage?.id}
               />
-              
+
               {/* Show alt text input for selected image */}
               {selectedImage && (
                 <div className="mt-4">
                   <label
                     htmlFor="coverImageAlt"
-                    className="block text-sm font-medium text-gray-700 mb-2"
+                    className="mb-2 block text-sm font-medium text-gray-700"
                   >
                     Alt Text
                   </label>
@@ -182,13 +195,13 @@ export function CoverImageDisplay({
           )}
 
           {tempImageUrl && (
-            <div className="rounded-lg overflow-hidden border">
+            <div className="overflow-hidden rounded-lg border">
               <Image
                 src={tempImageUrl}
                 alt={tempImageAlt || "Cover image preview"}
                 width={800}
                 height={400}
-                className="w-full h-64 object-cover"
+                className="h-64 w-full object-cover"
                 unoptimized
               />
             </div>
@@ -203,11 +216,7 @@ export function CoverImageDisplay({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={isLoading}
-            >
+            <Button type="button" onClick={handleSave} disabled={isLoading}>
               {isLoading ? "Saving..." : "Save"}
             </Button>
           </div>
@@ -228,50 +237,64 @@ export function CoverImageDisplay({
                   alt={coverImageAlt || "Cover image"}
                   width={800}
                   height={400}
-                  className="w-full h-64 lg:h-80 object-cover cursor-pointer"
+                  className="h-64 w-full cursor-pointer object-cover lg:h-80"
                   unoptimized
                 />
               </TooltipTrigger>
-              {selectedImage && (selectedImage.description ?? selectedImage.altDescription) ? (
+              {selectedImage &&
+              (selectedImage.description ?? selectedImage.altDescription) ? (
                 <TooltipContent className="max-w-sm">
                   <div className="space-y-2">
                     {selectedImage.description && (
                       <div>
-                        <p className="font-medium text-sm">Description:</p>
-                        <p className="text-xs text-muted-foreground">{selectedImage.description}</p>
+                        <p className="text-sm font-medium">Description:</p>
+                        <p className="text-muted-foreground text-xs">
+                          {selectedImage.description}
+                        </p>
                       </div>
                     )}
-                    {selectedImage.altDescription && selectedImage.altDescription !== selectedImage.description && (
-                      <div>
-                        <p className="font-medium text-sm">Alt text:</p>
-                        <p className="text-xs text-muted-foreground">{selectedImage.altDescription}</p>
-                      </div>
-                    )}
+                    {selectedImage.altDescription &&
+                      selectedImage.altDescription !==
+                        selectedImage.description && (
+                        <div>
+                          <p className="text-sm font-medium">Alt text:</p>
+                          <p className="text-muted-foreground text-xs">
+                            {selectedImage.altDescription}
+                          </p>
+                        </div>
+                      )}
                     <div>
-                      <p className="font-medium text-sm">Source:</p>
-                      <p className="text-xs text-muted-foreground">
-                        Photo by {selectedImage.user.name} on {selectedImage.source === 'unsplash' ? 'Unsplash' : 'Pexels'}
+                      <p className="text-sm font-medium">Source:</p>
+                      <p className="text-muted-foreground text-xs">
+                        Photo by {selectedImage.user.name} on{" "}
+                        {selectedImage.source === "unsplash"
+                          ? "Unsplash"
+                          : "Pexels"}
                       </p>
                     </div>
                   </div>
                 </TooltipContent>
-              ) : coverImageAlt && (
-                <TooltipContent className="max-w-sm">
-                  <div>
-                    <p className="font-medium text-sm">Alt text:</p>
-                    <p className="text-xs text-muted-foreground">{coverImageAlt}</p>
-                  </div>
-                </TooltipContent>
+              ) : (
+                coverImageAlt && (
+                  <TooltipContent className="max-w-sm">
+                    <div>
+                      <p className="text-sm font-medium">Alt text:</p>
+                      <p className="text-muted-foreground text-xs">
+                        {coverImageAlt}
+                      </p>
+                    </div>
+                  </TooltipContent>
+                )
               )}
             </Tooltip>
-            
+
             {/* Hover overlay */}
-            <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-3">
+            <div className="bg-opacity-50 absolute inset-0 flex items-center justify-center space-x-3 bg-black opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => setIsEditing(true)}
-                className="bg-white/90 hover:bg-white text-gray-900"
+                className="bg-white/90 text-gray-900 hover:bg-white"
               >
                 <Edit3 className="mr-2 h-4 w-4" />
                 Edit

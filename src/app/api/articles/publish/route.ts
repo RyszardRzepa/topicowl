@@ -2,7 +2,13 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, projects, webhookDeliveries, users } from "@/server/db/schema";
+import {
+  articles,
+  articleGeneration,
+  projects,
+  webhookDeliveries,
+  users,
+} from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
 import crypto from "crypto";
@@ -78,8 +84,8 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
         .where(eq(articleGeneration.articleId, article.id))
         .limit(1);
 
-      relatedArticles = Array.isArray(generationRecord?.relatedArticles) 
-        ? generationRecord.relatedArticles 
+      relatedArticles = Array.isArray(generationRecord?.relatedArticles)
+        ? generationRecord.relatedArticles
         : [];
     } catch (error) {
       console.error("Error fetching related articles for webhook:", error);
@@ -187,7 +193,7 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
         console.log(`Webhook delivered successfully for article ${article.id}`);
       } else {
         errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        
+
         // Set up for retry
         await db
           .update(webhookDeliveries)
@@ -201,11 +207,13 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
           })
           .where(eq(webhookDeliveries.id, webhookDelivery.id));
 
-        console.error(`Webhook delivery failed for article ${article.id}: ${errorMessage}`);
+        console.error(
+          `Webhook delivery failed for article ${article.id}: ${errorMessage}`,
+        );
       }
     } catch (fetchError) {
       const deliveryTime = Date.now() - startTime;
-      
+
       if (fetchError instanceof Error) {
         if (fetchError.name === "AbortError") {
           errorMessage = "Request timeout (30 seconds)";
@@ -225,17 +233,28 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
           status: "retrying",
           deliveryTimeMs: deliveryTime,
           errorMessage: errorMessage,
-          errorDetails: { 
-            error: fetchError instanceof Error ? fetchError.message : "Unknown error" 
+          errorDetails: {
+            error:
+              fetchError instanceof Error
+                ? fetchError.message
+                : "Unknown error",
           },
           nextRetryAt: new Date(Date.now() + 30 * 1000), // Retry in 30 seconds
         })
         .where(eq(webhookDeliveries.id, webhookDelivery.id));
 
-      console.error(`Webhook delivery error for article ${article.id}:`, fetchError);
+      console.error(
+        `Webhook delivery error for article ${article.id}:`,
+        fetchError,
+      );
     }
   } catch (error) {
-    console.error("Error in webhook delivery for article", article.id, ":", error);
+    console.error(
+      "Error in webhook delivery for article",
+      article.id,
+      ":",
+      error,
+    );
   }
 }
 
@@ -246,28 +265,44 @@ export async function POST(req: NextRequest) {
     // Authentication and authorization
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify user exists in database
-    const [userRecord] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId));
     if (!userRecord) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const body = (await req.json().catch(() => ({}))) as { articleId?: number; projectId?: number };
+    const body = (await req.json().catch(() => ({}))) as {
+      articleId?: number;
+      projectId?: number;
+    };
     const { articleId, projectId } = body;
 
     // Require articleId and projectId for manual publishing
     if (!articleId || !projectId) {
-      return NextResponse.json({ error: 'articleId and projectId are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: "articleId and projectId are required" },
+        { status: 400 },
+      );
     }
 
     // Verify project ownership
-    const [projectRecord] = await db.select({ id: projects.id }).from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)));
+    const [projectRecord] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)),
+      );
     if (!projectRecord) {
-      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
+      return NextResponse.json(
+        { error: "Project not found or access denied" },
+        { status: 404 },
+      );
     }
 
     // Get the article and verify ownership
@@ -278,13 +313,16 @@ export async function POST(req: NextRequest) {
       .where(
         and(
           eq(articles.id, articleId),
-          eq(projects.userId, userRecord.id) // Ensure user owns the project
-        )
+          eq(projects.userId, userRecord.id), // Ensure user owns the project
+        ),
       )
       .limit(1);
-    
+
     if (articlesToPublish.length === 0) {
-      return NextResponse.json({ error: 'Article not found or access denied' }, { status: 404 });
+      return NextResponse.json(
+        { error: "Article not found or access denied" },
+        { status: 404 },
+      );
     }
 
     // Extract just the article data
@@ -317,7 +355,9 @@ export async function POST(req: NextRequest) {
       .returning();
 
     if (updatedArticle) {
-      console.log(`Manually published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`);
+      console.log(
+        `Manually published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`,
+      );
 
       // Send webhook with proper tracking
       void deliverWebhook(updatedArticle).catch((error: unknown) => {
@@ -333,10 +373,12 @@ export async function POST(req: NextRequest) {
         success: true,
         data: {
           publishedCount: 1,
-          publishedArticles: [{
-            id: updatedArticle.id.toString(),
-            title: updatedArticle.title,
-          }],
+          publishedArticles: [
+            {
+              id: updatedArticle.id.toString(),
+              title: updatedArticle.title,
+            },
+          ],
         },
         message: "Article published successfully",
       } as ApiResponse);

@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ArrowLeft, Building2, Loader2 } from "lucide-react";
 import { useProject } from "@/contexts/project-context";
 
@@ -40,29 +46,42 @@ export default function NewProjectPage() {
   const [phase, setPhase] = useState<"idle" | "analyzing" | "creating">("idle");
   const [error, setError] = useState("");
   const [domainInput, setDomainInput] = useState(""); // user editable part after https://
-  
 
   // Single flow: analyze then create
   const handleSubmit = async () => {
     setError("");
-    if (!createState.name.trim()) { setError("Project name is required"); return; }
+    if (!createState.name.trim()) {
+      setError("Project name is required");
+      return;
+    }
     const sanitized = sanitizeDomainInput(domainInput);
-    if (!sanitized) { setError("Domain required"); return; }
-    if (!isValidDomain(sanitized)) { setError("Please enter a valid domain (e.g., example.com)"); return; }
+    if (!sanitized) {
+      setError("Domain required");
+      return;
+    }
+    if (!isValidDomain(sanitized)) {
+      setError("Please enter a valid domain (e.g., example.com)");
+      return;
+    }
     const fullUrl = `https://${sanitized}`;
-    setCreateState(s => ({ ...s, websiteUrl: fullUrl }));
+    setCreateState((s) => ({ ...s, websiteUrl: fullUrl }));
 
     setPhase("analyzing");
-  let localAnalysis: AnalysisData | null = null;
+    let localAnalysis: AnalysisData | null = null;
     try {
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "analyze", websiteUrl: fullUrl }),
       });
-      const data = await res.json() as { success?: boolean; data?: AnalysisData; error?: string };
-      if (!res.ok || !data.success || !data.data) throw new Error(data.error ?? "Analysis failed");
-  localAnalysis = data.data;
+      const data = (await res.json()) as {
+        success?: boolean;
+        data?: AnalysisData;
+        error?: string;
+      };
+      if (!res.ok || !data.success || !data.data)
+        throw new Error(data.error ?? "Analysis failed");
+      localAnalysis = data.data;
     } catch (e) {
       setPhase("idle");
       setError(e instanceof Error ? e.message : "Analysis failed");
@@ -82,8 +101,13 @@ export default function NewProjectPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json() as { success?: boolean; data?: { id: number }; error?: string };
-      if (!res.ok || !data.success) throw new Error(data.error ?? "Failed to create project");
+      const data = (await res.json()) as {
+        success?: boolean;
+        data?: { id: number };
+        error?: string;
+      };
+      if (!res.ok || !data.success)
+        throw new Error(data.error ?? "Failed to create project");
       await refreshProjects();
       if (data.data?.id) await switchProject(data.data.id);
       router.push("/dashboard");
@@ -108,23 +132,26 @@ export default function NewProjectPage() {
   function isValidDomain(domain: string): boolean {
     if (!domain) return false;
     // Basic domain validation regex
-    const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-    return domainRegex.test(domain) && domain.includes('.') && domain.length <= 253;
+    const domainRegex =
+      /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    return (
+      domainRegex.test(domain) && domain.includes(".") && domain.length <= 253
+    );
   }
 
   return (
-  <div className="container mx-auto max-w-3xl py-8">
+    <div className="container mx-auto max-w-3xl py-8">
       <div className="mb-6">
         <Button
           variant="ghost"
           onClick={() => router.back()}
-          className="mb-4 p-0 h-auto"
+          className="mb-4 h-auto p-0"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
+          <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
         <div className="flex items-center space-x-3">
-          <Building2 className="h-8 w-8 text-primary" />
+          <Building2 className="text-primary h-8 w-8" />
           <div>
             <h1 className="text-2xl font-bold">Create New Project</h1>
             <p className="text-muted-foreground">
@@ -137,18 +164,25 @@ export default function NewProjectPage() {
       <Card>
         <CardHeader>
           <CardTitle>Project Creation</CardTitle>
-          <CardDescription>Enter your website URL. We&apos;ll analyze it and auto-populate project data.</CardDescription>
+          <CardDescription>
+            Enter your website URL. We&apos;ll analyze it and auto-populate
+            project data.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">{error}</div>
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+              {error}
+            </div>
           )}
           <div className="space-y-2">
             <Label htmlFor="projectName">Project Name *</Label>
             <Input
               id="projectName"
               value={createState.name}
-              onChange={(e) => setCreateState(s => ({ ...s, name: e.target.value }))}
+              onChange={(e) =>
+                setCreateState((s) => ({ ...s, name: e.target.value }))
+              }
               placeholder="My Project"
               required
               disabled={phase !== "idle"}
@@ -156,8 +190,10 @@ export default function NewProjectPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="domain">Website URL *</Label>
-            <div className="flex items-center rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring overflow-hidden">
-              <span className="pl-3 text-sm text-muted-foreground select-none">https://</span>
+            <div className="border-input bg-background focus-within:ring-ring flex items-center overflow-hidden rounded-md border focus-within:ring-2">
+              <span className="text-muted-foreground pl-3 text-sm select-none">
+                https://
+              </span>
               <input
                 id="domain"
                 type="text"
@@ -165,19 +201,43 @@ export default function NewProjectPage() {
                 placeholder="example.com"
                 value={domainInput}
                 onChange={(e) => setDomainInput(e.target.value)}
-        disabled={phase !== "idle"}
+                disabled={phase !== "idle"}
                 required
               />
             </div>
-            <p className="text-xs text-muted-foreground">Enter domain only (no protocol). We fetch and analyze public content (≤30s).</p>
+            <p className="text-muted-foreground text-xs">
+              Enter domain only (no protocol). We fetch and analyze public
+              content (≤30s).
+            </p>
           </div>
-      {/* Preview removed for single-click flow */}
+          {/* Preview removed for single-click flow */}
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => router.back()} disabled={phase !== "idle"}>Cancel</Button>
-            <Button type="button" onClick={handleSubmit} disabled={phase !== "idle" || !createState.name.trim() || !isValidDomain(sanitizeDomainInput(domainInput))}>
-              {phase !== "idle" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {phase === "analyzing" ? "Analyzing..." : phase === "creating" ? "Creating..." : "Create Project"}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={phase !== "idle"}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={
+                phase !== "idle" ||
+                !createState.name.trim() ||
+                !isValidDomain(sanitizeDomainInput(domainInput))
+              }
+            >
+              {phase !== "idle" && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {phase === "analyzing"
+                ? "Analyzing..."
+                : phase === "creating"
+                  ? "Creating..."
+                  : "Create Project"}
             </Button>
           </div>
         </CardContent>

@@ -8,7 +8,12 @@ import { WebsiteUrlForm } from "@/components/onboarding/website-url-form";
 import { OnboardingProgress } from "@/components/onboarding/onboarding-progress";
 import { AIAnalysisPreview } from "@/components/onboarding/ai-analysis-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import type { AnalyzeWebsiteResponse } from "@/app/api/onboarding/analyze-website/route";
 
 type OnboardingStep = "url" | "analyzing" | "review" | "complete";
@@ -58,8 +63,8 @@ export default function OnboardingPage() {
         throw new Error("Failed to analyze website");
       }
 
-      const result = await response.json() as AnalyzeWebsiteResponse;
-      
+      const result = (await response.json()) as AnalyzeWebsiteResponse;
+
       if (result.success && result.data) {
         setAnalysisData(result.data);
         setCurrentStep("review");
@@ -76,7 +81,7 @@ export default function OnboardingPage() {
 
   const handleAnalysisConfirm = async () => {
     if (!analysisData) return;
-    
+
     setIsLoading(true);
     setError(null);
 
@@ -104,7 +109,7 @@ export default function OnboardingPage() {
         throw new Error("Failed to complete onboarding");
       }
 
-      const result = await response.json() as {
+      const result = (await response.json()) as {
         success: boolean;
         data?: { projectId?: number };
         error?: string;
@@ -115,14 +120,14 @@ export default function OnboardingPage() {
       }
 
       // Refresh projects list and switch to the newly created project
-  await refreshProjects();
-      
+      await refreshProjects();
+
       if (result.data?.projectId) {
-  await switchProject(result.data.projectId);
+        await switchProject(result.data.projectId);
       }
 
       setCurrentStep("complete");
-      
+
       // Redirect to main app after a short delay
       setTimeout(() => {
         router.push("/dashboard");
@@ -138,17 +143,17 @@ export default function OnboardingPage() {
     if (!analysisData) return;
 
     const updatedData = { ...analysisData };
-    
-    if (field.includes('.')) {
+
+    if (field.includes(".")) {
       // Handle nested fields like 'contentStrategy.maxWords'
-      const [parent, child] = field.split('.');
-      if (parent === 'contentStrategy') {
+      const [parent, child] = field.split(".");
+      if (parent === "contentStrategy") {
         updatedData.contentStrategy = {
           ...updatedData.contentStrategy,
-          [child as keyof typeof updatedData.contentStrategy]: value as never
+          [child as keyof typeof updatedData.contentStrategy]: value as never,
         };
       }
-    } else if (field === 'suggestedKeywords') {
+    } else if (field === "suggestedKeywords") {
       updatedData[field] = value as string[];
     } else {
       updatedData[field as keyof AnalysisData] = value as never;
@@ -176,14 +181,15 @@ export default function OnboardingPage() {
   return (
     <div className="space-y-8">
       <OnboardingProgress currentStep={currentStep} />
-      
+
       {error && (
         <Alert variant="destructive">
           <AlertDescription>
             {error}
             {error.includes("analyze") && (
               <div className="mt-2 text-sm">
-                Please check your website URL and try again. Make sure the website is accessible and contains enough content to analyze.
+                Please check your website URL and try again. Make sure the
+                website is accessible and contains enough content to analyze.
               </div>
             )}
           </AlertDescription>
@@ -191,21 +197,17 @@ export default function OnboardingPage() {
       )}
 
       {currentStep === "url" && (
-        <WebsiteUrlForm
-          onSubmit={handleUrlSubmit}
-          isLoading={isLoading}
-        />
+        <WebsiteUrlForm onSubmit={handleUrlSubmit} isLoading={isLoading} />
       )}
 
       {currentStep === "analyzing" && (
         <Card className="text-center">
           <CardContent>
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <CardTitle className="mb-2">
-              Analyzing Your Website
-            </CardTitle>
+            <div className="border-primary mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
+            <CardTitle className="mb-2">Analyzing Your Website</CardTitle>
             <CardDescription>
-              Our AI is analyzing your website to create personalized content settings...
+              Our AI is analyzing your website to create personalized content
+              settings...
             </CardDescription>
           </CardContent>
         </Card>
@@ -223,14 +225,22 @@ export default function OnboardingPage() {
       {currentStep === "complete" && (
         <Card className="text-center">
           <CardContent>
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <svg
+                className="h-8 w-8 text-green-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             </div>
-            <CardTitle className="mb-2">
-              All Set!
-            </CardTitle>
+            <CardTitle className="mb-2">All Set!</CardTitle>
             <CardDescription>
               Your account is configured. Redirecting to the dashboard...
             </CardDescription>

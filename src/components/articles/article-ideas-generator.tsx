@@ -41,7 +41,8 @@ interface GenerationState {
 }
 
 // Local storage key for persisting generated ideas (project-specific)
-const getStorageKey = (projectId: number) => `contentbot-generated-ideas-${projectId}`;
+const getStorageKey = (projectId: number) =>
+  `contentbot-generated-ideas-${projectId}`;
 
 export function ArticleIdeasGenerator({
   open,
@@ -86,20 +87,23 @@ export function ArticleIdeasGenerator({
   }, [currentProject]);
 
   // Save ideas to localStorage whenever ideas change
-  const saveIdeasToStorage = useCallback((ideas: ArticleIdea[]) => {
-    if (!currentProject) return;
+  const saveIdeasToStorage = useCallback(
+    (ideas: ArticleIdea[]) => {
+      if (!currentProject) return;
 
-    try {
-      const storageKey = getStorageKey(currentProject.id);
-      if (ideas.length > 0) {
-        localStorage.setItem(storageKey, JSON.stringify(ideas));
-      } else {
-        localStorage.removeItem(storageKey);
+      try {
+        const storageKey = getStorageKey(currentProject.id);
+        if (ideas.length > 0) {
+          localStorage.setItem(storageKey, JSON.stringify(ideas));
+        } else {
+          localStorage.removeItem(storageKey);
+        }
+      } catch (error) {
+        console.error("Failed to save ideas to localStorage:", error);
       }
-    } catch (error) {
-      console.error("Failed to save ideas to localStorage:", error);
-    }
-  }, [currentProject]);
+    },
+    [currentProject],
+  );
   const [isBulkAdding, setIsBulkAdding] = useState(false);
 
   // Load previously generated ideas from localStorage on component mount
@@ -132,7 +136,7 @@ export function ArticleIdeasGenerator({
     if (!currentProject) {
       setState((prev) => ({
         ...prev,
-        error: 'Please select a project first',
+        error: "Please select a project first",
       }));
       return;
     }
@@ -225,9 +229,9 @@ export function ArticleIdeasGenerator({
 
     setIsBulkAdding(true);
     try {
-      const selectedIdeaObjects = Array.from(selectedIdeas).map(
-        (index) => state.ideas[index],
-      ).filter(Boolean); // Filter out any undefined values
+      const selectedIdeaObjects = Array.from(selectedIdeas)
+        .map((index) => state.ideas[index])
+        .filter(Boolean); // Filter out any undefined values
 
       // Add ideas sequentially to avoid overwhelming the API
       for (const idea of selectedIdeaObjects) {
@@ -237,7 +241,9 @@ export function ArticleIdeasGenerator({
       }
 
       // Remove successfully added ideas from the list
-      const newIdeas = state.ideas.filter((_, index) => !selectedIdeas.has(index));
+      const newIdeas = state.ideas.filter(
+        (_, index) => !selectedIdeas.has(index),
+      );
       setState((prev) => ({
         ...prev,
         ideas: newIdeas,
@@ -260,7 +266,7 @@ export function ArticleIdeasGenerator({
     async (idea: ArticleIdea, ideaIndex: number) => {
       try {
         await onIdeaAdded(idea);
-        
+
         // Remove the successfully added idea from the list
         const newIdeas = state.ideas.filter((_, index) => index !== ideaIndex);
         setState((prev) => ({
@@ -307,10 +313,10 @@ export function ArticleIdeasGenerator({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] min-w-4/6 overflow-auto bg-white border-stone-200">
+      <DialogContent className="max-h-[90vh] min-w-4/6 overflow-auto border-stone-200 bg-white">
         <DialogHeader className="p-2">
           <DialogTitle className="flex items-center gap-2 text-stone-900">
-            <Sparkles className="h-5 w-5 text-brand-green" />
+            <Sparkles className="text-brand-green h-5 w-5" />
             Article Ideas Generator With AI
           </DialogTitle>
           <DialogDescription className="text-stone-600">
@@ -326,8 +332,8 @@ export function ArticleIdeasGenerator({
             !state.error &&
             !state.requiresOnboarding && (
               <div className="py-12 text-center">
-                <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-brand-green/10">
-                  <Sparkles className="h-8 w-8 text-brand-green" />
+                <div className="bg-brand-green/10 mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+                  <Sparkles className="text-brand-green h-8 w-8" />
                 </div>
                 <h3 className="mb-2 text-lg font-medium text-stone-900">
                   Ready to Generate Ideas
@@ -349,8 +355,8 @@ export function ArticleIdeasGenerator({
           {/* Loading state */}
           {state.isGenerating && (
             <div className="py-12 text-center">
-              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-brand-green/10">
-                <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
+              <div className="bg-brand-green/10 mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+                <Loader2 className="text-brand-green h-8 w-8 animate-spin" />
               </div>
               <h3 className="mb-2 text-lg font-medium text-stone-900">
                 Generating Ideas...
@@ -436,7 +442,10 @@ export function ArticleIdeasGenerator({
 
                   {/* Selection count */}
                   {selectedIdeas.size > 0 && (
-                    <Badge variant="secondary" className="bg-stone-100 text-stone-700 border-stone-200">
+                    <Badge
+                      variant="secondary"
+                      className="border-stone-200 bg-stone-100 text-stone-700"
+                    >
                       {selectedIdeas.size} selected
                     </Badge>
                   )}
@@ -471,9 +480,9 @@ export function ArticleIdeasGenerator({
                     Regenerate
                   </Button>
 
-                  <Button 
-                    onClick={handleDismiss} 
-                    size="sm" 
+                  <Button
+                    onClick={handleDismiss}
+                    size="sm"
                     variant="outline"
                     className="border-stone-200 text-stone-700 hover:bg-stone-50"
                   >
@@ -489,12 +498,14 @@ export function ArticleIdeasGenerator({
                   <ArticleIdeaCard
                     key={`${idea.title}-${idea.description.substring(0, 50)}`}
                     idea={idea}
-                    onAddToPipeline={(ideaToAdd) => handleSingleAddToPipeline(ideaToAdd, index)}
+                    onAddToPipeline={(ideaToAdd) =>
+                      handleSingleAddToPipeline(ideaToAdd, index)
+                    }
                     isSelected={selectedIdeas.has(index)}
                     onSelectionChange={(selected) =>
                       handleIdeaSelection(index, selected)
                     }
-                    className="border-stone-200 hover:border-brand-green/20 hover:shadow-lg"
+                    className="hover:border-brand-green/20 border-stone-200 hover:shadow-lg"
                   />
                 ))}
               </div>

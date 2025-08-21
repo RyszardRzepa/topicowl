@@ -438,7 +438,10 @@ async function searchAndValidateYouTubeVideos(
         "Search the web for YouTube links. Return only valid YouTube links.",
       prompt: `Search the web for youtube links about topic: ${title}. Return only valid youtube links.`,
     });
-    while ((youtubeSearchResult.sources ?? []).length === 0 && attempt < maxAttempts) {
+    while (
+      (youtubeSearchResult.sources ?? []).length === 0 &&
+      attempt < maxAttempts
+    ) {
       attempt++;
       console.log(
         `[YOUTUBE_SEARCH] No sources returned, retrying attempt ${attempt}/${maxAttempts}`,
@@ -671,10 +674,10 @@ async function searchAndValidateYouTubeVideos(
       "[YOUTUBE_SEARCH] Selected video:",
       selectionResult.object.selectedVideo,
     );
-  return selectionResult.object.selectedVideo;
+    return selectionResult.object.selectedVideo;
   } catch (error) {
     console.error("[YOUTUBE_SEARCH] Error during YouTube search:", error);
-  return null;
+    return null;
   }
 }
 
@@ -682,7 +685,9 @@ async function searchAndValidateYouTubeVideos(
  * Core research function that can be called directly without HTTP
  * Extracted from /api/articles/research/route.ts
  */
-export async function performResearchDirect(request: ResearchRequest): Promise<ResearchResponse> {
+export async function performResearchDirect(
+  request: ResearchRequest,
+): Promise<ResearchResponse> {
   const { title, keywords, notes, excludedDomains } = request;
 
   // Validate required fields
@@ -697,9 +702,13 @@ export async function performResearchDirect(request: ResearchRequest): Promise<R
   // Use provided excluded domains or empty array
   const domainsToExclude = excludedDomains ?? [];
 
-  console.log(`[RESEARCH_SERVICE] Starting research for "${title}" with ${keywords.length} keywords`);
+  console.log(
+    `[RESEARCH_SERVICE] Starting research for "${title}" with ${keywords.length} keywords`,
+  );
   if (domainsToExclude.length > 0) {
-    console.log(`[RESEARCH_SERVICE] Excluding ${domainsToExclude.length} domains: ${domainsToExclude.join(', ')}`);
+    console.log(
+      `[RESEARCH_SERVICE] Excluding ${domainsToExclude.length} domains: ${domainsToExclude.join(", ")}`,
+    );
   }
 
   try {
@@ -873,7 +882,7 @@ export async function performResearchDirect(request: ResearchRequest): Promise<R
 
     console.log(
       "[RESEARCH_SERVICE] Sources processed:",
-      `${finalResolvedSources.length} total, ${filteredSources.length} after filtering, video search: ${selectedVideo ? 'found' : 'none'}`,
+      `${finalResolvedSources.length} total, ${filteredSources.length} after filtering, video search: ${selectedVideo ? "found" : "none"}`,
     );
 
     const result: ResearchResponse = {
@@ -889,9 +898,10 @@ export async function performResearchDirect(request: ResearchRequest): Promise<R
     });
 
     return result;
-
   } catch (error) {
     console.error(`[RESEARCH_SERVICE] Research failed:`, error);
-    throw new Error(`Research failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Research failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }

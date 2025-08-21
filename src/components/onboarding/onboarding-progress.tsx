@@ -12,7 +12,7 @@ const steps = [
 ] as const;
 
 export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
-  const currentStepIndex = steps.findIndex(step => step.id === currentStep);
+  const currentStepIndex = steps.findIndex((step) => step.id === currentStep);
 
   return (
     <div className="mb-8">
@@ -25,19 +25,27 @@ export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
             <div key={step.id} className="flex items-center">
               <div className="flex flex-col items-center">
                 <div
-                  className={`
-                    w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border-2
-                    ${isCompleted 
-                      ? "bg-blue-600 border-blue-600 text-white" 
-                      : isCurrent 
-                        ? "border-blue-600 text-blue-600 bg-white" 
-                        : "border-gray-300 text-gray-400 bg-white"
-                    }
-                  `}
+                  className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-medium ${
+                    isCompleted
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : isCurrent
+                        ? "border-blue-600 bg-white text-blue-600"
+                        : "border-gray-300 bg-white text-gray-400"
+                  } `}
                 >
                   {isCompleted ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
                     </svg>
                   ) : (
                     index + 1
@@ -46,22 +54,23 @@ export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
                 <div className="mt-2 text-center">
                   <div
                     className={`text-sm font-medium ${
-                      isCurrent ? "text-blue-600" : isCompleted ? "text-gray-900" : "text-gray-400"
+                      isCurrent
+                        ? "text-blue-600"
+                        : isCompleted
+                          ? "text-gray-900"
+                          : "text-gray-400"
                     }`}
                   >
                     {step.name}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="mt-1 text-xs text-gray-500">
                     {step.description}
                   </div>
                 </div>
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`
-                    flex-1 h-px mx-4 mt-5
-                    ${isCompleted ? "bg-blue-600" : "bg-gray-300"}
-                  `}
+                  className={`mx-4 mt-5 h-px flex-1 ${isCompleted ? "bg-blue-600" : "bg-gray-300"} `}
                 />
               )}
             </div>

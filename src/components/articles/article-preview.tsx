@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 
 // Article preview data interface
@@ -15,7 +15,12 @@ interface ArticlePreviewData {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status: "idea" | "to_generate" | "generating" | "wait_for_publish" | "published";
+  status:
+    | "idea"
+    | "to_generate"
+    | "generating"
+    | "wait_for_publish"
+    | "published";
   scheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
@@ -49,42 +54,50 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
         <CardContent className="space-y-4">
           {article.description && (
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Description</h3>
+              <h3 className="mb-2 font-medium text-gray-900">Description</h3>
               <p className="text-gray-700">{article.description}</p>
             </div>
           )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {article.targetAudience && (
               <div>
-                <h3 className="font-medium text-gray-900 mb-2">Target Audience</h3>
+                <h3 className="mb-2 font-medium text-gray-900">
+                  Target Audience
+                </h3>
                 <span className="text-gray-700">{article.targetAudience}</span>
               </div>
             )}
-            
+
             {article.estimatedReadTime && (
               <div>
-                <h3 className="font-medium text-gray-900 mb-2">Estimated Read Time</h3>
-                <span className="text-gray-700">{article.estimatedReadTime} minutes</span>
+                <h3 className="mb-2 font-medium text-gray-900">
+                  Estimated Read Time
+                </h3>
+                <span className="text-gray-700">
+                  {article.estimatedReadTime} minutes
+                </span>
               </div>
             )}
-            
+
             {article.seoScore && (
               <div>
-                <h3 className="font-medium text-gray-900 mb-2">SEO Score</h3>
+                <h3 className="mb-2 font-medium text-gray-900">SEO Score</h3>
                 <span className="text-gray-700">{article.seoScore}/100</span>
               </div>
             )}
           </div>
 
-          {article.keywords && Array.isArray(article.keywords) && (article.keywords as string[]).length > 0 ? (
+          {article.keywords &&
+          Array.isArray(article.keywords) &&
+          (article.keywords as string[]).length > 0 ? (
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Keywords</h3>
+              <h3 className="mb-2 font-medium text-gray-900">Keywords</h3>
               <div className="flex flex-wrap gap-2">
                 {(article.keywords as string[]).map((keyword, index) => (
                   <span
                     key={index}
-                    className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-md"
+                    className="rounded-md bg-blue-100 px-2 py-1 text-sm text-blue-800"
                   >
                     {keyword}
                   </span>
@@ -104,9 +117,9 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {article.status === 'generating' ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          {article.status === "generating" ? (
+            <div className="py-8 text-center">
+              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
               <p className="text-gray-600">Article is being generated...</p>
             </div>
           ) : article.optimizedContent ? (
@@ -118,7 +131,7 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
           ) : article.draft ? (
             <div className="prose max-w-none">
               <div className="mb-4">
-                <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-md">
+                <span className="inline-block rounded-md bg-yellow-100 px-2 py-1 text-xs text-yellow-800">
                   Draft
                 </span>
               </div>
@@ -127,10 +140,13 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
+            <div className="py-8 text-center text-gray-500">
               <p>No content available yet.</p>
-              {article.status === 'idea' && (
-                <p className="text-sm mt-2">Move this article to &ldquo;To Generate&rdquo; to create content.</p>
+              {article.status === "idea" && (
+                <p className="mt-2 text-sm">
+                  Move this article to &ldquo;To Generate&rdquo; to create
+                  content.
+                </p>
               )}
             </div>
           )}

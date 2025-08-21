@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 /**
  * Reusable tabs component with consistent orange branding and content-width styling.
- * 
+ *
  * @example
  * ```tsx
  * <ReusableTabs
@@ -42,10 +42,7 @@ export function ReusableTabs({
 }: ReusableTabsProps) {
   return (
     <div className={`mb-6 ${className}`}>
-      <Tabs
-        value={activeTab}
-        onValueChange={onTabChange}
-      >
+      <Tabs value={activeTab} onValueChange={onTabChange}>
         <TabsList className="bg-muted/20 h-auto w-fit gap-1 rounded-lg border-0 p-1">
           {tabs.map((tab) => (
             <TabsTrigger

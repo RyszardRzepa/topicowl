@@ -16,18 +16,21 @@ export const env = createEnv({
     UNSPLASH_SECRET_KEY: z.string().min(1).optional(),
     PEXELS_API_KEY: z.string().min(1),
     OPENAI_API_KEY: z.string(),
-    
+
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: z.string().min(1),
     REDDIT_CLIENT_SECRET: z.string().min(1),
-    
+
     // Webhook configuration
     WEBHOOK_TIMEOUT_MS: z.string().default("30000"),
     WEBHOOK_MAX_RETRIES: z.string().default("3"),
     WEBHOOK_RETRY_BASE_DELAY: z.string().default("30"),
     WEBHOOK_RATE_LIMIT_PER_HOUR: z.string().default("100"),
     WEBHOOK_REQUIRE_HTTPS: z.string().default("true"),
-    
+
+    STRIPE_PRIVATE_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -57,21 +60,25 @@ export const env = createEnv({
     UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
     UNSPLASH_SECRET_KEY: process.env.UNSPLASH_SECRET_KEY,
     PEXELS_API_KEY: process.env.PEXELS_API_KEY,
-    
+
     // Webhook configuration
     WEBHOOK_TIMEOUT_MS: process.env.WEBHOOK_TIMEOUT_MS,
     WEBHOOK_MAX_RETRIES: process.env.WEBHOOK_MAX_RETRIES,
     WEBHOOK_RETRY_BASE_DELAY: process.env.WEBHOOK_RETRY_BASE_DELAY,
     WEBHOOK_RATE_LIMIT_PER_HOUR: process.env.WEBHOOK_RATE_LIMIT_PER_HOUR,
     WEBHOOK_REQUIRE_HTTPS: process.env.WEBHOOK_REQUIRE_HTTPS,
-    
-    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
+      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
 
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    
+
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: process.env.REDDIT_CLIENT_ID,
     REDDIT_CLIENT_SECRET: process.env.REDDIT_CLIENT_SECRET,
+
+    STRIPE_PRIVATE_KEY: process.env.STRIPE_PRIVATE_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

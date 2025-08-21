@@ -16,21 +16,20 @@ export async function GET() {
     return NextResponse.json({ credits });
   } catch (error) {
     console.error("Error fetching user credits:", error);
-    
+
     // Provide specific error messages based on error type
     let errorMessage = "Failed to fetch credits";
-    
+
     if (error instanceof Error) {
       if (error.message.includes("database")) {
-        errorMessage = "Database error occurred while fetching credits. Please try again.";
+        errorMessage =
+          "Database error occurred while fetching credits. Please try again.";
       } else if (error.message.includes("connection")) {
-        errorMessage = "Connection error. Please check your internet connection and try again.";
+        errorMessage =
+          "Connection error. Please check your internet connection and try again.";
       }
     }
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 },
-    );
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

@@ -11,7 +11,7 @@ export default function DashboardPage() {
   }, [router]);
 
   return (
-    <div className="flex items-center justify-center min-h-64">
+    <div className="flex min-h-64 items-center justify-center">
       <div className="text-gray-600">Redirecting...</div>
     </div>
   );

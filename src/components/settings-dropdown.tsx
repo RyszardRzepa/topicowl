@@ -27,10 +27,10 @@ export function SettingsDropdown() {
           <Button
             variant={isActive ? "default" : "ghost"}
             className={cn(
-              "w-full justify-start h-auto py-2.5 text-sm",
-              isActive 
-                ? "font-medium" 
-                : "text-muted-foreground hover:text-foreground"
+              "h-auto w-full justify-start py-2.5 text-sm",
+              isActive
+                ? "font-medium"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             <Settings className="mr-3 h-5 w-5 flex-shrink-0" />

@@ -1,7 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users, articleGeneration, projects } from "@/server/db/schema";
+import {
+  articles,
+  users,
+  articleGeneration,
+  projects,
+} from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ArticleStatus } from "@/types";
@@ -16,8 +21,8 @@ export interface SEOAnalysis {
 }
 
 export interface GenerationLog {
-  phase: 'research' | 'writing' | 'validation' | 'optimization';
-  status: 'pending' | 'completed' | 'failed';
+  phase: "research" | "writing" | "validation" | "optimization";
+  status: "pending" | "completed" | "failed";
   timestamp: Date;
   details?: string;
 }
@@ -86,7 +91,18 @@ const updateArticleSchema = z.object({
   scheduledAt: z.string().datetime().optional(), // For publishing schedule
   publishScheduledAt: z.string().datetime().optional().or(z.undefined()), // Frontend compatibility
   // Add status and publication fields
-  status: z.enum(['idea', 'scheduled', 'queued', 'to_generate', 'generating', 'wait_for_publish', 'published', 'deleted']).optional(),
+  status: z
+    .enum([
+      "idea",
+      "scheduled",
+      "queued",
+      "to_generate",
+      "generating",
+      "wait_for_publish",
+      "published",
+      "deleted",
+    ])
+    .optional(),
   publishedAt: z.string().datetime().optional(), // When article was published
   // Add basic article fields
   title: z.string().min(1).max(255).optional(),
@@ -99,16 +115,16 @@ const updateArticleSchema = z.object({
 // GET /api/articles/[id] - Get single article with extended preview data
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
       );
     }
 
@@ -121,18 +137,21 @@ export async function GET(
 
     if (!userRecord) {
       return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
+        { success: false, error: "User not found" },
+        { status: 404 },
       );
     }
 
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid article ID' 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid article ID",
+        },
+        { status: 400 },
+      );
     }
 
     const article = await db
@@ -167,14 +186,19 @@ export async function GET(
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (article.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Article not found or access denied' 
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Article not found or access denied",
+        },
+        { status: 404 },
+      );
     }
 
     const articleData = article[0] as ArticleData;
@@ -189,30 +213,42 @@ export async function GET(
 
     // Verify article ownership and that it's not deleted
     if (articleData.status === "deleted") {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Article not found' 
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Article not found",
+        },
+        { status: 404 },
+      );
     }
 
     // Generate SEO analysis from existing data
-    const seoAnalysis: SEOAnalysis | undefined = articleData.seoScore ? {
-      score: articleData.seoScore,
-      recommendations: generateSEORecommendations(articleData),
-      keywordDensity: calculateKeywordDensity(articleData, generationData?.draftContent),
-      readabilityScore: calculateReadabilityScore(articleData, generationData?.draftContent)
-    } : undefined;
+    const seoAnalysis: SEOAnalysis | undefined = articleData.seoScore
+      ? {
+          score: articleData.seoScore,
+          recommendations: generateSEORecommendations(articleData),
+          keywordDensity: calculateKeywordDensity(
+            articleData,
+            generationData?.draftContent,
+          ),
+          readabilityScore: calculateReadabilityScore(
+            articleData,
+            generationData?.draftContent,
+          ),
+        }
+      : undefined;
 
     // Generate generation logs from tracking fields
     const generationLogs: GenerationLog[] = generateGenerationLogs(articleData);
 
     // Calculate word count from content (use generation draft content if available)
-  const contentForWordCount = generationData?.draftContent ?? articleData.draft;
+    const contentForWordCount =
+      generationData?.draftContent ?? articleData.draft;
     const wordCount = calculateWordCount(contentForWordCount);
 
     // Extract target keywords from keywords field
-    const targetKeywords = Array.isArray(articleData.keywords) 
-      ? articleData.keywords as string[]
+    const targetKeywords = Array.isArray(articleData.keywords)
+      ? (articleData.keywords as string[])
       : [];
 
     // Extract research sources from sources field
@@ -225,25 +261,24 @@ export async function GET(
       data: {
         ...articleData,
         // Use generation draft content if available, otherwise fall back to article draft
-  draft: generationData?.draftContent ?? articleData.draft,
+        draft: generationData?.draftContent ?? articleData.draft,
         seoAnalysis,
         generationLogs,
         wordCount,
         targetKeywords,
-        researchSources
-      }
+        researchSources,
+      },
     };
 
     return NextResponse.json(response);
-
   } catch (error) {
-    console.error('Get article error:', error);
+    console.error("Get article error:", error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to fetch article' 
+      {
+        success: false,
+        error: "Failed to fetch article",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -251,133 +286,150 @@ export async function GET(
 // Helper functions for generating extended data
 function generateSEORecommendations(article: ArticleData): string[] {
   const recommendations: string[] = [];
-  
+
   if (!article.metaDescription) {
-    recommendations.push('Add a meta description for better search visibility');
+    recommendations.push("Add a meta description for better search visibility");
   }
-  
-  if (!article.keywords || (Array.isArray(article.keywords) && article.keywords.length === 0)) {
-    recommendations.push('Add target keywords to improve SEO ranking');
+
+  if (
+    !article.keywords ||
+    (Array.isArray(article.keywords) && article.keywords.length === 0)
+  ) {
+    recommendations.push("Add target keywords to improve SEO ranking");
   }
-  
+
   if (!article.draft) {
-    recommendations.push('Generate content to analyze SEO performance');
+    recommendations.push("Generate content to analyze SEO performance");
   }
-  
+
   if (article.seoScore && article.seoScore < 70) {
-    recommendations.push('Improve content optimization to increase SEO score');
+    recommendations.push("Improve content optimization to increase SEO score");
   }
-  
+
   return recommendations;
 }
 
-function calculateKeywordDensity(article: ArticleData, generationContent?: string | null): Record<string, number> {
-  const content = generationContent ?? article.draft ?? '';
-  const keywords = Array.isArray(article.keywords) ? (article.keywords as string[]) : [];
+function calculateKeywordDensity(
+  article: ArticleData,
+  generationContent?: string | null,
+): Record<string, number> {
+  const content = generationContent ?? article.draft ?? "";
+  const keywords = Array.isArray(article.keywords)
+    ? (article.keywords as string[])
+    : [];
   const density: Record<string, number> = {};
-  
+
   if (!content || keywords.length === 0) {
     return density;
   }
-  
+
   const words = content.toLowerCase().split(/\s+/).length;
-  
+
   keywords.forEach((keyword: string) => {
     const keywordLower = keyword.toLowerCase();
-    const matches = (content.toLowerCase().match(new RegExp(keywordLower, 'g')) ?? []).length;
+    const matches = (
+      content.toLowerCase().match(new RegExp(keywordLower, "g")) ?? []
+    ).length;
     density[keyword] = words > 0 ? (matches / words) * 100 : 0;
   });
-  
+
   return density;
 }
 
-function calculateReadabilityScore(article: ArticleData, generationContent?: string | null): number {
-  const content = generationContent ?? article.draft ?? '';
-  
+function calculateReadabilityScore(
+  article: ArticleData,
+  generationContent?: string | null,
+): number {
+  const content = generationContent ?? article.draft ?? "";
+
   if (!content) {
     return 0;
   }
-  
+
   // Simple readability calculation based on sentence and word length
-  const sentences = content.split(/[.!?]+/).filter((s: string) => s.trim().length > 0);
+  const sentences = content
+    .split(/[.!?]+/)
+    .filter((s: string) => s.trim().length > 0);
   const words = content.split(/\s+/).filter((w: string) => w.length > 0);
-  
+
   if (sentences.length === 0 || words.length === 0) {
     return 0;
   }
-  
+
   const avgWordsPerSentence = words.length / sentences.length;
-  const avgSyllablesPerWord = words.reduce((acc: number, word: string) => {
-    return acc + countSyllables(word);
-  }, 0) / words.length;
-  
+  const avgSyllablesPerWord =
+    words.reduce((acc: number, word: string) => {
+      return acc + countSyllables(word);
+    }, 0) / words.length;
+
   // Simplified Flesch Reading Ease formula
-  const score = 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord);
-  
+  const score =
+    206.835 - 1.015 * avgWordsPerSentence - 84.6 * avgSyllablesPerWord;
+
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 function countSyllables(word: string): number {
   word = word.toLowerCase();
   if (word.length <= 3) return 1;
-  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
-  word = word.replace(/^y/, '');
+  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, "");
+  word = word.replace(/^y/, "");
   const matches = word.match(/[aeiouy]{1,2}/g);
   return matches ? matches.length : 1;
 }
 
 function calculateWordCount(content: string | null): number {
   if (!content) return 0; // fine, boolean check still acceptable
-  return content.split(/\s+/).filter(word => word.length > 0).length;
+  return content.split(/\s+/).filter((word) => word.length > 0).length;
 }
 
 function generateGenerationLogs(article: ArticleData): GenerationLog[] {
   const logs: GenerationLog[] = [];
-  
+
   // Simple logs based on available content
   if (article.draft) {
     logs.push({
-      phase: 'writing',
-      status: 'completed',
+      phase: "writing",
+      status: "completed",
       timestamp: new Date(article.updatedAt),
-      details: 'Draft content generated'
+      details: "Draft content generated",
     });
   }
-  
+
   if (article.factCheckReport) {
     logs.push({
-      phase: 'validation',
-      status: 'completed',
+      phase: "validation",
+      status: "completed",
       timestamp: new Date(article.updatedAt),
-      details: 'Content validated and fact-checked'
+      details: "Content validated and fact-checked",
     });
   }
-  
+
   if (article.draft) {
     logs.push({
-      phase: 'optimization',
-      status: 'completed',
+      phase: "optimization",
+      status: "completed",
       timestamp: new Date(article.updatedAt),
-      details: 'Content optimized for SEO'
+      details: "Content optimized for SEO",
     });
   }
-  
+
   return logs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 }
 
 // PUT /api/articles/[id] - Update article
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
       );
     }
 
@@ -390,21 +442,24 @@ export async function PUT(
 
     if (!userRecord) {
       return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
+        { success: false, error: "User not found" },
+        { status: 404 },
       );
     }
 
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid article ID' 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid article ID",
+        },
+        { status: 400 },
+      );
     }
 
-    const body = await req.json() as unknown;
+    const body = (await req.json()) as unknown;
     const validatedData = updateArticleSchema.parse(body);
 
     // Check if article exists and belongs to current user via project ownership
@@ -417,36 +472,50 @@ export async function PUT(
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (existingArticle.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Article not found or access denied' 
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Article not found or access denied",
+        },
+        { status: 404 },
+      );
     }
 
     // Prevent updating deleted articles
     if (existingArticle[0]!.status === "deleted") {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Cannot update deleted article' 
-      }, { status: 410 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Cannot update deleted article",
+        },
+        { status: 410 },
+      );
     }
 
     // Update the article with only the allowed fields
     const updateData = {
       ...validatedData,
       // Convert string dates to Date objects for database
-      publishScheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
-      publishedAt: validatedData.publishedAt ? new Date(validatedData.publishedAt) : undefined,
+      publishScheduledAt: validatedData.scheduledAt
+        ? new Date(validatedData.scheduledAt)
+        : undefined,
+      publishedAt: validatedData.publishedAt
+        ? new Date(validatedData.publishedAt)
+        : undefined,
       updatedAt: new Date(),
     };
 
     // Handle field mapping for frontend compatibility
     if (validatedData.publishScheduledAt !== undefined) {
-      updateData.publishScheduledAt = validatedData.publishScheduledAt ? new Date(validatedData.publishScheduledAt) : undefined;
+      updateData.publishScheduledAt = validatedData.publishScheduledAt
+        ? new Date(validatedData.publishScheduledAt)
+        : undefined;
     }
 
     const [updatedArticle] = await db
@@ -456,7 +525,10 @@ export async function PUT(
       .returning();
 
     // If draft content was updated, also sync it to the latest articleGeneration row (if any)
-    if (Object.prototype.hasOwnProperty.call(validatedData, 'draft') && validatedData.draft !== undefined) {
+    if (
+      Object.prototype.hasOwnProperty.call(validatedData, "draft") &&
+      validatedData.draft !== undefined
+    ) {
       try {
         const latestGen = await db
           .select({ id: articleGeneration.id })
@@ -473,33 +545,32 @@ export async function PUT(
         }
       } catch (syncError) {
         // Non-fatal: log and continue; we don't want to fail the primary article update
-        console.error('Failed to sync draft to articleGeneration:', syncError);
+        console.error("Failed to sync draft to articleGeneration:", syncError);
       }
     }
 
     return NextResponse.json({
       success: true,
-      data: updatedArticle
+      data: updatedArticle,
     });
-
   } catch (error) {
-    console.error('Update article error:', error);
+    console.error("Update article error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid input data', 
-          details: error.errors 
+        {
+          success: false,
+          error: "Invalid input data",
+          details: error.errors,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to update article' 
+      {
+        success: false,
+        error: "Failed to update article",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -507,16 +578,16 @@ export async function PUT(
 // DELETE /api/articles/[id] - Delete article
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
       );
     }
 
@@ -529,18 +600,21 @@ export async function DELETE(
 
     if (!userRecord) {
       return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
+        { success: false, error: "User not found" },
+        { status: 404 },
       );
     }
 
     const { id } = await params;
     const articleId = parseInt(id);
     if (isNaN(articleId)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid article ID' 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid article ID",
+        },
+        { status: 400 },
+      );
     }
 
     // Check if article exists and belongs to current user via project ownership
@@ -553,48 +627,55 @@ export async function DELETE(
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (existingArticle.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Article not found or access denied' 
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Article not found or access denied",
+        },
+        { status: 404 },
+      );
     }
 
     // Check if article is already deleted
     if (existingArticle[0]!.status === "deleted") {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Article is already deleted' 
-      }, { status: 410 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Article is already deleted",
+        },
+        { status: 410 },
+      );
     }
 
     // Soft delete the article by updating status to "deleted"
     const [deletedArticle] = await db
       .update(articles)
-      .set({ 
+      .set({
         status: "deleted",
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
       .where(eq(articles.id, articleId))
       .returning();
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Article deleted successfully',
-      data: deletedArticle
+    return NextResponse.json({
+      success: true,
+      message: "Article deleted successfully",
+      data: deletedArticle,
     });
-
   } catch (error) {
-    console.error('Delete article error:', error);
+    console.error("Delete article error:", error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to delete article' 
+      {
+        success: false,
+        error: "Failed to delete article",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

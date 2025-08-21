@@ -5,11 +5,11 @@ import { useAuth } from "@clerk/nextjs";
 
 export function HeaderLogo() {
   const { isSignedIn } = useAuth();
-  
+
   return (
-    <Link 
-      href={isSignedIn ? "/dashboard" : "/"} 
-      className="text-xl font-semibold text-brand-white hover:text-brand-orange transition-colors"
+    <Link
+      href={isSignedIn ? "/dashboard" : "/"}
+      className="text-brand-white hover:text-brand-orange text-xl font-semibold transition-colors"
     >
       Contentbot
     </Link>

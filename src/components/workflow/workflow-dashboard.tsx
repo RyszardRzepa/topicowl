@@ -78,29 +78,62 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const handleGenerationStatusUpdate = useCallback(
     (
       articleId: string,
-      statusData: { progress?: number; phase?: "research" | "writing" | "validation" | "optimization"; error?: string },
+      statusData: {
+        progress?: number;
+        phase?: "research" | "writing" | "validation" | "optimization";
+        error?: string;
+      },
     ) => {
-      actions.setArticles(prev => prev.map(a => a.id === articleId ? { ...a, generationProgress: statusData.progress, generationPhase: statusData.phase, generationError: statusData.error } : a));
+      actions.setArticles((prev) =>
+        prev.map((a) =>
+          a.id === articleId
+            ? {
+                ...a,
+                generationProgress: statusData.progress,
+                generationPhase: statusData.phase,
+                generationError: statusData.error,
+              }
+            : a,
+        ),
+      );
     },
     [actions],
   );
 
-  const handleGenerationComplete = useCallback((articleId: string) => {
-    const article = articles.find(a => a.id === articleId);
-    void import("sonner").then(({ toast }) => {
-      toast.success("Article generation completed!", { description: article ? `"${article.title}" is ready for publishing.` : "Your article is ready for publishing." });
-    });
-    void fetchArticles();
-    actions.refreshCredits();
-  }, [articles, fetchArticles, actions]);
+  const handleGenerationComplete = useCallback(
+    (articleId: string) => {
+      const article = articles.find((a) => a.id === articleId);
+      void import("sonner").then(({ toast }) => {
+        toast.success("Article generation completed!", {
+          description: article
+            ? `"${article.title}" is ready for publishing.`
+            : "Your article is ready for publishing.",
+        });
+      });
+      void fetchArticles();
+      actions.refreshCredits();
+    },
+    [articles, fetchArticles, actions],
+  );
 
-  const handleGenerationError = useCallback((articleId: string, error: string) => {
-    const article = articles.find(a => a.id === articleId);
-    void import("sonner").then(({ toast }) => {
-      toast.error("Article generation failed", { description: article ? `"${article.title}" failed to generate: ${error}` : `Generation failed: ${error}` });
-    });
-    actions.setArticles(prev => prev.map(a => a.id === articleId ? { ...a, generationError: error } : a));
-  }, [articles, actions]);
+  const handleGenerationError = useCallback(
+    (articleId: string, error: string) => {
+      const article = articles.find((a) => a.id === articleId);
+      void import("sonner").then(({ toast }) => {
+        toast.error("Article generation failed", {
+          description: article
+            ? `"${article.title}" failed to generate: ${error}`
+            : `Generation failed: ${error}`,
+        });
+      });
+      actions.setArticles((prev) =>
+        prev.map((a) =>
+          a.id === articleId ? { ...a, generationError: error } : a,
+        ),
+      );
+    },
+    [articles, actions],
+  );
 
   // Use polling for the first generating article as an example
   // In a real implementation, you'd need a more sophisticated approach for multiple articles
@@ -216,13 +249,13 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
               count: planningArticles.length,
             },
             {
-              value: "generations", 
+              value: "generations",
               label: "Generations",
               count: generationsArticles.length,
             },
             {
               value: "publishing",
-              label: "Publishing", 
+              label: "Publishing",
               count: publishingArticles.length,
             },
           ]}

@@ -88,7 +88,8 @@ export default async function ArticlePreviewPage({
       wordCount: articleData.content
         ? articleData.content.split(/\s+/).length
         : (generationData?.draftContent ?? articleData.draft)
-          ? (generationData?.draftContent ?? articleData.draft)!.split(/\s+/).length
+          ? (generationData?.draftContent ?? articleData.draft)!.split(/\s+/)
+              .length
           : 0,
       // Optional extended fields
       seoAnalysis: articleData.seoScore

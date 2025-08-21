@@ -129,7 +129,6 @@ async function fetchWebsiteSitemap(websiteUrl: string): Promise<{
   }
 }
 
-
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     // Authentication check

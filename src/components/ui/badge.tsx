@@ -2,35 +2,47 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'secondary' | 'outline' | 'gray' | 'brown' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink' | 'red';
+  variant?:
+    | "default"
+    | "secondary"
+    | "outline"
+    | "gray"
+    | "brown"
+    | "orange"
+    | "yellow"
+    | "green"
+    | "blue"
+    | "purple"
+    | "pink"
+    | "red";
 }
 
-function Badge({ className, variant = 'default', ...props }: BadgeProps) {
+function Badge({ className, variant = "default", ...props }: BadgeProps) {
   const getVariantClasses = () => {
     switch (variant) {
-      case 'default':
+      case "default":
         return "bg-brand-white/10 text-brand-white border-brand-white/20";
-      case 'secondary':
+      case "secondary":
         return "bg-brand-white/5 text-brand-white/70 border-brand-white/10";
-      case 'outline':
+      case "outline":
         return "bg-transparent text-brand-white border-brand-white/20";
-      case 'gray':
+      case "gray":
         return "bg-brand-white/10 text-brand-white/60 border-brand-white/20";
-      case 'brown':
+      case "brown":
         return "text-notion-brown-text bg-notion-brown-bg border-notion-brown-bg";
-      case 'orange':
+      case "orange":
         return "text-notion-orange-text bg-notion-orange-bg border-notion-orange-bg";
-      case 'yellow':
+      case "yellow":
         return "text-notion-yellow-text bg-notion-yellow-bg border-notion-yellow-bg";
-      case 'green':
+      case "green":
         return "text-notion-green-text bg-notion-green-bg border-notion-green-bg";
-      case 'blue':
+      case "blue":
         return "text-notion-blue-text bg-notion-blue-bg border-notion-blue-bg";
-      case 'purple':
+      case "purple":
         return "text-notion-purple-text bg-notion-purple-bg border-notion-purple-bg";
-      case 'pink':
+      case "pink":
         return "text-notion-pink-text bg-notion-pink-bg border-notion-pink-bg";
-      case 'red':
+      case "red":
         return "text-notion-red-text bg-notion-red-bg border-notion-red-bg";
       default:
         return "bg-stone-100 text-stone-700 border-stone-200";
@@ -40,9 +52,9 @@ function Badge({ className, variant = 'default', ...props }: BadgeProps) {
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-sm border px-2 py-1 text-xs font-medium transition-colors font-inter",
+        "font-inter inline-flex items-center rounded-sm border px-2 py-1 text-xs font-medium transition-colors",
         getVariantClasses(),
-        className
+        className,
       )}
       {...props}
     />

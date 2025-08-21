@@ -15,7 +15,13 @@ import type { FetchSitemapResponse } from "@/app/api/sitemaps/fetch/route";
 import { prompts } from "@/prompts";
 import { Textarea } from "../ui/textarea";
 import { Input } from "../ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { Switch } from "../ui/switch";
 
 // Form-specific type for component state
@@ -427,7 +433,9 @@ export function ArticleSettingsForm({
                     <SelectItem value="marketing">Marketing</SelectItem>
                     <SelectItem value="legal">Legal</SelectItem>
                     <SelectItem value="real-estate">Real Estate</SelectItem>
-                    <SelectItem value="food-beverage">Food & Beverage</SelectItem>
+                    <SelectItem value="food-beverage">
+                      Food & Beverage
+                    </SelectItem>
                     <SelectItem value="travel">Travel</SelectItem>
                     <SelectItem value="fitness">Fitness</SelectItem>
                     <SelectItem value="entertainment">Entertainment</SelectItem>
@@ -760,10 +768,7 @@ export function ArticleSettingsForm({
 
       {/* Action Buttons */}
       <div className="flex space-x-4">
-        <Button
-          onClick={handleSave}
-          disabled={saving || isLoading}
-        >
+        <Button onClick={handleSave} disabled={saving || isLoading}>
           {saving && (
             <svg
               className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
@@ -788,7 +793,6 @@ export function ArticleSettingsForm({
           )}
           {saving ? "Saving Changes..." : "Save Changes"}
         </Button>
-        
       </div>
     </div>
   );

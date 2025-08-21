@@ -29,21 +29,24 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProjects = async () => {
     if (!user?.id) return;
-    
+
     try {
       const response = await fetch("/api/projects");
       if (response.ok) {
-        const data = await response.json() as { success: boolean; data: Project[] };
+        const data = (await response.json()) as {
+          success: boolean;
+          data: Project[];
+        };
         setProjects(data.data ?? []);
-        
+
         // Set current project to first project if none selected
         if (!currentProject && data.data && data.data.length > 0) {
           setCurrentProject(data.data[0] ?? null);
         }
-        
+
         // Check if current project still exists
         if (currentProject && data.data) {
-          const stillExists = data.data.find(p => p.id === currentProject.id);
+          const stillExists = data.data.find((p) => p.id === currentProject.id);
           if (!stillExists) {
             setCurrentProject(data.data[0] ?? null);
           }
@@ -68,18 +71,21 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const switchToProject = async (projectId: number) => {
     setLoading(true);
     await fetchProjects();
-    
+
     // Find and switch to the specific project
     const projects = await (async () => {
       const response = await fetch("/api/projects");
       if (response.ok) {
-        const data = await response.json() as { success: boolean; data: Project[] };
+        const data = (await response.json()) as {
+          success: boolean;
+          data: Project[];
+        };
         return data.data ?? [];
       }
       return [];
     })();
-    
-    const targetProject = projects.find(p => p.id === projectId);
+
+    const targetProject = projects.find((p) => p.id === projectId);
     if (targetProject) {
       setCurrentProject(targetProject);
     }

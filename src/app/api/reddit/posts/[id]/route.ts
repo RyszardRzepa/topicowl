@@ -63,7 +63,7 @@ export interface DeletePostResponse {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const { userId } = await auth();
@@ -73,32 +73,44 @@ export async function PUT(
 
     const postId = parseInt(params.id, 10);
     if (isNaN(postId)) {
-      return NextResponse.json({ 
-        error: "Invalid post ID format" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Invalid post ID format",
+        },
+        { status: 400 },
+      );
     }
 
-    const body = await request.json() as UpdateScheduledPostRequest;
+    const body = (await request.json()) as UpdateScheduledPostRequest;
     const { subreddit, title, text, publishScheduledAt } = body;
 
     // Validate at least one field is provided for update
     if (!subreddit && !title && !text && !publishScheduledAt) {
-      return NextResponse.json({ 
-        error: "At least one field must be provided for update" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "At least one field must be provided for update",
+        },
+        { status: 400 },
+      );
     }
 
     // Validate field formats if provided
     if (subreddit && !/^[a-zA-Z0-9_]+$/.test(subreddit)) {
-      return NextResponse.json({ 
-        error: "Invalid subreddit name format" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Invalid subreddit name format",
+        },
+        { status: 400 },
+      );
     }
 
     if (title && title.length > 300) {
-      return NextResponse.json({ 
-        error: "Title must be 300 characters or less" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Title must be 300 characters or less",
+        },
+        { status: 400 },
+      );
     }
 
     // Validate scheduling date if provided
@@ -106,22 +118,28 @@ export async function PUT(
     if (publishScheduledAt) {
       scheduledDate = new Date(publishScheduledAt);
       const now = new Date();
-      
+
       if (isNaN(scheduledDate.getTime())) {
-        return NextResponse.json({ 
-          error: "Invalid date format for publishScheduledAt" 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: "Invalid date format for publishScheduledAt",
+          },
+          { status: 400 },
+        );
       }
-      
+
       if (scheduledDate <= now) {
-        return NextResponse.json({ 
-          error: "Scheduled date must be in the future" 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: "Scheduled date must be in the future",
+          },
+          { status: 400 },
+        );
       }
     }
 
     // First, get the existing post to verify ownership and status
-    const existingPostResult = await db
+    const existingPostResult = (await db
       .select({
         id: redditPosts.id,
         projectId: redditPosts.projectId,
@@ -134,41 +152,50 @@ export async function PUT(
       })
       .from(redditPosts)
       .where(eq(redditPosts.id, postId))
-      .limit(1) as ExistingPostQuery[];
+      .limit(1)) as ExistingPostQuery[];
 
     const existingPost = existingPostResult[0];
 
     if (!existingPost) {
-      return NextResponse.json({ 
-        error: "Post not found" 
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: "Post not found",
+        },
+        { status: 404 },
+      );
     }
 
     // Verify user owns the post through project ownership
-    const projectResult = await db
+    const projectResult = (await db
       .select({ id: projects.id })
       .from(projects)
       .where(
         and(
           eq(projects.id, existingPost.projectId),
-          eq(projects.userId, userId)
-        )
+          eq(projects.userId, userId),
+        ),
       )
-      .limit(1) as ProjectQuery[];
+      .limit(1)) as ProjectQuery[];
 
     const project = projectResult[0];
 
     if (!project) {
-      return NextResponse.json({ 
-        error: "Access denied" 
-      }, { status: 403 });
+      return NextResponse.json(
+        {
+          error: "Access denied",
+        },
+        { status: 403 },
+      );
     }
 
     // Only allow editing posts with 'scheduled' status
     if (existingPost.status !== "scheduled") {
-      return NextResponse.json({ 
-        error: "Only scheduled posts can be edited" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Only scheduled posts can be edited",
+        },
+        { status: 400 },
+      );
     }
 
     // Build update object with only provided fields
@@ -181,14 +208,15 @@ export async function PUT(
     } = {
       updatedAt: new Date(),
     };
-    
+
     if (subreddit !== undefined) updateData.subreddit = subreddit;
     if (title !== undefined) updateData.title = title;
     if (text !== undefined) updateData.text = text;
-    if (scheduledDate !== undefined) updateData.publishScheduledAt = scheduledDate;
+    if (scheduledDate !== undefined)
+      updateData.publishScheduledAt = scheduledDate;
 
     // Update the post
-    const updatedPostResult = await db
+    const updatedPostResult = (await db
       .update(redditPosts)
       .set(updateData)
       .where(eq(redditPosts.id, postId))
@@ -200,14 +228,17 @@ export async function PUT(
         status: redditPosts.status,
         publishScheduledAt: redditPosts.publishScheduledAt,
         updatedAt: redditPosts.updatedAt,
-      }) as UpdatedPostQuery[];
+      })) as UpdatedPostQuery[];
 
     const updatedPost = updatedPostResult[0];
 
     if (!updatedPost) {
-      return NextResponse.json({ 
-        error: "Failed to update post" 
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: "Failed to update post",
+        },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({
@@ -222,19 +253,21 @@ export async function PUT(
         updatedAt: updatedPost.updatedAt.toISOString(),
       },
     } satisfies UpdatePostResponse);
-
   } catch (error) {
     console.error("Error updating scheduled Reddit post:", error);
-    return NextResponse.json({ 
-      success: false,
-      error: "Internal server error" 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error",
+      },
+      { status: 500 },
+    );
   }
 }
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const { userId } = await auth();
@@ -244,13 +277,16 @@ export async function DELETE(
 
     const postId = parseInt(params.id, 10);
     if (isNaN(postId)) {
-      return NextResponse.json({ 
-        error: "Invalid post ID format" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Invalid post ID format",
+        },
+        { status: 400 },
+      );
     }
 
     // First, get the existing post to verify ownership and status
-    const existingPostResult = await db
+    const existingPostResult = (await db
       .select({
         id: redditPosts.id,
         projectId: redditPosts.projectId,
@@ -259,58 +295,70 @@ export async function DELETE(
       })
       .from(redditPosts)
       .where(eq(redditPosts.id, postId))
-      .limit(1) as Pick<ExistingPostQuery, 'id' | 'projectId' | 'userId' | 'status'>[];
+      .limit(1)) as Pick<
+      ExistingPostQuery,
+      "id" | "projectId" | "userId" | "status"
+    >[];
 
     const existingPost = existingPostResult[0];
 
     if (!existingPost) {
-      return NextResponse.json({ 
-        error: "Post not found" 
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: "Post not found",
+        },
+        { status: 404 },
+      );
     }
 
     // Verify user owns the post through project ownership
-    const projectResult = await db
+    const projectResult = (await db
       .select({ id: projects.id })
       .from(projects)
       .where(
         and(
           eq(projects.id, existingPost.projectId),
-          eq(projects.userId, userId)
-        )
+          eq(projects.userId, userId),
+        ),
       )
-      .limit(1) as ProjectQuery[];
+      .limit(1)) as ProjectQuery[];
 
     const project = projectResult[0];
 
     if (!project) {
-      return NextResponse.json({ 
-        error: "Access denied" 
-      }, { status: 403 });
+      return NextResponse.json(
+        {
+          error: "Access denied",
+        },
+        { status: 403 },
+      );
     }
 
     // Only allow deletion of posts with 'scheduled' status
     if (existingPost.status !== "scheduled") {
-      return NextResponse.json({ 
-        error: "Only scheduled posts can be deleted" 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Only scheduled posts can be deleted",
+        },
+        { status: 400 },
+      );
     }
 
     // Delete the post
-    await db
-      .delete(redditPosts)
-      .where(eq(redditPosts.id, postId));
+    await db.delete(redditPosts).where(eq(redditPosts.id, postId));
 
     return NextResponse.json({
       success: true,
       message: "Scheduled post cancelled successfully",
     } satisfies DeletePostResponse);
-
   } catch (error) {
     console.error("Error deleting scheduled Reddit post:", error);
-    return NextResponse.json({ 
-      success: false,
-      error: "Internal server error" 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error",
+      },
+      { status: 500 },
+    );
   }
 }

@@ -15,8 +15,10 @@ export async function getUserCredits(userId: string): Promise<number> {
 
     // If no credits record exists, create one with default credits
     if (!creditRecord) {
-      console.log(`No credits record found for user ${userId}, creating with 3 credits`);
-      
+      console.log(
+        `No credits record found for user ${userId}, creating with 3 credits`,
+      );
+
       try {
         await db.insert(userCredits).values({
           userId: userId,
@@ -25,14 +27,17 @@ export async function getUserCredits(userId: string): Promise<number> {
         return 3;
       } catch (insertError) {
         // Handle race condition where another process might have created the record
-        console.warn("Failed to create credits record, attempting to fetch again:", insertError);
-        
+        console.warn(
+          "Failed to create credits record, attempting to fetch again:",
+          insertError,
+        );
+
         const [retryRecord] = await db
           .select({ amount: userCredits.amount })
           .from(userCredits)
           .where(eq(userCredits.userId, userId))
           .limit(1);
-        
+
         return retryRecord?.amount ?? 0;
       }
     }
@@ -84,7 +89,10 @@ export async function deductCredit(userId: string): Promise<boolean> {
 /**
  * Add credits to a user's account (used for initial allocation)
  */
-export async function addCredits(userId: string, amount: number): Promise<void> {
+export async function addCredits(
+  userId: string,
+  amount: number,
+): Promise<void> {
   await db
     .insert(userCredits)
     .values({

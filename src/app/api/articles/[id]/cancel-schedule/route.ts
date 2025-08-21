@@ -68,7 +68,9 @@ export async function POST(
       .select()
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (!result) {

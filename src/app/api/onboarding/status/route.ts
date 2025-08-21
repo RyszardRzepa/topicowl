@@ -1,7 +1,7 @@
-import { auth, currentUser } from '@clerk/nextjs/server';
-import { db } from '@/server/db';
-import { users } from '@/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 export interface OnboardingStatusResponse {
   success: boolean;
@@ -19,14 +19,14 @@ export async function GET(): Promise<Response> {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
-    
+
     if (!userId) {
       const response: OnboardingStatusResponse = {
         success: false,
         onboarding_completed: false,
-        error: 'Not authenticated',
+        error: "Not authenticated",
       };
-      
+
       return Response.json(response, { status: 401 });
     }
 
@@ -48,46 +48,49 @@ export async function GET(): Promise<Response> {
       // Get user info from Clerk and create the record
       try {
         const clerkUser = await currentUser();
-        
+
         if (!clerkUser) {
           const response: OnboardingStatusResponse = {
             success: false,
             onboarding_completed: false,
-            error: 'User not found',
+            error: "User not found",
           };
-          
+
           return Response.json(response, { status: 404 });
         }
 
         const primaryEmail = clerkUser.emailAddresses[0]?.emailAddress;
-        
+
         if (!primaryEmail) {
           const response: OnboardingStatusResponse = {
             success: false,
             onboarding_completed: false,
-            error: 'No email address found',
+            error: "No email address found",
           };
-          
+
           return Response.json(response, { status: 400 });
         }
 
         // Create user record inline
-        const newUser = await db.insert(users).values({
-          id: userId,
-          email: primaryEmail,
-          firstName: clerkUser.firstName,
-          lastName: clerkUser.lastName,
-          onboardingCompleted: false,
-        }).returning({
-          id: users.id,
-          email: users.email,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          onboardingCompleted: users.onboardingCompleted,
-        });
+        const newUser = await db
+          .insert(users)
+          .values({
+            id: userId,
+            email: primaryEmail,
+            firstName: clerkUser.firstName,
+            lastName: clerkUser.lastName,
+            onboardingCompleted: false,
+          })
+          .returning({
+            id: users.id,
+            email: users.email,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            onboardingCompleted: users.onboardingCompleted,
+          });
 
         const user = newUser[0]!;
-        
+
         const response: OnboardingStatusResponse = {
           success: true,
           onboarding_completed: user.onboardingCompleted,
@@ -100,23 +103,22 @@ export async function GET(): Promise<Response> {
         };
 
         return Response.json(response);
-
       } catch (createError) {
-        console.error('Error creating user record:', createError);
-        
+        console.error("Error creating user record:", createError);
+
         // If we can't create the user, return a "pending" state
         const response: OnboardingStatusResponse = {
           success: true,
           onboarding_completed: false,
-          error: 'User record creation pending',
+          error: "User record creation pending",
         };
-        
+
         return Response.json(response);
       }
     }
 
     const user = dbUser[0]!;
-    
+
     const response: OnboardingStatusResponse = {
       success: true,
       onboarding_completed: user.onboardingCompleted,
@@ -130,14 +132,14 @@ export async function GET(): Promise<Response> {
 
     return Response.json(response);
   } catch (error) {
-    console.error('Error checking onboarding status:', error);
-    
+    console.error("Error checking onboarding status:", error);
+
     const response: OnboardingStatusResponse = {
       success: false,
       onboarding_completed: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
-    
+
     return Response.json(response, { status: 500 });
   }
 }

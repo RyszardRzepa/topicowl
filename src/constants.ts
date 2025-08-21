@@ -6,8 +6,45 @@ export const MODELS = {
   OPENAI_GPT_5: "gpt-5-2025-08-07",
 } as const;
 
+// Pricing plans for credit purchases
+export const PRICING_PLANS = {
+  STARTER: {
+    name: "Starter",
+    price: 16,
+    priceInCents: 1600, // $16.00
+    credits: 50,
+    description: "Perfect for trying out content creation",
+    pricePerCredit: 0.32,
+    discount: 0,
+  },
+  WRITER: {
+    name: "Writer",
+    price: 39,
+    priceInCents: 3900, // $39.00
+    credits: 150,
+    description: "Great for regular content creators",
+    pricePerCredit: 0.26,
+    discount: 19, // 19% discount
+  },
+  PRO: {
+    name: "Pro",
+    price: 89,
+    priceInCents: 8900, // $89.00
+    credits: 500,
+    description: "Perfect for content agencies",
+    pricePerCredit: 0.18,
+    discount: 44, // 44% discount
+  },
+} as const;
+
 // API URL constant for internal API calls
 export const API_BASE_URL =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:3000"
+    : `https://www.topicowl.com`;
+
+// Base URL constant for external URLs (like Stripe callbacks)
+export const BASE_URL =
   process.env.NODE_ENV === "development"
     ? "http://localhost:3000"
     : `https://www.topicowl.com`;
@@ -27,14 +64,14 @@ interface SessionData<T = unknown> {
  */
 function isValidSessionData(obj: unknown): obj is SessionData {
   return (
-    typeof obj === 'object' &&
+    typeof obj === "object" &&
     obj !== null &&
-    'sessionId' in obj &&
-    'timestamp' in obj &&
-    'initialized' in obj &&
-    typeof (obj as SessionData).sessionId === 'string' &&
-    typeof (obj as SessionData).timestamp === 'number' &&
-    typeof (obj as SessionData).initialized === 'boolean'
+    "sessionId" in obj &&
+    "timestamp" in obj &&
+    "initialized" in obj &&
+    typeof (obj as SessionData).sessionId === "string" &&
+    typeof (obj as SessionData).timestamp === "number" &&
+    typeof (obj as SessionData).initialized === "boolean"
   );
 }
 
@@ -49,12 +86,12 @@ export function generateSessionId(): string {
  * Gets the current session ID, creating one if it doesn't exist
  */
 export function getSessionId(): string {
-  if (typeof window === 'undefined') return generateSessionId();
-  
-  let sessionId = sessionStorage.getItem('contentbot-session-id');
+  if (typeof window === "undefined") return generateSessionId();
+
+  let sessionId = sessionStorage.getItem("contentbot-session-id");
   if (!sessionId) {
     sessionId = generateSessionId();
-    sessionStorage.setItem('contentbot-session-id', sessionId);
+    sessionStorage.setItem("contentbot-session-id", sessionId);
   }
   return sessionId;
 }
@@ -63,17 +100,17 @@ export function getSessionId(): string {
  * Checks if a specific session key has been initialized
  */
 export function isSessionInitialized(key: string): boolean {
-  if (typeof window === 'undefined') return false;
-  
+  if (typeof window === "undefined") return false;
+
   try {
     const data = sessionStorage.getItem(key);
     if (!data) return false;
-    
+
     const parsed: unknown = JSON.parse(data);
     if (!isValidSessionData(parsed)) return false;
-    
+
     const currentSessionId = getSessionId();
-    
+
     // Check if the stored session matches current session and is initialized
     return parsed.sessionId === currentSessionId && parsed.initialized === true;
   } catch {
@@ -85,15 +122,15 @@ export function isSessionInitialized(key: string): boolean {
  * Marks a session key as initialized
  */
 export function markSessionInitialized(key: string, data?: unknown): void {
-  if (typeof window === 'undefined') return;
-  
+  if (typeof window === "undefined") return;
+
   const sessionData = {
     sessionId: getSessionId(),
     timestamp: Date.now(),
     initialized: true,
-    data
+    data,
   };
-  
+
   try {
     sessionStorage.setItem(key, JSON.stringify(sessionData));
   } catch {
@@ -105,22 +142,22 @@ export function markSessionInitialized(key: string, data?: unknown): void {
  * Gets session data for a specific key
  */
 export function getSessionData<T = unknown>(key: string): T | null {
-  if (typeof window === 'undefined') return null;
-  
+  if (typeof window === "undefined") return null;
+
   try {
     const data = sessionStorage.getItem(key);
     if (!data) return null;
-    
+
     const parsed: unknown = JSON.parse(data);
     if (!isValidSessionData(parsed)) return null;
-    
+
     const currentSessionId = getSessionId();
-    
+
     // Only return data if it's from the current session
     if (parsed.sessionId === currentSessionId) {
       return (parsed.data as T) ?? null;
     }
-    
+
     return null;
   } catch {
     return null;
@@ -131,15 +168,15 @@ export function getSessionData<T = unknown>(key: string): T | null {
  * Stores session data for a specific key
  */
 export function setSessionData<T = unknown>(key: string, data: T): void {
-  if (typeof window === 'undefined') return;
-  
+  if (typeof window === "undefined") return;
+
   const sessionData = {
     sessionId: getSessionId(),
     timestamp: Date.now(),
     initialized: true,
-    data
+    data,
   };
-  
+
   try {
     sessionStorage.setItem(key, JSON.stringify(sessionData));
   } catch {
@@ -151,18 +188,18 @@ export function setSessionData<T = unknown>(key: string, data: T): void {
  * Clears all session data (useful on logout)
  */
 export function clearSession(): void {
-  if (typeof window === 'undefined') return;
-  
+  if (typeof window === "undefined") return;
+
   try {
     // Clear all contentbot session keys
     const keys = [
-      'contentbot-session-id',
-      'contentbot-onboarding-session',
-      'contentbot-projects-session',
-      'contentbot-credits-session'
+      "contentbot-session-id",
+      "contentbot-onboarding-session",
+      "contentbot-projects-session",
+      "contentbot-credits-session",
     ];
-    
-    keys.forEach(key => {
+
+    keys.forEach((key) => {
       sessionStorage.removeItem(key);
     });
   } catch {

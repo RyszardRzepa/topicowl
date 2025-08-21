@@ -47,14 +47,15 @@ export function DropdownMenu({ children }: DropdownMenuProps) {
 
   return (
     <DropdownMenuContext.Provider value={{ open, setOpen }}>
-      <div className="relative inline-block text-left w-full">
-        {children}
-      </div>
+      <div className="relative inline-block w-full text-left">{children}</div>
     </DropdownMenuContext.Provider>
   );
 }
 
-export function DropdownMenuTrigger({ asChild, children }: DropdownMenuTriggerProps) {
+export function DropdownMenuTrigger({
+  asChild,
+  children,
+}: DropdownMenuTriggerProps) {
   const { open, setOpen } = React.useContext(DropdownMenuContext);
 
   const handleClick = () => setOpen(!open);
@@ -67,19 +68,15 @@ export function DropdownMenuTrigger({ asChild, children }: DropdownMenuTriggerPr
     });
   }
 
-  return (
-    <button onClick={handleClick}>
-      {children}
-    </button>
-  );
+  return <button onClick={handleClick}>{children}</button>;
 }
 
-export function DropdownMenuContent({ 
-  children, 
-  className, 
-  side = "bottom", 
+export function DropdownMenuContent({
+  children,
+  className,
+  side = "bottom",
   align = "start",
-  sideOffset = 0 
+  sideOffset = 0,
 }: DropdownMenuContentProps) {
   const { open, setOpen } = React.useContext(DropdownMenuContext);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -111,7 +108,10 @@ export function DropdownMenuContent({
 
   const alignClasses = {
     start: side === "top" || side === "bottom" ? "left-0" : "top-0",
-    center: side === "top" || side === "bottom" ? "left-1/2 -translate-x-1/2" : "top-1/2 -translate-y-1/2",
+    center:
+      side === "top" || side === "bottom"
+        ? "left-1/2 -translate-x-1/2"
+        : "top-1/2 -translate-y-1/2",
     end: side === "top" || side === "bottom" ? "right-0" : "bottom-0",
   };
 
@@ -122,7 +122,7 @@ export function DropdownMenuContent({
         "absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-stone-200 bg-white p-1 text-stone-950 shadow-md",
         positionClasses[side],
         alignClasses[align],
-        className
+        className,
       )}
       style={{ marginTop: side === "bottom" ? sideOffset : undefined }}
     >
@@ -131,11 +131,11 @@ export function DropdownMenuContent({
   );
 }
 
-export function DropdownMenuItem({ 
-  children, 
-  className, 
-  asChild, 
-  onClick 
+export function DropdownMenuItem({
+  children,
+  className,
+  asChild,
+  onClick,
 }: DropdownMenuItemProps) {
   const { setOpen } = React.useContext(DropdownMenuContext);
 
@@ -145,13 +145,16 @@ export function DropdownMenuItem({
   };
 
   if (asChild) {
-    const child = children as React.ReactElement<{ className?: string; onClick?: () => void }>;
+    const child = children as React.ReactElement<{
+      className?: string;
+      onClick?: () => void;
+    }>;
     return React.cloneElement(child, {
       ...child.props,
       className: cn(
         "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-stone-100 focus:bg-stone-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
-        child.props.className
+        child.props.className,
       ),
       onClick: handleClick,
     });
@@ -160,8 +163,8 @@ export function DropdownMenuItem({
   return (
     <div
       className={cn(
-        "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-stone-100 focus:bg-stone-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-        className
+        "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm transition-colors outline-none select-none hover:bg-stone-100 focus:bg-stone-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        className,
       )}
       onClick={handleClick}
     >
@@ -170,12 +173,15 @@ export function DropdownMenuItem({
   );
 }
 
-export function DropdownMenuLabel({ children, className }: DropdownMenuLabelProps) {
+export function DropdownMenuLabel({
+  children,
+  className,
+}: DropdownMenuLabelProps) {
   return (
     <div
       className={cn(
         "px-2 py-1.5 text-sm font-semibold text-stone-900",
-        className
+        className,
       )}
     >
       {children}

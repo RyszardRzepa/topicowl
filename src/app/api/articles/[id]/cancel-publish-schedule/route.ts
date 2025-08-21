@@ -35,10 +35,7 @@ export async function POST(
       .where(eq(users.id, userId))
       .limit(1);
     if (!userRecord) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const articleId = parseInt(params.id, 10);
@@ -60,7 +57,9 @@ export async function POST(
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (!existing) {
@@ -81,7 +80,11 @@ export async function POST(
     // Update: clear publishScheduledAt, status remains wait_for_publish
     const updatedRows = await db
       .update(articles)
-      .set({ publishScheduledAt: null, status: "wait_for_publish", updatedAt: new Date() })
+      .set({
+        publishScheduledAt: null,
+        status: "wait_for_publish",
+        updatedAt: new Date(),
+      })
       .where(eq(articles.id, articleId))
       .returning();
 

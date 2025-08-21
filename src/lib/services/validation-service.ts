@@ -39,16 +39,18 @@ const validationResponseSchema = z.object({
  * Core validation function that can be called directly without HTTP
  * Extracted from /api/articles/validate/route.ts
  */
-export async function performValidateLogic(article: string): Promise<ValidateResponse> {
-  console.log("[VALIDATE_SERVICE] Starting validation", { contentLength: article.length });
+export async function performValidateLogic(
+  article: string,
+): Promise<ValidateResponse> {
+  console.log("[VALIDATE_SERVICE] Starting validation", {
+    contentLength: article.length,
+  });
 
   if (!article) {
     throw new Error("Article content is required");
   }
 
-  const {
-    text: rawValidationText,
-  } = await generateText({
+  const { text: rawValidationText } = await generateText({
     model: google(MODELS.GEMINI_2_5_FLASH),
     providerOptions: {
       google: {
@@ -62,7 +64,8 @@ export async function performValidateLogic(article: string): Promise<ValidateRes
       google_search: google.tools.googleSearch({}),
     },
     // Remove forced tool usage to prevent unnecessary delays - let AI decide when to search
-    system: "Use Google Search when needed to verify facts. Include citations for any searches performed.",
+    system:
+      "Use Google Search when needed to verify facts. Include citations for any searches performed.",
     prompt: prompts.validation(article),
   });
 

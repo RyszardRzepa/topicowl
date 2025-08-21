@@ -4,12 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Save, XCircle, Link, Search } from "lucide-react";
 import Image from "next/image";
@@ -45,10 +40,14 @@ export function ArticleEditor({
 
   const [newKeyword, setNewKeyword] = useState("");
   const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
-  const [selectedUnsplashImage, setSelectedUnsplashImage] = useState<CombinedImage | null>(null);
+  const [selectedUnsplashImage, setSelectedUnsplashImage] =
+    useState<CombinedImage | null>(null);
 
   const handleAddKeyword = () => {
-    if (newKeyword.trim() && !formData.metaKeywords.includes(newKeyword.trim())) {
+    if (
+      newKeyword.trim() &&
+      !formData.metaKeywords.includes(newKeyword.trim())
+    ) {
       setFormData((prev) => ({
         ...prev,
         metaKeywords: [...prev.metaKeywords, newKeyword.trim()],
@@ -60,7 +59,9 @@ export function ArticleEditor({
   const handleRemoveKeyword = (keywordToRemove: string) => {
     setFormData((prev) => ({
       ...prev,
-      metaKeywords: prev.metaKeywords.filter((keyword) => keyword !== keywordToRemove),
+      metaKeywords: prev.metaKeywords.filter(
+        (keyword) => keyword !== keywordToRemove,
+      ),
     }));
   };
 
@@ -69,7 +70,10 @@ export function ArticleEditor({
     setFormData((prev) => ({
       ...prev,
       coverImageUrl: image.urls.regular,
-      coverImageAlt: image.altDescription ?? image.description ?? `Photo by ${image.user.name}`,
+      coverImageAlt:
+        image.altDescription ??
+        image.description ??
+        `Photo by ${image.user.name}`,
     }));
   };
 
@@ -256,7 +260,7 @@ export function ArticleEditor({
                 onImageSelect={handleUnsplashImageSelect}
                 selectedImageId={selectedUnsplashImage?.id}
               />
-              
+
               {/* Show alt text input for selected image */}
               {selectedUnsplashImage && (
                 <div className="mt-4">
@@ -320,7 +324,10 @@ export function ArticleEditor({
               id="optimizedContent"
               value={formData.optimizedContent}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, optimizedContent: e.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  optimizedContent: e.target.value,
+                }))
               }
               placeholder="Enter article content"
               rows={15}

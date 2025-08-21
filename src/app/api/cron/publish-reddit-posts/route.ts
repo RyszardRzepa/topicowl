@@ -37,24 +37,29 @@ interface RedditSubmitApiResponse {
 
 // Helper function to exchange refresh token for access token
 async function getRedditAccessToken(refreshToken: string): Promise<string> {
-  const tokenResponse = await fetch("https://www.reddit.com/api/v1/access_token", {
-    method: "POST",
-    headers: {
-      "Authorization": `Basic ${Buffer.from(`${env.REDDIT_CLIENT_ID}:${env.REDDIT_CLIENT_SECRET}`).toString("base64")}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": "Contentbot/1.0",
+  const tokenResponse = await fetch(
+    "https://www.reddit.com/api/v1/access_token",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${env.REDDIT_CLIENT_ID}:${env.REDDIT_CLIENT_SECRET}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Contentbot/1.0",
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
     },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-    }),
-  });
+  );
 
   if (!tokenResponse.ok) {
-    throw new Error(`Failed to refresh Reddit token: ${tokenResponse.status} ${tokenResponse.statusText}`);
+    throw new Error(
+      `Failed to refresh Reddit token: ${tokenResponse.status} ${tokenResponse.statusText}`,
+    );
   }
 
-  const tokenData = await tokenResponse.json() as RedditTokenResponse;
+  const tokenData = (await tokenResponse.json()) as RedditTokenResponse;
   return tokenData.access_token;
 }
 
@@ -63,12 +68,12 @@ async function submitRedditPost(
   accessToken: string,
   subreddit: string,
   title: string,
-  text: string
+  text: string,
 ): Promise<string> {
   const submitResponse = await fetch("https://oauth.reddit.com/api/submit", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent": "Contentbot/1.0",
     },
@@ -83,19 +88,25 @@ async function submitRedditPost(
 
   if (!submitResponse.ok) {
     if (submitResponse.status === 403) {
-      throw new Error("Access denied. You may not have permission to post in this subreddit.");
+      throw new Error(
+        "Access denied. You may not have permission to post in this subreddit.",
+      );
     }
     if (submitResponse.status === 429) {
       throw new Error("Rate limit exceeded. Please try again later.");
     }
-    throw new Error(`Failed to submit post to Reddit: ${submitResponse.status} ${submitResponse.statusText}`);
+    throw new Error(
+      `Failed to submit post to Reddit: ${submitResponse.status} ${submitResponse.statusText}`,
+    );
   }
 
-  const submitData = await submitResponse.json() as RedditSubmitApiResponse;
+  const submitData = (await submitResponse.json()) as RedditSubmitApiResponse;
 
   // Check for Reddit API errors
   if (submitData.json.errors && submitData.json.errors.length > 0) {
-    const errorMessages = submitData.json.errors.map(error => error[1] ?? error[0]).join(", ");
+    const errorMessages = submitData.json.errors
+      .map((error) => error[1] ?? error[0])
+      .join(", ");
     throw new Error(`Reddit API error: ${errorMessages}`);
   }
 
@@ -109,7 +120,7 @@ async function submitRedditPost(
 
 // Helper function to implement exponential backoff retry logic
 async function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Helper function to process a single scheduled post
@@ -131,21 +142,24 @@ async function processScheduledPost(post: {
       const clerk = await clerkClient();
       const user = await clerk.users.getUser(post.userId);
       const metadata = (user.privateMetadata ?? {}) as ClerkPrivateMetadata;
-      const projectConnection = metadata.redditTokens?.[post.projectId.toString()];
+      const projectConnection =
+        metadata.redditTokens?.[post.projectId.toString()];
 
       if (!projectConnection) {
         throw new Error("Reddit account not connected for this project");
       }
 
       // Exchange refresh token for access token
-      const accessToken = await getRedditAccessToken(projectConnection.refreshToken);
+      const accessToken = await getRedditAccessToken(
+        projectConnection.refreshToken,
+      );
 
       // Submit post to Reddit
       const redditPostId = await submitRedditPost(
         accessToken,
         post.subreddit,
         post.title,
-        post.text
+        post.text,
       );
 
       // Update post status to published on success
@@ -162,18 +176,23 @@ async function processScheduledPost(post: {
       // Update last used timestamp for this project connection
       const updatedMetadata = { ...metadata };
       if (updatedMetadata.redditTokens?.[post.projectId.toString()]) {
-        updatedMetadata.redditTokens[post.projectId.toString()]!.lastUsedAt = new Date().toISOString();
+        updatedMetadata.redditTokens[post.projectId.toString()]!.lastUsedAt =
+          new Date().toISOString();
         await clerk.users.updateUserMetadata(post.userId, {
-          privateMetadata: updatedMetadata
+          privateMetadata: updatedMetadata,
         });
       }
 
-      console.log(`Successfully published Reddit post ${post.id} (Reddit ID: ${redditPostId})`);
+      console.log(
+        `Successfully published Reddit post ${post.id} (Reddit ID: ${redditPostId})`,
+      );
       return { success: true };
-
     } catch (error) {
       lastError = error instanceof Error ? error.message : "Unknown error";
-      console.error(`Attempt ${attempt}/${maxRetries} failed for post ${post.id}:`, lastError);
+      console.error(
+        `Attempt ${attempt}/${maxRetries} failed for post ${post.id}:`,
+        lastError,
+      );
 
       // If this is not the last attempt, wait with exponential backoff
       if (attempt < maxRetries) {
@@ -194,7 +213,9 @@ async function processScheduledPost(post: {
     })
     .where(eq(redditPosts.id, post.id));
 
-  console.error(`Failed to publish Reddit post ${post.id} after ${maxRetries} attempts: ${lastError}`);
+  console.error(
+    `Failed to publish Reddit post ${post.id} after ${maxRetries} attempts: ${lastError}`,
+  );
   return { success: false, error: lastError };
 }
 
@@ -225,8 +246,8 @@ export async function POST() {
       .where(
         and(
           eq(redditPosts.status, "scheduled"),
-          lte(redditPosts.publishScheduledAt, now)
-        )
+          lte(redditPosts.publishScheduledAt, now),
+        ),
       );
 
     console.log(`Found ${scheduledPosts.length} posts ready for publishing`);
@@ -241,7 +262,9 @@ export async function POST() {
 
       try {
         processed++;
-        console.log(`Processing post ${post.id}: "${post.title}" to r/${post.subreddit}`);
+        console.log(
+          `Processing post ${post.id}: "${post.title}" to r/${post.subreddit}`,
+        );
 
         const result = await processScheduledPost(post);
 
@@ -256,7 +279,6 @@ export async function POST() {
 
         // Add a small delay between posts to respect Reddit's rate limits
         await sleep(100); // 100ms delay between posts
-
       } catch (error) {
         processed++;
         failed++;
@@ -293,7 +315,6 @@ export async function POST() {
 
     console.log("Reddit posts publishing cron job completed:", response);
     return NextResponse.json(response);
-
   } catch (error) {
     console.error("Reddit posts publishing cron job error:", error);
     return NextResponse.json(
@@ -302,7 +323,7 @@ export async function POST() {
         error: "Failed to process scheduled Reddit posts",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -319,8 +340,8 @@ export async function GET() {
       .where(
         and(
           eq(redditPosts.status, "scheduled"),
-          lte(redditPosts.publishScheduledAt, now)
-        )
+          lte(redditPosts.publishScheduledAt, now),
+        ),
       );
 
     // Get total scheduled posts (including future ones)
@@ -332,15 +353,15 @@ export async function GET() {
     // Get published posts count from today
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    
+
     const publishedTodayCountResult = await db
       .select({ count: count() })
       .from(redditPosts)
       .where(
         and(
           eq(redditPosts.status, "published"),
-          gte(redditPosts.publishedAt, todayStart)
-        )
+          gte(redditPosts.publishedAt, todayStart),
+        ),
       );
 
     // Get failed posts count from today
@@ -350,8 +371,8 @@ export async function GET() {
       .where(
         and(
           eq(redditPosts.status, "failed"),
-          gte(redditPosts.updatedAt, todayStart)
-        )
+          gte(redditPosts.updatedAt, todayStart),
+        ),
       );
 
     return NextResponse.json({
@@ -364,12 +385,11 @@ export async function GET() {
         timestamp: new Date().toISOString(),
       },
     });
-
   } catch (error) {
     console.error("Get Reddit cron status error:", error);
     return NextResponse.json(
       { error: "Failed to get Reddit cron job status" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

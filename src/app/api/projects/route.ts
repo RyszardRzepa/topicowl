@@ -32,7 +32,11 @@ const analyzeRequestSchema = z.object({
 
 const createProjectSchema = z.object({
   // legacy manual creation fields
-  name: z.string().min(1, "Project name is required").max(100, "Project name too long").optional(),
+  name: z
+    .string()
+    .min(1, "Project name is required")
+    .max(100, "Project name too long")
+    .optional(),
   websiteUrl: z.string().url("Valid website URL is required"),
   companyName: z.string().optional(),
   productDescription: z.string().optional(),
@@ -46,11 +50,11 @@ const createProjectSchema = z.object({
 export async function GET(): Promise<Response> {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return Response.json(
         { success: false, error: "Unauthorized" } satisfies ApiResponse,
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -64,24 +68,34 @@ export async function GET(): Promise<Response> {
       success: true,
       data: userProjects,
     } satisfies ApiResponse<Project[]>);
-
   } catch (error) {
-    console.error('Error fetching projects:', error);
+    console.error("Error fetching projects:", error);
     return Response.json(
-      { success: false, error: "Failed to fetch projects" } satisfies ApiResponse,
-      { status: 500 }
+      {
+        success: false,
+        error: "Failed to fetch projects",
+      } satisfies ApiResponse,
+      { status: 500 },
     );
   }
 }
 
 // Inline URL normalization (avoid shared util per repo guidance)
-function normalizeWebsiteUrl(raw: string): { websiteUrl: string; domain: string } {
+function normalizeWebsiteUrl(raw: string): {
+  websiteUrl: string;
+  domain: string;
+} {
   const trimmed = raw.trim();
-  const withProtocol = /^(https?:)?\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const withProtocol = /^(https?:)?\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
   const url = new URL(withProtocol);
   const host = url.hostname.toLowerCase();
   const protocol = "https:"; // canonical protocol
-  return { websiteUrl: `${protocol}//${host}${url.pathname.replace(/\/+$/g, "")}`, domain: host.replace(/^www\./, "") };
+  return {
+    websiteUrl: `${protocol}//${host}${url.pathname.replace(/\/+$/g, "")}`,
+    domain: host.replace(/^www\./, ""),
+  };
 }
 
 // WebsiteAnalysisSchema imported for potential validation reuse (kept minimal here)
@@ -91,7 +105,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return Response.json({ success: false, error: "Unauthorized" } satisfies ApiResponse, { status: 401 });
+      return Response.json(
+        { success: false, error: "Unauthorized" } satisfies ApiResponse,
+        { status: 401 },
+      );
     }
 
     const bodyRaw: unknown = await request.json();
@@ -102,17 +119,32 @@ export async function POST(request: NextRequest): Promise<Response> {
       let analyzedRequest;
       try {
         analyzedRequest = analyzeRequestSchema.parse(bodyRaw);
-  } catch {
-        return Response.json({ success: false, error: "Invalid analyze request" } satisfies ApiResponse, { status: 400 });
+      } catch {
+        return Response.json(
+          {
+            success: false,
+            error: "Invalid analyze request",
+          } satisfies ApiResponse,
+          { status: 400 },
+        );
       }
       let normalized;
       try {
         normalized = normalizeWebsiteUrl(analyzedRequest.websiteUrl);
       } catch {
-        return Response.json({ success: false, error: "Invalid website URL" } satisfies ApiResponse, { status: 400 });
+        return Response.json(
+          {
+            success: false,
+            error: "Invalid website URL",
+          } satisfies ApiResponse,
+          { status: 400 },
+        );
       }
-  const analysis = await analyzeWebsitePure(normalized.websiteUrl);
-      return Response.json({ success: true, data: { ...analysis } } satisfies ApiResponse, { status: 200 });
+      const analysis = await analyzeWebsitePure(normalized.websiteUrl);
+      return Response.json(
+        { success: true, data: { ...analysis } } satisfies ApiResponse,
+        { status: 200 },
+      );
     }
 
     // Creation path (manual or AI-assisted)
@@ -120,41 +152,67 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     // Normalize URL
     let normalized;
-    try { normalized = normalizeWebsiteUrl(validated.websiteUrl); } catch {
-      return Response.json({ success: false, error: "Invalid website URL" } satisfies ApiResponse, { status: 400 });
+    try {
+      normalized = normalizeWebsiteUrl(validated.websiteUrl);
+    } catch {
+      return Response.json(
+        { success: false, error: "Invalid website URL" } satisfies ApiResponse,
+        { status: 400 },
+      );
     }
 
     // Per-user uniqueness check (prevent same user from creating duplicate projects)
     const existing = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.websiteUrl, normalized.websiteUrl), eq(projects.userId, userId)))
+      .where(
+        and(
+          eq(projects.websiteUrl, normalized.websiteUrl),
+          eq(projects.userId, userId),
+        ),
+      )
       .limit(1);
-    
+
     if (existing.length > 0) {
-      return Response.json({ success: false, error: "You already have a project for this website URL" } satisfies ApiResponse, { status: 400 });
+      return Response.json(
+        {
+          success: false,
+          error: "You already have a project for this website URL",
+        } satisfies ApiResponse,
+        { status: 400 },
+      );
     }
 
     const analysisData = validated.analysisData;
-    const finalName = validated.name ?? (validated.useAnalyzedName ? analysisData?.companyName : undefined) ?? analysisData?.companyName ?? normalized.domain;
-    const finalCompanyName = analysisData?.companyName ?? validated.companyName ?? finalName;
-    const finalProductDescription = analysisData?.productDescription ?? validated.productDescription;
-    const finalKeywords = analysisData?.suggestedKeywords ?? validated.keywords ?? [];
+    const finalName =
+      validated.name ??
+      (validated.useAnalyzedName ? analysisData?.companyName : undefined) ??
+      analysisData?.companyName ??
+      normalized.domain;
+    const finalCompanyName =
+      analysisData?.companyName ?? validated.companyName ?? finalName;
+    const finalProductDescription =
+      analysisData?.productDescription ?? validated.productDescription;
+    const finalKeywords =
+      analysisData?.suggestedKeywords ?? validated.keywords ?? [];
 
     let newProject: Project | undefined;
     await db.transaction(async (tx) => {
-      const inserted = await tx.insert(projects).values({
-        userId,
-        name: finalName,
-        websiteUrl: normalized.websiteUrl,
-        domain: normalized.domain,
-        companyName: finalCompanyName,
-        productDescription: finalProductDescription,
-        keywords: finalKeywords,
-        webhookEnabled: false,
-        webhookEvents: ["article.published"],
-        // Do NOT set article settings fields here (schema cleanup path); leave null
-      }).returning();
+      const inserted = await tx
+        .insert(projects)
+        .values({
+          userId,
+          name: finalName,
+          websiteUrl: normalized.websiteUrl,
+          domain: normalized.domain,
+          companyName: finalCompanyName,
+          productDescription: finalProductDescription,
+          keywords: finalKeywords,
+          webhookEnabled: false,
+          webhookEvents: ["article.published"],
+          // Do NOT set article settings fields here (schema cleanup path); leave null
+        })
+        .returning();
       newProject = inserted[0] as Project | undefined;
       if (!newProject) throw new Error("Insert failed");
       if (analysisData) {
@@ -168,15 +226,41 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
 
     if (!newProject) {
-      return Response.json({ success: false, error: "Failed to create project" } satisfies ApiResponse, { status: 500 });
+      return Response.json(
+        {
+          success: false,
+          error: "Failed to create project",
+        } satisfies ApiResponse,
+        { status: 500 },
+      );
     }
 
-    return Response.json({ success: true, data: newProject, message: "Project created successfully" } satisfies ApiResponse<Project>, { status: 201 });
+    return Response.json(
+      {
+        success: true,
+        data: newProject,
+        message: "Project created successfully",
+      } satisfies ApiResponse<Project>,
+      { status: 201 },
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return Response.json({ success: false, error: "Validation failed", message: error.errors.map(e => e.message).join(", ") } satisfies ApiResponse, { status: 400 });
+      return Response.json(
+        {
+          success: false,
+          error: "Validation failed",
+          message: error.errors.map((e) => e.message).join(", "),
+        } satisfies ApiResponse,
+        { status: 400 },
+      );
     }
     console.error("Error creating/analyzing project:", error);
-    return Response.json({ success: false, error: "Failed to process request" } satisfies ApiResponse, { status: 500 });
+    return Response.json(
+      {
+        success: false,
+        error: "Failed to process request",
+      } satisfies ApiResponse,
+      { status: 500 },
+    );
   }
 }

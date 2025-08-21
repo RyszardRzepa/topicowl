@@ -18,7 +18,7 @@ interface UseProjectDataResult<T> {
 }
 
 export function useProjectData<T>(
-  options: UseProjectDataOptions
+  options: UseProjectDataOptions,
 ): UseProjectDataResult<T> {
   const { currentProject, onProjectChange } = useProject();
   const [data, setData] = useState<T | null>(null);
@@ -27,42 +27,42 @@ export function useProjectData<T>(
   const currentProjectIdRef = useRef<number | null>(null);
   const hasDataRef = useRef(false);
 
-  const {
-    endpoint,
-    enabled = true,
-    refetchOnProjectChange = true,
-  } = options;
+  const { endpoint, enabled = true, refetchOnProjectChange = true } = options;
 
-  const fetchData = useCallback(async (projectId: number) => {
-    if (!enabled) return;
+  const fetchData = useCallback(
+    async (projectId: number) => {
+      if (!enabled) return;
 
-    setIsLoading(true);
-    setError(null);
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const response = await fetch(endpoint(projectId));
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      try {
+        const response = await fetch(endpoint(projectId));
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = (await response.json()) as ApiResponse<T>;
+
+        if (!result.success) {
+          throw new Error(result.error ?? "API request failed");
+        }
+
+        setData(result.data ?? null);
+        hasDataRef.current = true;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to fetch data";
+        console.error("Error fetching project data:", err);
+        setError(errorMessage);
+        setData(null);
+      } finally {
+        setIsLoading(false);
       }
-
-      const result = (await response.json()) as ApiResponse<T>;
-      
-      if (!result.success) {
-        throw new Error(result.error ?? "API request failed");
-      }
-
-      setData(result.data ?? null);
-      hasDataRef.current = true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to fetch data";
-      console.error("Error fetching project data:", err);
-      setError(errorMessage);
-      setData(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [endpoint, enabled]);
+    },
+    [endpoint, enabled],
+  );
 
   const refetch = useCallback(async () => {
     if (currentProject?.id) {
@@ -84,9 +84,13 @@ export function useProjectData<T>(
 
     const unsubscribe = onProjectChange((project) => {
       const newProjectId = project?.id ?? null;
-      
+
       // Only refetch if project actually changed and we have data
-      if (newProjectId !== currentProjectIdRef.current && newProjectId && enabled) {
+      if (
+        newProjectId !== currentProjectIdRef.current &&
+        newProjectId &&
+        enabled
+      ) {
         void fetchData(newProjectId);
         currentProjectIdRef.current = newProjectId;
       } else if (!newProjectId) {

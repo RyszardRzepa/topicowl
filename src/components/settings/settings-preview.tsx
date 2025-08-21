@@ -10,21 +10,32 @@ interface SettingsPreviewProps {
 
 export function SettingsPreview({ settings }: SettingsPreviewProps) {
   const getToneDescription = (tone: string | null) => {
-    if (!tone || tone.trim() === '') {
-      return 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.';
+    if (!tone || tone.trim() === "") {
+      return "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.";
     }
     return tone;
   };
 
   const getSampleContent = () => {
-    const tone = settings.toneOfVoice ?? 'Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.';
-    
+    const tone =
+      settings.toneOfVoice ??
+      "Professional and informative tone that speaks directly to business professionals. Use clear, authoritative language while remaining approachable and practical.";
+
     // Analyze the tone description to determine the style
     const toneText = tone.toLowerCase();
-    const isCasual = toneText.includes('casual') ?? toneText.includes('relaxed') ?? toneText.includes('conversational');
-    const isAuthoritative = toneText.includes('authoritative') ?? toneText.includes('expert') ?? toneText.includes('technical');
-    const isFriendly = toneText.includes('friendly') ?? toneText.includes('warm') ?? toneText.includes('approachable');
-    
+    const isCasual =
+      toneText.includes("casual") ??
+      toneText.includes("relaxed") ??
+      toneText.includes("conversational");
+    const isAuthoritative =
+      toneText.includes("authoritative") ??
+      toneText.includes("expert") ??
+      toneText.includes("technical");
+    const isFriendly =
+      toneText.includes("friendly") ??
+      toneText.includes("warm") ??
+      toneText.includes("approachable");
+
     if (isCasual) {
       return {
         title: "5 Game-Changing SEO Tips That Actually Work",
@@ -93,11 +104,17 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-blue-700">Project Name</label>
-                  <p className="mt-1 font-medium text-blue-900">{settings.name}</p>
+                  <label className="text-sm font-medium text-blue-700">
+                    Project Name
+                  </label>
+                  <p className="mt-1 font-medium text-blue-900">
+                    {settings.name}
+                  </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-blue-700">Company Name</label>
+                  <label className="text-sm font-medium text-blue-700">
+                    Company Name
+                  </label>
                   <p className="mt-1 font-medium text-blue-900">
                     {settings.companyName ?? "Not set"}
                   </p>
@@ -105,24 +122,30 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-blue-700">Website URL</label>
-                  <p className="mt-1 font-medium text-blue-900 break-all">
+                  <label className="text-sm font-medium text-blue-700">
+                    Website URL
+                  </label>
+                  <p className="mt-1 font-medium break-all text-blue-900">
                     {settings.websiteUrl}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-blue-700">Domain</label>
+                  <label className="text-sm font-medium text-blue-700">
+                    Domain
+                  </label>
                   <p className="mt-1 font-medium text-blue-900">
                     {settings.domain ?? "Not extracted"}
                   </p>
                 </div>
               </div>
             </div>
-            
+
             {settings.productDescription && (
-              <div className="mt-4 pt-4 border-t border-blue-200">
-                <label className="text-sm font-medium text-blue-700">Product/Service Description</label>
-                <p className="mt-2 text-sm text-blue-800 bg-blue-100 rounded p-3 italic">
+              <div className="mt-4 border-t border-blue-200 pt-4">
+                <label className="text-sm font-medium text-blue-700">
+                  Product/Service Description
+                </label>
+                <p className="mt-2 rounded bg-blue-100 p-3 text-sm text-blue-800 italic">
                   &ldquo;{settings.productDescription}&rdquo;
                 </p>
               </div>
@@ -136,32 +159,40 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
             <h3 className="mb-4 text-lg font-semibold text-green-900">
               Article Generation Settings
             </h3>
-            
+
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-green-700">Tone of Voice</label>
-                <p className="mt-2 text-sm text-green-800 bg-green-100 rounded p-3 leading-relaxed">
+                <label className="text-sm font-medium text-green-700">
+                  Tone of Voice
+                </label>
+                <p className="mt-2 rounded bg-green-100 p-3 text-sm leading-relaxed text-green-800">
                   {getToneDescription(settings.toneOfVoice)}
                 </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-green-700">Article Structure</label>
-                  <p className="mt-2 font-mono text-xs bg-green-100 rounded p-3 text-green-800">
-                    {settings.articleStructure ?? "Introduction • Main points • Conclusion"}
+                  <label className="text-sm font-medium text-green-700">
+                    Article Structure
+                  </label>
+                  <p className="mt-2 rounded bg-green-100 p-3 font-mono text-xs text-green-800">
+                    {settings.articleStructure ??
+                      "Introduction • Main points • Conclusion"}
                   </p>
                 </div>
-                
+
                 <div>
-                  <label className="text-sm font-medium text-green-700">Target Word Count</label>
+                  <label className="text-sm font-medium text-green-700">
+                    Target Word Count
+                  </label>
                   <div className="mt-2">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="mb-2 flex items-center justify-between">
                       <span className="text-lg font-bold text-green-900">
                         {settings.maxWords ?? 800} words
                       </span>
                       <span className="text-xs text-green-600">
-                        {Math.round(((settings.maxWords ?? 800) / 5000) * 100)}% of max
+                        {Math.round(((settings.maxWords ?? 800) / 5000) * 100)}%
+                        of max
                       </span>
                     </div>
                     <div className="h-2 rounded-full bg-green-200">
@@ -180,18 +211,26 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-green-700">Content Sections</label>
+                <label className="text-sm font-medium text-green-700">
+                  Content Sections
+                </label>
                 <div className="mt-2 space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${settings.includeVideo ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <div
+                      className={`h-3 w-3 rounded-full ${settings.includeVideo ? "bg-green-500" : "bg-gray-300"}`}
+                    ></div>
                     <span className="text-sm text-green-800">
-                      Video sections {settings.includeVideo ? 'enabled' : 'disabled'}
+                      Video sections{" "}
+                      {settings.includeVideo ? "enabled" : "disabled"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${settings.includeTables ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <div
+                      className={`h-3 w-3 rounded-full ${settings.includeTables ? "bg-green-500" : "bg-gray-300"}`}
+                    ></div>
                     <span className="text-sm text-green-800">
-                      Table sections {settings.includeTables ? 'enabled' : 'disabled'}
+                      Table sections{" "}
+                      {settings.includeTables ? "enabled" : "disabled"}
                     </span>
                   </div>
                 </div>
@@ -206,12 +245,14 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
             <h3 className="mb-4 text-lg font-semibold text-purple-900">
               SEO Configuration
             </h3>
-            
+
             <div className="space-y-4">
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-purple-700">Target Keywords</label>
-                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                <div className="mb-3 flex items-center justify-between">
+                  <label className="text-sm font-medium text-purple-700">
+                    Target Keywords
+                  </label>
+                  <span className="rounded-full bg-purple-100 px-2 py-1 text-xs text-purple-700">
                     {settings.keywords.length} / 20 keywords
                   </span>
                 </div>
@@ -220,14 +261,14 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
                     {settings.keywords.map((keyword, index) => (
                       <span
                         key={index}
-                        className="rounded-full bg-purple-100 px-3 py-1 text-sm font-medium text-purple-800 border border-purple-200"
+                        className="rounded-full border border-purple-200 bg-purple-100 px-3 py-1 text-sm font-medium text-purple-800"
                       >
                         {keyword}
                       </span>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-purple-600 italic bg-purple-100 rounded p-3">
+                  <p className="rounded bg-purple-100 p-3 text-sm text-purple-600 italic">
                     No keywords set. Add keywords to improve content targeting.
                   </p>
                 )}
@@ -235,28 +276,32 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-purple-700">Sitemap URL</label>
-                  <p className="mt-1 text-sm text-purple-800 bg-purple-100 rounded p-3 break-all">
+                  <label className="text-sm font-medium text-purple-700">
+                    Sitemap URL
+                  </label>
+                  <p className="mt-1 rounded bg-purple-100 p-3 text-sm break-all text-purple-800">
                     {settings.sitemapUrl ?? "Not configured"}
                   </p>
                 </div>
-                
+
                 <div>
-                  <label className="text-sm font-medium text-purple-700">Excluded Domains</label>
+                  <label className="text-sm font-medium text-purple-700">
+                    Excluded Domains
+                  </label>
                   <div className="mt-1">
                     {settings.excludedDomains.length > 0 ? (
                       <div className="space-y-1">
                         {settings.excludedDomains.map((domain, index) => (
                           <span
                             key={index}
-                            className="block text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded border border-purple-200"
+                            className="block rounded border border-purple-200 bg-purple-100 px-2 py-1 text-xs text-purple-800"
                           >
                             {domain}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-purple-600 bg-purple-100 rounded p-3">
+                      <p className="rounded bg-purple-100 p-3 text-sm text-purple-600">
                         No domains excluded
                       </p>
                     )}
@@ -273,23 +318,29 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
             <h3 className="mb-4 text-lg font-semibold text-orange-900">
               Webhook Configuration
             </h3>
-            
+
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-orange-100 rounded">
-                <span className="text-sm font-medium text-orange-700">Webhook Status</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  settings.webhookEnabled 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {settings.webhookEnabled ? 'Enabled' : 'Disabled'}
+              <div className="flex items-center justify-between rounded bg-orange-100 p-3">
+                <span className="text-sm font-medium text-orange-700">
+                  Webhook Status
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    settings.webhookEnabled
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {settings.webhookEnabled ? "Enabled" : "Disabled"}
                 </span>
               </div>
 
               {settings.webhookUrl && (
                 <div>
-                  <label className="text-sm font-medium text-orange-700">Webhook URL</label>
-                  <p className="mt-1 text-sm text-orange-800 bg-orange-100 rounded p-3 font-mono break-all">
+                  <label className="text-sm font-medium text-orange-700">
+                    Webhook URL
+                  </label>
+                  <p className="mt-1 rounded bg-orange-100 p-3 font-mono text-sm break-all text-orange-800">
                     {settings.webhookUrl}
                   </p>
                 </div>
@@ -297,29 +348,33 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
 
               {settings.webhookSecret && (
                 <div>
-                  <label className="text-sm font-medium text-orange-700">Webhook Secret</label>
-                  <p className="mt-1 text-sm text-orange-800 bg-orange-100 rounded p-3 font-mono">
-                    {'•'.repeat(settings.webhookSecret.length)}
+                  <label className="text-sm font-medium text-orange-700">
+                    Webhook Secret
+                  </label>
+                  <p className="mt-1 rounded bg-orange-100 p-3 font-mono text-sm text-orange-800">
+                    {"•".repeat(settings.webhookSecret.length)}
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="text-sm font-medium text-orange-700">Webhook Events</label>
+                <label className="text-sm font-medium text-orange-700">
+                  Webhook Events
+                </label>
                 <div className="mt-2">
                   {settings.webhookEvents.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {settings.webhookEvents.map((event, index) => (
                         <span
                           key={index}
-                          className="rounded bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800 border border-orange-200"
+                          className="rounded border border-orange-200 bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800"
                         >
                           {event}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-orange-600 bg-orange-100 rounded p-3">
+                    <p className="rounded bg-orange-100 p-3 text-sm text-orange-600">
                       No events configured
                     </p>
                   )}
@@ -327,9 +382,10 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
               </div>
 
               {!settings.webhookUrl && (
-                <div className="text-center py-6">
+                <div className="py-6 text-center">
                   <p className="text-sm text-orange-600">
-                    No webhook configuration found. Set up webhooks to receive real-time notifications.
+                    No webhook configuration found. Set up webhooks to receive
+                    real-time notifications.
                   </p>
                 </div>
               )}
@@ -344,35 +400,45 @@ export function SettingsPreview({ settings }: SettingsPreviewProps) {
               Sample Content Preview
             </h3>
             <p className="mb-6 text-sm text-gray-600">
-              This preview shows how your content will look with the current tone and style settings.
+              This preview shows how your content will look with the current
+              tone and style settings.
             </p>
-            
+
             <div className="space-y-6">
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
-                <label className="text-sm font-medium text-gray-700">Sample Title</label>
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <label className="text-sm font-medium text-gray-700">
+                  Sample Title
+                </label>
                 <h4 className="mt-2 text-lg font-semibold text-gray-900">
                   {sampleContent.title}
                 </h4>
               </div>
 
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
-                <label className="text-sm font-medium text-gray-700">Sample Introduction</label>
-                <p className="mt-2 text-gray-800 leading-relaxed">
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <label className="text-sm font-medium text-gray-700">
+                  Sample Introduction
+                </label>
+                <p className="mt-2 leading-relaxed text-gray-800">
                   {sampleContent.intro}
                 </p>
               </div>
 
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
-                <label className="text-sm font-medium text-gray-700">Sample Body Text</label>
-                <p className="mt-2 text-gray-800 leading-relaxed">
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <label className="text-sm font-medium text-gray-700">
+                  Sample Body Text
+                </label>
+                <p className="mt-2 leading-relaxed text-gray-800">
                   {sampleContent.body}
                 </p>
               </div>
 
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">Style Analysis</h4>
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <h4 className="mb-2 font-medium text-blue-900">
+                  Style Analysis
+                </h4>
                 <p className="text-sm text-blue-700">
-                  Based on your tone settings: &ldquo;{getToneDescription(settings.toneOfVoice)}&rdquo;
+                  Based on your tone settings: &ldquo;
+                  {getToneDescription(settings.toneOfVoice)}&rdquo;
                 </p>
               </div>
             </div>

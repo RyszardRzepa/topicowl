@@ -26,13 +26,13 @@ interface ArticleIdeaCardProps {
 
 const contentAngleIcons = {
   "how-to": Lightbulb,
-  "listicle": TrendingUp,
+  listicle: TrendingUp,
   "case-study": Users,
-  "guide": Lightbulb,
-  "comparison": TrendingUp,
-  "review": Users,
-  "tutorial": Lightbulb,
-  "analysis": TrendingUp,
+  guide: Lightbulb,
+  comparison: TrendingUp,
+  review: Users,
+  tutorial: Lightbulb,
+  analysis: TrendingUp,
 } as const;
 
 const difficultyColors = {
@@ -75,35 +75,42 @@ export function ArticleIdeaCard({
     }
   };
 
-  const ContentAngleIcon = contentAngleIcons[idea.contentAngle as keyof typeof contentAngleIcons] || Lightbulb;
+  const ContentAngleIcon =
+    contentAngleIcons[idea.contentAngle as keyof typeof contentAngleIcons] ||
+    Lightbulb;
 
   return (
     <Card
       className={cn(
         "transition-all duration-200 hover:shadow-md",
         {
-          "ring-2 ring-brand-green ring-offset-2": isSelected,
-          "opacity-75 pointer-events-none": isAdding || isAdded,
+          "ring-brand-green ring-2 ring-offset-2": isSelected,
+          "pointer-events-none opacity-75": isAdding || isAdded,
         },
         className,
       )}
     >
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <CardTitle className="line-clamp-2 text-lg leading-tight">
               {idea.title}
             </CardTitle>
-            
+
             {/* Content angle and difficulty indicators */}
-            <div className="flex items-center gap-2 mt-2">
+            <div className="mt-2 flex items-center gap-2">
               <div className="flex items-center gap-1 text-sm text-stone-600">
                 <ContentAngleIcon className="h-4 w-4" />
-                <span className="capitalize">{idea.contentAngle.replace('-', ' ')}</span>
+                <span className="capitalize">
+                  {idea.contentAngle.replace("-", " ")}
+                </span>
               </div>
               <Badge
                 variant="outline"
-                className={cn("text-xs", difficultyColors[idea.estimatedDifficulty])}
+                className={cn(
+                  "text-xs",
+                  difficultyColors[idea.estimatedDifficulty],
+                )}
               >
                 {idea.estimatedDifficulty}
               </Badge>
@@ -117,7 +124,7 @@ export function ArticleIdeaCard({
                 type="checkbox"
                 checked={isSelected}
                 onChange={handleSelectionChange}
-                className="h-4 w-4 rounded border-stone-300 text-brand-green focus:ring-brand-green"
+                className="text-brand-green focus:ring-brand-green h-4 w-4 rounded border-stone-300"
               />
             </div>
           )}
@@ -132,7 +139,7 @@ export function ArticleIdeaCard({
         {/* Target audience */}
         {idea.targetAudience && (
           <div className="mb-3">
-            <div className="flex items-center gap-1 text-xs text-stone-500 mb-1">
+            <div className="mb-1 flex items-center gap-1 text-xs text-stone-500">
               <Users className="h-3 w-3" />
               Target Audience
             </div>
@@ -143,18 +150,25 @@ export function ArticleIdeaCard({
         {/* Keywords */}
         {idea.keywords && idea.keywords.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-xs text-stone-500 mb-2">
+            <div className="mb-2 flex items-center gap-1 text-xs text-stone-500">
               <TrendingUp className="h-3 w-3" />
               Keywords
             </div>
             <div className="flex flex-wrap gap-1">
               {idea.keywords.slice(0, 4).map((keyword, index) => (
-                <Badge key={index} variant="secondary" className="text-xs bg-stone-100 text-stone-700 border-stone-200">
+                <Badge
+                  key={index}
+                  variant="secondary"
+                  className="border-stone-200 bg-stone-100 text-xs text-stone-700"
+                >
                   {keyword}
                 </Badge>
               ))}
               {idea.keywords.length > 4 && (
-                <Badge variant="secondary" className="text-xs bg-stone-100 text-stone-700 border-stone-200">
+                <Badge
+                  variant="secondary"
+                  className="border-stone-200 bg-stone-100 text-xs text-stone-700"
+                >
                   +{idea.keywords.length - 4} more
                 </Badge>
               )}
@@ -170,9 +184,9 @@ export function ArticleIdeaCard({
           size="sm"
           className={cn(
             "w-full transition-all",
-            isAdded 
-              ? "bg-brand-green/20 text-brand-green border border-brand-green/30 hover:bg-brand-green/20" 
-              : "bg-brand-green hover:bg-brand-green/90 text-white"
+            isAdded
+              ? "bg-brand-green/20 text-brand-green border-brand-green/30 hover:bg-brand-green/20 border"
+              : "bg-brand-green hover:bg-brand-green/90 text-white",
           )}
         >
           {isAdded ? (
@@ -180,7 +194,11 @@ export function ArticleIdeaCard({
           ) : (
             <Plus className="mr-2 h-4 w-4" />
           )}
-          {isAdding ? "Adding..." : isAdded ? "Added to Pipeline" : "Add to Pipeline"}
+          {isAdding
+            ? "Adding..."
+            : isAdded
+              ? "Added to Pipeline"
+              : "Add to Pipeline"}
         </Button>
       </CardFooter>
     </Card>

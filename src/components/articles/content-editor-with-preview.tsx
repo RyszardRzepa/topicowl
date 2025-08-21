@@ -49,26 +49,33 @@ function sanitizeContentForEditor(content: string): string {
   // 1. Convert legacy markdown thumbnail links to leaf iframe directive
   result = result.replace(
     /\[!\[[^\]]*\]\([^)]+\)\]\(https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:[^)]*)\)/g,
-    (_m, videoId: string) => `\n\n:iframe[https://www.youtube.com/watch?v=${videoId}]\n\n`
+    (_m, videoId: string) =>
+      `\n\n:iframe[https://www.youtube.com/watch?v=${videoId}]\n\n`,
   );
 
   // 2. Normalize container forms (multiline) to leaf
   result = result.replace(
     /:::\s*@?iframe\s*\n+\s*(https?:\/\/[^\n\r]+?)\s*\n+:::/g,
-    (_m, url: string) => `:iframe[${url.trim()}]`
+    (_m, url: string) => `:iframe[${url.trim()}]`,
   );
 
   // 3. Normalize single line container form
   result = result.replace(
     /:::\s*@?iframe\s+(https?:\/\/[^\n\r]+?)\s*:::/g,
-    (_m, url: string) => `:iframe[${url.trim()}]`
+    (_m, url: string) => `:iframe[${url.trim()}]`,
   );
 
   // 4. Normalize bracket container variant
-  result = result.replace(/:::iframe\[([^\]]+)\]/g, (_m, url: string) => `:iframe[${url.trim()}]`);
+  result = result.replace(
+    /:::iframe\[([^\]]+)\]/g,
+    (_m, url: string) => `:iframe[${url.trim()}]`,
+  );
 
   // 5. Remove accidental whitespace inside leaf directive brackets
-  result = result.replace(/:iframe\[\s*([^\]]*?)\s*\]/g, (_m, url: string) => `:iframe[${url}]`);
+  result = result.replace(
+    /:iframe\[\s*([^\]]*?)\s*\]/g,
+    (_m, url: string) => `:iframe[${url}]`,
+  );
 
   return result;
 }
@@ -79,7 +86,8 @@ function convertDirectivesToMarkdown(content: string): string {
     /:iframe\[([^\]]+)\]/g,
     (_match: string, url: string) => {
       // Extract video ID from YouTube URL for thumbnail
-      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+      const youtubeRegex =
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
       const youtubeMatch = youtubeRegex.exec(url);
       if (youtubeMatch) {
         const videoId = youtubeMatch[1];
@@ -97,7 +105,8 @@ function convertDirectivesToMarkdown(content: string): string {
     (_match: string, url: string) => {
       const cleanUrl = url.trim();
       // Extract video ID from YouTube URL for thumbnail
-      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+      const youtubeRegex =
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
       const youtubeMatch = youtubeRegex.exec(cleanUrl);
       if (youtubeMatch) {
         const videoId = youtubeMatch[1];
@@ -114,7 +123,8 @@ function convertDirectivesToMarkdown(content: string): string {
     /:::iframe\[([^\]]+)\]/g,
     (_match: string, url: string) => {
       // Extract video ID from YouTube URL for thumbnail
-      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+      const youtubeRegex =
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
       const youtubeMatch = youtubeRegex.exec(url);
       if (youtubeMatch) {
         const videoId = youtubeMatch[1];

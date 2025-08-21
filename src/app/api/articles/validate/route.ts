@@ -16,20 +16,19 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Validation endpoint error:", error);
-    
+
     // Return a graceful fallback response instead of failing completely
     if (error instanceof Error && error.message.includes("timeout")) {
       return NextResponse.json({
         isValid: true,
         issues: [],
-        rawValidationText: "Validation skipped due to timeout - proceeding without fact-check",
+        rawValidationText:
+          "Validation skipped due to timeout - proceeding without fact-check",
       });
     }
-    
-    const errorMessage = error instanceof Error ? error.message : "Failed to validate article";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 },
-    );
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to validate article";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

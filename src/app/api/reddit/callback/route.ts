@@ -179,9 +179,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Clear state cookie
-    const response = NextResponse.redirect(
-      `${API_BASE_URL}/dashboard/reddit`,
-    );
+    const response = NextResponse.redirect(`${API_BASE_URL}/dashboard/reddit`);
     response.cookies.delete("reddit_oauth_state");
 
     return response;

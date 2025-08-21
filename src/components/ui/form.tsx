@@ -7,26 +7,24 @@ interface FormFieldProps extends React.HTMLAttributes<HTMLDivElement> {
   required?: boolean;
 }
 
-export function FormField({ 
-  className, 
-  label, 
-  error, 
-  required, 
-  children, 
-  ...props 
+export function FormField({
+  className,
+  label,
+  error,
+  required,
+  children,
+  ...props
 }: FormFieldProps) {
   return (
     <div className={cn("space-y-2", className)} {...props}>
       {label && (
-        <label className="text-sm font-medium text-stone-700 font-inter">
+        <label className="font-inter text-sm font-medium text-stone-700">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="ml-1 text-red-500">*</span>}
         </label>
       )}
       {children}
-      {error && (
-        <p className="text-sm text-red-600 font-inter">{error}</p>
-      )}
+      {error && <p className="font-inter text-sm text-red-600">{error}</p>}
     </div>
   );
 }
@@ -38,14 +36,14 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <select
         className={cn(
-          "flex h-8 w-full rounded-sm border border-stone-200 bg-white px-2 text-15 text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 font-inter",
-          className
+          "text-15 font-inter flex h-8 w-full rounded-sm border border-stone-200 bg-white px-2 text-stone-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+          className,
         )}
         ref={ref}
         {...props}
       />
     );
-  }
+  },
 );
 Select.displayName = "Select";
 
@@ -56,13 +54,13 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <textarea
         className={cn(
-          "flex min-h-[80px] w-full rounded-sm border border-stone-200 bg-white px-2 py-2 text-15 text-stone-700 placeholder:text-stone-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 font-inter",
-          className
+          "text-15 font-inter flex min-h-[80px] w-full rounded-sm border border-stone-200 bg-white px-2 py-2 text-stone-700 placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+          className,
         )}
         ref={ref}
         {...props}
       />
     );
-  }
+  },
 );
 Textarea.displayName = "Textarea";

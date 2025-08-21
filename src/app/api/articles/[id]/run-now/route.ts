@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, users, articleGeneration, projects } from "@/server/db/schema";
+import {
+  articles,
+  users,
+  articleGeneration,
+  projects,
+} from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 
@@ -20,7 +25,7 @@ export interface RunNowResponse {
 // POST /api/articles/[id]/run-now - Start generation immediately for scheduled article
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     // Get current user from Clerk
@@ -28,7 +33,7 @@ export async function POST(
     if (!userId) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" } as RunNowResponse,
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -42,7 +47,7 @@ export async function POST(
     if (!userRecord) {
       return NextResponse.json(
         { success: false, error: "User not found" } as RunNowResponse,
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -50,7 +55,7 @@ export async function POST(
     if (isNaN(articleId)) {
       return NextResponse.json(
         { success: false, error: "Invalid article ID" } as RunNowResponse,
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -59,13 +64,18 @@ export async function POST(
       .select()
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (!result) {
       return NextResponse.json(
-        { success: false, error: "Article not found or access denied" } as RunNowResponse,
-        { status: 404 }
+        {
+          success: false,
+          error: "Article not found or access denied",
+        } as RunNowResponse,
+        { status: 404 },
       );
     }
 
@@ -78,7 +88,7 @@ export async function POST(
           success: false,
           error: "Article is not scheduled for generation",
         } as RunNowResponse,
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -99,7 +109,7 @@ export async function POST(
         updatedAt: new Date(),
       })
       .where(eq(articleGeneration.articleId, articleId));
-    
+
     return NextResponse.json({
       success: true,
       article: {
@@ -117,7 +127,7 @@ export async function POST(
         success: false,
         error: "Failed to start article generation",
       } as RunNowResponse,
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

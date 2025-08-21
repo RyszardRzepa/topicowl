@@ -159,8 +159,8 @@ export async function GET(request: Request) {
       )
       .orderBy(articles.publishedAt ?? articles.createdAt);
 
-    const response: ExternalArticlesResponse = { 
-      articles: rows as ExternalArticle[]
+    const response: ExternalArticlesResponse = {
+      articles: rows as ExternalArticle[],
     };
 
     return new NextResponse(JSON.stringify(response), {

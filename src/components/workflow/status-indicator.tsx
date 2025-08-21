@@ -19,7 +19,12 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ArticleStatus } from "@/types";
 
-type GenerationPhase = "research" | "writing" | "quality-control" | "validation" | "optimization";
+type GenerationPhase =
+  | "research"
+  | "writing"
+  | "quality-control"
+  | "validation"
+  | "optimization";
 
 interface StatusIndicatorProps {
   status: ArticleStatus;

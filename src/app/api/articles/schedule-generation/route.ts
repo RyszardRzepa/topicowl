@@ -1,6 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, users, generationQueue, projects } from "@/server/db/schema";
+import {
+  articles,
+  articleGeneration,
+  users,
+  generationQueue,
+  projects,
+} from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
@@ -10,8 +16,6 @@ const scheduleGenerationSchema = z.object({
   articleId: z.number(),
   scheduledAt: z.string().datetime(),
 });
-
-
 
 // API types for this endpoint
 export interface ScheduleGenerationRequest {
@@ -72,8 +76,6 @@ export async function POST(req: NextRequest) {
     const scheduledDate = new Date(scheduledAt);
     const currentDate = new Date();
 
-
-
     // Add a 30-second buffer to account for processing time and timezone differences
     const bufferTime = 30 * 1000; // 30 seconds in milliseconds
     const minimumTime = new Date(currentDate.getTime() + bufferTime);
@@ -99,7 +101,9 @@ export async function POST(req: NextRequest) {
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
-      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
+      .where(
+        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+      )
       .limit(1);
 
     if (!existingArticle) {
@@ -118,7 +122,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Insufficient credits. You need at least 1 credit to schedule article generation.",
+          error:
+            "Insufficient credits. You need at least 1 credit to schedule article generation.",
         } as ScheduleGenerationResponse,
         { status: 402 },
       );

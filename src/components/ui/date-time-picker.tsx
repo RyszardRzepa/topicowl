@@ -6,7 +6,11 @@ import { Calendar as CalendarIcon, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface DateTimePickerProps {
   value?: Date;
@@ -26,9 +30,11 @@ export function DateTimePicker({
   className,
 }: DateTimePickerProps) {
   const [open, setOpen] = React.useState(false);
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(value);
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(
+    value,
+  );
   const [timeValue, setTimeValue] = React.useState<string>(
-    value ? format(value, "HH:mm") : "09:00"
+    value ? format(value, "HH:mm") : "09:00",
   );
 
   React.useEffect(() => {
@@ -89,8 +95,13 @@ export function DateTimePicker({
   };
 
   const selectedDateTime = getSelectedDateTime();
-  const sameDayAsMin = !!(minDate && selectedDate && isSameDay(selectedDate, minDate));
-  const minTimeForSelectedDay = sameDayAsMin && minDate ? format(minDate, "HH:mm") : undefined;
+  const sameDayAsMin = !!(
+    minDate &&
+    selectedDate &&
+    isSameDay(selectedDate, minDate)
+  );
+  const minTimeForSelectedDay =
+    sameDayAsMin && minDate ? format(minDate, "HH:mm") : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -100,7 +111,7 @@ export function DateTimePicker({
           className={cn(
             "w-full justify-start text-left font-normal",
             !value && "text-muted-foreground",
-            className
+            className,
           )}
           disabled={disabled}
         >
@@ -109,7 +120,7 @@ export function DateTimePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <div className="p-3 space-y-3">
+        <div className="space-y-3 p-3">
           <Calendar
             mode="single"
             selected={selectedDate}
@@ -119,34 +130,39 @@ export function DateTimePicker({
               const todayStart = new Date();
               todayStart.setHours(0, 0, 0, 0);
               const effectiveMinDay = minDate
-                ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())
+                ? new Date(
+                    minDate.getFullYear(),
+                    minDate.getMonth(),
+                    minDate.getDate(),
+                  )
                 : todayStart;
               return date < effectiveMinDay; // allow selecting current day even if minDate is today but earlier time
             }}
             autoFocus
           />
           <div className="flex items-center space-x-2 px-3">
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <Clock className="text-muted-foreground h-4 w-4" />
             <input
               type="time"
               value={timeValue}
               min={minTimeForSelectedDay}
               onChange={(e) => handleTimeChange(e.target.value)}
-              className="flex-1 px-2 py-1 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="border-input focus:ring-ring flex-1 rounded-md border px-2 py-1 text-sm focus:ring-2 focus:outline-none"
             />
           </div>
           <div className="flex justify-end space-x-2 px-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setOpen(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button
               size="sm"
               onClick={handleConfirm}
-              disabled={!selectedDate || (minDate ? !selectedDateTime || selectedDateTime < minDate : false)}
+              disabled={
+                !selectedDate ||
+                (minDate
+                  ? !selectedDateTime || selectedDateTime < minDate
+                  : false)
+              }
             >
               Confirm
             </Button>

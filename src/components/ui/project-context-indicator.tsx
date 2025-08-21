@@ -11,17 +11,17 @@ interface ProjectContextIndicatorProps {
   variant?: "default" | "inline" | "badge";
 }
 
-export function ProjectContextIndicator({ 
-  className, 
+export function ProjectContextIndicator({
+  className,
   showIcon = true,
-  variant = "default" 
+  variant = "default",
 }: ProjectContextIndicatorProps) {
   const { currentProject, isLoading } = useProject();
 
   if (isLoading) {
     return (
       <div className={cn("animate-pulse", className)}>
-        <div className="h-4 w-24 bg-gray-200 rounded"></div>
+        <div className="h-4 w-24 rounded bg-gray-200"></div>
       </div>
     );
   }
@@ -41,7 +41,10 @@ export function ProjectContextIndicator({
 
   if (variant === "badge") {
     return (
-      <Badge variant="secondary" className={cn("inline-flex items-center gap-1", className)}>
+      <Badge
+        variant="secondary"
+        className={cn("inline-flex items-center gap-1", className)}
+      >
         {content}
       </Badge>
     );
@@ -49,14 +52,24 @@ export function ProjectContextIndicator({
 
   if (variant === "inline") {
     return (
-      <span className={cn("inline-flex items-center gap-1 text-xs text-muted-foreground", className)}>
+      <span
+        className={cn(
+          "text-muted-foreground inline-flex items-center gap-1 text-xs",
+          className,
+        )}
+      >
         {content}
       </span>
     );
   }
 
   return (
-    <div className={cn("flex items-center gap-1 text-sm text-muted-foreground", className)}>
+    <div
+      className={cn(
+        "text-muted-foreground flex items-center gap-1 text-sm",
+        className,
+      )}
+    >
       {content}
     </div>
   );
@@ -67,21 +80,33 @@ interface ProjectConfirmationProps {
   className?: string;
 }
 
-export function ProjectConfirmation({ action, className }: ProjectConfirmationProps) {
+export function ProjectConfirmation({
+  action,
+  className,
+}: ProjectConfirmationProps) {
   const { currentProject } = useProject();
 
   if (!currentProject) return null;
 
   return (
-    <div className={cn("bg-blue-50 border border-blue-200 rounded-md p-3", className)}>
+    <div
+      className={cn(
+        "rounded-md border border-blue-200 bg-blue-50 p-3",
+        className,
+      )}
+    >
       <div className="flex items-start gap-2">
-        <Globe className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+        <Globe className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600" />
         <div className="text-sm">
-          <p className="text-blue-800 font-medium">
+          <p className="font-medium text-blue-800">
             {action} for {currentProject.name}
           </p>
           <p className="text-blue-600">
-            This will be created for your <strong>{currentProject.domain ?? currentProject.websiteUrl}</strong> website
+            This will be created for your{" "}
+            <strong>
+              {currentProject.domain ?? currentProject.websiteUrl}
+            </strong>{" "}
+            website
           </p>
         </div>
       </div>

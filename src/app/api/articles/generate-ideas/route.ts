@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
     // Parse request body for project ID
     let projectId: number | undefined;
     try {
-      const body = await req.json() as { projectId?: number };
-      if (body.projectId && typeof body.projectId === 'number') {
+      const body = (await req.json()) as { projectId?: number };
+      if (body.projectId && typeof body.projectId === "number") {
         projectId = body.projectId;
       }
     } catch {
@@ -90,18 +90,23 @@ export async function POST(req: NextRequest) {
     // Check if user has credits before proceeding
     console.log("[GENERATE_IDEAS_API] Checking user credits...");
     const currentCredits = await getUserCredits(userRecord.id);
-    
+
     if (currentCredits <= 0) {
       return NextResponse.json(
-        { 
-          error: "Insufficient credits. You need at least 1 credit to generate article ideas.",
+        {
+          error:
+            "Insufficient credits. You need at least 1 credit to generate article ideas.",
           credits: currentCredits,
-        }, 
-        { status: 402 } // Payment Required
+        },
+        { status: 402 }, // Payment Required
       );
     }
 
-    console.log("[GENERATE_IDEAS_API] User has", currentCredits, "credits, proceeding with generation");
+    console.log(
+      "[GENERATE_IDEAS_API] User has",
+      currentCredits,
+      "credits, proceeding with generation",
+    );
 
     // Get the specified project or fall back to most recent
     let currentProject;
@@ -117,9 +122,11 @@ export async function POST(req: NextRequest) {
           websiteUrl: projects.websiteUrl,
         })
         .from(projects)
-        .where(and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)))
+        .where(
+          and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)),
+        )
         .limit(1);
-      
+
       currentProject = project;
     } else {
       // Fall back to most recently created project (for backwards compatibility)
@@ -136,17 +143,17 @@ export async function POST(req: NextRequest) {
         .where(eq(projects.userId, userRecord.id))
         .orderBy(desc(projects.createdAt))
         .limit(1);
-      
+
       currentProject = project;
     }
 
     if (!currentProject) {
       return NextResponse.json(
-        { 
+        {
           error: "No project found. Please create a project first.",
           requiresOnboarding: true,
-        }, 
-        { status: 400 }
+        },
+        { status: 400 },
       );
     }
 
@@ -158,10 +165,13 @@ export async function POST(req: NextRequest) {
 
     // Build project context for AI prompt
     const userContext = {
-      domain: currentProject.domain ?? new URL(currentProject.websiteUrl).hostname,
+      domain:
+        currentProject.domain ?? new URL(currentProject.websiteUrl).hostname,
       productDescription: currentProject.productDescription ?? "",
       keywords: Array.isArray(currentProject.keywords)
-        ? currentProject.keywords.filter((k): k is string => typeof k === "string")
+        ? currentProject.keywords.filter(
+            (k): k is string => typeof k === "string",
+          )
         : typeof currentProject.keywords === "string"
           ? currentProject.keywords
               .split(",")
@@ -207,17 +217,27 @@ Return a JSON object with an "ideas" array containing the article ideas.`,
     );
 
     // Deduct 1 credit for successful generation
-    console.log("[GENERATE_IDEAS_API] Deducting 1 credit for successful generation...");
+    console.log(
+      "[GENERATE_IDEAS_API] Deducting 1 credit for successful generation...",
+    );
     const deductionSuccess = await deductCredit(userRecord.id);
-    
+
     if (!deductionSuccess) {
-      console.warn("[GENERATE_IDEAS_API] Failed to deduct credit, but ideas were generated");
+      console.warn(
+        "[GENERATE_IDEAS_API] Failed to deduct credit, but ideas were generated",
+      );
       // We could choose to return an error here, but ideas were already generated
       // For better UX, we'll return the ideas but log the warning
     }
 
-    const remainingCredits = deductionSuccess ? currentCredits - 1 : currentCredits;
-    console.log("[GENERATE_IDEAS_API] User now has", remainingCredits, "credits remaining");
+    const remainingCredits = deductionSuccess
+      ? currentCredits - 1
+      : currentCredits;
+    console.log(
+      "[GENERATE_IDEAS_API] User now has",
+      remainingCredits,
+      "credits remaining",
+    );
 
     return NextResponse.json({
       success: true,

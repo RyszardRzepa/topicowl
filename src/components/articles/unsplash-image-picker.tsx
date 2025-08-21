@@ -5,16 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Check } from "lucide-react";
 import Image from "next/image";
-import type { ImageSearchResponse, CombinedImage } from "@/lib/services/image-selection-service";
+import type {
+  ImageSearchResponse,
+  CombinedImage,
+} from "@/lib/services/image-selection-service";
 
 interface ImagePickerProps {
   onImageSelect: (image: CombinedImage) => void;
   selectedImageId?: string | number;
 }
 
-export function ImagePicker({ 
-  onImageSelect, 
-  selectedImageId 
+export function ImagePicker({
+  onImageSelect,
+  selectedImageId,
 }: ImagePickerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -42,7 +45,7 @@ export function ImagePicker({
         throw new Error("Failed to search images");
       }
 
-      const data = await response.json() as ImageSearchResponse;
+      const data = (await response.json()) as ImageSearchResponse;
       if (data.success) {
         setImages(data.data.images);
         setSearchPerformed(true);
@@ -66,7 +69,7 @@ export function ImagePicker({
       {/* Search Input */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -76,8 +79,8 @@ export function ImagePicker({
             disabled={isSearching}
           />
         </div>
-        <Button 
-          onClick={handleSearch} 
+        <Button
+          onClick={handleSearch}
           disabled={isSearching || !searchQuery.trim()}
           size="default"
         >
@@ -116,7 +119,11 @@ export function ImagePicker({
                       <div className="aspect-video">
                         <Image
                           src={image.urls.small}
-                          alt={image.altDescription ?? image.description ?? "Stock image"}
+                          alt={
+                            image.altDescription ??
+                            image.description ??
+                            "Stock image"
+                          }
                           width={400}
                           height={300}
                           className="h-full w-full object-cover transition-transform group-hover:scale-105"
@@ -125,12 +132,12 @@ export function ImagePicker({
                       </div>
                       {/* Selection indicator */}
                       {String(selectedImageId) === String(image.id) && (
-                        <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                        <div className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
                           <Check className="h-4 w-4" />
                         </div>
                       )}
                       {/* Image info overlay */}
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                      <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/70 to-transparent p-2">
                         <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
                           by {image.user.name}
                         </p>
@@ -155,8 +162,8 @@ export function ImagePicker({
             className="underline hover:text-gray-700"
           >
             Unsplash
-          </a>
-          {" "}and{" "}
+          </a>{" "}
+          and{" "}
           <a
             href="https://pexels.com"
             target="_blank"

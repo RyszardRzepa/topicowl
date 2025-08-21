@@ -28,75 +28,83 @@ const webhookTestSchema = z.object({
 
 // Generate webhook signature for testing
 function generateWebhookSignature(payload: string, secret: string): string {
-  const hmac = crypto.createHmac('sha256', secret);
+  const hmac = crypto.createHmac("sha256", secret);
   hmac.update(payload);
-  return `sha256=${hmac.digest('hex')}`;
+  return `sha256=${hmac.digest("hex")}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
     // Get current user from Clerk
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' } as WebhookTestResponse,
-        { status: 401 }
+        { success: false, error: "Unauthorized" } as WebhookTestResponse,
+        { status: 401 },
       );
     }
 
-    const body = await req.json() as unknown;
+    const body = (await req.json()) as unknown;
     const validatedData = webhookTestSchema.parse(body);
 
     // Verify project ownership
     const [existingProject] = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, validatedData.projectId), eq(projects.userId, userId)))
+      .where(
+        and(
+          eq(projects.id, validatedData.projectId),
+          eq(projects.userId, userId),
+        ),
+      )
       .limit(1);
 
     if (!existingProject) {
       return NextResponse.json(
-        { success: false, error: 'Project not found or access denied' } as WebhookTestResponse,
-        { status: 404 }
+        {
+          success: false,
+          error: "Project not found or access denied",
+        } as WebhookTestResponse,
+        { status: 404 },
       );
     }
 
     // Create test payload
     const testPayload = {
-      event: 'webhook.test',
+      event: "webhook.test",
       timestamp: new Date().toISOString(),
       data: {
-        message: 'This is a test webhook from Contentbot',
+        message: "This is a test webhook from Contentbot",
         userId: userId,
         projectId: validatedData.projectId,
       },
     };
 
     const payloadString = JSON.stringify(testPayload);
-    
+
     // Prepare headers
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Contentbot-Webhook/1.0',
-      'X-Webhook-Event': 'webhook.test',
-      'X-Webhook-Timestamp': Math.floor(Date.now() / 1000).toString(),
+      "Content-Type": "application/json",
+      "User-Agent": "Contentbot-Webhook/1.0",
+      "X-Webhook-Event": "webhook.test",
+      "X-Webhook-Timestamp": Math.floor(Date.now() / 1000).toString(),
     };
 
     // Add signature if secret is provided
     if (validatedData.webhookSecret) {
-      headers['X-Webhook-Signature'] = generateWebhookSignature(
-        payloadString, 
-        validatedData.webhookSecret
+      headers["X-Webhook-Signature"] = generateWebhookSignature(
+        payloadString,
+        validatedData.webhookSecret,
       );
     }
 
     // Measure response time
     const startTime = Date.now();
-    
+
     try {
       const response = await fetch(validatedData.webhookUrl, {
-        method: 'POST',
+        method: "POST",
         headers,
         body: payloadString,
         signal: AbortSignal.timeout(30000), // 30 second timeout
@@ -116,16 +124,15 @@ export async function POST(req: NextRequest) {
         success: true,
         responseTime,
       } as WebhookTestResponse);
-
     } catch (fetchError) {
       const responseTime = Date.now() - startTime;
-      
-      let errorMessage = 'Unknown error';
+
+      let errorMessage = "Unknown error";
       if (fetchError instanceof Error) {
-        if (fetchError.name === 'AbortError') {
-          errorMessage = 'Request timeout (30 seconds)';
-        } else if (fetchError.name === 'TypeError') {
-          errorMessage = 'Network error or invalid URL';
+        if (fetchError.name === "AbortError") {
+          errorMessage = "Request timeout (30 seconds)";
+        } else if (fetchError.name === "TypeError") {
+          errorMessage = "Network error or invalid URL";
         } else {
           errorMessage = fetchError.message;
         }
@@ -137,20 +144,22 @@ export async function POST(req: NextRequest) {
         error: errorMessage,
       } as WebhookTestResponse);
     }
-
   } catch (error) {
-    console.error('Webhook test error:', error);
-    
+    console.error("Webhook test error:", error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, error: 'Invalid input data' } as WebhookTestResponse,
-        { status: 400 }
+        { success: false, error: "Invalid input data" } as WebhookTestResponse,
+        { status: 400 },
       );
     }
-    
+
     return NextResponse.json(
-      { success: false, error: 'Failed to test webhook' } as WebhookTestResponse,
-      { status: 500 }
+      {
+        success: false,
+        error: "Failed to test webhook",
+      } as WebhookTestResponse,
+      { status: 500 },
     );
   }
 }

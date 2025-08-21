@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, articleGeneration, projects, webhookDeliveries } from "@/server/db/schema";
+import {
+  articles,
+  articleGeneration,
+  projects,
+  webhookDeliveries,
+} from "@/server/db/schema";
 import { eq, and, lte } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -27,7 +32,16 @@ type ArticleData = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status: "idea" | "scheduled" | "queued" | "to_generate" | "generating" | "wait_for_publish" | "published" | "failed" | "deleted";
+  status:
+    | "idea"
+    | "scheduled"
+    | "queued"
+    | "to_generate"
+    | "generating"
+    | "wait_for_publish"
+    | "published"
+    | "failed"
+    | "deleted";
   publishScheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
@@ -53,12 +67,16 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
   try {
     // Validate article has required fields for webhook delivery
     if (!article.projectId) {
-      console.error(`Article ${article.id} missing projectId, cannot deliver webhook`);
+      console.error(
+        `Article ${article.id} missing projectId, cannot deliver webhook`,
+      );
       return;
     }
 
     if (!article.title) {
-      console.error(`Article ${article.id} missing title, cannot deliver webhook`);
+      console.error(
+        `Article ${article.id} missing title, cannot deliver webhook`,
+      );
       return;
     }
 
@@ -78,7 +96,9 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
 
     // Check if project exists
     if (!projectConfig) {
-      console.error(`Project ${article.projectId} not found for article ${article.id}, cannot deliver webhook`);
+      console.error(
+        `Project ${article.projectId} not found for article ${article.id}, cannot deliver webhook`,
+      );
       return;
     }
 
@@ -97,8 +117,8 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
         .where(eq(articleGeneration.articleId, article.id))
         .limit(1);
 
-      relatedArticles = Array.isArray(generationRecord?.relatedArticles) 
-        ? generationRecord.relatedArticles 
+      relatedArticles = Array.isArray(generationRecord?.relatedArticles)
+        ? generationRecord.relatedArticles
         : [];
     } catch (error) {
       console.error("Error fetching related articles for webhook:", error);
@@ -129,7 +149,9 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
       updatedAt: article.updatedAt.toISOString(),
     };
 
-    console.log(`Preparing webhook delivery for article ${article.id} to ${projectConfig.webhookUrl}`);
+    console.log(
+      `Preparing webhook delivery for article ${article.id} to ${projectConfig.webhookUrl}`,
+    );
 
     // Create webhook delivery record
     const [webhookDelivery] = await db
@@ -208,7 +230,7 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
         console.log(`Webhook delivered successfully for article ${article.id}`);
       } else {
         errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        
+
         // Set up for retry
         await db
           .update(webhookDeliveries)
@@ -222,11 +244,13 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
           })
           .where(eq(webhookDeliveries.id, webhookDelivery.id));
 
-        console.error(`Webhook delivery failed for article ${article.id}: ${errorMessage}`);
+        console.error(
+          `Webhook delivery failed for article ${article.id}: ${errorMessage}`,
+        );
       }
     } catch (fetchError) {
       const deliveryTime = Date.now() - startTime;
-      
+
       if (fetchError instanceof Error) {
         if (fetchError.name === "AbortError") {
           errorMessage = "Request timeout (30 seconds)";
@@ -246,24 +270,37 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
           status: "retrying",
           deliveryTimeMs: deliveryTime,
           errorMessage: errorMessage,
-          errorDetails: { 
-            error: fetchError instanceof Error ? fetchError.message : "Unknown error" 
+          errorDetails: {
+            error:
+              fetchError instanceof Error
+                ? fetchError.message
+                : "Unknown error",
           },
           nextRetryAt: new Date(Date.now() + 30 * 1000), // Retry in 30 seconds
         })
         .where(eq(webhookDeliveries.id, webhookDelivery.id));
 
-      console.error(`Webhook delivery error for article ${article.id}:`, fetchError);
+      console.error(
+        `Webhook delivery error for article ${article.id}:`,
+        fetchError,
+      );
     }
   } catch (error) {
-    console.error("Error in webhook delivery for article", article.id, ":", error);
+    console.error(
+      "Error in webhook delivery for article",
+      article.id,
+      ":",
+      error,
+    );
   }
 }
 
 // Core publish logic - extracts articles due for publishing and updates them
-async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> {
+async function publishScheduledArticles(): Promise<
+  CronPublishResponse["data"]
+> {
   const now = new Date();
-  
+
   // Find articles ready for publishing (no user filtering - system-wide)
   // Explicitly select all fields needed for publishing and webhook delivery
   const articlesToPublish = await db
@@ -299,11 +336,13 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
     .where(
       and(
         eq(articles.status, "wait_for_publish"),
-        lte(articles.publishScheduledAt, now)
-      )
+        lte(articles.publishScheduledAt, now),
+      ),
     );
 
-  console.log(`Found ${articlesToPublish.length} articles ready for publishing`);
+  console.log(
+    `Found ${articlesToPublish.length} articles ready for publishing`,
+  );
 
   const publishedArticles = [];
 
@@ -312,17 +351,23 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
     try {
       // Validate article has required data for publishing
       if (!article.title || !article.projectId) {
-        console.error(`Article ${article.id} missing required data: title=${article.title}, projectId=${article.projectId}`);
+        console.error(
+          `Article ${article.id} missing required data: title=${article.title}, projectId=${article.projectId}`,
+        );
         continue;
       }
 
       // Ensure article has content to publish (either draft or content)
       if (!article.draft && !article.content) {
-        console.error(`Article ${article.id} has no content to publish (both draft and content are null)`);
+        console.error(
+          `Article ${article.id} has no content to publish (both draft and content are null)`,
+        );
         continue;
       }
 
-      console.log(`Publishing article: ${article.title} (ID: ${article.id}, Project: ${article.projectId})`);
+      console.log(
+        `Publishing article: ${article.title} (ID: ${article.id}, Project: ${article.projectId})`,
+      );
 
       // Atomic update with concurrency protection - only update if still wait_for_publish
       // Explicitly return all fields needed for webhook delivery
@@ -339,8 +384,8 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
         .where(
           and(
             eq(articles.id, article.id),
-            eq(articles.status, "wait_for_publish") // Ensure status hasn't changed
-          )
+            eq(articles.status, "wait_for_publish"), // Ensure status hasn't changed
+          ),
         )
         .returning({
           id: articles.id,
@@ -373,11 +418,15 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
 
       if (updatedArticle) {
         publishedArticles.push(updatedArticle);
-        console.log(`Successfully published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`);
+        console.log(
+          `Successfully published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`,
+        );
 
         // Validate updated article has all required fields for webhook
         if (!updatedArticle.projectId) {
-          console.error(`Updated article ${updatedArticle.id} missing projectId, skipping webhook delivery`);
+          console.error(
+            `Updated article ${updatedArticle.id} missing projectId, skipping webhook delivery`,
+          );
         } else {
           // Send webhook with proper tracking
           void deliverWebhook(updatedArticle).catch((error: unknown) => {
@@ -390,12 +439,19 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
           });
         }
       } else {
-        console.log(`Article ${article.id} was already processed by another instance or status changed`);
+        console.log(
+          `Article ${article.id} was already processed by another instance or status changed`,
+        );
       }
     } catch (error) {
-      console.error(`Error publishing article ${article.id} (${article.title}):`, error);
+      console.error(
+        `Error publishing article ${article.id} (${article.title}):`,
+        error,
+      );
       // Log additional context for debugging
-      console.error(`Article details - Status: ${article.status}, ProjectId: ${article.projectId}, HasDraft: ${!!article.draft}, HasContent: ${!!article.content}`);
+      console.error(
+        `Article details - Status: ${article.status}, ProjectId: ${article.projectId}, HasDraft: ${!!article.draft}, HasContent: ${!!article.content}`,
+      );
     }
   }
 
@@ -413,10 +469,12 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
 export async function GET() {
   try {
     console.log("Cron publish articles started at", new Date().toISOString());
-    
+
     const result = await publishScheduledArticles();
-    
-    console.log(`Cron publish completed: ${result.publishedCount} articles published`);
+
+    console.log(
+      `Cron publish completed: ${result.publishedCount} articles published`,
+    );
 
     return NextResponse.json({
       success: true,
@@ -431,7 +489,7 @@ export async function GET() {
         data: { publishedCount: 0, publishedArticles: [] },
         message: "Failed to publish scheduled articles",
       } as CronPublishResponse,
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -439,11 +497,16 @@ export async function GET() {
 // POST /api/cron/publish-articles - Optional manual trigger for testing
 export async function POST() {
   try {
-    console.log("Manual publish articles trigger started at", new Date().toISOString());
-    
+    console.log(
+      "Manual publish articles trigger started at",
+      new Date().toISOString(),
+    );
+
     const result = await publishScheduledArticles();
-    
-    console.log(`Manual publish completed: ${result.publishedCount} articles published`);
+
+    console.log(
+      `Manual publish completed: ${result.publishedCount} articles published`,
+    );
 
     return NextResponse.json({
       success: true,
@@ -458,7 +521,7 @@ export async function POST() {
         data: { publishedCount: 0, publishedArticles: [] },
         message: "Failed to publish scheduled articles",
       } as CronPublishResponse,
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

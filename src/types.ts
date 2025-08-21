@@ -7,18 +7,45 @@ import type { articleStatusEnum } from "@/server/db/schema";
 
 // OpenGraph metadata schema
 export const ogMetadataSchema = z.object({
-  title: z.string().describe("The title of the blog post that would appear in search results."),
-  description: z.string().describe("A compelling description of the blog post (max 160 characters)."),
-  image: z.string().url().optional().describe("A URL to a relevant image for the blog post."),
+  title: z
+    .string()
+    .describe(
+      "The title of the blog post that would appear in search results.",
+    ),
+  description: z
+    .string()
+    .describe(
+      "A compelling description of the blog post (max 160 characters).",
+    ),
+  image: z
+    .string()
+    .url()
+    .optional()
+    .describe("A URL to a relevant image for the blog post."),
   url: z.string().url().describe("The canonical URL of the blog post."),
   siteName: z.string().describe("The name of the website."),
   type: z.literal("article").default("article"),
-  publishedTime: z.string().optional().describe("The published time of the article in ISO format."),
-  modifiedTime: z.string().optional().describe("The last modified time of the article in ISO format."),
+  publishedTime: z
+    .string()
+    .optional()
+    .describe("The published time of the article in ISO format."),
+  modifiedTime: z
+    .string()
+    .optional()
+    .describe("The last modified time of the article in ISO format."),
   author: z.string().optional().describe("The author of the article."),
-  section: z.string().optional().describe("The section/category of the article."),
-  tags: z.array(z.string()).optional().describe("An array of tags for the article."),
-  relatedPosts: z.array(z.string()).optional().describe("An array of related post slugs."),
+  section: z
+    .string()
+    .optional()
+    .describe("The section/category of the article."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("An array of tags for the article."),
+  relatedPosts: z
+    .array(z.string())
+    .optional()
+    .describe("An array of related post slugs."),
 });
 
 export type BlogPost = z.infer<typeof ogMetadataSchema>;
@@ -27,9 +54,18 @@ export type BlogPost = z.infer<typeof ogMetadataSchema>;
 export const videoEmbedSchema = z.object({
   title: z.string().describe("Video title from research"),
   url: z.string().url().describe("YouTube video URL"),
-  sectionHeading: z.string().optional().describe("The section heading where this video should be placed"),
-  contextMatch: z.string().optional().describe("Brief explanation of why this video fits this section"),
-  embedCode: z.string().optional().describe("Generated iframe HTML for the video"),
+  sectionHeading: z
+    .string()
+    .optional()
+    .describe("The section heading where this video should be placed"),
+  contextMatch: z
+    .string()
+    .optional()
+    .describe("Brief explanation of why this video fits this section"),
+  embedCode: z
+    .string()
+    .optional()
+    .describe("Generated iframe HTML for the video"),
   thumbnail: z.string().url().optional().describe("Video thumbnail URL"),
   duration: z.number().optional().describe("Video duration in seconds"),
   uploadDate: z.string().optional().describe("Video upload date in ISO format"),
@@ -39,32 +75,61 @@ export type VideoEmbed = z.infer<typeof videoEmbedSchema>;
 
 // Blog post schema for AI-generated content - includes all SEO fields
 export const blogPostSchema = z.object({
-  id: z.string().describe("A unique ID for the blog post. A random number as a string is fine."),
+  id: z
+    .string()
+    .describe(
+      "A unique ID for the blog post. A random number as a string is fine.",
+    ),
   title: z.string().describe("The title of the blog post."),
   slug: z.string().describe("A URL-friendly version of the title."),
   excerpt: z.string().describe("A short, compelling summary (1-2 sentences)."),
-  metaDescription: z.string().describe("An SEO-friendly description for the blog post. Max 160 char."),
-  readingTime: z.string().describe("An estimated reading time, e.g., '5 min read'."),
+  metaDescription: z
+    .string()
+    .describe("An SEO-friendly description for the blog post. Max 160 char."),
+  readingTime: z
+    .string()
+    .describe("An estimated reading time, e.g., '5 min read'."),
   content: z.string().describe("The full article content in Markdown format."),
-  author: z.string().default('Content Team').describe("The author of the blog post."),
+  author: z
+    .string()
+    .default("Content Team")
+    .describe("The author of the blog post."),
   date: z.string().describe("The publication date."),
-  coverImage: z.string().optional().describe("A placeholder URL for the cover image."),
-  imageCaption: z.string().optional().describe("A placeholder caption for the cover image."),
-  tags: z.array(z.string()).optional().describe("An array of relevant SEO keywords/tags."),
-  relatedPosts: z.array(z.string()).optional().describe("An array of related post slugs."),
+  coverImage: z
+    .string()
+    .optional()
+    .describe("A placeholder URL for the cover image."),
+  imageCaption: z
+    .string()
+    .optional()
+    .describe("A placeholder caption for the cover image."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("An array of relevant SEO keywords/tags."),
+  relatedPosts: z
+    .array(z.string())
+    .optional()
+    .describe("An array of related post slugs."),
 });
 
 // Enhanced blog post schema with optional video integration
 export const enhancedBlogPostSchema = blogPostSchema.extend({
-  videos: z.array(videoEmbedSchema).max(1).describe("Maximum one embedded video per article"),
-  hasVideoIntegration: z.boolean().default(false).describe("Indicates if article includes video content"),
+  videos: z
+    .array(videoEmbedSchema)
+    .max(1)
+    .describe("Maximum one embedded video per article"),
+  hasVideoIntegration: z
+    .boolean()
+    .default(false)
+    .describe("Indicates if article includes video content"),
 });
 
 // Article status type - imported from database schema
-export type ArticleStatus = typeof articleStatusEnum.enumValues[number];;
+export type ArticleStatus = (typeof articleStatusEnum.enumValues)[number];
 
 // Workflow phases for new UI
-export type WorkflowPhase = 'planning' | 'generations' | 'publishing';
+export type WorkflowPhase = "planning" | "generations" | "publishing";
 
 // Enhanced article status for workflow organization
 export interface ArticleWorkflowStatus {
@@ -92,20 +157,20 @@ export interface Article {
   notes?: string; // User-provided context and requirements for AI guidance
   createdAt: string;
   updatedAt: string;
-  
+
   // Enhanced fields for new workflow
   generationProgress?: number; // 0-100 percentage
-  generationPhase?: 'research' | 'writing' | 'validation' | 'optimization';
+  generationPhase?: "research" | "writing" | "validation" | "optimization";
   generationError?: string;
   estimatedReadTime?: number; // in minutes
   views?: number;
   clicks?: number;
-  
+
   // Generation scheduling
   generationScheduledAt?: string;
   generationStartedAt?: string;
   generationCompletedAt?: string;
-  
+
   // Publishing scheduling
   publishScheduledAt?: string; // Frontend compatibility field
   scheduledAt?: string; // Database field name
@@ -118,11 +183,11 @@ export interface ArticleSettings {
   projectId: number; // Required project association
   name: string;
   defaultWordCount: number;
-  tone: 'professional' | 'casual' | 'authoritative' | 'friendly';
+  tone: "professional" | "casual" | "authoritative" | "friendly";
   keywords: string[];
   competitorUrls: string[];
   publishingSchedule?: {
-    frequency: 'daily' | 'weekly' | 'monthly';
+    frequency: "daily" | "weekly" | "monthly";
     time: string; // HH:MM format
     timezone: string;
   };
@@ -218,10 +283,10 @@ export interface CreditSession {
 
 // Session storage keys
 export const SESSION_KEYS = {
-  ONBOARDING_STATUS: 'contentbot-onboarding-session',
-  PROJECTS_INITIALIZED: 'contentbot-projects-session', 
-  CREDITS_INITIALIZED: 'contentbot-credits-session',
-  SESSION_ID: 'contentbot-session-id'
+  ONBOARDING_STATUS: "contentbot-onboarding-session",
+  PROJECTS_INITIALIZED: "contentbot-projects-session",
+  CREDITS_INITIALIZED: "contentbot-credits-session",
+  SESSION_ID: "contentbot-session-id",
 } as const;
 
 // Shared API response wrapper - used across all API routes

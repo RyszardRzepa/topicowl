@@ -61,7 +61,10 @@ async function getUserSettings(userId: string, projectId: number) {
       maxWords: settings.maxWords ?? undefined,
     };
   } catch (error) {
-    console.error("[QUALITY_CONTROL_SERVICE] Failed to fetch user settings:", error);
+    console.error(
+      "[QUALITY_CONTROL_SERVICE] Failed to fetch user settings:",
+      error,
+    );
     return {};
   }
 }
@@ -99,19 +102,22 @@ async function saveQualityControlReport(
       success: true,
     });
   } catch (error) {
-    console.error("[QUALITY_CONTROL_SERVICE] FAILED_TO_SAVE_QUALITY_CONTROL_REPORT", {
-      timestamp: new Date().toISOString(),
-      generationId,
-      qualityControlReport,
-      error:
-        error instanceof Error
-          ? {
-              name: error.name,
-              message: error.message,
-              stack: error.stack?.slice(0, 500),
-            }
-          : error,
-    });
+    console.error(
+      "[QUALITY_CONTROL_SERVICE] FAILED_TO_SAVE_QUALITY_CONTROL_REPORT",
+      {
+        timestamp: new Date().toISOString(),
+        generationId,
+        qualityControlReport,
+        error:
+          error instanceof Error
+            ? {
+                name: error.name,
+                message: error.message,
+                stack: error.stack?.slice(0, 500),
+              }
+            : error,
+      },
+    );
     // Don't throw - this is not critical for the quality control process
   }
 }
@@ -120,7 +126,9 @@ async function saveQualityControlReport(
  * Core quality control function that can be called directly without HTTP
  * Extracted from /api/articles/quality-control/route.ts
  */
-export async function performQualityControlLogic(request: QualityControlRequest): Promise<QualityControlResponse> {
+export async function performQualityControlLogic(
+  request: QualityControlRequest,
+): Promise<QualityControlResponse> {
   console.log("[QUALITY_CONTROL_SERVICE] Starting quality control", {
     contentLength: request.articleContent.length,
     hasOriginalPrompt: !!request.originalPrompt,
@@ -139,7 +147,8 @@ export async function performQualityControlLogic(request: QualityControlRequest)
   }
 
   // Get user settings or use provided settings
-  const userSettings = request.userSettings ?? (await getUserSettings(userId, request.projectId));
+  const userSettings =
+    request.userSettings ?? (await getUserSettings(userId, request.projectId));
 
   // Generate quality control prompt
   const qualityControlPrompt = prompts.qualityControl(
@@ -167,9 +176,7 @@ export async function performQualityControlLogic(request: QualityControlRequest)
 
   // Parse the result - if it's "null" (case insensitive), return null
   const issues =
-    qualityControlResult.toLowerCase() === "null"
-      ? null
-      : qualityControlResult;
+    qualityControlResult.toLowerCase() === "null" ? null : qualityControlResult;
 
   const isValid = issues === null;
 
@@ -188,11 +195,14 @@ export async function performQualityControlLogic(request: QualityControlRequest)
 
   // Save quality control report to database if generationId is provided
   if (generationId) {
-    console.log("[QUALITY_CONTROL_SERVICE] Saving quality control report to database", {
-      generationId,
-      issues,
-      issuesLength: issues?.length ?? 0,
-    });
+    console.log(
+      "[QUALITY_CONTROL_SERVICE] Saving quality control report to database",
+      {
+        generationId,
+        issues,
+        issuesLength: issues?.length ?? 0,
+      },
+    );
     await saveQualityControlReport(generationId, issues);
   }
 

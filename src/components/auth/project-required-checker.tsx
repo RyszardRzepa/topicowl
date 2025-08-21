@@ -9,7 +9,9 @@ interface ProjectRequiredCheckerProps {
   children: React.ReactNode;
 }
 
-export function ProjectRequiredChecker({ children }: ProjectRequiredCheckerProps) {
+export function ProjectRequiredChecker({
+  children,
+}: ProjectRequiredCheckerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { projects, isLoading, error, refreshProjects } = useProject();
@@ -37,7 +39,7 @@ export function ProjectRequiredChecker({ children }: ProjectRequiredCheckerProps
   // Show loading state only on initial load
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-gray-600">Loading projects...</div>
       </div>
     );
@@ -46,9 +48,11 @@ export function ProjectRequiredChecker({ children }: ProjectRequiredCheckerProps
   // Show error state with retry option
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <div className="text-red-600 text-center max-w-md">
-          <h2 className="text-lg font-semibold mb-2">Failed to load projects</h2>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4">
+        <div className="max-w-md text-center text-red-600">
+          <h2 className="mb-2 text-lg font-semibold">
+            Failed to load projects
+          </h2>
           <p className="text-sm">{error}</p>
         </div>
         <Button onClick={() => void refreshProjects()} variant="outline">
@@ -61,7 +65,7 @@ export function ProjectRequiredChecker({ children }: ProjectRequiredCheckerProps
   // Redirect is happening, show loading
   if (projects.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-gray-600">Setting up your workspace...</div>
       </div>
     );

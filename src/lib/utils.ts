@@ -60,7 +60,7 @@ export async function fetcher<T = unknown>(
         statusText: response.statusText,
         errorText,
         responseTime: `${responseTime}ms`,
-        requestBody: body ? JSON.stringify(body).slice(0, 500) + '...' : 'none',
+        requestBody: body ? JSON.stringify(body).slice(0, 500) + "..." : "none",
         timestamp: new Date().toISOString(),
       });
       throw error;
@@ -98,16 +98,23 @@ export async function fetcher<T = unknown>(
     }
 
     // Handle Node.js/undici timeout errors
-    if (error instanceof Error && 
-        (error.message.includes('HeadersTimeoutError') || 
-         error.message.includes('UND_ERR_HEADERS_TIMEOUT') ||
-         (error.cause && typeof error.cause === 'object' && 'code' in error.cause && error.cause.code === 'UND_ERR_HEADERS_TIMEOUT'))) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("HeadersTimeoutError") ||
+        error.message.includes("UND_ERR_HEADERS_TIMEOUT") ||
+        (error.cause &&
+          typeof error.cause === "object" &&
+          "code" in error.cause &&
+          error.cause.code === "UND_ERR_HEADERS_TIMEOUT"))
+    ) {
       console.log(`API call headers timeout: ${method} ${url}`, {
         timeout: `${timeout}ms`,
         responseTime: `${responseTime}ms`,
         originalError: error.message,
       });
-      throw new Error(`Request failed due to headers timeout (elapsed: ${responseTime}ms, limit: ${timeout}ms)`);
+      throw new Error(
+        `Request failed due to headers timeout (elapsed: ${responseTime}ms, limit: ${timeout}ms)`,
+      );
     }
 
     console.log(`API call error: ${method} ${url}`, {
@@ -137,10 +144,10 @@ export function extractYouTubeVideoId(url: string): string | null {
 }
 
 export function generateYouTubeEmbedCode(
-  videoId: string, 
-  title: string, 
-  width = 560, 
-  height = 315
+  videoId: string,
+  title: string,
+  width = 560,
+  height = 315,
 ): string {
   return `<div class="video-container">
 <iframe width="${width}" height="${height}" src="https://www.youtube.com/embed/${videoId}" 
@@ -157,9 +164,9 @@ export function getArticleContent(article: {
   draft?: string | null;
 }): string {
   // During editing: use draft
-  if (article.status !== 'published') {
-    return article.draft ?? '';
+  if (article.status !== "published") {
+    return article.draft ?? "";
   }
   // After publishing: use content (fallback to draft)
-  return article.content ?? article.draft ?? '';
+  return article.content ?? article.draft ?? "";
 }

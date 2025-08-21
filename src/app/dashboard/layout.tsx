@@ -22,14 +22,14 @@ export default async function DashboardLayout({
   // Only check if user exists and is onboarded - minimal server-side check
   try {
     const [user] = await db
-      .select({ 
+      .select({
         id: users.id,
-        onboardingCompleted: users.onboardingCompleted 
+        onboardingCompleted: users.onboardingCompleted,
       })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
-    
+
     if (!user) {
       redirect("/onboarding");
     }
