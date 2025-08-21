@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { articles, articleGeneration } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { ArticlePreviewClient } from "@/components/articles/article-preview-client";
+import { BackButton } from "@/components/ui/back-button";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 
 // Page props interface for the dynamic route
@@ -46,6 +47,7 @@ export default async function ArticlePreviewPage({
     article = {
       id: articleData.id,
       userId: articleData.userId,
+      projectId: articleData.projectId,
       title: articleData.title,
       description: articleData.description,
       keywords: Array.isArray(articleData.keywords)
@@ -71,6 +73,8 @@ export default async function ArticlePreviewPage({
       sources: articleData.sources,
       coverImageUrl: articleData.coverImageUrl,
       coverImageAlt: articleData.coverImageAlt,
+      coverImageDescription: null, // Not in schema, set to null
+      coverImageKeywords: [], // Not in schema, set to empty array
       notes: articleData.notes,
       createdAt: articleData.createdAt,
       updatedAt: articleData.updatedAt,
@@ -105,7 +109,8 @@ export default async function ArticlePreviewPage({
   // TypeScript assertion: article is guaranteed to be defined here due to notFound() calls above
   return (
     <main className="min-h-screen bg-gray-50">
-      <div className="container mx-auto max-w-7xl">
+      <div className="container mx-auto max-w-7xl px-4">
+        <BackButton />
         <ArticlePreviewClient initialArticle={article} />
       </div>
     </main>
