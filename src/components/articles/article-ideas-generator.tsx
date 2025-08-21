@@ -58,7 +58,6 @@ export function ArticleIdeasGenerator({
   });
 
   const [selectedIdeas, setSelectedIdeas] = useState<Set<number>>(new Set());
-  const [isBulkAdding, setIsBulkAdding] = useState(false);
 
   // Load previously generated ideas from localStorage on component mount
   useEffect(() => {
@@ -99,6 +98,33 @@ export function ArticleIdeasGenerator({
       }
     } catch (error) {
       console.error("Failed to save ideas to localStorage:", error);
+    }
+  }, [currentProject]);
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
+
+  // Load previously generated ideas from localStorage on component mount
+  useEffect(() => {
+    if (!currentProject) return;
+
+    try {
+      const storageKey = getStorageKey(currentProject.id);
+      const savedIdeas = localStorage.getItem(storageKey);
+      if (savedIdeas) {
+        const parsedIdeas = JSON.parse(savedIdeas) as ArticleIdea[];
+        if (Array.isArray(parsedIdeas) && parsedIdeas.length > 0) {
+          setState((prev) => ({
+            ...prev,
+            ideas: parsedIdeas,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load saved ideas from localStorage:", error);
+      // Clear corrupted data
+      if (currentProject) {
+        const storageKey = getStorageKey(currentProject.id);
+        localStorage.removeItem(storageKey);
+      }
     }
   }, [currentProject]);
 
@@ -201,7 +227,7 @@ export function ArticleIdeasGenerator({
     try {
       const selectedIdeaObjects = Array.from(selectedIdeas).map(
         (index) => state.ideas[index],
-      );
+      ).filter(Boolean); // Filter out any undefined values
 
       // Add ideas sequentially to avoid overwhelming the API
       for (const idea of selectedIdeaObjects) {
@@ -209,6 +235,16 @@ export function ArticleIdeasGenerator({
           await onIdeaAdded(idea);
         }
       }
+
+      // Remove successfully added ideas from the list
+      const newIdeas = state.ideas.filter((_, index) => !selectedIdeas.has(index));
+      setState((prev) => ({
+        ...prev,
+        ideas: newIdeas,
+      }));
+
+      // Save updated ideas to localStorage
+      saveIdeasToStorage(newIdeas);
 
       // Clear selections after successful bulk add
       setSelectedIdeas(new Set());
@@ -218,13 +254,42 @@ export function ArticleIdeasGenerator({
     } finally {
       setIsBulkAdding(false);
     }
-  }, [selectedIdeas, state.ideas, onIdeaAdded]);
+  }, [selectedIdeas, state.ideas, onIdeaAdded, saveIdeasToStorage]);
 
   const handleSingleAddToPipeline = useCallback(
-    async (idea: ArticleIdea) => {
-      await onIdeaAdded(idea);
+    async (idea: ArticleIdea, ideaIndex: number) => {
+      try {
+        await onIdeaAdded(idea);
+        
+        // Remove the successfully added idea from the list
+        const newIdeas = state.ideas.filter((_, index) => index !== ideaIndex);
+        setState((prev) => ({
+          ...prev,
+          ideas: newIdeas,
+        }));
+
+        // Update localStorage with the new ideas list
+        saveIdeasToStorage(newIdeas);
+
+        // Update selection indices for remaining items
+        setSelectedIdeas((prev) => {
+          const newSet = new Set<number>();
+          prev.forEach((selectedIndex) => {
+            if (selectedIndex > ideaIndex) {
+              newSet.add(selectedIndex - 1);
+            } else if (selectedIndex < ideaIndex) {
+              newSet.add(selectedIndex);
+            }
+            // Don't add the removed index
+          });
+          return newSet;
+        });
+      } catch (error) {
+        // Error is already logged in the calling component
+        throw error;
+      }
     },
-    [onIdeaAdded],
+    [onIdeaAdded, state.ideas, saveIdeasToStorage],
   );
 
   const handleDismiss = useCallback(() => {
@@ -246,7 +311,7 @@ export function ArticleIdeasGenerator({
         <DialogHeader className="p-2">
           <DialogTitle className="flex items-center gap-2 text-stone-900">
             <Sparkles className="h-5 w-5 text-brand-green" />
-            AI Article Ideas Generator
+            Article Ideas Generator With AI
           </DialogTitle>
           <DialogDescription className="text-stone-600">
             Generate personalized article ideas based on your business profile
@@ -422,9 +487,9 @@ export function ArticleIdeasGenerator({
               <div className="grid gap-6 pb-2 md:grid-cols-2 lg:grid-cols-3">
                 {state.ideas.map((idea, index) => (
                   <ArticleIdeaCard
-                    key={index}
+                    key={`${idea.title}-${idea.description.substring(0, 50)}`}
                     idea={idea}
-                    onAddToPipeline={handleSingleAddToPipeline}
+                    onAddToPipeline={(ideaToAdd) => handleSingleAddToPipeline(ideaToAdd, index)}
                     isSelected={selectedIdeas.has(index)}
                     onSelectionChange={(selected) =>
                       handleIdeaSelection(index, selected)

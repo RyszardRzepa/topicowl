@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Lightbulb, Users, TrendingUp } from "lucide-react";
+import { Plus, Lightbulb, Users, TrendingUp, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ArticleIdea } from "@/app/api/articles/generate-ideas/route";
 
@@ -21,6 +21,7 @@ interface ArticleIdeaCardProps {
   isSelected?: boolean;
   onSelectionChange?: (selected: boolean) => void;
   className?: string;
+  key?: string; // Force React to remount when this changes
 }
 
 const contentAngleIcons = {
@@ -48,15 +49,23 @@ export function ArticleIdeaCard({
   className,
 }: ArticleIdeaCardProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const [isAdded, setIsAdded] = useState(false);
+
+  // Reset states when the idea changes (component is reused)
+  useEffect(() => {
+    setIsAdding(false);
+    setIsAdded(false);
+  }, [idea.title, idea.description]);
 
   const handleAddToPipeline = async () => {
     setIsAdding(true);
     try {
       await onAddToPipeline(idea);
+      setIsAdded(true);
+      // Card will be removed from the list by parent component
     } catch (error) {
       console.error("Failed to add idea to pipeline:", error);
-    } finally {
-      setIsAdding(false);
+      setIsAdding(false); // Only reset loading state on error
     }
   };
 
@@ -74,6 +83,7 @@ export function ArticleIdeaCard({
         "transition-all duration-200 hover:shadow-md",
         {
           "ring-2 ring-brand-green ring-offset-2": isSelected,
+          "opacity-75 pointer-events-none": isAdding || isAdded,
         },
         className,
       )}
@@ -101,7 +111,7 @@ export function ArticleIdeaCard({
           </div>
 
           {/* Selection checkbox for bulk operations */}
-          {onSelectionChange && (
+          {onSelectionChange && !(isAdding || isAdded) && (
             <div className="flex-shrink-0">
               <input
                 type="checkbox"
@@ -156,12 +166,21 @@ export function ArticleIdeaCard({
       <CardFooter>
         <Button
           onClick={handleAddToPipeline}
-          disabled={isAdding}
+          disabled={isAdding || isAdded}
           size="sm"
-          className="w-full bg-brand-green hover:bg-brand-green/90 text-white"
+          className={cn(
+            "w-full transition-all",
+            isAdded 
+              ? "bg-brand-green/20 text-brand-green border border-brand-green/30 hover:bg-brand-green/20" 
+              : "bg-brand-green hover:bg-brand-green/90 text-white"
+          )}
         >
-          <Plus className="mr-2 h-4 w-4" />
-          {isAdding ? "Adding..." : "Add to Pipeline"}
+          {isAdded ? (
+            <CheckCircle className="mr-2 h-4 w-4" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
+          {isAdding ? "Adding..." : isAdded ? "Added to Pipeline" : "Add to Pipeline"}
         </Button>
       </CardFooter>
     </Card>
