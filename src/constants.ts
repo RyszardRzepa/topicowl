@@ -13,7 +13,7 @@ export const PRICING_PLANS = {
     price: 16,
     priceInCents: 1600, // $16.00
     credits: 50,
-    description: "Perfect for trying out content creation",
+    description: "Perfect for trying out content creation.",
     pricePerCredit: 0.32,
     discount: 0,
   },
@@ -22,7 +22,7 @@ export const PRICING_PLANS = {
     price: 39,
     priceInCents: 3900, // $39.00
     credits: 150,
-    description: "Great for regular content creators",
+    description: "Great for regular content creators.",
     pricePerCredit: 0.26,
     discount: 19, // 19% discount
   },
@@ -31,7 +31,7 @@ export const PRICING_PLANS = {
     price: 89,
     priceInCents: 8900, // $89.00
     credits: 500,
-    description: "Perfect for content agencies",
+    description: "Perfect for content agencies.",
     pricePerCredit: 0.18,
     discount: 44, // 44% discount
   },

@@ -247,14 +247,7 @@ interface PexelsPhoto {
   alt: string;
 }
 
-interface PexelsSearchResult {
-  total_results: number;
-  page: number;
-  per_page: number;
-  photos: PexelsPhoto[];
-  next_page?: string;
-  prev_page?: string;
-}
+
 
 // Helper functions for relevance scoring - extracted from API route
 const calculateTextRelevance = (
@@ -546,12 +539,11 @@ Keywords: ${keywords.join(", ")}`;
   console.log("[IMAGE_SEARCH_SERVICE] Effective queries:", effectiveQueries);
 
   // Search both Unsplash and Pexels concurrently
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const searchPromises: Promise<{
     source: string;
     query: string;
-    result?: any;
-    error?: any;
+    result?: unknown;
+    error?: Error;
   }>[] = [];
 
   // Search Unsplash
@@ -580,50 +572,38 @@ Keywords: ${keywords.join(", ")}`;
 
   // Process results
   const allUnsplashImages: UnsplashPhoto[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allPexelsImages: any[] = [];
+  const allPexelsImages: PexelsPhoto[] = [];
   let totalResults = 0;
   let unsplashCount_actual = 0;
   let pexelsCount_actual = 0;
 
   for (const result of searchResults) {
     if (result.status === "fulfilled" && result.value && !result.value.error) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
-      const { source, result: searchResult } = result.value as any;
+      const { source, result: searchResult } = result.value;
       apiCallsUsed++;
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (source === "unsplash" && searchResult?.results) {
+      if (source === "unsplash" && searchResult && typeof searchResult === "object" && "results" in searchResult) {
+        const unsplashResult = searchResult as UnsplashSearchResult;
         const existingIds = new Set(allUnsplashImages.map((i) => i.id));
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-        for (const img of searchResult.results as any[]) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
+        for (const img of unsplashResult.results) {
           if (!existingIds.has(img.id)) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
             allUnsplashImages.push(img);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
             existingIds.add(img.id);
             unsplashCount_actual++;
           }
         }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        totalResults += searchResult.total;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      } else if (source === "pexels" && searchResult?.photos) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+        totalResults += unsplashResult.total;
+      } else if (source === "pexels" && searchResult && typeof searchResult === "object" && "photos" in searchResult) {
+        const pexelsResult = searchResult as { photos: PexelsPhoto[]; total_results: number };
         const existingIds = new Set(allPexelsImages.map((i) => i.id));
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-        for (const img of searchResult.photos as any[]) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        for (const img of pexelsResult.photos) {
           if (!existingIds.has(img.id)) {
             allPexelsImages.push(img);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             existingIds.add(img.id);
             pexelsCount_actual++;
           }
         }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        totalResults += searchResult.total_results ?? 0;
+        totalResults += pexelsResult.total_results ?? 0;
       }
     } else {
       console.warn("[IMAGE_SEARCH_SERVICE] Search failed:", result);
@@ -643,13 +623,10 @@ Keywords: ${keywords.join(", ")}`;
   allTransformedImages.push(...unsplashTransformed);
 
   // Transform Pexels images
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pexelsTransformed = allPexelsImages
     .slice(0, pexelsCount)
-    .map((img: any) => ({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    .map((img) => ({
       ...transformPexelsImage(img),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
       relevanceScore:
         calculateTextRelevance(img.alt ?? "", [query, ...keywords]) * 0.8 + 0.2, // Simple relevance for Pexels
     }));

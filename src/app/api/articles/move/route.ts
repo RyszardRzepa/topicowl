@@ -24,6 +24,7 @@ const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
   generating: ["wait_for_publish"], // Automatically moved by system after generation
   wait_for_publish: ["published"],
   published: [], // Cannot be moved
+  failed: ["idea", "to_generate"], // Failed articles can be reset to idea or to_generate
   deleted: [], // Deleted articles cannot be moved
 };
 
@@ -80,10 +81,14 @@ const moveArticleSchema = z.object({
   articleId: z.number(),
   newStatus: z.enum([
     "idea",
+    "scheduled",
+    "queued",
     "to_generate",
     "generating",
     "wait_for_publish",
     "published",
+    "failed",
+    "deleted",
   ]),
   newPosition: z.number().min(0),
 });

@@ -2,13 +2,14 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articleSettings } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articleSettings, projects, users } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeSitemapUrl, validateSitemapUrl } from "@/lib/utils/sitemap";
 
 // Types colocated with this API route
 export interface FetchSitemapRequest {
+  projectId: number;
   websiteUrl: string;
   refreshCache?: boolean;
 }
@@ -26,6 +27,7 @@ export interface FetchSitemapResponse {
 }
 
 const fetchSitemapSchema = z.object({
+  projectId: z.number().min(1, "Project ID is required"),
   websiteUrl: z.string().min(1, "Website URL is required"),
   refreshCache: z.boolean().optional().default(false),
 });
@@ -133,7 +135,7 @@ async function fetchWebsiteSitemap(websiteUrl: string): Promise<{
 
 export async function POST(req: NextRequest) {
   try {
-    // Get current user from Clerk
+    // 1. Authenticate user with Clerk
     const { userId } = await auth();
 
     if (!userId) {
@@ -143,8 +145,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 2. Verify user exists in database
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 },
+      );
+    }
+
     const body = (await req.json()) as unknown;
     const validatedData = fetchSitemapSchema.parse(body);
+
+    // 3. For project-scoped operations, verify project ownership
+    const [projectRecord] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.id, validatedData.projectId),
+          eq(projects.userId, userRecord.id),
+        ),
+      )
+      .limit(1);
+
+    if (!projectRecord) {
+      return NextResponse.json(
+        { success: false, error: "Project not found or access denied" },
+        { status: 404 },
+      );
+    }
 
     // Fetch sitemap data
     const sitemapResult = await fetchWebsiteSitemap(validatedData.websiteUrl);
@@ -159,11 +194,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update or create article settings with sitemap URL
+    // Update or create article settings with sitemap URL using projectId
     const [existingSettings] = await db
       .select({ id: articleSettings.id })
       .from(articleSettings)
-      .where(eq(articleSettings.userId, userId))
+      .where(eq(articleSettings.projectId, validatedData.projectId))
       .limit(1);
 
     if (existingSettings) {
@@ -178,7 +213,7 @@ export async function POST(req: NextRequest) {
     } else {
       // Create new settings
       await db.insert(articleSettings).values({
-        userId: userId,
+        projectId: validatedData.projectId,
         sitemapUrl: sitemapResult.sitemapUrl,
       });
     }
