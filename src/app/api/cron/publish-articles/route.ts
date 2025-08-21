@@ -51,6 +51,17 @@ type ArticleData = {
 // Webhook delivery function with proper tracking - duplicated per architecture guidelines
 async function deliverWebhook(article: ArticleData): Promise<void> {
   try {
+    // Validate article has required fields for webhook delivery
+    if (!article.projectId) {
+      console.error(`Article ${article.id} missing projectId, cannot deliver webhook`);
+      return;
+    }
+
+    if (!article.title) {
+      console.error(`Article ${article.id} missing title, cannot deliver webhook`);
+      return;
+    }
+
     // Get project webhook configuration
     const [projectConfig] = await db
       .select({
@@ -64,6 +75,12 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
       .from(projects)
       .where(eq(projects.id, article.projectId))
       .limit(1);
+
+    // Check if project exists
+    if (!projectConfig) {
+      console.error(`Project ${article.projectId} not found for article ${article.id}, cannot deliver webhook`);
+      return;
+    }
 
     // Check if webhook is configured and enabled
     if (!projectConfig?.webhookEnabled || !projectConfig.webhookUrl) {
@@ -111,6 +128,8 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
       createdAt: article.createdAt.toISOString(),
       updatedAt: article.updatedAt.toISOString(),
     };
+
+    console.log(`Preparing webhook delivery for article ${article.id} to ${projectConfig.webhookUrl}`);
 
     // Create webhook delivery record
     const [webhookDelivery] = await db
@@ -246,8 +265,36 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
   const now = new Date();
   
   // Find articles ready for publishing (no user filtering - system-wide)
+  // Explicitly select all fields needed for publishing and webhook delivery
   const articlesToPublish = await db
-    .select()
+    .select({
+      id: articles.id,
+      userId: articles.userId,
+      projectId: articles.projectId,
+      title: articles.title,
+      description: articles.description,
+      keywords: articles.keywords,
+      targetAudience: articles.targetAudience,
+      status: articles.status,
+      publishScheduledAt: articles.publishScheduledAt,
+      publishedAt: articles.publishedAt,
+      estimatedReadTime: articles.estimatedReadTime,
+      kanbanPosition: articles.kanbanPosition,
+      slug: articles.slug,
+      metaDescription: articles.metaDescription,
+      metaKeywords: articles.metaKeywords,
+      draft: articles.draft,
+      content: articles.content,
+      videos: articles.videos,
+      factCheckReport: articles.factCheckReport,
+      seoScore: articles.seoScore,
+      internalLinks: articles.internalLinks,
+      sources: articles.sources,
+      coverImageUrl: articles.coverImageUrl,
+      coverImageAlt: articles.coverImageAlt,
+      createdAt: articles.createdAt,
+      updatedAt: articles.updatedAt,
+    })
     .from(articles)
     .where(
       and(
@@ -263,7 +310,22 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
   // Update each article to published status and send webhook
   for (const article of articlesToPublish) {
     try {
+      // Validate article has required data for publishing
+      if (!article.title || !article.projectId) {
+        console.error(`Article ${article.id} missing required data: title=${article.title}, projectId=${article.projectId}`);
+        continue;
+      }
+
+      // Ensure article has content to publish (either draft or content)
+      if (!article.draft && !article.content) {
+        console.error(`Article ${article.id} has no content to publish (both draft and content are null)`);
+        continue;
+      }
+
+      console.log(`Publishing article: ${article.title} (ID: ${article.id}, Project: ${article.projectId})`);
+
       // Atomic update with concurrency protection - only update if still wait_for_publish
+      // Explicitly return all fields needed for webhook delivery
       const [updatedArticle] = await db
         .update(articles)
         .set({
@@ -280,26 +342,60 @@ async function publishScheduledArticles(): Promise<CronPublishResponse["data"]> 
             eq(articles.status, "wait_for_publish") // Ensure status hasn't changed
           )
         )
-        .returning();
+        .returning({
+          id: articles.id,
+          userId: articles.userId,
+          projectId: articles.projectId,
+          title: articles.title,
+          description: articles.description,
+          keywords: articles.keywords,
+          targetAudience: articles.targetAudience,
+          status: articles.status,
+          publishScheduledAt: articles.publishScheduledAt,
+          publishedAt: articles.publishedAt,
+          estimatedReadTime: articles.estimatedReadTime,
+          kanbanPosition: articles.kanbanPosition,
+          slug: articles.slug,
+          metaDescription: articles.metaDescription,
+          metaKeywords: articles.metaKeywords,
+          draft: articles.draft,
+          content: articles.content,
+          videos: articles.videos,
+          factCheckReport: articles.factCheckReport,
+          seoScore: articles.seoScore,
+          internalLinks: articles.internalLinks,
+          sources: articles.sources,
+          coverImageUrl: articles.coverImageUrl,
+          coverImageAlt: articles.coverImageAlt,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+        });
 
       if (updatedArticle) {
         publishedArticles.push(updatedArticle);
-        console.log(`Published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`);
+        console.log(`Successfully published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`);
 
-        // Send webhook with proper tracking
-        void deliverWebhook(updatedArticle).catch((error: unknown) => {
-          console.error(
-            "Failed to deliver webhook for article",
-            updatedArticle.id,
-            ":",
-            error,
-          );
-        });
+        // Validate updated article has all required fields for webhook
+        if (!updatedArticle.projectId) {
+          console.error(`Updated article ${updatedArticle.id} missing projectId, skipping webhook delivery`);
+        } else {
+          // Send webhook with proper tracking
+          void deliverWebhook(updatedArticle).catch((error: unknown) => {
+            console.error(
+              "Failed to deliver webhook for article",
+              updatedArticle.id,
+              ":",
+              error,
+            );
+          });
+        }
       } else {
-        console.log(`Article ${article.id} was already processed by another instance`);
+        console.log(`Article ${article.id} was already processed by another instance or status changed`);
       }
     } catch (error) {
-      console.error(`Error publishing article ${article.id}:`, error);
+      console.error(`Error publishing article ${article.id} (${article.title}):`, error);
+      // Log additional context for debugging
+      console.error(`Article details - Status: ${article.status}, ProjectId: ${article.projectId}, HasDraft: ${!!article.draft}, HasContent: ${!!article.content}`);
     }
   }
 

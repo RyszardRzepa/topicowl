@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Calendar, Send, RotateCcw, Clock } from "lucide-react";
+import { Calendar, Send, Clock } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 import type { ScheduleGenerationResponse } from "@/app/api/articles/schedule-generation/route";
@@ -21,7 +21,6 @@ export function ArticleActionButtons({
 }: ArticleActionButtonsProps) {
   const [isScheduling, setIsScheduling] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
   const [showSchedulingUI, setShowSchedulingUI] = useState(false);
   const [selectedScheduleTime, setSelectedScheduleTime] = useState<Date | undefined>(undefined);
 
@@ -120,6 +119,7 @@ export function ArticleActionButtons({
         },
         body: JSON.stringify({
           articleId: article.id,
+          projectId: article.projectId,
         }),
       });
 
@@ -142,45 +142,9 @@ export function ArticleActionButtons({
     }
   };
 
-  const handleRegenerate = async () => {
-    setIsRegenerating(true);
-    try {
-      const response = await fetch("/api/articles/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          articleId: article.id.toString(),
-          forceRegenerate: true,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = (await response.json()) as { error?: string };
-        throw new Error(errorData.error ?? "Failed to regenerate article");
-      }
-
-      onSuccess?.("Article regeneration started");
-
-      // Refresh the page to show updated status
-      window.location.reload();
-    } catch (error) {
-      console.error("Regenerate error:", error);
-      onError?.(
-        error instanceof Error ? error.message : "Failed to regenerate article",
-      );
-    } finally {
-      setIsRegenerating(false);
-    }
-  };
-
   // Determine which buttons to show based on article status
   const canSchedule = ["idea", "wait_for_publish"].includes(article.status);
   const canPublish = article.status === "wait_for_publish";
-  // Only show regenerate for articles that have been generated before (have content)
-  const canRegenerate = !["generating", "published", "idea", "to_generate"].includes(article.status) && 
-                       (article.content ?? article.draft);
 
   // Don't show buttons if article is currently generating
   if (article.status === "generating") {
