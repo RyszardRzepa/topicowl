@@ -1,22 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Save } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { ArticleActionButtons } from "./article-action-buttons";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 import { ArticleMetadata } from "./article-metadata";
 
 interface ArticleSidebarEditorProps {
   article: ArticleDetailResponse["data"];
-  onSave: (
-    updatedArticle: Partial<ArticleDetailResponse["data"]>,
-  ) => Promise<void>;
-  isLoading?: boolean;
+  currentMetadata?: {
+    title: string;
+    description: string;
+    keywords: string[];
+    slug: string;
+    metaDescription: string;
+  };
+  onMetadataChange?: (metadata: {
+    title: string;
+    description: string;
+    keywords: string[];
+    slug: string;
+    metaDescription: string;
+  }) => void;
   onSuccess?: (message: string) => void;
   onError?: (message: string) => void;
 }
@@ -33,25 +43,36 @@ const ARTICLE_TYPES = [
 
 export function ArticleSidebarEditor({
   article,
-  onSave,
-  isLoading = false,
+  currentMetadata,
+  onMetadataChange,
   onSuccess,
   onError,
 }: ArticleSidebarEditorProps) {
   const [formData, setFormData] = useState({
-    title: article.title ?? "",
-    description: article.description ?? "",
-    keywords: Array.isArray(article.keywords)
+    title: currentMetadata?.title ?? article.title ?? "",
+    description: currentMetadata?.description ?? article.description ?? "",
+    keywords: currentMetadata?.keywords ?? (Array.isArray(article.keywords)
       ? (article.keywords as string[])
-      : [],
-    slug: article.slug ?? "",
-    metaDescription: article.metaDescription ?? "",
+      : []),
+    slug: currentMetadata?.slug ?? article.slug ?? "",
+    metaDescription: currentMetadata?.metaDescription ?? article.metaDescription ?? "",
     // For now, we'll use a simple string field for type
     // You can extend this to map to your existing data structure
     articleType: "blog" as string,
   });
 
   const [newKeyword, setNewKeyword] = useState("");
+
+  // Notify parent when form data changes
+  useEffect(() => {
+    onMetadataChange?.({
+      title: formData.title,
+      description: formData.description,
+      keywords: formData.keywords,
+      slug: formData.slug,
+      metaDescription: formData.metaDescription,
+    });
+  }, [formData, onMetadataChange]);
 
   const handleAddKeyword = () => {
     if (newKeyword.trim() && !formData.keywords.includes(newKeyword.trim())) {
@@ -70,24 +91,13 @@ export function ArticleSidebarEditor({
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await onSave({
-      title: formData.title,
-      description: formData.description,
-      keywords: formData.keywords,
-      slug: formData.slug,
-      metaDescription: formData.metaDescription,
-    });
-  };
-
   return (
     <Card className="h-fit">
       <CardHeader>
         <ArticleMetadata article={article} />
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div className="border-b pb-4">
             <ArticleActionButtons
               article={article}
@@ -232,15 +242,8 @@ export function ArticleSidebarEditor({
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="space-y-3 border-t pt-4">
-            {/* Save Button */}
-            <Button type="submit" disabled={isLoading} className="w-full">
-              <Save className="mr-2 h-4 w-4" />
-              {isLoading ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </form>
+          {/* Action Buttons section removed - save button moved to content editor */}
+        </div>
       </CardContent>
     </Card>
   );

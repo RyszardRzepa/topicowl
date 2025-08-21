@@ -5,7 +5,7 @@ import { type MDXEditorMethods } from "@mdxeditor/editor";
 import { ForwardRefEditor } from "./ForwardRefEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Save, Eye, Code } from "lucide-react";
+import { Eye, Code, Save } from "lucide-react";
 
 // Error boundary for the MDX editor
 class EditorErrorBoundary extends Component<
@@ -36,7 +36,8 @@ class EditorErrorBoundary extends Component<
 
 interface ContentEditorWithPreviewProps {
   initialContent?: string;
-  onSave: (content: string) => void;
+  onContentChange?: (content: string) => void;
+  onSave?: () => Promise<void>;
   isLoading?: boolean;
   placeholder?: string;
 }
@@ -130,6 +131,7 @@ function convertDirectivesToMarkdown(content: string): string {
 
 export function ContentEditorWithPreview({
   initialContent = "",
+  onContentChange,
   onSave,
   isLoading = false,
   placeholder = "Start writing your article...",
@@ -141,17 +143,19 @@ export function ContentEditorWithPreview({
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
 
-  const handleSave = () => {
-    const markdown = editorRef.current?.getMarkdown() ?? currentContent;
-    // Convert directives back to markdown format for saving
-    const convertedMarkdown = convertDirectivesToMarkdown(markdown);
-    onSave(convertedMarkdown);
+  const handleSave = async () => {
+    if (onSave) {
+      await onSave();
+    }
   };
 
   // Copy markdown functionality (handleCopyMarkdown) removed due to being unused.
 
   const handleEditorChange = (markdown: string) => {
     setCurrentContent(markdown);
+    // Convert directives back to markdown format and notify parent
+    const convertedMarkdown = convertDirectivesToMarkdown(markdown);
+    onContentChange?.(convertedMarkdown);
     // Clear any previous errors when content changes successfully
     if (editorError) {
       setEditorError(null);
@@ -166,7 +170,11 @@ export function ContentEditorWithPreview({
   };
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setCurrentContent(e.target.value);
+    const newContent = e.target.value;
+    setCurrentContent(newContent);
+    // Convert directives back to markdown format and notify parent
+    const convertedMarkdown = convertDirectivesToMarkdown(newContent);
+    onContentChange?.(convertedMarkdown);
   };
 
   const toggleMarkdownMode = () => {
@@ -250,7 +258,7 @@ export function ContentEditorWithPreview({
                   className="flex items-center gap-2"
                 >
                   <Save className="h-4 w-4" />
-                  {isLoading ? "Saving..." : "Save Content"}
+                  {isLoading ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             </div>

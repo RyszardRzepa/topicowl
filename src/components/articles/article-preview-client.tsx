@@ -19,6 +19,16 @@ export function ArticlePreviewClient({
   initialArticle,
 }: ArticlePreviewClientProps) {
   const [article, setArticle] = useState(initialArticle);
+  const [currentContent, setCurrentContent] = useState(getArticleContent(initialArticle));
+  const [currentMetadata, setCurrentMetadata] = useState({
+    title: initialArticle.title ?? "",
+    description: initialArticle.description ?? "",
+    keywords: Array.isArray(initialArticle.keywords)
+      ? (initialArticle.keywords as string[])
+      : [],
+    slug: initialArticle.slug ?? "",
+    metaDescription: initialArticle.metaDescription ?? "",
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState<string | null>(
     null,
@@ -105,14 +115,27 @@ export function ArticlePreviewClient({
     [handleSave],
   );
 
-  // Handle content save from Lexical editor
-  const handleContentSave = useCallback(
-    async (content: string) => {
-      // Save to draft field for editing, content field will be set on publish
-      await handleSave({ draft: content });
-    },
-    [handleSave],
-  );
+  // Handle content changes without saving (for unified save)
+  const handleContentChange = useCallback((content: string) => {
+    setCurrentContent(content);
+  }, []);
+
+  // Handle metadata changes without saving (for unified save)
+  const handleMetadataChange = useCallback((metadata: typeof currentMetadata) => {
+    setCurrentMetadata(metadata);
+  }, []);
+
+  // Unified save function for both content and metadata
+  const handleUnifiedSave = useCallback(async () => {
+    await handleSave({
+      title: currentMetadata.title,
+      description: currentMetadata.description,
+      keywords: currentMetadata.keywords,
+      slug: currentMetadata.slug,
+      metaDescription: currentMetadata.metaDescription,
+      draft: currentContent,
+    });
+  }, [handleSave, currentMetadata, currentContent]);
 
   return (
     <div className="space-y-6">
@@ -188,7 +211,8 @@ export function ArticlePreviewClient({
           {/* Content Editor */}
           <ContentEditorWithPreview
             initialContent={getArticleContent(article)}
-            onSave={handleContentSave}
+            onContentChange={handleContentChange}
+            onSave={handleUnifiedSave}
             isLoading={isSaving}
             placeholder="Start writing your article content..."
           />
@@ -198,8 +222,8 @@ export function ArticlePreviewClient({
         <div className="w-full lg:w-80 xl:w-96">
           <ArticleSidebarEditor
             article={article}
-            onSave={handleSave}
-            isLoading={isSaving}
+            currentMetadata={currentMetadata}
+            onMetadataChange={handleMetadataChange}
             onSuccess={(message) => {
               setShowSuccessMessage(message);
               setTimeout(() => setShowSuccessMessage(null), 5000);
