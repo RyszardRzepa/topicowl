@@ -43,12 +43,6 @@ export const API_BASE_URL =
     ? "http://localhost:3000"
     : `https://www.topicowl.com`;
 
-// Base URL constant for external URLs (like Stripe callbacks)
-export const BASE_URL =
-  process.env.NODE_ENV === "development"
-    ? "http://localhost:3000"
-    : `https://www.topicowl.com`;
-
 // Session Management Utilities
 // These utilities help prevent duplicate fetches on tab focus/visibility changes
 

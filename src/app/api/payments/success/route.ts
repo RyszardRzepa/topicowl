@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { BASE_URL, PRICING_PLANS } from "@/constants";
+import { API_BASE_URL, PRICING_PLANS } from "@/constants";
 import { env } from "@/env";
 import { db } from "@/server/db";
 import { userCredits } from "@/server/db/schema";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     if (!sessionId) {
       console.error("No session_id provided in success callback");
       return Response.redirect(
-        new URL("/dashboard?error=missing_session", BASE_URL),
+        new URL("/dashboard?error=missing_session", API_BASE_URL),
       );
     }
 
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         session.payment_status,
       );
       return Response.redirect(
-        new URL("/dashboard?error=payment_not_completed", BASE_URL),
+        new URL("/dashboard?error=payment_not_completed", API_BASE_URL),
       );
     }
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
         planKey,
       });
       return Response.redirect(
-        new URL("/dashboard?error=missing_metadata", BASE_URL),
+        new URL("/dashboard?error=missing_metadata", API_BASE_URL),
       );
     }
 
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     if (!plan) {
       console.error("Invalid plan key:", planKey);
       return Response.redirect(
-        new URL("/dashboard?error=invalid_plan", BASE_URL),
+        new URL("/dashboard?error=invalid_plan", API_BASE_URL),
       );
     }
 
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     if (!paymentIntentId) {
       console.error("No payment intent found for session:", sessionId);
       return Response.redirect(
-        new URL("/dashboard?error=no_payment_intent", BASE_URL),
+        new URL("/dashboard?error=no_payment_intent", API_BASE_URL),
       );
     }
 
@@ -112,19 +112,19 @@ export async function GET(req: NextRequest) {
       return Response.redirect(
         new URL(
           `/dashboard?success=payment_complete&credits=${plan.credits}&plan=${planKey}`,
-          BASE_URL,
+          API_BASE_URL,
         ),
       );
     } catch (dbError) {
       console.error("Database error adding credits:", dbError);
       return Response.redirect(
-        new URL("/dashboard?error=credit_processing_failed", BASE_URL),
+        new URL("/dashboard?error=credit_processing_failed", API_BASE_URL),
       );
     }
   } catch (error) {
     await logServerError(error, { operation: "stripe_success" });
     return Response.redirect(
-      new URL("/dashboard?error=processing_error", BASE_URL),
+      new URL("/dashboard?error=processing_error", API_BASE_URL),
     );
   }
 }

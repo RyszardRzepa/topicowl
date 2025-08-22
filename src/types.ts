@@ -210,9 +210,22 @@ export interface ProjectRedditConnection {
   scopes: string[];
 }
 
+// X (Twitter) integration types for project-specific connections
+export interface ProjectXConnection {
+  refreshToken: string;
+  accessToken?: string; // optional cached token if we ever store it short-lived
+  expiresAt?: string; // ISO timestamp when accessToken expires
+  xUsername: string;
+  xUserId: string;
+  connectedAt: string;
+  lastUsedAt?: string;
+  scopes: string[];
+}
+
 // Clerk private metadata structure for Reddit tokens
 export interface ClerkPrivateMetadata {
   redditTokens?: Record<string, ProjectRedditConnection>;
+  xTokens?: Record<string, ProjectXConnection>;
   // Other existing metadata fields can be added here as needed
   [key: string]: unknown; // Index signature for Clerk compatibility
 }

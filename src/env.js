@@ -21,6 +21,10 @@ export const env = createEnv({
     REDDIT_CLIENT_ID: z.string().min(1),
     REDDIT_CLIENT_SECRET: z.string().min(1),
 
+  // X (Twitter) OAuth 2.0 configuration
+  X_CLIENT_ID: z.string().min(1),
+  X_CLIENT_SECRET: z.string().min(1),
+
     // Webhook configuration
     WEBHOOK_TIMEOUT_MS: z.string().default("30000"),
     WEBHOOK_MAX_RETRIES: z.string().default("3"),
@@ -76,6 +80,10 @@ export const env = createEnv({
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: process.env.REDDIT_CLIENT_ID,
     REDDIT_CLIENT_SECRET: process.env.REDDIT_CLIENT_SECRET,
+
+  // X (Twitter) OAuth 2.0 configuration
+  X_CLIENT_ID: process.env.X_CLIENT_ID,
+  X_CLIENT_SECRET: process.env.X_CLIENT_SECRET,
 
     STRIPE_PRIVATE_KEY: process.env.STRIPE_PRIVATE_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,

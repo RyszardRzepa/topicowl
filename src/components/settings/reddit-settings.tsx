@@ -87,7 +87,7 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
 
     try {
       const response = await fetch(
-        `/api/reddit/auth?projectId=${currentProject.id}`,
+        `/api/social/auth/reddit?projectId=${currentProject.id}`,
       );
       if (response.ok) {
         // The API will redirect to Reddit OAuth

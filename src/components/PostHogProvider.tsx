@@ -10,7 +10,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       api_host: "https://eu.posthog.com",
       ui_host: "https://eu.posthog.com",
       defaults: "2025-05-24",
-      capture_exceptions: true, // This enables capturing exceptions using Error Tracking, set to false if you don't want this
+      capture_exceptions: true,
+      debug: false,
     });
   }, []);
 

@@ -468,3 +468,40 @@ export const apiKeys = contentbotSchema.table(
     projectIdIdx: index("api_keys_project_id_idx").on(table.projectId),
   }),
 );
+
+// Unified Social posts table for scheduling across providers
+export const socialPosts = contentbotSchema.table(
+  "social_posts",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+
+    provider: text("provider").notNull(), // 'reddit' | 'x' | future
+    // Normalized payload with base + per-provider overrides
+    payload: jsonb("payload").notNull(),
+
+    status: articleStatusEnum("status").default("scheduled").notNull(),
+    publishScheduledAt: timestamp("publish_scheduled_at", {
+      withTimezone: true,
+    }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+
+    errorMessage: text("error_message"),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    projectIdIdx: index("social_posts_project_id_idx").on(table.projectId),
+  }),
+);

@@ -5,7 +5,7 @@ import { db } from "@/server/db/index";
 import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { PRICING_PLANS, BASE_URL } from "@/constants";
+import { PRICING_PLANS, API_BASE_URL } from "@/constants";
 import { env } from "@/env";
 import Stripe from "stripe";
 import { logServerError } from "@/lib/posthog-server";
@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${BASE_URL}/api/payments/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${BASE_URL}/dashboard?modal=pricing`,
+      success_url: `${API_BASE_URL}/api/payments/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${API_BASE_URL}/dashboard?modal=pricing`,
       metadata: {
         userId,
         planKey,

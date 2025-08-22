@@ -693,7 +693,7 @@ export default function RedditDashboard() {
               <Button
                 onClick={() => {
                   if (currentProjectId) {
-                    window.location.href = `/api/reddit/auth?projectId=${currentProjectId}`;
+                    window.location.href = `/api/social/auth/reddit?projectId=${currentProjectId}`;
                   }
                 }}
                 className="w-full"
