@@ -1,6 +1,6 @@
 {
-  "id": "ace2384e-82c7-42ad-9f4b-add26ee12bb1",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "dda1acf5-34c3-4526-b35f-4a7872c5ef35",
+  "prevId": "32297c5c-b03b-4b60-a2c3-44737f8075eb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -216,6 +216,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "generation_progress": {
+          "name": "generation_progress",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
         "generation_scheduled_at": {
           "name": "generation_scheduled_at",
           "type": "timestamp with time zone",
@@ -239,6 +246,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "views": {
+          "name": "views",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "clicks": {
+          "name": "clicks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -287,7 +308,7 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true,
-          "default": "'N8WRS3DW'"
+          "default": "'4K9F9Z5S'"
         },
         "clerk_user_id": {
           "name": "clerk_user_id",

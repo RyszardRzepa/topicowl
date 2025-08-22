@@ -1,9 +1,185 @@
 {
-  "id": "ace2384e-82c7-42ad-9f4b-add26ee12bb1",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "44f1e448-bf22-49df-a715-d83baea011db",
+  "prevId": "4e085c2e-87c3-4999-ac7c-02a2fc841b0c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "content-machine.article_generation": {
+      "name": "article_generation",
+      "schema": "content-machine",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "article_id": {
+          "name": "article_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "progress": {
+          "name": "progress",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "research_data": {
+          "name": "research_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "draft_content": {
+          "name": "draft_content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "validation_report": {
+          "name": "validation_report",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "seo_report": {
+          "name": "seo_report",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "selected_image_id": {
+          "name": "selected_image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_attribution": {
+          "name": "image_attribution",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_query": {
+          "name": "image_query",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_keywords": {
+          "name": "image_keywords",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_details": {
+          "name": "error_details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "article_generation_article_id_articles_id_fk": {
+          "name": "article_generation_article_id_articles_id_fk",
+          "tableFrom": "article_generation",
+          "tableTo": "articles",
+          "schemaTo": "content-machine",
+          "columnsFrom": [
+            "article_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "article_generation_user_id_users_id_fk": {
+          "name": "article_generation_user_id_users_id_fk",
+          "tableFrom": "article_generation",
+          "tableTo": "users",
+          "schemaTo": "content-machine",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "content-machine.article_settings": {
       "name": "article_settings",
       "schema": "content-machine",
@@ -138,14 +314,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "priority": {
-          "name": "priority",
-          "type": "article_priority",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'medium'"
-        },
         "estimated_read_time": {
           "name": "estimated_read_time",
           "type": "integer",
@@ -210,11 +378,42 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
+        "featured_image_url": {
+          "name": "featured_image_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "featured_image_alt": {
+          "name": "featured_image_alt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_attribution": {
+          "name": "image_attribution",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unsplash_image_id": {
+          "name": "unsplash_image_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "generation_task_id": {
           "name": "generation_task_id",
           "type": "varchar",
           "primaryKey": false,
           "notNull": false
+        },
+        "generation_progress": {
+          "name": "generation_progress",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
         },
         "generation_scheduled_at": {
           "name": "generation_scheduled_at",
@@ -239,6 +438,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "views": {
+          "name": "views",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "clicks": {
+          "name": "clicks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -287,7 +500,7 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true,
-          "default": "'N8WRS3DW'"
+          "default": "'KSVBXV2E'"
         },
         "clerk_user_id": {
           "name": "clerk_user_id",
@@ -377,15 +590,6 @@
     }
   },
   "enums": {
-    "public.article_priority": {
-      "name": "article_priority",
-      "schema": "public",
-      "values": [
-        "low",
-        "medium",
-        "high"
-      ]
-    },
     "public.article_status": {
       "name": "article_status",
       "schema": "public",

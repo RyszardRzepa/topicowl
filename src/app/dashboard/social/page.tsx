@@ -35,6 +35,7 @@ interface PostForm {
   baseText: string;
   // Reddit-specific fields
   redditSubreddit: string;
+  redditTitle: string;
   // X-specific fields
   xText: string;
 }
@@ -65,6 +66,7 @@ export default function SocialDashboard() {
   const [postForm, setPostForm] = useState<PostForm>({
     baseText: "",
     redditSubreddit: "",
+    redditTitle: "",
     xText: "",
   });
 
@@ -74,7 +76,9 @@ export default function SocialDashboard() {
   >(new Set());
 
   // Reddit subreddit search state
-  const [subredditSearchResults, setSubredditSearchResults] = useState<string[]>([]);
+  const [subredditSearchResults, setSubredditSearchResults] = useState<
+    string[]
+  >([]);
   const [showSubredditDropdown, setShowSubredditDropdown] = useState(false);
   const [subredditSearchLoading, setSubredditSearchLoading] = useState(false);
 
@@ -130,16 +134,26 @@ export default function SocialDashboard() {
   // Handle platform selection
   const handlePlatformToggle = useCallback(
     (platform: "reddit" | "x", checked: boolean) => {
-      // For Reddit: prevent unchecking if a subreddit is selected
-      if (platform === "reddit" && !checked && postForm.redditSubreddit.trim()) {
-        toast.info("Clear the subreddit first to disable Reddit posting");
+      // For Reddit: prevent unchecking if a subreddit and title are filled
+      if (
+        platform === "reddit" &&
+        !checked &&
+        (postForm.redditSubreddit.trim() || postForm.redditTitle.trim())
+      ) {
+        toast.info("Clear the subreddit and title first to disable Reddit posting");
         return;
       }
-      
-      // For Reddit: only allow checking if a subreddit is selected
-      if (platform === "reddit" && checked && !postForm.redditSubreddit.trim()) {
-        toast.info("Please select a subreddit first to enable Reddit posting");
-        return;
+
+      // For Reddit: only allow checking if both subreddit and title are filled
+      if (platform === "reddit" && checked) {
+        if (!postForm.redditSubreddit.trim()) {
+          toast.info("Please select a subreddit first to enable Reddit posting");
+          return;
+        }
+        if (!postForm.redditTitle.trim()) {
+          toast.info("Please enter a title first to enable Reddit posting");
+          return;
+        }
       }
 
       setSelectedPlatforms((prev) => {
@@ -152,7 +166,7 @@ export default function SocialDashboard() {
         return newSet;
       });
     },
-    [postForm.redditSubreddit],
+    [postForm.redditSubreddit, postForm.redditTitle],
   );
 
   // Handle platform connection
@@ -223,16 +237,22 @@ export default function SocialDashboard() {
   // Select subreddit from dropdown
   const handleSelectSubredditFromDropdown = useCallback(
     (subredditName: string) => {
-      setPostForm((prev) => ({ ...prev, redditSubreddit: subredditName }));
+      setPostForm((prev) => {
+        const newForm = { ...prev, redditSubreddit: subredditName };
+        
+        // Automatically select Reddit platform when both subreddit and title are filled
+        if (newForm.redditTitle.trim()) {
+          setSelectedPlatforms((prevPlatforms) => {
+            const newSet = new Set(prevPlatforms);
+            newSet.add("reddit");
+            return newSet;
+          });
+        }
+        
+        return newForm;
+      });
       setShowSubredditDropdown(false);
       setSubredditSearchResults([]);
-      
-      // Automatically select Reddit platform when subreddit is chosen
-      setSelectedPlatforms((prev) => {
-        const newSet = new Set(prev);
-        newSet.add("reddit");
-        return newSet;
-      });
     },
     [],
   );
@@ -276,6 +296,10 @@ export default function SocialDashboard() {
           toast.error("Reddit requires a subreddit to be selected");
           return;
         }
+        if (!postForm.redditTitle.trim()) {
+          toast.error("Reddit requires a title to be provided");
+          return;
+        }
       }
 
       // Validate scheduling
@@ -307,6 +331,7 @@ export default function SocialDashboard() {
         if (selectedPlatforms.has("reddit")) {
           requestBody.reddit = {
             subreddit: postForm.redditSubreddit,
+            title: postForm.redditTitle,
             text: postForm.baseText,
           };
         }
@@ -352,6 +377,7 @@ export default function SocialDashboard() {
           setPostForm({
             baseText: "",
             redditSubreddit: "",
+            redditTitle: "",
             xText: "",
           });
           editorRef.current?.setMarkdown("");
@@ -405,20 +431,23 @@ export default function SocialDashboard() {
     <div className="container mx-auto px-4 py-8">
       <div className="mx-auto">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Create Social Post</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Create Social Post
+          </h1>
           <p className="mt-1 text-gray-600">
-            Write your content, select platforms, and publish or schedule your post
+            Write your content, select platforms, and publish or schedule your
+            post
           </p>
         </div>
 
-        <Card className="p-8  max-w-4xl">
+        <Card className="max-w-4xl p-8">
           <form onSubmit={handleSubmitPost}>
             {/* Step 1: Write Content */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">
-                    <Edit className="inline mr-2 h-5 w-5" />
+                  <h2 className="mb-4 text-xl font-semibold">
+                    <Edit className="mr-2 inline h-5 w-5" />
                     Write Your Post
                   </h2>
                   <Label className="text-sm font-medium">Post Content</Label>
@@ -458,24 +487,31 @@ export default function SocialDashboard() {
             {currentStep === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">
+                  <h2 className="mb-4 text-xl font-semibold">
                     Select Social Platforms
                   </h2>
                   <div className="space-y-4">
                     {/* Reddit Platform */}
-                    <div 
+                    <div
                       className={`rounded-lg border p-4 transition-colors ${
-                        accounts?.reddit?.connected 
-                          ? postForm.redditSubreddit.trim()
+                        accounts?.reddit?.connected
+                          ? postForm.redditSubreddit.trim() && postForm.redditTitle.trim()
                             ? selectedPlatforms.has("reddit")
-                              ? "border-blue-500 bg-blue-50 cursor-pointer"
-                              : "border-gray-300 hover:border-gray-400 cursor-pointer"
-                            : "border-gray-200 bg-gray-50 cursor-not-allowed"
-                          : "border-gray-300 cursor-pointer"
+                              ? "cursor-pointer border-blue-500 bg-blue-50"
+                              : "cursor-pointer border-gray-300 hover:border-gray-400"
+                            : "cursor-not-allowed border-gray-200 bg-gray-50"
+                          : "cursor-pointer border-gray-300"
                       }`}
                       onClick={() => {
-                        if (accounts?.reddit?.connected && postForm.redditSubreddit.trim()) {
-                          handlePlatformToggle("reddit", !selectedPlatforms.has("reddit"));
+                        if (
+                          accounts?.reddit?.connected &&
+                          postForm.redditSubreddit.trim() &&
+                          postForm.redditTitle.trim()
+                        ) {
+                          handlePlatformToggle(
+                            "reddit",
+                            !selectedPlatforms.has("reddit"),
+                          );
                         }
                       }}
                     >
@@ -506,7 +542,7 @@ export default function SocialDashboard() {
                               handlePlatformToggle("reddit", checked)
                             }
                             onClick={(e) => e.stopPropagation()}
-                            disabled={!postForm.redditSubreddit.trim()}
+                            disabled={!postForm.redditSubreddit.trim() || !postForm.redditTitle.trim()}
                           />
                         ) : (
                           <Button
@@ -533,9 +569,11 @@ export default function SocialDashboard() {
 
                       {/* Reddit-specific settings - always show if connected */}
                       {accounts?.reddit?.connected && (
-                        <div className="space-y-3 border-t pt-3 mt-3">
+                        <div className="mt-3 space-y-3 border-t pt-3">
                           <div className="relative">
-                            <Label className="text-sm">Search Subreddit (optional)</Label>
+                            <Label className="text-sm">
+                              Search Subreddit (optional)
+                            </Label>
                             <div className="relative mt-1">
                               <Input
                                 value={postForm.redditSubreddit}
@@ -544,7 +582,9 @@ export default function SocialDashboard() {
                                 }
                                 onFocus={() => {
                                   if (postForm.redditSubreddit) {
-                                    void searchSubredditsForForm(postForm.redditSubreddit);
+                                    void searchSubredditsForForm(
+                                      postForm.redditSubreddit,
+                                    );
                                     setShowSubredditDropdown(true);
                                   }
                                 }}
@@ -569,28 +609,82 @@ export default function SocialDashboard() {
                             </div>
 
                             {/* Subreddit Dropdown */}
-                            {showSubredditDropdown && subredditSearchResults.length > 0 && (
-                              <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg">
-                                <div className="max-h-60 overflow-y-auto py-1">
-                                  {subredditSearchResults.map((subreddit) => (
-                                    <button
-                                      key={subreddit}
-                                      type="button"
-                                      onClick={() =>
-                                        handleSelectSubredditFromDropdown(subreddit)
-                                      }
-                                      className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-100"
-                                    >
-                                      <span className="font-medium">r/{subreddit}</span>
-                                    </button>
-                                  ))}
+                            {showSubredditDropdown &&
+                              subredditSearchResults.length > 0 && (
+                                <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg">
+                                  <div className="max-h-60 overflow-y-auto py-1">
+                                    {subredditSearchResults.map((subreddit) => (
+                                      <button
+                                        key={subreddit}
+                                        type="button"
+                                        onClick={() =>
+                                          handleSelectSubredditFromDropdown(
+                                            subreddit,
+                                          )
+                                        }
+                                        className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-100"
+                                      >
+                                        <span className="font-medium">
+                                          r/{subreddit}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
                           </div>
-                          {!postForm.redditSubreddit.trim() && (
-                            <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                              💡 Select a subreddit first to enable Reddit posting
+
+                          {/* Reddit Title Input */}
+                          <div>
+                            <Label className="text-sm">
+                              Post Title *
+                            </Label>
+                            <div className="mt-1">
+                              <Input
+                                value={postForm.redditTitle}
+                                onChange={(e) => {
+                                  const newTitle = e.target.value;
+                                  setPostForm((prev) => {
+                                    const newForm = { ...prev, redditTitle: newTitle };
+                                    
+                                    // Automatically select Reddit platform when both subreddit and title are filled
+                                    if (newForm.redditSubreddit.trim() && newTitle.trim()) {
+                                      setSelectedPlatforms((prevPlatforms) => {
+                                        const newSet = new Set(prevPlatforms);
+                                        newSet.add("reddit");
+                                        return newSet;
+                                      });
+                                    } else if (!newTitle.trim()) {
+                                      // Unselect Reddit if title is cleared
+                                      setSelectedPlatforms((prevPlatforms) => {
+                                        const newSet = new Set(prevPlatforms);
+                                        newSet.delete("reddit");
+                                        return newSet;
+                                      });
+                                    }
+                                    
+                                    return newForm;
+                                  });
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="Enter title for your Reddit post"
+                                className="w-full"
+                                maxLength={300}
+                                required
+                              />
+                              <div className="mt-1 text-xs text-gray-500">
+                                {postForm.redditTitle.length}/300 characters
+                              </div>
+                            </div>
+                          </div>
+
+                          {(!postForm.redditSubreddit.trim() || !postForm.redditTitle.trim()) && (
+                            <div className="rounded bg-gray-50 p-2 text-xs text-gray-500">
+                              💡 {!postForm.redditSubreddit.trim() && !postForm.redditTitle.trim() 
+                                ? "Select a subreddit and enter a title to enable Reddit posting"
+                                : !postForm.redditSubreddit.trim()
+                                ? "Select a subreddit to enable Reddit posting"
+                                : "Enter a title to enable Reddit posting"}
                             </div>
                           )}
                         </div>
@@ -598,9 +692,9 @@ export default function SocialDashboard() {
                     </div>
 
                     {/* X Platform */}
-                    <div 
-                      className={`rounded-lg border p-4 cursor-pointer transition-colors ${
-                        accounts?.x?.connected 
+                    <div
+                      className={`cursor-pointer rounded-lg border p-4 transition-colors ${
+                        accounts?.x?.connected
                           ? selectedPlatforms.has("x")
                             ? "border-blue-500 bg-blue-50"
                             : "border-gray-300 hover:border-gray-400"
@@ -608,7 +702,10 @@ export default function SocialDashboard() {
                       }`}
                       onClick={() => {
                         if (accounts?.x?.connected) {
-                          handlePlatformToggle("x", !selectedPlatforms.has("x"));
+                          handlePlatformToggle(
+                            "x",
+                            !selectedPlatforms.has("x"),
+                          );
                         }
                       }}
                     >
@@ -661,7 +758,11 @@ export default function SocialDashboard() {
                 </div>
 
                 <div className="flex justify-end space-x-3">
-                  <Button type="button" variant="outline" onClick={goToPreviousStep}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goToPreviousStep}
+                  >
                     <ChevronLeft className="mr-2 h-4 w-4" />
                     Back
                   </Button>
@@ -681,7 +782,7 @@ export default function SocialDashboard() {
             {currentStep === 3 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">
+                  <h2 className="mb-4 text-xl font-semibold">
                     Publish Your Post
                   </h2>
 
@@ -739,7 +840,7 @@ export default function SocialDashboard() {
 
                     {/* Summary */}
                     <div className="rounded-lg bg-gray-50 p-4">
-                      <h3 className="font-medium mb-2">Post Summary</h3>
+                      <h3 className="mb-2 font-medium">Post Summary</h3>
                       <div className="space-y-1 text-sm text-gray-600">
                         <p>
                           <strong>Platforms:</strong>{" "}
@@ -758,7 +859,11 @@ export default function SocialDashboard() {
                 </div>
 
                 <div className="flex justify-end space-x-3">
-                  <Button type="button" variant="outline" onClick={goToPreviousStep}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goToPreviousStep}
+                  >
                     <ChevronLeft className="mr-2 h-4 w-4" />
                     Back
                   </Button>

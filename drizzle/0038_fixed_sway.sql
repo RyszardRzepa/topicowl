@@ -1,0 +1,1 @@
+ALTER TABLE "contentbot"."users" ADD CONSTRAINT "users_email_unique" UNIQUE("email");
