@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { articles, users, projects } from "@/server/db/schema";
 import { max, eq, and, ne } from "drizzle-orm";
 import { z } from "zod";
+import { logServerError } from "@/lib/posthog-server";
 
 export const maxDuration = 800;
 
@@ -212,7 +213,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(userArticles);
   } catch (error) {
-    console.error("Get articles error:", error);
+    await logServerError(error, { operation: "get_articles" });
     return NextResponse.json(
       { error: "Failed to fetch articles" },
       { status: 500 },

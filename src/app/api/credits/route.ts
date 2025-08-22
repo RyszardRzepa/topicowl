@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getUserCredits } from "@/lib/utils/credits";
+import { logServerError } from "@/lib/posthog-server";
 
 export async function GET() {
   try {
@@ -15,21 +16,11 @@ export async function GET() {
 
     return NextResponse.json({ credits });
   } catch (error) {
-    console.error("Error fetching user credits:", error);
+    await logServerError(error, { operation: "get_credits" });
 
-    // Provide specific error messages based on error type
-    let errorMessage = "Failed to fetch credits";
-
-    if (error instanceof Error) {
-      if (error.message.includes("database")) {
-        errorMessage =
-          "Database error occurred while fetching credits. Please try again.";
-      } else if (error.message.includes("connection")) {
-        errorMessage =
-          "Connection error. Please check your internet connection and try again.";
-      }
-    }
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json(
+      { error: "Error fetching user credits. Try gain." },
+      { status: 500 },
+    );
   }
 }

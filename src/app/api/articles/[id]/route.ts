@@ -11,6 +11,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ArticleStatus } from "@/types";
 import { videoEmbedSchema } from "@/types";
+import { logServerError } from "@/lib/posthog-server";
 
 // Types colocated with this API route
 export interface SEOAnalysis {
@@ -272,7 +273,7 @@ export async function GET(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Get article error:", error);
+    await logServerError(error, { operation: "get_article" });
     return NextResponse.json(
       {
         success: false,

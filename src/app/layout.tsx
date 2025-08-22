@@ -1,6 +1,7 @@
 import "@/styles/globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/next";
+import { PostHogProvider } from "@/components/PostHogProvider";
 
 import { type Metadata } from "next";
 
@@ -41,8 +42,10 @@ export default function RootLayout({
         <body
           className={`text-15 bg-white font-sans leading-relaxed text-stone-700 antialiased`}
         >
-          {process.env.NODE_ENV === "production" && <Analytics />}
-          {children}
+          <PostHogProvider>
+            {process.env.NODE_ENV === "production" && <Analytics />}
+            {children}
+          </PostHogProvider>
         </body>
       </html>
     </ClerkProvider>

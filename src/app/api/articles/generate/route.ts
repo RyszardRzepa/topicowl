@@ -26,6 +26,7 @@ import { performValidateLogic } from "@/lib/services/validation-service";
 import type { ValidateResponse } from "@/lib/services/validation-service";
 import { performGenericUpdate } from "@/lib/services/update-service";
 import { performImageSelectionLogic } from "@/lib/services/image-selection-service";
+import { logServerError } from "@/lib/posthog-server";
 
 export const maxDuration = 800;
 
@@ -1008,31 +1009,13 @@ export async function POST(req: NextRequest) {
       },
     } as ApiResponse);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.log("Generate article API error", errorMessage);
-
-    // Map specific errors to appropriate HTTP status codes
-    let status = 500;
-    if (errorMessage.includes("User not found")) {
-      status = 404;
-    } else if (errorMessage.includes("Invalid article ID")) {
-      status = 400;
-    } else if (errorMessage.includes("Article not found")) {
-      status = 404;
-    } else if (errorMessage.includes("Access denied")) {
-      status = 403;
-    } else if (errorMessage.includes("already in progress")) {
-      status = 409;
-    } else if (errorMessage.includes("Insufficient credits")) {
-      status = 402;
-    }
-
+    await logServerError(error, { operation: "generate_article" });
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
+        error: "Error generating article. Please try gain.",
       } as ApiResponse,
-      { status },
+      { status: 500 },
     );
   }
 }

@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ApiResponse, Project } from "@/types";
 import { analyzeWebsitePure } from "@/lib/website-analysis";
+import { logServerError } from "@/lib/posthog-server";
 
 // --- Validation schemas ---
 const analysisContentStrategySchema = z.object({
@@ -69,7 +70,7 @@ export async function GET(): Promise<Response> {
       data: userProjects,
     } satisfies ApiResponse<Project[]>);
   } catch (error) {
-    console.error("Error fetching projects:", error);
+    await logServerError(error, { operation: "get_projects" });
     return Response.json(
       {
         success: false,
@@ -244,17 +245,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       { status: 201 },
     );
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return Response.json(
-        {
-          success: false,
-          error: "Validation failed",
-          message: error.errors.map((e) => e.message).join(", "),
-        } satisfies ApiResponse,
-        { status: 400 },
-      );
-    }
-    console.error("Error creating/analyzing project:", error);
+    await logServerError(error, { operation: "post_projects" });
     return Response.json(
       {
         success: false,
