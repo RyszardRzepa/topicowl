@@ -89,6 +89,22 @@
     border: none;
     border-radius: 8px;
   }
+
+
+  @keyframes autopilot-underline {
+    0% {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scaleX(0.5);
+    }
+    100% {
+      opacity: 0.6;
+      transform: scaleX(1);
+    }
+  }
 }
 
 @theme inline {
