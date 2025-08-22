@@ -27,9 +27,9 @@ export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-medium ${
                     isCompleted
-                      ? "border-blue-600 bg-blue-600 text-white"
+                      ? "border-brand-green bg-brand-green text-white"
                       : isCurrent
-                        ? "border-blue-600 bg-white text-blue-600"
+                        ? "border-brand-green bg-white text-brand-green"
                         : "border-gray-300 bg-white text-gray-400"
                   } `}
                 >
@@ -55,7 +55,7 @@ export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
                   <div
                     className={`text-sm font-medium ${
                       isCurrent
-                        ? "text-blue-600"
+                        ? "text-brand-green"
                         : isCompleted
                           ? "text-gray-900"
                           : "text-gray-400"
@@ -70,7 +70,7 @@ export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`mx-4 mt-5 h-px flex-1 ${isCompleted ? "bg-blue-600" : "bg-gray-300"} `}
+                  className={`mx-4 mt-5 h-px flex-1 ${isCompleted ? "bg-brand-green" : "bg-gray-300"} `}
                 />
               )}
             </div>

@@ -7,7 +7,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { PRICING_PLANS, BASE_URL } from "@/constants";
 import { env } from "@/env";
-import Stripe from 'stripe';
+import Stripe from "stripe";
+import { logServerError } from "@/lib/posthog-server";
 
 const stripe = new Stripe(env.STRIPE_PRIVATE_KEY!);
 
@@ -29,7 +30,10 @@ export async function POST(req: NextRequest) {
     const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
 
     if (!userEmail) {
-      return NextResponse.json({ error: "User email not found" }, { status: 400 });
+      return NextResponse.json(
+        { error: "User email not found" },
+        { status: 400 },
+      );
     }
 
     // Parse and validate request body
@@ -39,12 +43,15 @@ export async function POST(req: NextRequest) {
     // Get the pricing plan (server-side validation)
     const plan = PRICING_PLANS[planKey];
     if (!plan) {
-      return NextResponse.json({ error: "Invalid pricing plan" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid pricing plan" },
+        { status: 400 },
+      );
     }
 
     // Get or create user record in our database
     const user = await db.query.users.findFirst({
-      where: eq(users.id, userId)
+      where: eq(users.id, userId),
     });
 
     if (!user) {
@@ -64,18 +71,18 @@ export async function POST(req: NextRequest) {
 
     if (existingCustomers.data.length > 0) {
       stripeCustomer = existingCustomers.data[0]!;
-      
+
       // Update customer metadata if needed
       if (stripeCustomer.metadata.userId !== userId) {
         stripeCustomer = await stripe.customers.update(stripeCustomer.id, {
-          metadata: { userId }
+          metadata: { userId },
         });
       }
     } else {
       // Create new Stripe customer
       stripeCustomer = await stripe.customers.create({
         email: userEmail,
-        metadata: { userId }
+        metadata: { userId },
       });
     }
 
@@ -89,8 +96,9 @@ export async function POST(req: NextRequest) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `${plan.credits} Credits`,
-              description: plan.description,
+              name: `${plan.name} Plan - ${plan.credits} Credits`,
+              description: `${plan.description} • ${Math.floor(plan.credits / 10)} article generations • ${Math.floor(plan.credits / 5)} Reddit posts • ${plan.credits} article ideas • Credits never expire`,
+              images: [], // Optional: Add product images if needed
             },
             unit_amount: plan.priceInCents, // Server-side price validation
           },
@@ -102,25 +110,27 @@ export async function POST(req: NextRequest) {
       metadata: {
         userId,
         planKey,
-        credits: plan.credits.toString(), // For audit purposes only - NOT used for credit calculation
+        planName: plan.name,
+        credits: plan.credits.toString(),
+        pricePerCredit: plan.pricePerCredit.toString(),
       },
       payment_intent_data: {
         metadata: {
           userId,
           planKey,
-          credits: plan.credits.toString(), // For audit purposes only - NOT used for credit calculation
+          planName: plan.name,
+          credits: plan.credits.toString(),
+          pricePerCredit: plan.pricePerCredit.toString(),
         },
       },
     });
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error("Checkout session creation error:", error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid request data", details: error.errors }, { status: 400 });
-    }
-    
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    await logServerError(error, { operation: "stripe_checkout" });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

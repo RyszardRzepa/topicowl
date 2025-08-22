@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { userCredits } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import Stripe from "stripe";
+import { logServerError } from "@/lib/posthog-server";
 
 const stripe = new Stripe(env.STRIPE_PRIVATE_KEY!);
 
@@ -121,7 +122,7 @@ export async function GET(req: NextRequest) {
       );
     }
   } catch (error) {
-    console.error("Success page error:", error);
+    await logServerError(error, { operation: "stripe_success" });
     return Response.redirect(
       new URL("/dashboard?error=processing_error", BASE_URL),
     );

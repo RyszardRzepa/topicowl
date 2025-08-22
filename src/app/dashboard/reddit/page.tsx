@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -26,6 +25,8 @@ import {
   Plus,
   Settings,
 } from "lucide-react";
+import { ForwardRefEditor } from "@/components/articles/ForwardRefEditor";
+import type { MDXEditorMethods } from "@mdxeditor/editor";
 
 // Import TypeScript interfaces from API route files
 import type {
@@ -66,6 +67,7 @@ interface ScheduledPostsResponse {
 }
 
 export default function RedditDashboard() {
+  const editorRef = useRef<MDXEditorMethods>(null);
   const currentProjectId = useCurrentProjectId();
 
   // State management for all form data and API responses
@@ -90,7 +92,7 @@ export default function RedditDashboard() {
   const [showBulkActions, setShowBulkActions] = useState(false);
 
   // Subreddit search state for the form
-  const [subredditSearchQuery, setSubredditSearchQuery] = useState("");
+  const [, setSubredditSearchQuery] = useState("");
   const [subredditSearchResults, setSubredditSearchResults] = useState<
     string[]
   >([]);
@@ -382,6 +384,7 @@ export default function RedditDashboard() {
 
           // Clear form after successful submission
           setPostForm({ subreddit: "", title: "", text: "" });
+          editorRef.current?.setMarkdown("");
           setScheduledDate(undefined);
           setIsScheduling(false);
           setEditingPost(null);
@@ -458,7 +461,7 @@ export default function RedditDashboard() {
         setLoading("deletePost", false);
       }
     },
-    [setLoading, loadScheduledPosts], // Removed currentProject?.id dependency to prevent recreation on tab focus
+    [setLoading, loadScheduledPosts, currentProjectId],
   );
 
   // Cancel editing
@@ -520,7 +523,7 @@ export default function RedditDashboard() {
       let successCount = 0;
       let errorCount = 0;
 
-      results.forEach((result, index) => {
+      results.forEach((result) => {
         if (result.status === "fulfilled" && result.value.ok) {
           successCount++;
         } else {
@@ -939,19 +942,17 @@ export default function RedditDashboard() {
                       >
                         Text Content
                       </label>
-                      <Textarea
-                        id="text"
-                        value={postForm.text}
-                        onChange={(e) =>
-                          setPostForm((prev) => ({
-                            ...prev,
-                            text: e.target.value,
-                          }))
-                        }
-                        placeholder="Enter post content"
-                        rows={8}
-                        required
-                      />
+                      <div className="min-h-[200px]">
+                        <ForwardRefEditor
+                          ref={editorRef}
+                          markdown={postForm.text}
+                          onChange={(md) =>
+                            setPostForm((prev) => ({ ...prev, text: md }))
+                          }
+                          placeholder="Enter post content (Markdown supported)"
+                          contentEditableClassName="prose prose-sm max-w-none reddit-editor"
+                        />
+                      </div>
                       <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
                         <span>{postForm.text.length} characters</span>
                         {postForm.text.length > 40000 && (
@@ -961,26 +962,6 @@ export default function RedditDashboard() {
                         )}
                       </div>
                     </div>
-
-                    {/* Post Preview */}
-                    {postForm.subreddit && postForm.title && postForm.text && (
-                      <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                        <p className="mb-2 text-xs font-medium text-gray-700">
-                          Preview:
-                        </p>
-                        <div className="space-y-1">
-                          <p className="text-xs text-gray-600">
-                            r/{postForm.subreddit}
-                          </p>
-                          <p className="line-clamp-2 text-sm font-medium text-gray-900">
-                            {postForm.title}
-                          </p>
-                          <p className="line-clamp-3 text-xs text-gray-700">
-                            {postForm.text}
-                          </p>
-                        </div>
-                      </div>
-                    )}
 
                     <Button
                       type="submit"
@@ -1495,7 +1476,7 @@ export default function RedditDashboard() {
                     <div className="space-y-3">
                       <div className="flex items-center space-x-3">
                         {profile.icon_img && (
-                          <img
+                          <Image
                             src={profile.icon_img}
                             alt={profile.name}
                             width={48}

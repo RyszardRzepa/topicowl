@@ -276,7 +276,7 @@ export function AIAnalysisPreview({
             <div className="group">
               <div className="mb-2 flex flex-wrap gap-2">
                 {localData.suggestedKeywords.map((keyword, index) => (
-                  <Badge key={index} variant="blue">
+                  <Badge key={index} variant="green">
                     {keyword}
                   </Badge>
                 ))}

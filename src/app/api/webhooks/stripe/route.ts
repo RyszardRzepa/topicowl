@@ -6,6 +6,7 @@ import { userCredits } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { PRICING_PLANS } from "@/constants";
 import Stripe from "stripe";
+import { logServerError } from "@/lib/posthog-server";
 
 const stripe = new Stripe(env.STRIPE_PRIVATE_KEY!);
 const endpointSecret = env.STRIPE_WEBHOOK_SECRET!;
@@ -99,7 +100,7 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
       `[WEBHOOK] Successfully added ${plan.credits} credits to user ${userId} for plan ${planKey} (Payment Intent: ${paymentIntent.id})`,
     );
   } catch (error) {
-    console.error("[WEBHOOK] Error processing payment success:", error);
+    await logServerError(error, { operation: "stripe_webhook" });
   }
 }
 
