@@ -60,7 +60,7 @@ export function CreditBalance({ className }: CreditBalanceProps) {
   };
 
   return (
-    <>
+    <TooltipProvider delayDuration={300}>
       <div className={`border-t border-gray-200 bg-white p-3 ${className}`}>
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
@@ -68,26 +68,7 @@ export function CreditBalance({ className }: CreditBalanceProps) {
               className={`h-4 w-4 ${hasNoCredits ? "text-red-600" : isLowCredits ? "text-amber-600" : "text-green-600"}`}
             />
             <span className="text-sm font-medium">Credits</span>
-            <span
-              className={`text-sm font-semibold ${hasNoCredits ? "text-red-600" : isLowCredits ? "text-amber-600" : "text-green-600"}`}
-            >
-              {credits}
-            </span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <HelpCircle className="text-muted-foreground h-3 w-3 cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="space-y-1 text-xs">
-                    <p>Credits are shared across all your projects</p>
-                    <p>• 10 credits = 1 article</p>
-                    <p>• 1 credit = 1 article idea</p>
-                    <p>• 1 credit = 1 Reddit post</p>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <span className={`text-sm font-semibold`}>{credits}</span>
           </div>
           <Button
             size="sm"
@@ -105,6 +86,6 @@ export function CreditBalance({ className }: CreditBalanceProps) {
         open={showPricingModal}
         onOpenChange={setShowPricingModal}
       />
-    </>
+    </TooltipProvider>
   );
 }

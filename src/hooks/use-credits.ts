@@ -1,13 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  isSessionInitialized,
-  getSessionData,
-  setSessionData,
-} from "@/constants";
-import type { CreditSession } from "@/types";
-import { SESSION_KEYS } from "@/types";
 
 interface UseCreditsReturn {
   credits: number | null;
@@ -47,14 +40,6 @@ export function useCredits(): UseCreditsReturn {
       }
 
       setCredits(data.credits);
-
-      // Store credits in session storage
-      const creditSession: CreditSession = {
-        credits: data.credits,
-        lastFetch: Date.now(),
-        sessionId: "", // This will be set by setSessionData
-      };
-      setSessionData(SESSION_KEYS.CREDITS_INITIALIZED, creditSession);
     } catch (err) {
       console.error("Error fetching credits:", err);
       const errorMessage =
@@ -66,27 +51,7 @@ export function useCredits(): UseCreditsReturn {
   }, []);
 
   useEffect(() => {
-    // Check if credits have already been fetched in this session
-    const sessionInitialized = isSessionInitialized(
-      SESSION_KEYS.CREDITS_INITIALIZED,
-    );
-    if (sessionInitialized) {
-      const cachedCredits = getSessionData<CreditSession>(
-        SESSION_KEYS.CREDITS_INITIALIZED,
-      );
-      if (
-        cachedCredits &&
-        typeof cachedCredits === "object" &&
-        "credits" in cachedCredits &&
-        cachedCredits.credits !== null
-      ) {
-        setCredits(cachedCredits.credits);
-        setLoading(false);
-        return;
-      }
-    }
-
-    // Only fetch if not already fetched in this session
+    // Always fetch credits fresh from the database, no caching
     void fetchCredits();
   }, [fetchCredits]);
 
