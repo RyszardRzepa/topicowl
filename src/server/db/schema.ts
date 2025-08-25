@@ -396,6 +396,67 @@ export const redditPosts = contentbotSchema.table(
   }),
 );
 
+// Reddit automation workflows table
+export const redditAutomations = contentbotSchema.table(
+  "reddit_automations",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    workflow: jsonb("workflow").notNull(), // Stores complete workflow configuration
+    isActive: boolean("is_active").default(true).notNull(),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    // Index on project_id for efficient querying of project's automations
+    projectIdIdx: index("reddit_automations_project_id_idx").on(
+      table.projectId,
+    ),
+    // Index on isActive for efficient filtering of active automations
+    isActiveIdx: index("reddit_automations_is_active_idx").on(table.isActive),
+  }),
+);
+
+// Reddit automation execution runs table
+export const redditAutomationRuns = contentbotSchema.table(
+  "reddit_automation_runs",
+  {
+    id: serial("id").primaryKey(),
+    automationId: integer("automation_id")
+      .references(() => redditAutomations.id, { onDelete: "cascade" })
+      .notNull(),
+    status: text("status").notNull(), // 'running', 'completed', 'failed'
+    results: jsonb("results"), // Execution results and metrics
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => ({
+    // Index on automation_id for efficient querying of automation runs
+    automationIdIdx: index("reddit_automation_runs_automation_id_idx").on(
+      table.automationId,
+    ),
+    // Index on status for efficient filtering by run status
+    statusIdx: index("reddit_automation_runs_status_idx").on(table.status),
+    // Index on startedAt for chronological ordering
+    startedAtIdx: index("reddit_automation_runs_started_at_idx").on(
+      table.startedAt,
+    ),
+  }),
+);
+
 // Webhook delivery tracking table
 export const webhookDeliveries = contentbotSchema.table(
   "webhook_deliveries",
