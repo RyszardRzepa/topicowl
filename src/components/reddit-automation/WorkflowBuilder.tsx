@@ -12,7 +12,6 @@ import {
   type Node,
   type Edge,
   type OnConnect,
-  type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -31,12 +30,6 @@ import {
   FileText,
 } from "lucide-react";
 
-import { SearchNode } from "./nodes/SearchNode";
-import { EvaluationNode } from "./nodes/EvaluationNode";
-import { ReplyNode } from "./nodes/ReplyNode";
-import { TriggerNode } from "./nodes/TriggerNode";
-import { ActionNode } from "./nodes/ActionNode";
-
 // Workflow node types
 export interface WorkflowNode {
   id: string;
@@ -44,15 +37,6 @@ export interface WorkflowNode {
   config: Record<string, unknown>;
   position: { x: number; y: number };
 }
-
-// Custom node types for React Flow
-const nodeTypes: NodeTypes = {
-  trigger: TriggerNode,
-  search: SearchNode,
-  evaluate: EvaluationNode,
-  reply: ReplyNode,
-  action: ActionNode,
-};
 
 interface WorkflowBuilderProps {
   initialWorkflow?: WorkflowNode[];
@@ -65,11 +49,18 @@ interface WorkflowBuilderProps {
 const initialNodes: Node[] = [
   {
     id: "trigger-1",
-    type: "trigger",
+    type: "default",
     position: { x: 100, y: 100 },
     data: { 
+      label: "Manual Trigger",
+      nodeType: "trigger",
       config: { type: "manual" },
-      onConfigChange: () => {},
+    },
+    style: {
+      background: '#059669',
+      color: 'white',
+      border: '1px solid #059669',
+      width: 200,
     },
   },
 ];
@@ -96,34 +87,51 @@ export function WorkflowBuilder({
     [setEdges]
   );
 
-  const handleNodeConfigChange = useCallback(
-    (nodeId: string, config: Record<string, unknown>) => {
-      setNodes((nodes) =>
-        nodes.map((node) =>
-          node.id === nodeId
-            ? { ...node, data: { ...node.data, config } }
-            : node
-        )
-      );
-    },
-    [setNodes]
-  );
-
   const addNode = useCallback(
     (nodeType: "search" | "evaluate" | "reply" | "action") => {
+      const nodeConfig = {
+        search: {
+          label: "Reddit Search",
+          background: "#2563eb",
+          config: { subreddit: "", keywords: [], timeRange: "24h", maxResults: 10 },
+        },
+        evaluate: {
+          label: "Post Evaluation",
+          background: "#7c3aed",
+          config: { passThreshold: 6.0, variables: {} },
+        },
+        reply: {
+          label: "Reply Generation",
+          background: "#dc2626",
+          config: { toneOfVoice: "helpful", maxLength: 500, variables: {} },
+        },
+        action: {
+          label: "Action",
+          background: "#ea580c",
+          config: { saveToDatabase: true, postToReddit: false, requireApproval: true },
+        },
+      }[nodeType];
+
       const newNode: Node = {
         id: `${nodeType}-${Date.now()}`,
-        type: nodeType,
+        type: "default",
         position: { x: Math.random() * 400 + 200, y: Math.random() * 400 + 200 },
         data: {
-          config: {},
-          onConfigChange: (config: Record<string, unknown>) =>
-            handleNodeConfigChange(`${nodeType}-${Date.now()}`, config),
+          label: nodeConfig.label,
+          nodeType: nodeType,
+          config: nodeConfig.config,
+        },
+        style: {
+          background: nodeConfig.background,
+          color: 'white',
+          border: `1px solid ${nodeConfig.background}`,
+          width: 200,
         },
       };
+      
       setNodes((nodes) => [...nodes, newNode]);
     },
-    [setNodes, handleNodeConfigChange]
+    [setNodes]
   );
 
   const deleteNode = useCallback(
@@ -136,24 +144,6 @@ export function WorkflowBuilder({
     [setNodes, setEdges]
   );
 
-  const duplicateNode = useCallback(
-    (nodeId: string) => {
-      const nodeToDuplicate = nodes.find((node) => node.id === nodeId);
-      if (nodeToDuplicate) {
-        const newNode: Node = {
-          ...nodeToDuplicate,
-          id: `${nodeToDuplicate.type}-${Date.now()}`,
-          position: {
-            x: nodeToDuplicate.position.x + 50,
-            y: nodeToDuplicate.position.y + 50,
-          },
-        };
-        setNodes((nodes) => [...nodes, newNode]);
-      }
-    },
-    [nodes, setNodes]
-  );
-
   const handleSave = useCallback(() => {
     if (!workflowName.trim()) {
       toast.error("Please enter a workflow name");
@@ -162,8 +152,8 @@ export function WorkflowBuilder({
 
     const workflow: WorkflowNode[] = nodes.map((node) => ({
       id: node.id,
-      type: node.type as WorkflowNode["type"],
-      config: node.data.config || {},
+      type: node.data.nodeType as WorkflowNode["type"],
+      config: node.data.config || {} as Record<string, unknown>,
       position: node.position,
     }));
 
@@ -181,8 +171,8 @@ export function WorkflowBuilder({
       try {
         const workflow: WorkflowNode[] = nodes.map((node) => ({
           id: node.id,
-          type: node.type as WorkflowNode["type"],
-          config: node.data.config || {},
+          type: node.data.nodeType as WorkflowNode["type"],
+          config: node.data.config || {} as Record<string, unknown>,
           position: node.position,
         }));
 
@@ -308,28 +298,27 @@ export function WorkflowBuilder({
                 <div>Connections: {edges.length}</div>
               </div>
             </div>
+
+            <div className="mt-8">
+              <h3 className="font-semibold text-sm mb-4">Instructions</h3>
+              <div className="text-xs text-gray-600 space-y-2">
+                <p>1. Add nodes from the palette above</p>
+                <p>2. Connect nodes by dragging from output to input</p>
+                <p>3. Configure each node by double-clicking</p>
+                <p>4. Save and execute your workflow</p>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Workflow Canvas */}
         <div className="flex-1 relative">
           <ReactFlow
-            nodes={nodes.map((node) => ({
-              ...node,
-              data: {
-                ...node.data,
-                onConfigChange: (config: Record<string, unknown>) =>
-                  handleNodeConfigChange(node.id, config),
-                onDelete: !readOnly ? () => deleteNode(node.id) : undefined,
-                onDuplicate: !readOnly ? () => duplicateNode(node.id) : undefined,
-                readOnly,
-              },
-            }))}
+            nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            nodeTypes={nodeTypes}
             fitView
             className="bg-gray-50"
           >

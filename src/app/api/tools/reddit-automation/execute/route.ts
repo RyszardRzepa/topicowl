@@ -54,8 +54,18 @@ interface ReplyResult {
 }
 
 const ExecuteWorkflowSchema = z.object({
-  automationId: z.number(),
+  automationId: z.number().optional(),
+  workflow: z.array(z.object({
+    id: z.string(),
+    type: z.enum(["trigger", "search", "evaluate", "reply", "action"]),
+    config: z.record(z.unknown()),
+    position: z.object({
+      x: z.number(),
+      y: z.number(),
+    }),
+  })).optional(),
   dryRun: z.boolean().optional().default(false),
+  projectId: z.number().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -66,102 +76,129 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { automationId, dryRun } = ExecuteWorkflowSchema.parse(body);
+    const { automationId, workflow, dryRun, projectId } = ExecuteWorkflowSchema.parse(body);
 
-    // Verify user exists in database
-    const [userRecord] = await db
-      .select({ id: projects.userId })
-      .from(projects)
-      .where(eq(projects.userId, userId))
-      .limit(1);
+    let workflowToExecute: WorkflowNode[];
+    let targetProjectId: number;
 
-    if (!userRecord) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    if (automationId) {
+      // Execute existing automation
+      const [automationResult] = await db
+        .select({
+          automation: redditAutomations,
+          projectId: projects.id,
+        })
+        .from(redditAutomations)
+        .innerJoin(projects, eq(redditAutomations.projectId, projects.id))
+        .where(
+          and(eq(redditAutomations.id, automationId), eq(projects.userId, userId)),
+        );
 
-    // Get automation with project ownership verification
-    const [automationResult] = await db
-      .select({
-        automation: redditAutomations,
-        projectId: projects.id,
-      })
-      .from(redditAutomations)
-      .innerJoin(projects, eq(redditAutomations.projectId, projects.id))
-      .where(
-        and(eq(redditAutomations.id, automationId), eq(projects.userId, userId)),
-      );
+      if (!automationResult) {
+        return NextResponse.json(
+          { error: "Automation not found or access denied" },
+          { status: 404 },
+        );
+      }
 
-    if (!automationResult) {
-      return NextResponse.json(
-        { error: "Automation not found or access denied" },
-        { status: 404 },
-      );
-    }
+      workflowToExecute = automationResult.automation.workflow as WorkflowNode[];
+      targetProjectId = automationResult.projectId;
 
-    const { automation, projectId } = automationResult;
+      // Create execution run record
+      const [executionRun] = await db
+        .insert(redditAutomationRuns)
+        .values({
+          automationId: automationId,
+          status: "running",
+        })
+        .returning();
 
-    // Create execution run record
-    const [executionRun] = await db
-      .insert(redditAutomationRuns)
-      .values({
-        automationId: automation.id,
-        status: "running",
-      })
-      .returning();
+      if (!executionRun) {
+        return NextResponse.json(
+          { error: "Failed to create execution run" },
+          { status: 500 },
+        );
+      }
 
-    if (!executionRun) {
-      return NextResponse.json(
-        { error: "Failed to create execution run" },
-        { status: 500 },
-      );
-    }
-
-    try {
-      // Execute workflow
-      const result = await executeWorkflow(
-        automation.workflow as WorkflowNode[],
-        {
+      try {
+        // Execute workflow
+        const result = await executeWorkflow(workflowToExecute, {
           userId,
-          projectId,
+          projectId: targetProjectId,
           dryRun,
-        },
-      );
+        });
 
-      // Update execution run as completed
-      await db
-        .update(redditAutomationRuns)
-        .set({
-          status: "completed",
+        // Update execution run as completed
+        await db
+          .update(redditAutomationRuns)
+          .set({
+            status: "completed",
+            results: result,
+            completedAt: new Date(),
+          })
+          .where(eq(redditAutomationRuns.id, executionRun.id));
+
+        // Update automation last run timestamp
+        await db
+          .update(redditAutomations)
+          .set({
+            lastRunAt: new Date(),
+          })
+          .where(eq(redditAutomations.id, automationId));
+
+        return NextResponse.json({
+          success: true,
+          executionId: executionRun.id,
           results: result,
-          completedAt: new Date(),
-        })
-        .where(eq(redditAutomationRuns.id, executionRun.id));
+        });
+      } catch (executionError) {
+        // Update execution run as failed
+        await db
+          .update(redditAutomationRuns)
+          .set({
+            status: "failed",
+            errorMessage: executionError instanceof Error ? executionError.message : "Unknown error",
+            completedAt: new Date(),
+          })
+          .where(eq(redditAutomationRuns.id, executionRun.id));
 
-      // Update automation last run timestamp
-      await db
-        .update(redditAutomations)
-        .set({
-          lastRunAt: new Date(),
-        })
-        .where(eq(redditAutomations.id, automation.id));
+        throw executionError;
+      }
+    } else if (workflow && projectId) {
+      // Execute workflow directly (test mode)
+      
+      // Verify project ownership
+      const [projectRecord] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+
+      if (!projectRecord) {
+        return NextResponse.json(
+          { error: "Project not found or access denied" },
+          { status: 404 },
+        );
+      }
+
+      workflowToExecute = workflow;
+      targetProjectId = projectId;
+
+      // Execute workflow directly
+      const result = await executeWorkflow(workflowToExecute, {
+        userId,
+        projectId: targetProjectId,
+        dryRun,
+      });
 
       return NextResponse.json({
         success: true,
-        executionId: executionRun.id,
         results: result,
       });
-    } catch (executionError) {
-      // Update execution run as failed
-      await db
-        .update(redditAutomationRuns)
-        .set({
-          status: "failed",
-          errorMessage: executionError instanceof Error ? executionError.message : "Unknown error",
-          completedAt: new Date(),
-        })
-        .where(eq(redditAutomationRuns.id, executionRun.id));
-
-      throw executionError;
+    } else {
+      return NextResponse.json(
+        { error: "Either automationId or workflow + projectId is required" },
+        { status: 400 },
+      );
     }
   } catch (error) {
     console.error("Execute workflow error:", error);
