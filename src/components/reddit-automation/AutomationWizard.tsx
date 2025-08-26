@@ -218,6 +218,12 @@ export function AutomationWizard({ onSave, onCancel }: AutomationWizardProps) {
             <div className="text-center mb-6">
               <h2 className="text-2xl font-semibold mb-2">Configure Reddit Search</h2>
               <p className="text-gray-600">Tell us where and what to look for</p>
+              <div className="mt-2 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>Tip:</strong> Start with active communities related to your industry. 
+                  Keywords help filter posts but aren't required.
+                </p>
+              </div>
             </div>
             
             <div className="space-y-4">
@@ -311,6 +317,12 @@ export function AutomationWizard({ onSave, onCancel }: AutomationWizardProps) {
             <div className="text-center mb-6">
               <h2 className="text-2xl font-semibold mb-2">AI Evaluation Settings</h2>
               <p className="text-gray-600">Configure how AI will score posts for relevance</p>
+              <div className="mt-2 p-3 bg-purple-50 rounded-lg">
+                <p className="text-sm text-purple-800">
+                  💡 <strong>Tip:</strong> A threshold of 6-7 works well for most use cases. 
+                  Higher values are more selective.
+                </p>
+              </div>
             </div>
             
             <div className="space-y-4">
@@ -358,6 +370,12 @@ export function AutomationWizard({ onSave, onCancel }: AutomationWizardProps) {
             <div className="text-center mb-6">
               <h2 className="text-2xl font-semibold mb-2">Reply Generation</h2>
               <p className="text-gray-600">Configure how AI will generate responses</p>
+              <div className="mt-2 p-3 bg-red-50 rounded-lg">
+                <p className="text-sm text-red-800">
+                  💡 <strong>Tip:</strong> "Helpful" tone works best for most communities. 
+                  Keep replies under 500 characters for better engagement.
+                </p>
+              </div>
             </div>
             
             <div className="space-y-4">
@@ -422,6 +440,12 @@ export function AutomationWizard({ onSave, onCancel }: AutomationWizardProps) {
             <div className="text-center mb-6">
               <h2 className="text-2xl font-semibold mb-2">Action Settings</h2>
               <p className="text-gray-600">Choose what happens with the generated content</p>
+              <div className="mt-2 p-3 bg-orange-50 rounded-lg">
+                <p className="text-sm text-orange-800">
+                  💡 <strong>Tip:</strong> Start with "Save to Database" only, then enable Reddit posting 
+                  with approval once you're happy with the results.
+                </p>
+              </div>
             </div>
             
             <div className="space-y-6">

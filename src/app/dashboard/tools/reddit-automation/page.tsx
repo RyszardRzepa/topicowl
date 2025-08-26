@@ -258,8 +258,14 @@ export default function RedditAutomationPage() {
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             Get started by creating your first Reddit automation workflow. 
-            Automatically find relevant posts, evaluate them with AI, and generate helpful replies.
+            Our step-by-step wizard makes it easy - no technical knowledge required!
           </p>
+          <div className="mb-6 text-sm text-gray-500 space-y-1">
+            <div>✨ Find relevant posts automatically</div>
+            <div>🤖 AI evaluates engagement potential</div>
+            <div>💬 Generate authentic, helpful replies</div>
+            <div>🚀 Build your community presence</div>
+          </div>
           <Button onClick={() => router.push("/dashboard/tools/reddit-automation/create")}>
             <Plus className="w-4 h-4 mr-1" />
             Create Your First Automation
