@@ -26,7 +26,7 @@ export interface CancelScheduleResponse {
 // POST /api/articles/[id]/cancel-schedule - Cancel scheduled generation and move to planning
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Get current user from Clerk
@@ -52,7 +52,8 @@ export async function POST(
       );
     }
 
-    const articleId = parseInt(params.id);
+    const { id } = await params;
+    const articleId = parseInt(id);
     if (isNaN(articleId)) {
       return NextResponse.json(
         {

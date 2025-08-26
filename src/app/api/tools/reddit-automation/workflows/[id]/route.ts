@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
@@ -14,7 +14,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const automationId = parseInt(params.id, 10);
+    const { id } = await params;
+    const automationId = parseInt(id, 10);
     if (isNaN(automationId)) {
       return NextResponse.json(
         { error: "Invalid automation ID format" },
@@ -62,9 +63,9 @@ export async function GET(
   }
 }
 
-export async function DELETE(
+export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
@@ -72,7 +73,107 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const automationId = parseInt(params.id, 10);
+    const { id } = await params;
+    const automationId = parseInt(id, 10);
+    if (isNaN(automationId)) {
+      return NextResponse.json(
+        { error: "Invalid automation ID format" },
+        { status: 400 },
+      );
+    }
+
+    const body = await request.json() as {
+      name: string;
+      description: string;
+      workflow: unknown;
+      projectId: number;
+    };
+    const { name, description, workflow, projectId } = body;
+
+    if (!name || !workflow || !projectId) {
+      return NextResponse.json(
+        { error: "Missing required fields: name, workflow, projectId" },
+        { status: 400 },
+      );
+    }
+
+    // Verify user exists in database
+    const [userRecord] = await db
+      .select({ id: projects.userId })
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .limit(1);
+
+    if (!userRecord) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Verify project ownership
+    const [projectRecord] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+
+    if (!projectRecord) {
+      return NextResponse.json(
+        { error: "Project not found or access denied" },
+        { status: 404 },
+      );
+    }
+
+    // Verify automation exists and belongs to user's project
+    const [existingAutomation] = await db
+      .select({ id: redditAutomations.id })
+      .from(redditAutomations)
+      .innerJoin(projects, eq(redditAutomations.projectId, projects.id))
+      .where(
+        and(eq(redditAutomations.id, automationId), eq(projects.userId, userId)),
+      );
+
+    if (!existingAutomation) {
+      return NextResponse.json(
+        { error: "Automation not found or access denied" },
+        { status: 404 },
+      );
+    }
+
+    // Update automation
+    const [updatedAutomation] = await db
+      .update(redditAutomations)
+      .set({
+        name,
+        description,
+        workflow,
+        updatedAt: new Date(),
+      })
+      .where(eq(redditAutomations.id, automationId))
+      .returning();
+
+    return NextResponse.json({
+      success: true,
+      automation: updatedAutomation,
+    });
+  } catch (error) {
+    console.error("Update automation error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const automationId = parseInt(id, 10);
     if (isNaN(automationId)) {
       return NextResponse.json(
         { error: "Invalid automation ID format" },

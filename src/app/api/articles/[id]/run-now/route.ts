@@ -25,7 +25,7 @@ export interface RunNowResponse {
 // POST /api/articles/[id]/run-now - Start generation immediately for scheduled article
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Get current user from Clerk
@@ -51,7 +51,8 @@ export async function POST(
       );
     }
 
-    const articleId = parseInt(params.id);
+    const { id } = await params;
+    const articleId = parseInt(id);
     if (isNaN(articleId)) {
       return NextResponse.json(
         { success: false, error: "Invalid article ID" } as RunNowResponse,

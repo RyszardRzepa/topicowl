@@ -1,23 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-
-// Types
-interface RedditPost {
-  id: string;
-  subreddit: string;
-  title: string;
-  selftext: string;
-  author: string;
-  score: number;
-  created_utc: number;
-  num_comments: number;
-  url: string;
-  permalink: string;
-}
+import { google } from "@ai-sdk/google";
+import { generateObject } from "ai";
 
 interface EvaluationResult {
   postId: string;
@@ -25,6 +13,17 @@ interface EvaluationResult {
   reasoning: string;
   shouldReply: boolean;
 }
+
+// Add evaluation result schema for structured output
+const EvaluationResultSchema = z.object({
+  relevanceScore: z.number().min(0).max(10),
+  engagementPotential: z.number().min(0).max(10),
+  brandAlignment: z.number().min(0).max(10),
+  overallScore: z.number().min(0).max(10),
+  shouldReply: z.boolean(),
+  reasoning: z.string(),
+  suggestedApproach: z.string().optional(),
+});
 
 const EvaluateRequestSchema = z.object({
   projectId: z.number(),
@@ -42,8 +41,6 @@ const EvaluateRequestSchema = z.object({
       permalink: z.string(),
     }),
   ),
-  evaluationPrompt: z.string().optional(),
-  variables: z.record(z.string()).optional().default({}),
 });
 
 export async function POST(request: NextRequest) {
@@ -53,9 +50,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { projectId, posts, evaluationPrompt, variables } =
-      EvaluateRequestSchema.parse(body);
+    const { projectId, posts } =
+      EvaluateRequestSchema.parse(await request.json());
 
     // Verify user exists in database
     const [userRecord] = await db
@@ -74,6 +70,9 @@ export async function POST(request: NextRequest) {
         id: projects.id,
         companyName: projects.companyName,
         productDescription: projects.productDescription,
+        keywords: projects.keywords,
+        toneOfVoice: projects.toneOfVoice,
+        domain: projects.domain,
       })
       .from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
@@ -85,81 +84,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Default evaluation prompt
-    const defaultPrompt = `
-You are an expert at evaluating Reddit posts for business relevance and engagement potential.
+    // Optimized Gemini prompt following best practices
+    const systemPrompt = `You are an expert Reddit engagement specialist evaluating posts for business relevance.
 
-Company: ${projectRecord.companyName ?? ""}
+CONTEXT:
+Company: ${projectRecord.companyName ?? "Unknown"}
+Website: ${projectRecord.domain ?? ""}
 Product/Service: ${projectRecord.productDescription ?? ""}
+Brand Voice: ${projectRecord.toneOfVoice ?? "professional and helpful"}
+Target Keywords: ${(projectRecord.keywords as string[] ?? []).join(", ")}
 
-For each Reddit post, evaluate:
-1. Relevance to our business (0-10)
-2. Engagement potential (0-10) 
-3. Appropriateness for our brand to reply (0-10)
-4. Overall recommendation to reply (true/false)
+EVALUATION CRITERIA:
+1. Relevance Score (0-10): How closely does the post relate to our business domain?
+2. Engagement Potential (0-10): How likely is meaningful discussion?
+3. Brand Alignment (0-10): Does engaging fit our brand values and voice?
+4. Overall Score (0-10): Weighted recommendation score
 
-Consider factors like:
-- Post topic alignment with our business
-- Community size and engagement
-- Post tone and quality
-- Opportunity for helpful, non-spammy contribution
-- Subreddit rules and culture
-
-Return JSON format:
-{
-  "score": number (0-10 overall score),
-  "reasoning": "detailed explanation",
-  "shouldReply": boolean
-}
-    `.trim();
-
-    const prompt = evaluationPrompt ?? defaultPrompt;
+GUIDELINES:
+- Score 8-10: Highly relevant, clear opportunity to add value
+- Score 5-7: Moderately relevant, proceed with caution
+- Score 0-4: Low relevance or high risk, avoid engagement
+- Consider subreddit rules and community culture
+- Avoid promotional language or spam patterns
+- Focus on being helpful and adding genuine value`;
 
     // Process each post for evaluation
     const results: EvaluationResult[] = [];
 
     for (const post of posts) {
       try {
-        // Replace variables in prompt
-        let processedPrompt = prompt;
-        Object.entries(variables).forEach(([key, value]) => {
-          processedPrompt = processedPrompt.replace(
-            new RegExp(`\\{\\{${key}\\}\\}`, 'g'),
-            value,
-          );
+        const userPrompt = `Evaluate this Reddit post for engagement opportunity:
+
+SUBREDDIT: r/${post.subreddit}
+POST TITLE: ${post.title}
+POST CONTENT: ${post.selftext || "[No text content]"}
+METRICS: ${post.score} upvotes, ${post.num_comments} comments
+AUTHOR: u/${post.author}
+AGE: ${Math.floor((Date.now() - post.created_utc * 1000) / (1000 * 60 * 60))} hours old
+
+Provide detailed evaluation with specific reasoning for your scores.`;
+
+        const { object } = await generateObject({
+          model: google("gemini-1.5-flash"),
+          schema: EvaluationResultSchema,
+          system: systemPrompt,
+          prompt: userPrompt,
+          temperature: 0.3, // Lower temperature for consistent evaluation
         });
-
-        // Add post context to prompt
-        const fullPrompt = `${processedPrompt}
-
-POST TO EVALUATE:
-Title: ${post.title}
-Content: ${post.selftext}
-Subreddit: r/${post.subreddit}
-Score: ${post.score}
-Comments: ${post.num_comments}
-Author: ${post.author}
-
-Provide your evaluation in JSON format.`;
-
-        // Here you would call your AI service (Gemini, Claude, etc.)
-        // For now, providing a mock implementation
-        const mockEvaluation = {
-          score: Math.random() * 10,
-          reasoning: `Evaluated post "${post.title}" in r/${post.subreddit}. Mock evaluation result.`,
-          shouldReply: Math.random() > 0.5,
-        };
 
         results.push({
           postId: post.id,
-          ...mockEvaluation,
+          score: object.overallScore,
+          reasoning: object.reasoning,
+          shouldReply: object.shouldReply,
         });
       } catch (error) {
         console.error(`Error evaluating post ${post.id}:`, error);
         results.push({
           postId: post.id,
           score: 0,
-          reasoning: "Error during evaluation",
+          reasoning: "Error during AI evaluation",
           shouldReply: false,
         });
       }

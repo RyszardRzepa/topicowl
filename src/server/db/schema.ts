@@ -382,17 +382,6 @@ export const redditPosts = contentbotSchema.table(
   (table) => ({
     // Index on project_id for efficient querying of project's Reddit posts
     projectIdIdx: index("reddit_posts_project_id_idx").on(table.projectId),
-    // Index on status for efficient filtering by status
-    statusIdx: index("reddit_posts_status_idx").on(table.status),
-    // Index on publishScheduledAt for efficient cron job queries
-    scheduledIdx: index("reddit_posts_scheduled_idx").on(
-      table.publishScheduledAt,
-    ),
-    // Composite index for user + project queries
-    userProjectIdx: index("reddit_posts_user_project_idx").on(
-      table.userId,
-      table.projectId,
-    ),
   }),
 );
 
@@ -417,13 +406,8 @@ export const redditAutomations = contentbotSchema.table(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (table) => ({
-    // Index on project_id for efficient querying of project's automations
-    projectIdIdx: index("reddit_automations_project_id_idx").on(
-      table.projectId,
-    ),
-    // Index on isActive for efficient filtering of active automations
-    isActiveIdx: index("reddit_automations_is_active_idx").on(table.isActive),
+  (_table) => ({
+   
   }),
 );
 
@@ -443,17 +427,45 @@ export const redditAutomationRuns = contentbotSchema.table(
       .notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (table) => ({
-    // Index on automation_id for efficient querying of automation runs
-    automationIdIdx: index("reddit_automation_runs_automation_id_idx").on(
-      table.automationId,
-    ),
-    // Index on status for efficient filtering by run status
-    statusIdx: index("reddit_automation_runs_status_idx").on(table.status),
-    // Index on startedAt for chronological ordering
-    startedAtIdx: index("reddit_automation_runs_started_at_idx").on(
-      table.startedAt,
-    ),
+  (_table) => ({
+   
+  }),
+);
+
+export const redditProcessedPosts = contentbotSchema.table(
+  "reddit_processed_posts",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id, { onDelete: "cascade" })
+      .notNull(),
+    postId: text("post_id").notNull(), // Reddit post ID (e.g., "t3_abc123")
+    subreddit: text("subreddit").notNull(),
+    postTitle: text("post_title").notNull(),
+    postUrl: text("post_url").notNull(),
+    
+    // Evaluation results
+    evaluationScore: integer("evaluation_score"), // Score * 10 for integer storage
+    wasApproved: boolean("was_approved").default(false).notNull(),
+    evaluationReasoning: text("evaluation_reasoning"),
+    
+    // Generated reply
+    replyContent: text("reply_content"),
+    replyPosted: boolean("reply_posted").default(false).notNull(),
+    replyPostedAt: timestamp("reply_posted_at", { withTimezone: true }),
+    
+    // Tracking
+    automationId: integer("automation_id")
+      .references(() => redditAutomations.id, { onDelete: "set null" }),
+    runId: integer("run_id")
+      .references(() => redditAutomationRuns.id, { onDelete: "set null" }),
+    
+    processedAt: timestamp("processed_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (_table) => ({
+
   }),
 );
 

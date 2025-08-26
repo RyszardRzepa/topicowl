@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { ForwardRefEditor } from "@/components/articles/ForwardRefEditor";
 import type { MDXEditorMethods } from "@mdxeditor/editor";
+import { SubredditAutosuggestions } from "@/components/ui/subreddit-autosuggestions";
 
 // Import TypeScript interfaces from API route files
 import type {
@@ -91,13 +92,7 @@ export default function RedditDashboard() {
   const [selectedPosts, setSelectedPosts] = useState<Set<number>>(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
 
-  // Subreddit search state for the form
-  const [, setSubredditSearchQuery] = useState("");
-  const [subredditSearchResults, setSubredditSearchResults] = useState<
-    string[]
-  >([]);
-  const [showSubredditDropdown, setShowSubredditDropdown] = useState(false);
-  const [subredditSearchLoading, setSubredditSearchLoading] = useState(false);
+  // Subreddit search state now handled by SubredditAutosuggestions component
 
   // Tab state
   const [activeTab, setActiveTab] = useState("create");
@@ -568,73 +563,11 @@ export default function RedditDashboard() {
     toast.info("Post loaded for rescheduling - adjust the time and save");
   }, []);
 
-  // Search subreddits for form dropdown
-  const searchSubredditsForForm = useCallback(
-    async (query: string) => {
-      if (!query.trim() || !currentProjectId) {
-        setSubredditSearchResults([]);
-        return;
-      }
-
-      try {
-        setSubredditSearchLoading(true);
-        const response = await fetch(
-          `/api/reddit/subreddits?query=${encodeURIComponent(query)}&projectId=${currentProjectId}`,
-        );
-
-        if (!response.ok) {
-          throw new Error("Search failed");
-        }
-
-        const data = (await response.json()) as RedditSubredditSearchResponse;
-
-        // Combine search results with subscribed subreddits that match
-        const matchingSubscribed = subscribedSubreddits
-          .filter((sub) =>
-            sub.display_name.toLowerCase().includes(query.toLowerCase()),
-          )
-          .map((sub) => sub.display_name);
-
-        // Merge and deduplicate
-        const allResults = [...new Set([...matchingSubscribed, ...data.names])];
-        setSubredditSearchResults(allResults.slice(0, 10)); // Limit to 10 results
-      } catch (error) {
-        console.error("Subreddit search failed:", error);
-        setSubredditSearchResults([]);
-      } finally {
-        setSubredditSearchLoading(false);
-      }
-    },
-    [subscribedSubreddits, currentProjectId], // Use stable currentProjectId
-  );
-
-  // Handle subreddit input change with debounced search
-  const handleSubredditInputChange = useCallback(
-    (value: string) => {
-      setPostForm((prev) => ({ ...prev, subreddit: value }));
-      setSubredditSearchQuery(value);
-      setShowSubredditDropdown(true);
-
-      // Debounce search
-      const timeoutId = setTimeout(() => {
-        void searchSubredditsForForm(value);
-      }, 300);
-
-      return () => clearTimeout(timeoutId);
-    },
-    [searchSubredditsForForm],
-  );
-
-  // Select subreddit from dropdown
-  const handleSelectSubredditFromDropdown = useCallback(
-    (subredditName: string) => {
-      setPostForm((prev) => ({ ...prev, subreddit: subredditName }));
-      setSubredditSearchQuery(subredditName);
-      setShowSubredditDropdown(false);
-      setSubredditSearchResults([]);
-    },
-    [],
-  );
+  // Subreddit selection handler for autosuggest component
+  const handleSelectSubredditFromDropdown = useCallback((subredditName: string) => {
+    setPostForm((prev) => ({ ...prev, subreddit: subredditName }));
+    toast.success(`Selected r/${subredditName}`);
+  }, []);
 
   // Load profile and subscriptions on component mount
   // Using stable currentProjectId to prevent tab refetch issues (same pattern as articles page)
@@ -838,76 +771,17 @@ export default function RedditDashboard() {
                       </div>
                     )}
 
-                    {/* Subreddit Field with Search */}
+                    {/* Subreddit Field with Autosuggestions */}
                     <div className="relative">
-                      <label
-                        htmlFor="subreddit"
-                        className="mb-1 block text-sm font-medium text-gray-700"
-                      >
+                      <label htmlFor="subreddit" className="mb-1 block text-sm font-medium text-gray-700">
                         Subreddit
                       </label>
-                      <div className="relative">
-                        <Input
-                          id="subreddit"
-                          value={postForm.subreddit}
-                          onChange={(e) =>
-                            handleSubredditInputChange(e.target.value)
-                          }
-                          onFocus={() => {
-                            if (postForm.subreddit) {
-                              void searchSubredditsForForm(postForm.subreddit);
-                              setShowSubredditDropdown(true);
-                            }
-                          }}
-                          onBlur={() => {
-                            // Delay hiding dropdown to allow clicks
-                            setTimeout(
-                              () => setShowSubredditDropdown(false),
-                              200,
-                            );
-                          }}
-                          placeholder="Search and select subreddit..."
-                          required
-                          className="pr-10"
-                        />
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                          {subredditSearchLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                          ) : (
-                            <Search className="h-4 w-4 text-gray-400" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Subreddit Dropdown */}
-                      {showSubredditDropdown &&
-                        subredditSearchResults.length > 0 && (
-                          <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg">
-                            <div className="max-h-60 overflow-y-auto py-1">
-                              {subredditSearchResults.map((subreddit) => (
-                                <button
-                                  key={subreddit}
-                                  type="button"
-                                  onClick={() =>
-                                    handleSelectSubredditFromDropdown(subreddit)
-                                  }
-                                  className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-100"
-                                >
-                                  <span className="font-medium">
-                                    r/{subreddit}
-                                  </span>
-                                  {subscribedSubreddits.some(
-                                    (sub) => sub.display_name === subreddit,
-                                  ) && (
-                                    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                                      Subscribed
-                                    </span>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                      <SubredditAutosuggestions
+                        inputId="subreddit"
+                        value={postForm.subreddit}
+                        onChange={(val) => setPostForm((prev) => ({ ...prev, subreddit: val }))}
+                        onSelect={handleSelectSubredditFromDropdown}
+                      />
                     </div>
 
                     <div>

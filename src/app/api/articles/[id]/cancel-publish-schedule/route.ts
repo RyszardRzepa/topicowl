@@ -19,7 +19,7 @@ export interface CancelPublishScheduleResponse {
 // POST /api/articles/[id]/cancel-publish-schedule - Cancel a scheduled publishing date and keep article ready to publish
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // 1. Authenticate user with Clerk
@@ -38,7 +38,8 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const articleId = parseInt(params.id, 10);
+    const { id } = await params;
+    const articleId = parseInt(id, 10);
     if (isNaN(articleId)) {
       return NextResponse.json(
         { error: "Invalid article ID" },
