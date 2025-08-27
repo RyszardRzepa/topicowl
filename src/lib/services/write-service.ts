@@ -187,6 +187,7 @@ export async function performWriteLogic(
           notes: request.notes ?? "",
           includeVideo: projectSettings.includeVideo ?? true,
           includeTables: projectSettings.includeTables ?? true,
+          languageCode: (projectSettings as { language?: string }).language ?? "en",
         }
       : {
           toneOfVoice: "",
@@ -195,6 +196,7 @@ export async function performWriteLogic(
           notes: request.notes ?? "",
           includeVideo: true,
           includeTables: true,
+          languageCode: "en",
         };
     console.log("[WRITE_SERVICE] Project settings loaded", {
       settingsFound: !!projectSettings,

@@ -8,6 +8,9 @@ import { normalizeSitemapUrl, validateSitemapUrl } from "@/lib/utils/sitemap";
 
 export interface AnalyzeWebsiteRequest {
   websiteUrl: string;
+  sitemapUrl?: string;
+  exampleArticleUrl?: string;
+  competitors?: string[];
 }
 
 export interface AnalyzeWebsiteResponse {
@@ -24,6 +27,8 @@ export interface AnalyzeWebsiteResponse {
       articleStructure: string;
       maxWords: number;
     };
+  languageCode: string;
+  languageName: string;
     onboardingCompleted: boolean;
   };
   error?: string;
@@ -186,8 +191,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       return Response.json(response, { status: 500 });
     }
 
-    // Database operations with transaction for consistency
-    try {
+  // Database operations
+  try {
       // Get user record to check if article settings exist
       const [userRecord] = await db
         .select({ id: users.id })
@@ -225,34 +230,28 @@ export async function POST(request: NextRequest): Promise<Response> {
         // Continue onboarding regardless of sitemap failure
       }
 
-      // Use transaction to ensure data consistency and complete onboarding
-      await db.transaction(async (tx) => {
-        // Update user record with analysis data AND mark onboarding as complete
-        await tx
-          .update(users)
-          .set({
-            domain: aiAnalysis.domain,
-            companyName: aiAnalysis.companyName,
-            productDescription: aiAnalysis.productDescription,
-            keywords: aiAnalysis.suggestedKeywords,
-            onboardingCompleted: true, // Complete onboarding in the same transaction
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, userId));
-
-        // NOTE: article_settings now project-scoped; onboarding does not create a project here.
-        // Creating default article settings should happen after project creation.
-      });
+      // Persist analyzed fields to user record (do NOT mark onboarding complete here)
+  await db
+        .update(users)
+        .set({
+          domain: aiAnalysis.domain,
+          companyName: aiAnalysis.companyName,
+          productDescription: aiAnalysis.productDescription,
+          keywords: aiAnalysis.suggestedKeywords,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
 
       console.log(
-        `Successfully saved analysis data and completed onboarding for user ${userId}${sitemapUrl ? `, sitemap stored: ${sitemapUrl}` : ", no sitemap found"}`,
+        `Successfully saved analysis data for user ${userId}${sitemapUrl ? `, sitemap stored: ${sitemapUrl}` : ", no sitemap found"}`,
       );
 
       const response: AnalyzeWebsiteResponse = {
         success: true,
         data: {
           ...aiAnalysis,
-          onboardingCompleted: true,
+          // Keep onboarding incomplete until final step completes project creation
+          onboardingCompleted: false,
         },
       };
 

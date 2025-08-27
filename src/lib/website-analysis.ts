@@ -15,6 +15,9 @@ export const WebsiteAnalysisSchema = z.object({
   contentStrategy: z.object({
     maxWords: z.number().int().min(800).max(2000),
   }),
+  // Detected primary content language of the website content
+  languageCode: z.string().min(2).max(10), // e.g., "en", "en-US", "pl"
+  languageName: z.string().min(2), // e.g., "English", "Polish"
 });
 
 export type WebsiteAnalysis = z.infer<typeof WebsiteAnalysisSchema> & {
@@ -111,7 +114,8 @@ ${researchData}`
     const { object } = await generateObject({
       model: google(MODELS.GEMINI_FLASH_2_5),
       schema: WebsiteAnalysisSchema,
-      prompt: combinedContent,
+      prompt: combinedContent +
+        "\n\nDetect the primary content language of the website. Return both a BCP-47 compliant code (e.g., 'en', 'en-US', 'pl') in languageCode and a human-readable languageName.",
     });
 
     return {

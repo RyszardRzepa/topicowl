@@ -529,6 +529,7 @@ export const prompts = {
       faqCount?: number;
       includeVideo?: boolean;
       includeTables?: boolean;
+      languageCode?: string; // BCP-47 code like "en", "pl"
     },
     relatedPosts?: string[],
     _excludedDomains?: string[],
@@ -545,6 +546,7 @@ You are an expert SEO content writer. Produce a comprehensive, well-structured M
 <tone>${settings?.toneOfVoice ?? "expert, clear, direct, friendly"}</tone>
 <audience>${data.audience ?? "General business readers"}</audience>
 <date>${currentDate}</date>
+<language>${settings?.languageCode ?? "en"}</language>
 
 <internal_links>
 ${relatedPosts?.length ? relatedPosts.slice(0, 3).join("\n") : ""}
@@ -576,6 +578,7 @@ ${data.researchData}
 </research>
 
 <style_guide>
+- IMPORTANT: Write the entire output in the language specified by <language> using natural, native phrasing. Do not include translations. Do not switch languages.
 - Reading level ≈ grade 8. Short, active sentences.
 - No filler or hype. Avoid clichés (“game-changing,” “let’s dive in,” etc.).
 - Sound human and direct. Starting with “And/But/So” is fine sparingly.
@@ -1970,6 +1973,7 @@ Provide comprehensive analysis covering:
 - **Brand Voice Analysis**: Communication style, tone, and messaging approach
 - **Strategic Keywords**: 5-10 high-value keywords for content marketing
 - **Content Strategy**: Recommended article length and structural approach
+ - **Language Detection**: Primary content language of the site with BCP-47 language code (e.g., en, en-US, pl) and human-readable name
 
 Format as detailed research report with specific insights and actionable recommendations.
 </analysis_format>
@@ -1983,6 +1987,7 @@ Format as detailed research report with specific insights and actionable recomme
 ✅ Tone of voice must reflect actual communication style observed on website
 ✅ Keywords must be directly relevant to business and audience needs
 ✅ Content strategy must align with industry standards and audience preferences
+ ✅ Language detection must be accurate; include both languageCode and languageName
 ✅ All analysis must be substantive and actionable for content marketing
 </extraction_standards>
 

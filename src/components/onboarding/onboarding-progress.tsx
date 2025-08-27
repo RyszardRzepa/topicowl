@@ -1,81 +1,40 @@
 "use client";
 
+type StepItem = {
+  id: string;
+  name: string;
+  description?: string;
+};
+
 interface OnboardingProgressProps {
-  currentStep: "url" | "analyzing" | "review" | "complete";
+  steps: StepItem[];
+  currentStepId: string;
 }
 
-const steps = [
-  { id: "url", name: "Website URL", description: "Enter your website" },
-  { id: "analyzing", name: "Analysis", description: "AI analyzing content" },
-  { id: "review", name: "Review", description: "Review and confirm" },
-  { id: "complete", name: "Complete", description: "Setup finished" },
-] as const;
+export function OnboardingProgress({ steps, currentStepId }: OnboardingProgressProps) {
+  const currentStepIndex = steps.findIndex((step) => step.id === currentStepId);
+  const currentStepData = currentStepIndex >= 0 ? steps[currentStepIndex] : undefined;
+  const totalSteps = steps.length;
 
-export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
-  const currentStepIndex = steps.findIndex((step) => step.id === currentStep);
+  if (!currentStepData) return null;
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between">
-        {steps.map((step, index) => {
-          const isCompleted = index < currentStepIndex;
-          const isCurrent = index === currentStepIndex;
+    <div className="space-y-4">
+      {/* Topicowl Branding */}
+      <div>
+        <h1 className="mb-1 text-2xl font-bold text-orange-500">Topicowl</h1>
+        <p className="text-gray-600">Set up your content generation project</p>
+      </div>
 
-          return (
-            <div key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-medium ${
-                    isCompleted
-                      ? "border-brand-green bg-brand-green text-white"
-                      : isCurrent
-                        ? "border-brand-green text-brand-green bg-white"
-                        : "border-gray-300 bg-white text-gray-400"
-                  } `}
-                >
-                  {isCompleted ? (
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  ) : (
-                    index + 1
-                  )}
-                </div>
-                <div className="mt-2 text-center">
-                  <div
-                    className={`text-sm font-medium ${
-                      isCurrent
-                        ? "text-brand-green"
-                        : isCompleted
-                          ? "text-gray-900"
-                          : "text-gray-400"
-                    }`}
-                  >
-                    {step.name}
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    {step.description}
-                  </div>
-                </div>
-              </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={`mx-4 mt-5 h-px flex-1 ${isCompleted ? "bg-brand-green" : "bg-gray-300"} `}
-                />
-              )}
-            </div>
-          );
-        })}
+      {/* Current Step Info (no progress bar) */}
+      <div className="rounded-lg border bg-white p-4">
+        <h2 className="mb-1 text-lg font-semibold text-gray-900">
+          {currentStepData.name}
+        </h2>
+        {currentStepData.description ? (
+          <p className="mb-2 text-gray-600">{currentStepData.description}</p>
+        ) : null}
+        <div className="text-sm text-gray-500">Step {currentStepIndex + 1} of {totalSteps}</div>
       </div>
     </div>
   );

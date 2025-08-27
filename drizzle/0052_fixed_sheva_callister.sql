@@ -1,0 +1,1 @@
+ALTER TABLE "topicowl"."projects" ADD COLUMN "language" text DEFAULT 'en';

@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { db } from "@/server/db";
-import { users, projects, articleSettings } from "@/server/db/schema";
+import { users, projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { Project } from "@/types";
@@ -9,12 +9,23 @@ import type { Project } from "@/types";
 const projectDataSchema = z.object({
   name: z.string().min(1),
   websiteUrl: z.string().url(),
+  domain: z.string().optional(),
+  sitemapUrl: z.string().url().optional(),
+  exampleArticleUrl: z.string().url().optional(),
+  excludedDomains: z.array(z.string()).optional().default([]),
   companyName: z.string().optional().default(""),
   productDescription: z.string().optional().default(""),
+  targetAudience: z.string().optional(),
   keywords: z.array(z.string()).optional().default([]),
   toneOfVoice: z.string().optional().default(""),
   articleStructure: z.string().optional().default(""),
-  maxWords: z.number().int().min(800).max(2000).optional().default(800),
+  maxWords: z.number().int().min(500).max(2500).optional().default(800),
+  includeVideo: z.boolean().optional().default(true),
+  includeTables: z.boolean().optional().default(true),
+  includeCitations: z.boolean().optional().default(true),
+  citationRegion: z.string().optional().default("worldwide"),
+  brandColor: z.string().optional(),
+  language: z.string().optional().default("en"),
 });
 
 const onboardingCompleteSchema = z.object({
@@ -89,9 +100,23 @@ export async function POST(request: Request): Promise<Response> {
         .update(projects)
         .set({
           name: projectData.name,
+          domain: projectData.domain ?? normalized.domain,
+          sitemapUrl: projectData.sitemapUrl,
+          exampleArticleUrl: projectData.exampleArticleUrl,
+          excludedDomains: projectData.excludedDomains,
           companyName: projectData.companyName,
           productDescription: projectData.productDescription,
+          targetAudience: projectData.targetAudience,
           keywords: projectData.keywords,
+          toneOfVoice: projectData.toneOfVoice,
+          articleStructure: projectData.articleStructure,
+          maxWords: projectData.maxWords,
+          includeVideo: projectData.includeVideo,
+          includeTables: projectData.includeTables,
+          includeCitations: projectData.includeCitations,
+          citationRegion: projectData.citationRegion,
+          brandColor: projectData.brandColor,
+          language: projectData.language ?? "en",
           updatedAt: new Date(),
         })
         .where(eq(projects.id, existingProject.id))
@@ -105,25 +130,6 @@ export async function POST(request: Request): Promise<Response> {
           { status: 500 },
         );
       }
-
-      // Upsert article settings for the project
-      await db
-        .insert(articleSettings)
-        .values({
-          projectId: newProject.id,
-          toneOfVoice: projectData.toneOfVoice,
-          articleStructure: projectData.articleStructure,
-          maxWords: projectData.maxWords,
-        })
-        .onConflictDoUpdate({
-          target: articleSettings.projectId,
-          set: {
-            toneOfVoice: projectData.toneOfVoice,
-            articleStructure: projectData.articleStructure,
-            maxWords: projectData.maxWords,
-            updatedAt: new Date(),
-          },
-        });
     } else {
       // Create new project
       const inserted = await db
@@ -132,10 +138,23 @@ export async function POST(request: Request): Promise<Response> {
           userId,
           name: projectData.name,
           websiteUrl: normalized.websiteUrl,
-          domain: normalized.domain,
+          domain: projectData.domain ?? normalized.domain,
+          sitemapUrl: projectData.sitemapUrl,
+          exampleArticleUrl: projectData.exampleArticleUrl,
+          excludedDomains: projectData.excludedDomains,
           companyName: projectData.companyName,
           productDescription: projectData.productDescription,
+          targetAudience: projectData.targetAudience,
           keywords: projectData.keywords,
+          toneOfVoice: projectData.toneOfVoice,
+          articleStructure: projectData.articleStructure,
+          maxWords: projectData.maxWords,
+          includeVideo: projectData.includeVideo,
+          includeTables: projectData.includeTables,
+          includeCitations: projectData.includeCitations,
+          citationRegion: projectData.citationRegion,
+          brandColor: projectData.brandColor,
+          language: projectData.language ?? "en",
           webhookEnabled: false,
           webhookEvents: ["article.published"],
         })
@@ -148,25 +167,6 @@ export async function POST(request: Request): Promise<Response> {
           { status: 500 },
         );
       }
-
-      // Create article settings for the project (using upsert in case settings already exist)
-      await db
-        .insert(articleSettings)
-        .values({
-          projectId: newProject.id,
-          toneOfVoice: projectData.toneOfVoice,
-          articleStructure: projectData.articleStructure,
-          maxWords: projectData.maxWords,
-        })
-        .onConflictDoUpdate({
-          target: articleSettings.projectId,
-          set: {
-            toneOfVoice: projectData.toneOfVoice,
-            articleStructure: projectData.articleStructure,
-            maxWords: projectData.maxWords,
-            updatedAt: new Date(),
-          },
-        });
     }
 
     // Update user's onboarding status to completed

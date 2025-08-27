@@ -53,7 +53,7 @@ export function WebsiteUrlForm({ onSubmit, isLoading }: WebsiteUrlFormProps) {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">Enter your website domain</CardTitle>
+        <CardTitle className="text-2xl md:text-3xl">Enter your website domain</CardTitle>
         <CardDescription>
           We&apos;ll analyze your website to create personalized content
           settings

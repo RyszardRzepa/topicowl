@@ -88,6 +88,13 @@ export const projects = contentbotSchema.table(
     // Content generation preferences
     includeVideo: boolean("include_video").default(true).notNull(),
     includeTables: boolean("include_tables").default(true).notNull(),
+    includeCitations: boolean("include_citations").default(true).notNull(),
+    citationRegion: text("citation_region").default("worldwide"),
+    brandColor: text("brand_color"),
+    exampleArticleUrl: text("example_article_url"),
+    targetAudience: text("target_audience"),
+    // Primary content language for generation (BCP-47/ISO-639-1 code like "en", "es")
+    language: text("language").default("en"),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
