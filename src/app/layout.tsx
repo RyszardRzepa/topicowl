@@ -6,30 +6,30 @@ import { PostHogProvider } from "@/components/PostHogProvider";
 import { type Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Ship content that ranks and converts on autopilot",
+  title: "Quality content marketing on autopilot",
   description:
-    "For B2B teams and SEO agencies, Contentbot plans topics for you, drafts them on time, and publishes to your blog, X, and Reddit",
+    "AI that researches, writes, and fact-checks your content. Optimized for SEO & AI ranking. Schedule to blog, reddit.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   openGraph: {
-    title: "Ship content that ranks and converts on autopilot",
+    title: "Quality content marketing on autopilot",
     description:
-      " Plan, Generate, Schedule Publishing content for blog, reddit, X.",
+      "AI that researches, writes, and fact-checks your content. Optimized for SEO & AI ranking. Schedule to blog, reddit.",
     images: [
       {
         url: "/og-preview.png",
         width: 1200,
         height: 630,
-        alt: "Contentbot - AI SEO Content Platform",
+        alt: "Topicowl - Quality content marketing on autopilot",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ship content that ranks and converts on autopilot",
+    title: "Quality content marketing on autopilot",
     description:
-      "For B2B teams and SEO agencies, Contentbot plans topics for you, drafts them on time, and publishes X account",
-    images: ["/contentbot-preview.png"],
+      "AI that researches, writes, and fact-checks your content. Optimized for SEO & AI ranking. Schedule to blog, reddit.",
+    images: ["/og-preview.png"],
   },
 };
 
