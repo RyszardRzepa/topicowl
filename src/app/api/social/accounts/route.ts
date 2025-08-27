@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Authenticate user with Clerk
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // 2. Verify user exists in database
     const [userRecord] = await db
@@ -33,18 +34,26 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectIdParam = searchParams.get("projectId");
     if (!projectIdParam) {
-      return NextResponse.json({ error: "Project ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Project ID is required" },
+        { status: 400 },
+      );
     }
     const projectId = parseInt(projectIdParam, 10);
     if (isNaN(projectId)) {
-      return NextResponse.json({ error: "Invalid project ID format" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid project ID format" },
+        { status: 400 },
+      );
     }
 
     // 3. Verify project ownership
     const [projectRecord] = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)));
+      .where(
+        and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)),
+      );
     if (!projectRecord) {
       return NextResponse.json(
         { error: "Project not found or access denied" },
@@ -63,15 +72,26 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         reddit: redditConn
-          ? { connected: true, username: redditConn.redditUsername, userId: redditConn.redditUserId }
+          ? {
+              connected: true,
+              username: redditConn.redditUsername,
+              userId: redditConn.redditUserId,
+            }
           : { connected: false },
         x: xConn
-          ? { connected: true, username: xConn.xUsername, userId: xConn.xUserId }
+          ? {
+              connected: true,
+              username: xConn.xUsername,
+              userId: xConn.xUserId,
+            }
           : { connected: false },
       },
     } satisfies AccountsResponse);
   } catch (error) {
     console.error("Social accounts API error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

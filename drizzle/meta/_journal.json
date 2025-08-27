@@ -337,6 +337,27 @@
       "when": 1755887076990,
       "tag": "0047_hard_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1756184488128,
+      "tag": "0048_tricky_jimmy_woo",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1756193192683,
+      "tag": "0049_robust_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1756206418434,
+      "tag": "0050_green_layla_miller",
+      "breakpoints": true
     }
   ]
 }

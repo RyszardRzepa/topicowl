@@ -8,19 +8,32 @@ import { and, asc, eq } from "drizzle-orm";
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const projectIdParam = searchParams.get("projectId");
-    if (!projectIdParam) return NextResponse.json({ error: "Project ID is required" }, { status: 400 });
+    if (!projectIdParam)
+      return NextResponse.json(
+        { error: "Project ID is required" },
+        { status: 400 },
+      );
     const projectId = parseInt(projectIdParam, 10);
-    if (isNaN(projectId)) return NextResponse.json({ error: "Invalid project ID format" }, { status: 400 });
+    if (isNaN(projectId))
+      return NextResponse.json(
+        { error: "Invalid project ID format" },
+        { status: 400 },
+      );
 
     const [project] = await db
       .select({ id: projects.id })
       .from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
-    if (!project) return NextResponse.json({ error: "Project not found or access denied" }, { status: 404 });
+    if (!project)
+      return NextResponse.json(
+        { error: "Project not found or access denied" },
+        { status: 404 },
+      );
 
     const rows = await db
       .select({
@@ -33,7 +46,12 @@ export async function GET(request: NextRequest) {
         createdAt: socialPosts.createdAt,
       })
       .from(socialPosts)
-      .where(and(eq(socialPosts.projectId, projectId), eq(socialPosts.userId, userId)))
+      .where(
+        and(
+          eq(socialPosts.projectId, projectId),
+          eq(socialPosts.userId, userId),
+        ),
+      )
       .orderBy(asc(socialPosts.publishScheduledAt));
 
     return NextResponse.json({
@@ -50,6 +68,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("List social posts error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

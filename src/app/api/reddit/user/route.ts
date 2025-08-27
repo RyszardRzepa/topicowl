@@ -190,7 +190,7 @@ export async function GET(request: NextRequest) {
     } else if (action === "subreddits") {
       // Call Reddit's subscribed subreddits API
       const subredditsResponse = await fetch(
-        "https://oauth.reddit.com/subreddits/mine/subscriber",
+        "https://oauth.reddit.com/subreddits/mine/subscriber?limit=100",
         {
           method: "GET",
           headers: {

@@ -140,14 +140,18 @@ export default function SocialDashboard() {
         !checked &&
         (postForm.redditSubreddit.trim() || postForm.redditTitle.trim())
       ) {
-        toast.info("Clear the subreddit and title first to disable Reddit posting");
+        toast.info(
+          "Clear the subreddit and title first to disable Reddit posting",
+        );
         return;
       }
 
       // For Reddit: only allow checking if both subreddit and title are filled
       if (platform === "reddit" && checked) {
         if (!postForm.redditSubreddit.trim()) {
-          toast.info("Please select a subreddit first to enable Reddit posting");
+          toast.info(
+            "Please select a subreddit first to enable Reddit posting",
+          );
           return;
         }
         if (!postForm.redditTitle.trim()) {
@@ -239,7 +243,7 @@ export default function SocialDashboard() {
     (subredditName: string) => {
       setPostForm((prev) => {
         const newForm = { ...prev, redditSubreddit: subredditName };
-        
+
         // Automatically select Reddit platform when both subreddit and title are filled
         if (newForm.redditTitle.trim()) {
           setSelectedPlatforms((prevPlatforms) => {
@@ -248,7 +252,7 @@ export default function SocialDashboard() {
             return newSet;
           });
         }
-        
+
         return newForm;
       });
       setShowSubredditDropdown(false);
@@ -495,7 +499,8 @@ export default function SocialDashboard() {
                     <div
                       className={`rounded-lg border p-4 transition-colors ${
                         accounts?.reddit?.connected
-                          ? postForm.redditSubreddit.trim() && postForm.redditTitle.trim()
+                          ? postForm.redditSubreddit.trim() &&
+                            postForm.redditTitle.trim()
                             ? selectedPlatforms.has("reddit")
                               ? "cursor-pointer border-blue-500 bg-blue-50"
                               : "cursor-pointer border-gray-300 hover:border-gray-400"
@@ -542,7 +547,10 @@ export default function SocialDashboard() {
                               handlePlatformToggle("reddit", checked)
                             }
                             onClick={(e) => e.stopPropagation()}
-                            disabled={!postForm.redditSubreddit.trim() || !postForm.redditTitle.trim()}
+                            disabled={
+                              !postForm.redditSubreddit.trim() ||
+                              !postForm.redditTitle.trim()
+                            }
                           />
                         ) : (
                           <Button
@@ -636,19 +644,23 @@ export default function SocialDashboard() {
 
                           {/* Reddit Title Input */}
                           <div>
-                            <Label className="text-sm">
-                              Post Title *
-                            </Label>
+                            <Label className="text-sm">Post Title *</Label>
                             <div className="mt-1">
                               <Input
                                 value={postForm.redditTitle}
                                 onChange={(e) => {
                                   const newTitle = e.target.value;
                                   setPostForm((prev) => {
-                                    const newForm = { ...prev, redditTitle: newTitle };
-                                    
+                                    const newForm = {
+                                      ...prev,
+                                      redditTitle: newTitle,
+                                    };
+
                                     // Automatically select Reddit platform when both subreddit and title are filled
-                                    if (newForm.redditSubreddit.trim() && newTitle.trim()) {
+                                    if (
+                                      newForm.redditSubreddit.trim() &&
+                                      newTitle.trim()
+                                    ) {
                                       setSelectedPlatforms((prevPlatforms) => {
                                         const newSet = new Set(prevPlatforms);
                                         newSet.add("reddit");
@@ -662,7 +674,7 @@ export default function SocialDashboard() {
                                         return newSet;
                                       });
                                     }
-                                    
+
                                     return newForm;
                                   });
                                 }}
@@ -678,13 +690,16 @@ export default function SocialDashboard() {
                             </div>
                           </div>
 
-                          {(!postForm.redditSubreddit.trim() || !postForm.redditTitle.trim()) && (
+                          {(!postForm.redditSubreddit.trim() ||
+                            !postForm.redditTitle.trim()) && (
                             <div className="rounded bg-gray-50 p-2 text-xs text-gray-500">
-                              💡 {!postForm.redditSubreddit.trim() && !postForm.redditTitle.trim() 
+                              💡{" "}
+                              {!postForm.redditSubreddit.trim() &&
+                              !postForm.redditTitle.trim()
                                 ? "Select a subreddit and enter a title to enable Reddit posting"
                                 : !postForm.redditSubreddit.trim()
-                                ? "Select a subreddit to enable Reddit posting"
-                                : "Enter a title to enable Reddit posting"}
+                                  ? "Select a subreddit to enable Reddit posting"
+                                  : "Enter a title to enable Reddit posting"}
                             </div>
                           )}
                         </div>

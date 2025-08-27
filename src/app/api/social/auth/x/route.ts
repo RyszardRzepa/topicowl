@@ -63,7 +63,9 @@ export async function GET(request: NextRequest) {
     const [projectRecord] = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)));
+      .where(
+        and(eq(projects.id, projectId), eq(projects.userId, userRecord.id)),
+      );
     if (!projectRecord) {
       return NextResponse.json(
         { error: "Project not found or access denied" },

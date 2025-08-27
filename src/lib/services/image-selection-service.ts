@@ -247,8 +247,6 @@ interface PexelsPhoto {
   alt: string;
 }
 
-
-
 // Helper functions for relevance scoring - extracted from API route
 const calculateTextRelevance = (
   text: string | null,
@@ -582,7 +580,12 @@ Keywords: ${keywords.join(", ")}`;
       const { source, result: searchResult } = result.value;
       apiCallsUsed++;
 
-      if (source === "unsplash" && searchResult && typeof searchResult === "object" && "results" in searchResult) {
+      if (
+        source === "unsplash" &&
+        searchResult &&
+        typeof searchResult === "object" &&
+        "results" in searchResult
+      ) {
         const unsplashResult = searchResult as UnsplashSearchResult;
         const existingIds = new Set(allUnsplashImages.map((i) => i.id));
         for (const img of unsplashResult.results) {
@@ -593,8 +596,16 @@ Keywords: ${keywords.join(", ")}`;
           }
         }
         totalResults += unsplashResult.total;
-      } else if (source === "pexels" && searchResult && typeof searchResult === "object" && "photos" in searchResult) {
-        const pexelsResult = searchResult as { photos: PexelsPhoto[]; total_results: number };
+      } else if (
+        source === "pexels" &&
+        searchResult &&
+        typeof searchResult === "object" &&
+        "photos" in searchResult
+      ) {
+        const pexelsResult = searchResult as {
+          photos: PexelsPhoto[];
+          total_results: number;
+        };
         const existingIds = new Set(allPexelsImages.map((i) => i.id));
         for (const img of pexelsResult.photos) {
           if (!existingIds.has(img.id)) {

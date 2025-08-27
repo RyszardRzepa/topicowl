@@ -18,7 +18,7 @@ const PricingModal = ({ open, onOpenChange }: PricingModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[92vh] !w-[90vw]  !max-w-none !sm:w-[45vw] overflow-y-auto rounded-xl p-0 focus:outline-none"
+        className="!sm:w-[45vw] max-h-[92vh] !w-[90vw] !max-w-none overflow-y-auto rounded-xl p-0 focus:outline-none"
         aria-label="Pricing plans dialog"
       >
         <div className="flex w-full flex-col gap-8 p-6 md:p-8">

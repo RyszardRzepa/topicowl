@@ -10,6 +10,7 @@ import {
   serial,
   index,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 
@@ -382,17 +383,91 @@ export const redditPosts = contentbotSchema.table(
   (table) => ({
     // Index on project_id for efficient querying of project's Reddit posts
     projectIdIdx: index("reddit_posts_project_id_idx").on(table.projectId),
-    // Index on status for efficient filtering by status
-    statusIdx: index("reddit_posts_status_idx").on(table.status),
-    // Index on publishScheduledAt for efficient cron job queries
-    scheduledIdx: index("reddit_posts_scheduled_idx").on(
-      table.publishScheduledAt,
+  }),
+);
+
+// Reddit automation workflows table
+export const redditAutomations = contentbotSchema.table(
+  "reddit_automations",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    workflow: jsonb("workflow").notNull(), // Stores complete workflow configuration
+    isActive: boolean("is_active").default(true).notNull(),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (_table) => ({}),
+);
+
+// Reddit automation execution runs table
+export const redditAutomationRuns = contentbotSchema.table(
+  "reddit_automation_runs",
+  {
+    id: serial("id").primaryKey(),
+    automationId: integer("automation_id")
+      .references(() => redditAutomations.id, { onDelete: "cascade" })
+      .notNull(),
+    status: text("status").notNull(), // 'running', 'completed', 'failed'
+    results: jsonb("results"), // Execution results and metrics
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (_table) => ({}),
+);
+
+export const redditProcessedPosts = contentbotSchema.table(
+  "reddit_processed_posts",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id, { onDelete: "cascade" })
+      .notNull(),
+    postId: text("post_id").notNull(), // Reddit post ID (e.g., "t3_abc123")
+    subreddit: text("subreddit").notNull(),
+    postTitle: text("post_title").notNull(),
+    postUrl: text("post_url").notNull(),
+
+    // Evaluation results
+    evaluationScore: integer("evaluation_score"), // Score * 10 for integer storage
+    wasApproved: boolean("was_approved").default(false).notNull(),
+    evaluationReasoning: text("evaluation_reasoning"),
+
+    // Generated reply
+    replyContent: text("reply_content"),
+    replyPosted: boolean("reply_posted").default(false).notNull(),
+    replyPostedAt: timestamp("reply_posted_at", { withTimezone: true }),
+
+    // Tracking
+    automationId: integer("automation_id").references(
+      () => redditAutomations.id,
+      { onDelete: "set null" },
     ),
-    // Composite index for user + project queries
-    userProjectIdx: index("reddit_posts_user_project_idx").on(
-      table.userId,
-      table.projectId,
-    ),
+    runId: integer("run_id").references(() => redditAutomationRuns.id, {
+      onDelete: "set null",
+    }),
+
+    processedAt: timestamp("processed_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    projectPostUnique: uniqueIndex(
+      "reddit_processed_posts_project_post_idx",
+    ).on(table.projectId, table.postId),
   }),
 );
 
