@@ -201,7 +201,7 @@ export default function RedditAutomationPage() {
               Reddit Automation
             </h1>
             <p className="mt-2 text-gray-600">
-              Create and manage automated Reddit workflows for lead generation
+              Create automated Reddit workflows for lead generation
               and engagement.
             </p>
           </div>
