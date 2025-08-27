@@ -14,17 +14,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Check, Plus, X } from "lucide-react";
+import { Check, Plus, X, Search, Eye, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { SubredditAutosuggestions } from "@/components/ui/subreddit-autosuggestions";
+import { useCurrentProjectId } from "@/contexts/project-context";
 
 export interface WorkflowConfig {
   name: string;
   description: string;
   subreddit: string;
   keywords: string[];
-  timeRange: "24h" | "7d" | "30d";
+  timeRange: "1h" | "24h";
   maxResults: number;
   passThreshold: number;
   evaluationPrompt?: string;
@@ -38,6 +46,26 @@ export interface WorkflowConfig {
   webhookUrl?: string;
 }
 
+interface RedditSearchPost {
+  id: string;
+  title: string;
+  author: string;
+  url: string;
+  selftext: string;
+  ups: number;
+  num_comments: number;
+  created_utc: number;
+  subreddit: string;
+}
+
+interface SearchPreviewState {
+  isOpen: boolean;
+  isLoading: boolean;
+  posts: RedditSearchPost[];
+  totalFound: number;
+  error?: string;
+}
+
 interface Step {
   id: string;
   title: string;
@@ -45,11 +73,31 @@ interface Step {
 }
 
 const WORKFLOW_STEPS: Step[] = [
-  { id: "info", title: "Basic Information", description: "Give your automation a name and description." },
-  { id: "search", title: "Find Reddit Posts", description: "Configure what posts to search for." },
-  { id: "evaluate", title: "Filter Posts", description: "Set criteria for relevant posts." },
-  { id: "reply", title: "Generate Replies", description: "Configure how replies are generated." },
-  { id: "action", title: "Choose Actions", description: "What happens with the replies?" },
+  {
+    id: "info",
+    title: "Basic Information",
+    description: "Give your automation a name and description.",
+  },
+  {
+    id: "search",
+    title: "Find Reddit Posts",
+    description: "Configure what posts to search for.",
+  },
+  {
+    id: "evaluate",
+    title: "Filter Posts",
+    description: "Set criteria for relevant posts.",
+  },
+  {
+    id: "reply",
+    title: "Generate Replies",
+    description: "Configure how replies are generated.",
+  },
+  {
+    id: "action",
+    title: "Choose Actions",
+    description: "What happens with the replies?",
+  },
 ];
 
 export type AutomationFormProps = {
@@ -58,7 +106,13 @@ export type AutomationFormProps = {
   onSubmit: (config: WorkflowConfig) => Promise<void> | void;
 };
 
-const KeywordInput = ({ keywords, onChange }: { keywords: string[]; onChange: (keywords: string[]) => void }) => {
+const KeywordInput = ({
+  keywords,
+  onChange,
+}: {
+  keywords: string[];
+  onChange: (keywords: string[]) => void;
+}) => {
   const [inputValue, setInputValue] = useState("");
 
   const addKeyword = () => {
@@ -68,7 +122,8 @@ const KeywordInput = ({ keywords, onChange }: { keywords: string[]; onChange: (k
     setInputValue("");
   };
 
-  const removeKeyword = (kw: string) => onChange(keywords.filter((k) => k !== kw));
+  const removeKeyword = (kw: string) =>
+    onChange(keywords.filter((k) => k !== kw));
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -88,15 +143,22 @@ const KeywordInput = ({ keywords, onChange }: { keywords: string[]; onChange: (k
           className="flex-1"
         />
         <Button onClick={addKeyword} variant="outline" size="sm">
-          <Plus className="w-4 h-4" />
+          <Plus className="h-4 w-4" />
         </Button>
       </div>
       {keywords.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {keywords.map((kw) => (
-            <Badge key={kw} variant="secondary" className="flex items-center gap-1">
+            <Badge
+              key={kw}
+              variant="secondary"
+              className="flex items-center gap-1"
+            >
               {kw}
-              <X className="h-3 w-3 cursor-pointer" onClick={() => removeKeyword(kw)} />
+              <X
+                className="h-3 w-3 cursor-pointer"
+                onClick={() => removeKeyword(kw)}
+              />
             </Badge>
           ))}
         </div>
@@ -105,10 +167,22 @@ const KeywordInput = ({ keywords, onChange }: { keywords: string[]; onChange: (k
   );
 };
 
-export function AutomationForm({ initialConfig, submitLabel, onSubmit }: AutomationFormProps) {
+export function AutomationForm({
+  initialConfig,
+  submitLabel,
+  onSubmit,
+}: AutomationFormProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [config, setConfig] = useState<WorkflowConfig>(initialConfig);
   const [saving, setSaving] = useState(false);
+  const [searchPreview, setSearchPreview] = useState<SearchPreviewState>({
+    isOpen: false,
+    isLoading: false,
+    posts: [],
+    totalFound: 0,
+  });
+
+  const currentProjectId = useCurrentProjectId();
 
   const handleConfigChange = (patch: Partial<WorkflowConfig>) => {
     setConfig((prev) => ({ ...prev, ...patch }));
@@ -151,6 +225,86 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
     }
   };
 
+  const handleSearchPreview = async () => {
+    if (!currentProjectId) {
+      toast.error("No project selected");
+      return;
+    }
+
+    if (!config.subreddit.trim()) {
+      toast.error("Please enter a subreddit");
+      return;
+    }
+
+    setSearchPreview((prev) => ({ ...prev, isLoading: true, isOpen: true }));
+
+    try {
+      const response = await fetch("/api/reddit/search-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          subreddit: config.subreddit,
+          keywords: config.keywords,
+          timeRange: config.timeRange,
+          maxResults: config.maxResults,
+          projectId: currentProjectId,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Search preview failed";
+        try {
+          const errorData = (await response.json()) as { error?: string };
+          errorMessage = errorData.error ?? `HTTP ${response.status}: ${response.statusText}`;
+        } catch {
+          // If response is not valid JSON, use status info
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      let data;
+      try {
+        data = (await response.json()) as {
+          success: boolean;
+          posts: RedditSearchPost[];
+          totalFound: number;
+        };
+      } catch (parseError) {
+        console.error("Failed to parse response JSON:", parseError);
+        throw new Error("Invalid response from server");
+      }
+
+      setSearchPreview((prev) => ({
+        ...prev,
+        isLoading: false,
+        posts: data.posts,
+        totalFound: data.totalFound,
+        error: undefined,
+      }));
+
+      if (data.totalFound === 0) {
+        toast.info("No posts found matching your criteria");
+      } else {
+        toast.success(`Found ${data.totalFound} matching posts`);
+      }
+    } catch (error) {
+      console.error("Search preview failed:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Search preview failed";
+      setSearchPreview((prev) => ({
+        ...prev,
+        isLoading: false,
+        posts: [],
+        totalFound: 0,
+        error: errorMessage,
+      }));
+      toast.error(errorMessage);
+    }
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
@@ -158,11 +312,24 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
           <div className="grid gap-4">
             <div>
               <Label htmlFor="name">Automation Name *</Label>
-              <Input id="name" value={config.name} onChange={(e) => handleConfigChange({ name: e.target.value })} placeholder="e.g., Tech Startup Lead Generation" />
+              <Input
+                id="name"
+                value={config.name}
+                onChange={(e) => handleConfigChange({ name: e.target.value })}
+                placeholder="e.g., Tech Startup Lead Generation"
+              />
             </div>
             <div>
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" value={config.description} onChange={(e) => handleConfigChange({ description: e.target.value })} placeholder="Describe what this automation does..." rows={3} />
+              <Textarea
+                id="description"
+                value={config.description}
+                onChange={(e) =>
+                  handleConfigChange({ description: e.target.value })
+                }
+                placeholder="Describe what this automation does..."
+                rows={3}
+              />
             </div>
           </div>
         );
@@ -180,24 +347,65 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
             </div>
             <div>
               <Label>Keywords *</Label>
-              <KeywordInput keywords={config.keywords} onChange={(keywords) => handleConfigChange({ keywords })} />
-              <div className="mt-1 text-xs text-gray-500">Add one or more keywords used to filter posts.</div>
+              <KeywordInput
+                keywords={config.keywords}
+                onChange={(keywords) => handleConfigChange({ keywords })}
+              />
+              <div className="mt-1 text-xs text-gray-500">
+                Add one or more keywords used to filter posts.
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="time-range">Time Range</Label>
-                <Select value={config.timeRange} onValueChange={(value: "24h" | "7d" | "30d") => handleConfigChange({ timeRange: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={config.timeRange}
+                  onValueChange={(value: "1h" | "24h") =>
+                    handleConfigChange({ timeRange: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="1h">Last hour</SelectItem>
                     <SelectItem value="24h">Last 24 hours</SelectItem>
-                    <SelectItem value="7d">Last 7 days</SelectItem>
-                    <SelectItem value="30d">Last 30 days</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label htmlFor="max-results">Max Results</Label>
-                <Input id="max-results" type="number" min="1" max="100" value={config.maxResults} onChange={(e) => handleConfigChange({ maxResults: parseInt(e.target.value) || 10 })} />
+                <Input
+                  id="max-results"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={config.maxResults}
+                  onChange={(e) =>
+                    handleConfigChange({
+                      maxResults: parseInt(e.target.value) || 10,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="mt-4 border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSearchPreview}
+                disabled={!config.subreddit.trim() || searchPreview.isLoading}
+                className="flex items-center gap-2"
+              >
+                {searchPreview.isLoading ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+                {searchPreview.isLoading ? "Searching..." : "Search Preview"}
+              </Button>
+              <div className="mt-1 text-xs text-gray-500">
+                Test your search settings to see what posts would be found.
               </div>
             </div>
           </div>
@@ -207,12 +415,37 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
           <div className="grid gap-4">
             <div>
               <Label htmlFor="pass-threshold">Pass Score Threshold</Label>
-              <Input id="pass-threshold" type="number" min="0" max="10" step="0.1" value={config.passThreshold} onChange={(e) => handleConfigChange({ passThreshold: parseFloat(e.target.value) || 6.0 })} />
-              <div className="mt-1 text-xs text-gray-500">Posts scoring above this threshold will proceed to reply generation (0-10)</div>
+              <Input
+                id="pass-threshold"
+                type="number"
+                min="0"
+                max="10"
+                step="0.1"
+                value={config.passThreshold}
+                onChange={(e) =>
+                  handleConfigChange({
+                    passThreshold: parseFloat(e.target.value) || 6.0,
+                  })
+                }
+              />
+              <div className="mt-1 text-xs text-gray-500">
+                Posts scoring above this threshold will proceed to reply
+                generation (0-10)
+              </div>
             </div>
             <div>
-              <Label htmlFor="evaluation-prompt">Evaluation Prompt (Optional)</Label>
-              <Textarea id="evaluation-prompt" value={config.evaluationPrompt ?? ""} onChange={(e) => handleConfigChange({ evaluationPrompt: e.target.value })} placeholder="Provide a custom prompt for evaluating posts. If empty, a default prompt will be used." rows={5} />
+              <Label htmlFor="evaluation-prompt">
+                Evaluation Prompt (Optional)
+              </Label>
+              <Textarea
+                id="evaluation-prompt"
+                value={config.evaluationPrompt ?? ""}
+                onChange={(e) =>
+                  handleConfigChange({ evaluationPrompt: e.target.value })
+                }
+                placeholder="Provide a custom prompt for evaluating posts. If empty, a default prompt will be used."
+                rows={5}
+              />
             </div>
           </div>
         );
@@ -222,8 +455,15 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="tone">Tone of Voice</Label>
-                <Select value={config.toneOfVoice} onValueChange={(value) => handleConfigChange({ toneOfVoice: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={config.toneOfVoice}
+                  onValueChange={(value) =>
+                    handleConfigChange({ toneOfVoice: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="helpful">Helpful</SelectItem>
                     <SelectItem value="professional">Professional</SelectItem>
@@ -235,12 +475,31 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
               </div>
               <div>
                 <Label htmlFor="max-length">Max Reply Length</Label>
-                <Input id="max-length" type="number" min="100" max="2000" value={config.maxLength} onChange={(e) => handleConfigChange({ maxLength: parseInt(e.target.value) || 500 })} />
+                <Input
+                  id="max-length"
+                  type="number"
+                  min="100"
+                  max="2000"
+                  value={config.maxLength}
+                  onChange={(e) =>
+                    handleConfigChange({
+                      maxLength: parseInt(e.target.value) || 500,
+                    })
+                  }
+                />
               </div>
             </div>
             <div>
               <Label htmlFor="reply-prompt">Reply Prompt (Optional)</Label>
-              <Textarea id="reply-prompt" value={config.replyPrompt ?? ""} onChange={(e) => handleConfigChange({ replyPrompt: e.target.value })} placeholder="Provide a custom prompt for generating replies. If empty, a default prompt will be used." rows={5} />
+              <Textarea
+                id="reply-prompt"
+                value={config.replyPrompt ?? ""}
+                onChange={(e) =>
+                  handleConfigChange({ replyPrompt: e.target.value })
+                }
+                placeholder="Provide a custom prompt for generating replies. If empty, a default prompt will be used."
+                rows={5}
+              />
             </div>
           </div>
         );
@@ -250,37 +509,73 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
             <div className="flex items-center justify-between">
               <div>
                 <Label>Save Results to Database</Label>
-                <div className="text-xs text-gray-500">Store execution results for analytics and review</div>
+                <div className="text-xs text-gray-500">
+                  Store execution results for analytics and review
+                </div>
               </div>
-              <Switch checked={config.saveToDatabase} onCheckedChange={(checked) => handleConfigChange({ saveToDatabase: checked })} />
+              <Switch
+                checked={config.saveToDatabase}
+                onCheckedChange={(checked) =>
+                  handleConfigChange({ saveToDatabase: checked })
+                }
+              />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>Post Replies to Reddit</Label>
-                <div className="text-xs text-gray-500">Actually post generated replies to Reddit</div>
+                <div className="text-xs text-gray-500">
+                  Actually post generated replies to Reddit
+                </div>
               </div>
-              <Switch checked={config.postToReddit} onCheckedChange={(checked) => handleConfigChange({ postToReddit: checked })} />
+              <Switch
+                checked={config.postToReddit}
+                onCheckedChange={(checked) =>
+                  handleConfigChange({ postToReddit: checked })
+                }
+              />
             </div>
             {config.postToReddit && (
               <div className="flex items-center justify-between pl-6">
                 <div>
                   <Label>Require Manual Approval</Label>
-                  <div className="text-xs text-gray-500">Review replies before posting</div>
+                  <div className="text-xs text-gray-500">
+                    Review replies before posting
+                  </div>
                 </div>
-                <Switch checked={config.requireApproval} onCheckedChange={(checked) => handleConfigChange({ requireApproval: checked })} />
+                <Switch
+                  checked={config.requireApproval}
+                  onCheckedChange={(checked) =>
+                    handleConfigChange({ requireApproval: checked })
+                  }
+                />
               </div>
             )}
             <div className="flex items-center justify-between">
               <div>
                 <Label>Send Webhook</Label>
-                <div className="text-xs text-gray-500">Send results to external URL</div>
+                <div className="text-xs text-gray-500">
+                  Send results to external URL
+                </div>
               </div>
-              <Switch checked={config.sendWebhook} onCheckedChange={(checked) => handleConfigChange({ sendWebhook: checked })} />
+              <Switch
+                checked={config.sendWebhook}
+                onCheckedChange={(checked) =>
+                  handleConfigChange({ sendWebhook: checked })
+                }
+              />
             </div>
             {config.sendWebhook && (
               <div className="pl-6">
                 <Label htmlFor="webhook-url">Webhook URL</Label>
-                <Input id="webhook-url" type="url" value={config.webhookUrl ?? ""} onChange={(e) => handleConfigChange({ webhookUrl: e.target.value })} placeholder="https://your-app.com/webhook" />
+                <Input
+                  id="webhook-url"
+                  type="url"
+                  value={config.webhookUrl ?? ""}
+                  onChange={(e) =>
+                    handleConfigChange({ webhookUrl: e.target.value })
+                  }
+                  placeholder="https://your-app.com/webhook"
+                />
               </div>
             )}
           </div>
@@ -297,15 +592,23 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
         {WORKFLOW_STEPS.map((step, idx) => (
           <div key={step.id} className="flex items-center">
             <div className="flex items-center">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${idx <= currentStep ? 'bg-brand-orange-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${idx <= currentStep ? "bg-brand-orange-500 text-white" : "bg-gray-200 text-gray-600"}`}
+              >
                 {idx < currentStep ? <Check size={14} /> : idx + 1}
               </div>
               <div className="ml-2">
-                <div className={`text-xs font-medium leading-none whitespace-nowrap ${idx <= currentStep ? 'text-brand-gray-900' : 'text-gray-500'}`}>{step.title}</div>
+                <div
+                  className={`text-xs leading-none font-medium whitespace-nowrap ${idx <= currentStep ? "text-brand-gray-900" : "text-gray-500"}`}
+                >
+                  {step.title}
+                </div>
               </div>
             </div>
             {idx < WORKFLOW_STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-3 ${idx < currentStep ? 'bg-brand-orange-500' : 'bg-gray-200'}`} />
+              <div
+                className={`mx-3 h-0.5 flex-1 ${idx < currentStep ? "bg-brand-orange-500" : "bg-gray-200"}`}
+              />
             )}
           </div>
         ))}
@@ -314,15 +617,23 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
       <Card className="p-6">
         {WORKFLOW_STEPS[currentStep] && (
           <>
-            <h2 className="mb-1 text-lg font-semibold">{WORKFLOW_STEPS[currentStep].title}</h2>
-            <p className="mb-6 text-sm text-gray-600">{WORKFLOW_STEPS[currentStep].description}</p>
+            <h2 className="mb-1 text-lg font-semibold">
+              {WORKFLOW_STEPS[currentStep].title}
+            </h2>
+          
             {renderStepContent()}
           </>
         )}
       </Card>
 
       <div className="mt-6 flex justify-between">
-        <Button variant="outline" onClick={prevStep} disabled={currentStep === 0}>Back</Button>
+        <Button
+          variant="outline"
+          onClick={prevStep}
+          disabled={currentStep === 0}
+        >
+          Back
+        </Button>
         {currentStep < WORKFLOW_STEPS.length - 1 ? (
           <Button onClick={nextStep}>Continue</Button>
         ) : (
@@ -334,6 +645,103 @@ export function AutomationForm({ initialConfig, submitLabel, onSubmit }: Automat
           </Button>
         )}
       </div>
+
+      {/* Search Preview Dialog */}
+      <Dialog
+        open={searchPreview.isOpen}
+        onOpenChange={(open) =>
+          setSearchPreview((prev) => ({ ...prev, isOpen: open }))
+        }
+      >
+        <DialogContent className="flex max-h-[80vh] max-w-4xl flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Search Preview Results
+            </DialogTitle>
+            <DialogDescription>
+              {searchPreview.isLoading
+                ? "Searching for posts..."
+                : searchPreview.error
+                  ? "Search failed"
+                  : `Found ${searchPreview.totalFound} posts matching your criteria`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+            {searchPreview.isLoading && (
+              <div className="flex items-center justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+                <span className="ml-3 text-gray-600">Searching posts...</span>
+              </div>
+            )}
+
+            {searchPreview.error && (
+              <div className="py-8 text-center text-red-600">
+                <p className="text-lg font-medium">Search Failed</p>
+                <p className="mt-1 text-sm">{searchPreview.error}</p>
+              </div>
+            )}
+
+            {!searchPreview.isLoading &&
+              !searchPreview.error &&
+              searchPreview.posts.length === 0 && (
+                <div className="py-8 text-center text-gray-600">
+                  <p className="text-lg font-medium">No posts found</p>
+                  <p className="mt-1 text-sm">
+                    Try adjusting your subreddit, keywords, or time range
+                    settings.
+                  </p>
+                </div>
+              )}
+
+            {!searchPreview.isLoading &&
+              !searchPreview.error &&
+              searchPreview.posts.length > 0 && (
+                <div className="space-y-4 pb-4">
+                  {searchPreview.posts.map((post) => (
+                    <div
+                      key={post.id}
+                      className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="mb-1 line-clamp-2 text-sm font-medium text-gray-900">
+                            {post.title}
+                          </h3>
+                          <div className="mb-2 flex items-center gap-3 text-xs text-gray-500">
+                            <span>u/{post.author}</span>
+                            <span>r/{post.subreddit}</span>
+                            <span>{post.ups} upvotes</span>
+                            <span>{post.num_comments} comments</span>
+                            <span>
+                              {new Date(
+                                post.created_utc * 1000,
+                              ).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {post.selftext && (
+                            <p className="line-clamp-3 text-xs text-gray-600">
+                              {post.selftext}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => window.open(post.url, "_blank")}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

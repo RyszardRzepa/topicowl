@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "reddit_processed_posts_project_post_idx" ON "topicowl"."reddit_processed_posts" USING btree ("project_id","post_id");

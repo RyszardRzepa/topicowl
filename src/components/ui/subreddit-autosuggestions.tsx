@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProjectId } from "@/contexts/project-context";
 import type { RedditUserSubredditsResponse } from "@/app/api/reddit/user/route";
+import { Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -39,7 +40,10 @@ export function SubredditAutosuggestions({
   const [subscribedNames, setSubscribedNames] = useState<string[]>([]);
 
   // Normalize subreddit string: strip leading r/ and whitespace
-  const normalize = useCallback((v: string) => v.replace(/^\s*r\//i, "").trim(), []);
+  const normalize = useCallback(
+    (v: string) => v.replace(/^\s*r\//i, "").trim(),
+    [],
+  );
 
   // Load subscribed subreddits on mount and when project changes
   useEffect(() => {
@@ -86,8 +90,12 @@ export function SubredditAutosuggestions({
         disabled={disabled ?? loading}
       >
         <SelectTrigger id={inputId} className={className}>
-          <SelectValue 
-            placeholder={loading ? "Loading subreddits..." : placeholder ?? "Select subreddit..."}
+          <SelectValue
+            placeholder={
+              loading
+                ? "Loading subreddits..."
+                : (placeholder ?? "Select subreddit...")
+            }
           />
         </SelectTrigger>
         <SelectContent>
@@ -105,7 +113,7 @@ export function SubredditAutosuggestions({
                 <div className="flex w-full items-center justify-between">
                   <span className="font-medium">r/{name}</span>
                   {isSubscribed(name) && (
-                    <span className="ml-2 rounded-full bg-brand-green-100 px-2 py-0.5 text-xs text-brand-green-600">
+                    <span className="bg-brand-green-100 text-brand-green-600 ml-2 rounded-full px-2 py-0.5 text-xs">
                       Subscribed
                     </span>
                   )}

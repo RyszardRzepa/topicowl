@@ -1,7 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { redditAutomationRuns, redditAutomations, projects } from "@/server/db/schema";
+import {
+  redditAutomationRuns,
+  redditAutomations,
+  projects,
+} from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
@@ -14,6 +18,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId");
     const automationId = searchParams.get("automationId");
+    const limit = parseInt(searchParams.get("limit") ?? "10");
+    const offset = parseInt(searchParams.get("offset") ?? "0");
 
     if (!projectId) {
       return NextResponse.json(
@@ -26,7 +32,9 @@ export async function GET(request: NextRequest) {
     const [projectRecord] = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, parseInt(projectId)), eq(projects.userId, userId)));
+      .where(
+        and(eq(projects.id, parseInt(projectId)), eq(projects.userId, userId)),
+      );
 
     if (!projectRecord) {
       return NextResponse.json(
@@ -37,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     // Build query to get runs with automation details
     let whereConditions = eq(redditAutomations.projectId, parseInt(projectId));
-    
+
     // Filter by specific automation if provided
     if (automationId) {
       whereConditions = and(
@@ -45,6 +53,18 @@ export async function GET(request: NextRequest) {
         eq(redditAutomationRuns.automationId, parseInt(automationId)),
       )!;
     }
+
+    // Get total count for pagination
+    const totalCountResult = await db
+      .select({ count: redditAutomationRuns.id })
+      .from(redditAutomationRuns)
+      .innerJoin(
+        redditAutomations,
+        eq(redditAutomationRuns.automationId, redditAutomations.id),
+      )
+      .where(whereConditions);
+
+    const totalCount = totalCountResult.length;
 
     const runs = await db
       .select({
@@ -58,14 +78,24 @@ export async function GET(request: NextRequest) {
         automationName: redditAutomations.name,
       })
       .from(redditAutomationRuns)
-      .innerJoin(redditAutomations, eq(redditAutomationRuns.automationId, redditAutomations.id))
+      .innerJoin(
+        redditAutomations,
+        eq(redditAutomationRuns.automationId, redditAutomations.id),
+      )
       .where(whereConditions)
       .orderBy(desc(redditAutomationRuns.startedAt))
-      .limit(100); // Limit to last 100 runs
+      .limit(limit)
+      .offset(offset);
 
     return NextResponse.json({
       success: true,
       runs,
+      pagination: {
+        total: totalCount,
+        limit,
+        offset,
+        hasMore: offset + limit < totalCount,
+      },
     });
   } catch (error) {
     console.error("Get automation runs error:", error);

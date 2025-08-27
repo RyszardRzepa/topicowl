@@ -29,7 +29,7 @@ export function OnboardingProgress({ currentStep }: OnboardingProgressProps) {
                     isCompleted
                       ? "border-brand-green bg-brand-green text-white"
                       : isCurrent
-                        ? "border-brand-green bg-white text-brand-green"
+                        ? "border-brand-green text-brand-green bg-white"
                         : "border-gray-300 bg-white text-gray-400"
                   } `}
                 >

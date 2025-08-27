@@ -60,7 +60,7 @@ export default function CreateAutomationPage() {
   };
 
   return (
-    <div className="container max-w-4xl mx-auto px-4 py-8">
+    <div>
       <div className="mb-8">
         <Button variant="ghost" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-1" />

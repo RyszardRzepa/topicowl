@@ -40,7 +40,10 @@ export async function GET(
       .from(redditAutomations)
       .innerJoin(projects, eq(redditAutomations.projectId, projects.id))
       .where(
-        and(eq(redditAutomations.id, automationId), eq(projects.userId, userId)),
+        and(
+          eq(redditAutomations.id, automationId),
+          eq(projects.userId, userId),
+        ),
       );
 
     if (!automation) {
@@ -82,7 +85,7 @@ export async function PUT(
       );
     }
 
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       name: string;
       description: string;
       workflow: unknown;
@@ -127,7 +130,10 @@ export async function PUT(
       .from(redditAutomations)
       .innerJoin(projects, eq(redditAutomations.projectId, projects.id))
       .where(
-        and(eq(redditAutomations.id, automationId), eq(projects.userId, userId)),
+        and(
+          eq(redditAutomations.id, automationId),
+          eq(projects.userId, userId),
+        ),
       );
 
     if (!existingAutomation) {
@@ -201,7 +207,10 @@ export async function DELETE(
       .from(redditAutomations)
       .innerJoin(projects, eq(redditAutomations.projectId, projects.id))
       .where(
-        and(eq(redditAutomations.id, automationId), eq(projects.userId, userId)),
+        and(
+          eq(redditAutomations.id, automationId),
+          eq(projects.userId, userId),
+        ),
       );
 
     if (!existingAutomation) {

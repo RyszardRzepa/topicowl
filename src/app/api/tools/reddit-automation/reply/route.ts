@@ -120,7 +120,7 @@ Generate a helpful reply that adds value to this conversation.
     try {
       // Replace variables in prompt
       let processedPrompt = prompt;
-      
+
       // Default variables
       const defaultVariables = {
         postTitle: post.title,
@@ -132,10 +132,10 @@ Generate a helpful reply that adds value to this conversation.
 
       // Merge with custom variables
       const allVariables = { ...defaultVariables, ...variables };
-      
+
       Object.entries(allVariables).forEach(([key, value]) => {
         processedPrompt = processedPrompt.replace(
-          new RegExp(`\\{\\{${key}\\}\\}`, 'g'),
+          new RegExp(`\\{\\{${key}\\}\\}`, "g"),
           value,
         );
       });
@@ -162,7 +162,7 @@ Hope this helps! 😊`;
       });
     } catch (error) {
       console.error(`Error generating reply for post ${post.id}:`, error);
-      
+
       const result: ReplyResult = {
         postId: post.id,
         replyContent: "",

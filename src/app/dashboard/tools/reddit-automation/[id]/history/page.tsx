@@ -61,19 +61,37 @@ interface AutomationRun {
   automationName: string;
 }
 
+interface ApiResponse {
+  runs: AutomationRun[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
 export default function AutomationHistoryPerAutomationPage() {
   const router = useRouter();
   const params = useParams();
   const currentProjectId = useCurrentProjectId();
 
   const automationId = useMemo(() => {
-    const id = typeof params?.id === "string" ? params.id : Array.isArray(params?.id) ? params?.id?.[0] : undefined;
+    const id =
+      typeof params?.id === "string"
+        ? params.id
+        : Array.isArray(params?.id)
+          ? params?.id?.[0]
+          : undefined;
     const n = id ? Number(id) : NaN;
     return Number.isFinite(n) ? n : undefined;
   }, [params]);
 
   const [runs, setRuns] = useState<AutomationRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
   const [selectedRun, setSelectedRun] = useState<AutomationRun | null>(null);
 
   useEffect(() => {
@@ -81,13 +99,15 @@ export default function AutomationHistoryPerAutomationPage() {
       try {
         setLoading(true);
         const response = await fetch(
-          `/api/tools/reddit-automation/runs?projectId=${currentProjectId}&automationId=${automationId}`,
+          `/api/tools/reddit-automation/runs?projectId=${currentProjectId}&automationId=${automationId}&limit=10&offset=0`,
         );
 
         if (response.ok) {
-          const data = (await response.json()) as { runs?: AutomationRun[] };
+          const data = (await response.json()) as ApiResponse;
           const list = data.runs ?? [];
           setRuns(list);
+          setHasMore(data.pagination?.hasMore ?? false);
+          setTotalCount(data.pagination?.total ?? 0);
           if (list.length > 0) {
             setSelectedRun(list[0]!);
           } else {
@@ -109,6 +129,31 @@ export default function AutomationHistoryPerAutomationPage() {
     }
   }, [currentProjectId, automationId]);
 
+  const loadMore = async () => {
+    if (!hasMore || loadingMore) return;
+
+    try {
+      setLoadingMore(true);
+      const response = await fetch(
+        `/api/tools/reddit-automation/runs?projectId=${currentProjectId}&automationId=${automationId}&limit=10&offset=${runs.length}`,
+      );
+
+      if (response.ok) {
+        const data = (await response.json()) as ApiResponse;
+        const newRuns = data.runs ?? [];
+        setRuns((prev) => [...prev, ...newRuns]);
+        setHasMore(data.pagination?.hasMore ?? false);
+      } else {
+        toast.error("Failed to load more runs");
+      }
+    } catch (error) {
+      console.error("Error loading more runs:", error);
+      toast.error("Failed to load more runs");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
@@ -116,7 +161,7 @@ export default function AutomationHistoryPerAutomationPage() {
       case "failed":
         return <XCircle className="h-5 w-5 text-red-600" />;
       case "running":
-        return <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />;
+        return <Loader2 className="h-5 w-5 animate-spin text-blue-600" />;
       default:
         return <AlertCircle className="h-5 w-5 text-yellow-600" />;
     }
@@ -155,6 +200,20 @@ export default function AutomationHistoryPerAutomationPage() {
     return `${diffSecs}s`;
   };
 
+  const getQuickStats = (results: unknown) => {
+    if (!results) return "No results";
+    try {
+      const parsed: unknown =
+        typeof results === "string" ? JSON.parse(results) : results;
+      const data = parsed as ExecutionResults;
+      const approved = data.postsApproved ?? 0;
+      const found = data.postsFound ?? 0;
+      return `${approved}/${found} approved`;
+    } catch {
+      return "Results available";
+    }
+  };
+
   const PostResultCard = ({ post }: { post: PostResult }) => {
     const [expanded, setExpanded] = useState(false);
 
@@ -162,9 +221,9 @@ export default function AutomationHistoryPerAutomationPage() {
       <Card className="mb-4">
         <div className="p-4">
           {/* Post Header */}
-          <div className="flex items-start justify-between mb-3">
+          <div className="mb-3 flex items-start justify-between">
             <div className="flex-1">
-              <h4 className="font-semibold text-gray-900 mb-1">{post.title}</h4>
+              <h4 className="mb-1 font-semibold text-gray-900">{post.title}</h4>
               <div className="flex items-center gap-3 text-sm text-gray-600">
                 <span>r/{post.subreddit}</span>
                 <span>by u/{post.author}</span>
@@ -186,13 +245,13 @@ export default function AutomationHistoryPerAutomationPage() {
 
           {/* Post Content Preview */}
           {post.selftext && (
-            <div className="mb-3 p-3 bg-gray-50 rounded text-sm text-gray-700">
+            <div className="mb-3 rounded bg-gray-50 p-3 text-sm text-gray-700">
               <p className={expanded ? "" : "line-clamp-3"}>{post.selftext}</p>
               {post.selftext.length > 200 && (
                 <Button
                   variant="link"
                   size="sm"
-                  className="p-0 h-auto mt-1"
+                  className="mt-1 h-auto p-0"
                   onClick={() => setExpanded(!expanded)}
                 >
                   {expanded ? "Show less" : "Show more"}
@@ -203,7 +262,7 @@ export default function AutomationHistoryPerAutomationPage() {
 
           {/* Evaluation Reasoning */}
           <div className="mb-3">
-            <h5 className="text-sm font-medium text-gray-700 mb-1">
+            <h5 className="mb-1 text-sm font-medium text-gray-700">
               AI Evaluation:
             </h5>
             <p className="text-sm text-gray-600 italic">
@@ -211,23 +270,23 @@ export default function AutomationHistoryPerAutomationPage() {
             </p>
           </div>
 
-          {/* Generated Reply */} 
+          {/* Generated Reply */}
           {post.reply && post.reply.generated && (
             <div className="border-t pt-3">
-              <h5 className="text-sm font-medium text-gray-700 mb-2">
+              <h5 className="mb-2 text-sm font-medium text-gray-700">
                 Generated Reply:
               </h5>
-              <div className="bg-blue-50 p-3 rounded">
+              <div className="rounded bg-blue-50 p-3">
                 <p className="text-sm whitespace-pre-wrap">
                   {post.reply.content}
                 </p>
               </div>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="mt-2 flex items-center gap-2">
                 <a
                   href={post.permalink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                  className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
                   View on Reddit
@@ -239,7 +298,7 @@ export default function AutomationHistoryPerAutomationPage() {
           {/* Error message if reply generation failed */}
           {post.reply && !post.reply.generated && post.reply.error && (
             <div className="border-t pt-3">
-              <div className="bg-red-50 p-3 rounded">
+              <div className="rounded bg-red-50 p-3">
                 <p className="text-sm text-red-600">
                   Reply generation failed: {post.reply.error}
                 </p>
@@ -252,8 +311,7 @@ export default function AutomationHistoryPerAutomationPage() {
   };
 
   const formatResults = (results: unknown) => {
-    if (!results)
-      return <p className="text-gray-500">No results available</p>;
+    if (!results) return <p className="text-gray-500">No results available</p>;
     try {
       const parsed: unknown =
         typeof results === "string" ? JSON.parse(results) : results;
@@ -286,7 +344,7 @@ export default function AutomationHistoryPerAutomationPage() {
       return (
         <div>
           {/* Summary Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-6 p-4 bg-gray-50 rounded">
+          <div className="mb-6 grid grid-cols-2 gap-3 rounded bg-gray-50 p-4">
             <div>
               <p className="text-sm text-gray-600">Posts Found</p>
               <p className="text-2xl font-semibold">{data.postsFound}</p>
@@ -311,7 +369,7 @@ export default function AutomationHistoryPerAutomationPage() {
 
           {/* Post Results */}
           <div>
-            <h3 className="font-semibold text-gray-900 mb-3">
+            <h3 className="mb-3 font-semibold text-gray-900">
               Post Analysis & Replies
             </h3>
             {data.posts.map((post) => (
@@ -323,7 +381,7 @@ export default function AutomationHistoryPerAutomationPage() {
     } catch (error) {
       console.error("Error parsing results:", error);
       return (
-        <pre className="text-xs overflow-auto bg-gray-50 p-3 rounded">
+        <pre className="overflow-auto rounded bg-gray-50 p-3 text-xs">
           {JSON.stringify(results, null, 2)}
         </pre>
       );
@@ -352,7 +410,7 @@ export default function AutomationHistoryPerAutomationPage() {
               onClick={() => router.push("/dashboard/tools/reddit-automation")}
               className="mb-3"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" />
+              <ArrowLeft className="mr-1 h-4 w-4" />
               Back to Automations
             </Button>
             <h1 className="text-3xl font-bold text-gray-900">
@@ -365,9 +423,13 @@ export default function AutomationHistoryPerAutomationPage() {
           {automationId && (
             <Button
               variant="outline"
-              onClick={() => router.push(`/dashboard/tools/reddit-automation/edit/${automationId}`)}
+              onClick={() =>
+                router.push(
+                  `/dashboard/tools/reddit-automation/edit/${automationId}`,
+                )
+              }
             >
-              <Settings className="h-4 w-4 mr-1" /> Open Automation
+              <Settings className="mr-1 h-4 w-4" /> Open Automation
             </Button>
           )}
         </div>
@@ -380,113 +442,165 @@ export default function AutomationHistoryPerAutomationPage() {
             No Execution History Yet
           </h3>
           <p className="mx-auto mb-6 max-w-md text-gray-600">
-            Your automation execution history will appear here once you run this automation.
+            Your automation execution history will appear here once you run this
+            automation.
           </p>
-          <Button onClick={() => router.push("/dashboard/tools/reddit-automation")}>Go to Automations</Button>
+          <Button
+            onClick={() => router.push("/dashboard/tools/reddit-automation")}
+          >
+            Go to Automations
+          </Button>
         </Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Runs List */}
-          <div className="lg:col-span-2">
-            <div className="space-y-4">
+          <div className="lg:col-span-1">
+            <div className="space-y-2">
               {runs.map((run) => (
                 <Card
                   key={run.id}
-                  className={`p-4 cursor-pointer transition-colors ${
+                  className={`cursor-pointer p-3 transition-colors ${
                     selectedRun?.id === run.id
-                      ? "ring-2 ring-blue-500 bg-blue-50"
+                      ? "bg-blue-50 ring-2 ring-blue-500"
                       : "hover:bg-gray-50"
                   }`}
                   onClick={() => setSelectedRun(run)}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        {getStatusIcon(run.status)}
-                        <h3 className="font-semibold text-gray-900">
-                          {run.automationName}
-                        </h3>
-                        <Badge className={`${getStatusColor(run.status)} capitalize`}>
-                          {run.status}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          Started: {formatDate(run.startedAt)}
+                  <div className="flex items-center justify-between">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      {getStatusIcon(run.status)}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-gray-900">
+                          {formatDate(run.startedAt)}
                         </div>
-                        {run.completedAt && (
-                          <div>Duration: {getDuration(run.startedAt, run.completedAt)}</div>
-                        )}
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <span>
+                            {getDuration(run.startedAt, run.completedAt)}
+                          </span>
+                          <span>•</span>
+                          <span>{getQuickStats(run.results)}</span>
+                        </div>
                       </div>
-                      {run.errorMessage && (
-                        <div className="mt-2 text-sm text-red-600">Error: {run.errorMessage}</div>
-                      )}
                     </div>
-
-                    <Button variant="ghost" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
+                    <Badge
+                      className={`${getStatusColor(run.status)} text-xs capitalize`}
+                    >
+                      {run.status}
+                    </Badge>
                   </div>
+                  {run.errorMessage && (
+                    <div className="mt-1 truncate text-xs text-red-600">
+                      {run.errorMessage}
+                    </div>
+                  )}
                 </Card>
               ))}
+              {hasMore && (
+                <Button
+                  variant="outline"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="mt-3 w-full"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    `Load More (${totalCount - runs.length} remaining)`
+                  )}
+                </Button>
+              )}
             </div>
           </div>
 
           {/* Run Details */}
-          <div className="lg:col-span-1">
-            <Card className="p-6 sticky top-4">
+          <div className="lg:col-span-2">
+            <Card className="h-fit p-6">
               {selectedRun ? (
                 <div>
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="mb-6 flex items-center gap-2">
                     {getStatusIcon(selectedRun.status)}
-                    <h2 className="text-lg font-semibold">Run Details</h2>
+                    <h2 className="text-xl font-semibold">Run Details</h2>
+                    <Badge
+                      className={`${getStatusColor(selectedRun.status)} capitalize`}
+                    >
+                      {selectedRun.status}
+                    </Badge>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="mb-6 grid grid-cols-2 gap-6">
                     <div>
-                      <h3 className="font-medium text-gray-900 mb-1">Automation</h3>
-                      <p className="text-gray-600">{selectedRun.automationName}</p>
+                      <h3 className="mb-1 font-medium text-gray-900">
+                        Automation
+                      </h3>
+                      <p className="text-gray-600">
+                        {selectedRun.automationName}
+                      </p>
                     </div>
                     <div>
-                      <h3 className="font-medium text-gray-900 mb-1">Status</h3>
-                      <Badge className={`${getStatusColor(selectedRun.status)} capitalize`}>
-                        {selectedRun.status}
-                      </Badge>
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900 mb-1">Started At</h3>
-                      <p className="text-gray-600">{formatDate(selectedRun.startedAt)}</p>
+                      <h3 className="mb-1 font-medium text-gray-900">
+                        Started At
+                      </h3>
+                      <p className="text-gray-600">
+                        {formatDate(selectedRun.startedAt)}
+                      </p>
                     </div>
                     {selectedRun.completedAt && (
                       <div>
-                        <h3 className="font-medium text-gray-900 mb-1">Completed At</h3>
-                        <p className="text-gray-600">{formatDate(selectedRun.completedAt)}</p>
+                        <h3 className="mb-1 font-medium text-gray-900">
+                          Completed At
+                        </h3>
+                        <p className="text-gray-600">
+                          {formatDate(selectedRun.completedAt)}
+                        </p>
                       </div>
                     )}
                     {selectedRun.completedAt && (
                       <div>
-                        <h3 className="font-medium text-gray-900 mb-1">Duration</h3>
-                        <p className="text-gray-600">{getDuration(selectedRun.startedAt, selectedRun.completedAt)}</p>
+                        <h3 className="mb-1 font-medium text-gray-900">
+                          Duration
+                        </h3>
+                        <p className="text-gray-600">
+                          {getDuration(
+                            selectedRun.startedAt,
+                            selectedRun.completedAt,
+                          )}
+                        </p>
                       </div>
                     )}
-                    {selectedRun.errorMessage && (
-                      <div>
-                        <h3 className="font-medium text-red-900 mb-1">Error Message</h3>
-                        <p className="text-red-600 text-sm bg-red-50 p-2 rounded">{selectedRun.errorMessage}</p>
+                  </div>
+
+                  {selectedRun.errorMessage && (
+                    <div className="mb-6">
+                      <h3 className="mb-2 font-medium text-red-900">
+                        Error Message
+                      </h3>
+                      <div className="rounded border border-red-200 bg-red-50 p-4">
+                        <p className="text-sm text-red-600">
+                          {selectedRun.errorMessage}
+                        </p>
                       </div>
-                    )}
-                    <div>
-                      <h3 className="font-medium text-gray-900 mb-2">Results</h3>
-                      <div className="bg-gray-50 p-3 rounded text-sm">{formatResults(selectedRun.results)}</div>
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="mb-3 font-medium text-gray-900">
+                      Execution Results
+                    </h3>
+                    <div className="rounded border bg-gray-50 p-4">
+                      {formatResults(selectedRun.results)}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <Eye className="mx-auto mb-2 h-8 w-8 text-gray-400" />
-                  <p>Select a run to view details</p>
+                <div className="py-12 text-center text-gray-500">
+                  <Eye className="mx-auto mb-3 h-12 w-12 text-gray-400" />
+                  <h3 className="mb-2 text-lg font-medium text-gray-900">
+                    No Run Selected
+                  </h3>
+                  <p>Select a run from the list to view detailed results</p>
                 </div>
               )}
             </Card>

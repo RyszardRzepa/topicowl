@@ -44,7 +44,7 @@ export default function AutomationHistoryPage() {
         );
 
         if (response.ok) {
-          const data = await response.json() as { runs: AutomationRun[] };
+          const data = (await response.json()) as { runs: AutomationRun[] };
           setRuns(data.runs);
         } else {
           toast.error("Failed to load execution history");
@@ -69,7 +69,7 @@ export default function AutomationHistoryPage() {
       case "failed":
         return <XCircle className="h-5 w-5 text-red-600" />;
       case "running":
-        return <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />;
+        return <Loader2 className="h-5 w-5 animate-spin text-blue-600" />;
       default:
         return <AlertCircle className="h-5 w-5 text-yellow-600" />;
     }
@@ -104,7 +104,7 @@ export default function AutomationHistoryPage() {
     const diffMs = end.getTime() - start.getTime();
     const diffSecs = Math.floor(diffMs / 1000);
     const diffMins = Math.floor(diffSecs / 60);
-    
+
     if (diffMins > 0) {
       return `${diffMins}m ${diffSecs % 60}s`;
     }
@@ -113,46 +113,61 @@ export default function AutomationHistoryPage() {
 
   const formatResults = (results: unknown) => {
     if (!results) return "No results data";
-    
+
     try {
-      const parsed = typeof results === 'string' ? JSON.parse(results) : results;
+      const parsed =
+        typeof results === "string" ? JSON.parse(results) : results;
       const data = parsed as Record<string, unknown>;
       return (
         <div className="space-y-2">
           {data.postsFound != null && (
             <div className="flex justify-between">
               <span>Posts Found:</span>
-              <span className="font-medium">{Number(data.postsFound) || 0}</span>
+              <span className="font-medium">
+                {Number(data.postsFound) || 0}
+              </span>
             </div>
           )}
           {data.postsEvaluated != null && (
             <div className="flex justify-between">
               <span>Posts Evaluated:</span>
-              <span className="font-medium">{Number(data.postsEvaluated) || 0}</span>
+              <span className="font-medium">
+                {Number(data.postsEvaluated) || 0}
+              </span>
             </div>
           )}
           {data.postsApproved != null && (
             <div className="flex justify-between">
               <span>Posts Approved:</span>
-              <span className="font-medium">{Number(data.postsApproved) || 0}</span>
+              <span className="font-medium">
+                {Number(data.postsApproved) || 0}
+              </span>
             </div>
           )}
           {data.repliesGenerated != null && (
             <div className="flex justify-between">
               <span>Replies Generated:</span>
-              <span className="font-medium">{Number(data.repliesGenerated) || 0}</span>
+              <span className="font-medium">
+                {Number(data.repliesGenerated) || 0}
+              </span>
             </div>
           )}
           {data.repliesPosted != null && (
             <div className="flex justify-between">
               <span>Replies Posted:</span>
-              <span className="font-medium">{Number(data.repliesPosted) || 0}</span>
+              <span className="font-medium">
+                {Number(data.repliesPosted) || 0}
+              </span>
             </div>
           )}
         </div>
       );
     } catch {
-      return <pre className="text-xs overflow-auto">{JSON.stringify(results, null, 2)}</pre>;
+      return (
+        <pre className="overflow-auto text-xs">
+          {JSON.stringify(results, null, 2)}
+        </pre>
+      );
     }
   };
 
@@ -174,13 +189,11 @@ export default function AutomationHistoryPage() {
           onClick={() => router.push("/dashboard/tools/reddit-automation")}
           className="mb-4"
         >
-          <ArrowLeft className="w-4 h-4 mr-1" />
+          <ArrowLeft className="mr-1 h-4 w-4" />
           Back to Automations
         </Button>
-        
-        <h1 className="text-3xl font-bold text-gray-900">
-          Execution History
-        </h1>
+
+        <h1 className="text-3xl font-bold text-gray-900">Execution History</h1>
         <p className="mt-2 text-gray-600">
           View the execution history and results of your Reddit automations.
         </p>
@@ -193,7 +206,8 @@ export default function AutomationHistoryPage() {
             No Execution History Yet
           </h3>
           <p className="mx-auto mb-6 max-w-md text-gray-600">
-            Your automation execution history will appear here once you run your first automation.
+            Your automation execution history will appear here once you run your
+            first automation.
           </p>
           <Button
             onClick={() => router.push("/dashboard/tools/reddit-automation")}
@@ -209,25 +223,27 @@ export default function AutomationHistoryPage() {
               {runs.map((run) => (
                 <Card
                   key={run.id}
-                  className={`p-4 cursor-pointer transition-colors ${
-                    selectedRun?.id === run.id 
-                      ? "ring-2 ring-blue-500 bg-blue-50" 
+                  className={`cursor-pointer p-4 transition-colors ${
+                    selectedRun?.id === run.id
+                      ? "bg-blue-50 ring-2 ring-blue-500"
                       : "hover:bg-gray-50"
                   }`}
                   onClick={() => setSelectedRun(run)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="mb-2 flex items-center gap-3">
                         {getStatusIcon(run.status)}
                         <h3 className="font-semibold text-gray-900">
                           {run.automationName}
                         </h3>
-                        <Badge className={`${getStatusColor(run.status)} capitalize`}>
+                        <Badge
+                          className={`${getStatusColor(run.status)} capitalize`}
+                        >
                           {run.status}
                         </Badge>
                       </div>
-                      
+
                       <div className="flex items-center gap-4 text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
@@ -235,7 +251,8 @@ export default function AutomationHistoryPage() {
                         </div>
                         {run.completedAt && (
                           <div>
-                            Duration: {getDuration(run.startedAt, run.completedAt)}
+                            Duration:{" "}
+                            {getDuration(run.startedAt, run.completedAt)}
                           </div>
                         )}
                       </div>
@@ -258,81 +275,90 @@ export default function AutomationHistoryPage() {
 
           {/* Run Details */}
           <div className="lg:col-span-1">
-            <Card className="p-6 sticky top-4">
+            <Card className="sticky top-4 p-6">
               {selectedRun ? (
                 <div>
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="mb-4 flex items-center gap-2">
                     {getStatusIcon(selectedRun.status)}
                     <h2 className="text-lg font-semibold">Run Details</h2>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <h3 className="font-medium text-gray-900 mb-1">
+                      <h3 className="mb-1 font-medium text-gray-900">
                         Automation
                       </h3>
-                      <p className="text-gray-600">{selectedRun.automationName}</p>
+                      <p className="text-gray-600">
+                        {selectedRun.automationName}
+                      </p>
                     </div>
 
                     <div>
-                      <h3 className="font-medium text-gray-900 mb-1">
-                        Status
-                      </h3>
-                      <Badge className={`${getStatusColor(selectedRun.status)} capitalize`}>
+                      <h3 className="mb-1 font-medium text-gray-900">Status</h3>
+                      <Badge
+                        className={`${getStatusColor(selectedRun.status)} capitalize`}
+                      >
                         {selectedRun.status}
                       </Badge>
                     </div>
 
                     <div>
-                      <h3 className="font-medium text-gray-900 mb-1">
+                      <h3 className="mb-1 font-medium text-gray-900">
                         Started At
                       </h3>
-                      <p className="text-gray-600">{formatDate(selectedRun.startedAt)}</p>
+                      <p className="text-gray-600">
+                        {formatDate(selectedRun.startedAt)}
+                      </p>
                     </div>
 
                     {selectedRun.completedAt && (
                       <div>
-                        <h3 className="font-medium text-gray-900 mb-1">
+                        <h3 className="mb-1 font-medium text-gray-900">
                           Completed At
                         </h3>
-                        <p className="text-gray-600">{formatDate(selectedRun.completedAt)}</p>
+                        <p className="text-gray-600">
+                          {formatDate(selectedRun.completedAt)}
+                        </p>
                       </div>
                     )}
 
                     {selectedRun.completedAt && (
                       <div>
-                        <h3 className="font-medium text-gray-900 mb-1">
+                        <h3 className="mb-1 font-medium text-gray-900">
                           Duration
                         </h3>
                         <p className="text-gray-600">
-                          {getDuration(selectedRun.startedAt, selectedRun.completedAt)}
+                          {getDuration(
+                            selectedRun.startedAt,
+                            selectedRun.completedAt,
+                          )}
                         </p>
                       </div>
                     )}
 
                     {selectedRun.errorMessage && (
                       <div>
-                        <h3 className="font-medium text-red-900 mb-1">
+                        <h3 className="mb-1 font-medium text-red-900">
                           Error Message
                         </h3>
-                        <p className="text-red-600 text-sm bg-red-50 p-2 rounded">
+                        <p className="rounded bg-red-50 p-2 text-sm text-red-600">
                           {selectedRun.errorMessage}
                         </p>
                       </div>
                     )}
 
                     <div>
-                      <h3 className="font-medium text-gray-900 mb-2">
+                      <h3 className="mb-2 font-medium text-gray-900">
                         Results
                       </h3>
-                      <div className="bg-gray-50 p-3 rounded text-sm">
+                      <div className="rounded bg-gray-50 p-3 text-sm">
                         {formatResults(selectedRun.results)}
                       </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-center text-gray-500 py-8">
+                <div className="py-8 text-center text-gray-500">
                   <Eye className="mx-auto mb-2 h-8 w-8 text-gray-400" />
                   <p>Select a run to view details</p>
                 </div>

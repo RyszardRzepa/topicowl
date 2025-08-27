@@ -13,8 +13,8 @@ const navigationItems = [
     icon: <FileText className="h-5 w-5" />,
   },
   {
-  href: "/dashboard/social",
-  label: "Social",
+    href: "/dashboard/social",
+    label: "Social",
     icon: <MessageSquare className="h-5 w-5" />,
   },
 ];

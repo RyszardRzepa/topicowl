@@ -225,9 +225,9 @@ export default function OnboardingPage() {
       {currentStep === "complete" && (
         <Card className="text-center">
           <CardContent>
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand-green/10">
+            <div className="bg-brand-green/10 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
               <svg
-                className="h-8 w-8 text-brand-green"
+                className="text-brand-green h-8 w-8"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

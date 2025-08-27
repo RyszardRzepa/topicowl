@@ -1,10 +1,14 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Check } from "lucide-react"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onCheckedChange' | 'checked'> {
+interface CheckboxProps
+  extends Omit<
+    React.InputHTMLAttributes<HTMLInputElement>,
+    "onCheckedChange" | "checked"
+  > {
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
 }
@@ -12,7 +16,7 @@ interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className, checked, onCheckedChange, ...props }, ref) => {
     return (
-      <label className="relative inline-flex items-center cursor-pointer">
+      <label className="relative inline-flex cursor-pointer items-center">
         <input
           type="checkbox"
           ref={ref}
@@ -23,17 +27,17 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
         />
         <div
           className={cn(
-            "peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center",
+            "peer border-primary focus-visible:ring-ring flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border shadow focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
             checked ? "bg-primary text-primary-foreground" : "bg-background",
-            className
+            className,
           )}
         >
           {checked && <Check className="h-3 w-3" />}
         </div>
       </label>
-    )
-  }
-)
-Checkbox.displayName = "Checkbox"
+    );
+  },
+);
+Checkbox.displayName = "Checkbox";
 
-export { Checkbox }
+export { Checkbox };

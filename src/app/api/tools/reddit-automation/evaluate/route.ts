@@ -50,8 +50,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { projectId, posts } =
-      EvaluateRequestSchema.parse(await request.json());
+    const { projectId, posts } = EvaluateRequestSchema.parse(
+      await request.json(),
+    );
 
     // Verify user exists in database
     const [userRecord] = await db
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // Verify project ownership
     const [projectRecord] = await db
-      .select({ 
+      .select({
         id: projects.id,
         companyName: projects.companyName,
         productDescription: projects.productDescription,
@@ -92,7 +93,7 @@ Company: ${projectRecord.companyName ?? "Unknown"}
 Website: ${projectRecord.domain ?? ""}
 Product/Service: ${projectRecord.productDescription ?? ""}
 Brand Voice: ${projectRecord.toneOfVoice ?? "professional and helpful"}
-Target Keywords: ${(projectRecord.keywords as string[] ?? []).join(", ")}
+Target Keywords: ${((projectRecord.keywords as string[]) ?? []).join(", ")}
 
 EVALUATION CRITERIA:
 1. Relevance Score (0-10): How closely does the post relate to our business domain?

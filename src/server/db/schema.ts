@@ -10,6 +10,7 @@ import {
   serial,
   index,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 
@@ -406,9 +407,7 @@ export const redditAutomations = contentbotSchema.table(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (_table) => ({
-   
-  }),
+  (_table) => ({}),
 );
 
 // Reddit automation execution runs table
@@ -427,9 +426,7 @@ export const redditAutomationRuns = contentbotSchema.table(
       .notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (_table) => ({
-   
-  }),
+  (_table) => ({}),
 );
 
 export const redditProcessedPosts = contentbotSchema.table(
@@ -443,29 +440,34 @@ export const redditProcessedPosts = contentbotSchema.table(
     subreddit: text("subreddit").notNull(),
     postTitle: text("post_title").notNull(),
     postUrl: text("post_url").notNull(),
-    
+
     // Evaluation results
     evaluationScore: integer("evaluation_score"), // Score * 10 for integer storage
     wasApproved: boolean("was_approved").default(false).notNull(),
     evaluationReasoning: text("evaluation_reasoning"),
-    
+
     // Generated reply
     replyContent: text("reply_content"),
     replyPosted: boolean("reply_posted").default(false).notNull(),
     replyPostedAt: timestamp("reply_posted_at", { withTimezone: true }),
-    
+
     // Tracking
-    automationId: integer("automation_id")
-      .references(() => redditAutomations.id, { onDelete: "set null" }),
-    runId: integer("run_id")
-      .references(() => redditAutomationRuns.id, { onDelete: "set null" }),
-    
+    automationId: integer("automation_id").references(
+      () => redditAutomations.id,
+      { onDelete: "set null" },
+    ),
+    runId: integer("run_id").references(() => redditAutomationRuns.id, {
+      onDelete: "set null",
+    }),
+
     processedAt: timestamp("processed_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
   },
-  (_table) => ({
-
+  (table) => ({
+    projectPostUnique: uniqueIndex(
+      "reddit_processed_posts_project_post_idx",
+    ).on(table.projectId, table.postId),
   }),
 );
 

@@ -564,10 +564,13 @@ export default function RedditDashboard() {
   }, []);
 
   // Subreddit selection handler for autosuggest component
-  const handleSelectSubredditFromDropdown = useCallback((subredditName: string) => {
-    setPostForm((prev) => ({ ...prev, subreddit: subredditName }));
-    toast.success(`Selected r/${subredditName}`);
-  }, []);
+  const handleSelectSubredditFromDropdown = useCallback(
+    (subredditName: string) => {
+      setPostForm((prev) => ({ ...prev, subreddit: subredditName }));
+      toast.success(`Selected r/${subredditName}`);
+    },
+    [],
+  );
 
   // Load profile and subscriptions on component mount
   // Using stable currentProjectId to prevent tab refetch issues (same pattern as articles page)
@@ -773,13 +776,18 @@ export default function RedditDashboard() {
 
                     {/* Subreddit Field with Autosuggestions */}
                     <div className="relative">
-                      <label htmlFor="subreddit" className="mb-1 block text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="subreddit"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
                         Subreddit
                       </label>
                       <SubredditAutosuggestions
                         inputId="subreddit"
                         value={postForm.subreddit}
-                        onChange={(val) => setPostForm((prev) => ({ ...prev, subreddit: val }))}
+                        onChange={(val) =>
+                          setPostForm((prev) => ({ ...prev, subreddit: val }))
+                        }
                         onSelect={handleSelectSubredditFromDropdown}
                       />
                     </div>

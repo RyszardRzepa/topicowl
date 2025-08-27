@@ -19,7 +19,7 @@ type WorkflowNodeBase<TType extends string, TConfig> = {
 type SearchConfig = {
   subreddit: string;
   keywords: string[];
-  timeRange: "24h" | "7d" | "30d";
+  timeRange: "1h" | "24h";
   maxResults: number;
 };
 
@@ -160,7 +160,7 @@ export default function EditAutomationPage() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 ">
       <div className="mb-8">
         <Button variant="ghost" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-1" />

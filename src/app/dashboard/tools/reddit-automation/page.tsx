@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Bot,
   Plus,
@@ -14,6 +15,8 @@ import {
   Clock,
   CheckCircle,
   History,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentProjectId } from "@/contexts/project-context";
@@ -37,6 +40,7 @@ export default function RedditAutomationPage() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [executingIds, setExecutingIds] = useState<Set<number>>(new Set());
+  const [redditConnected, setRedditConnected] = useState<boolean | null>(null);
 
   const fetchAutomations = useCallback(async () => {
     try {
@@ -59,15 +63,37 @@ export default function RedditAutomationPage() {
     }
   }, [currentProjectId]);
 
+  const checkRedditConnection = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/social/accounts?projectId=${currentProjectId}`,
+      );
+      if (response.ok) {
+        const data = (await response.json()) as {
+          data?: { reddit?: { connected: boolean } };
+        };
+        setRedditConnected(data.data?.reddit?.connected ?? false);
+      }
+    } catch (error) {
+      console.error("Error checking Reddit connection:", error);
+      setRedditConnected(false);
+    }
+  }, [currentProjectId]);
+
   useEffect(() => {
     if (currentProjectId) {
-      void fetchAutomations(); // Refresh to update last run time
+      void fetchAutomations();
+      void checkRedditConnection();
     }
-  }, [currentProjectId, fetchAutomations]);
+  }, [currentProjectId, fetchAutomations, checkRedditConnection]);
 
   const executeAutomation = async (automationId: number, dryRun = false) => {
     try {
-      setExecutingIds((prev) => new Set([...prev, automationId]));
+      setExecutingIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(automationId);
+        return newSet;
+      });
 
       const response = await fetch("/api/tools/reddit-automation/execute", {
         method: "POST",
@@ -96,7 +122,17 @@ export default function RedditAutomationPage() {
         }
       } else {
         const error = (await response.json()) as { error?: string };
-        toast.error(error.error ?? "Failed to execute automation");
+        const errorMessage = error.error ?? "Failed to execute automation";
+
+        // Check if the error is about Reddit connection and provide helpful guidance
+        if (errorMessage.includes("Reddit account not connected")) {
+          toast.error(
+            "Reddit account not connected for this project. Click the alert above to connect your Reddit account first.",
+            { duration: 10000 },
+          );
+        } else {
+          toast.error(errorMessage);
+        }
       }
     } catch (error) {
       console.error("Error executing automation:", error);
@@ -181,6 +217,25 @@ export default function RedditAutomationPage() {
           </div>
         </div>
       </div>
+
+      {/* Reddit Connection Alert */}
+      {redditConnected === false && (
+        <Alert className="border-orange-200 bg-orange-50">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-orange-800">
+            Your Reddit account is not connected for this project. You need to
+            connect your Reddit account to execute automations.{" "}
+            <Button
+              variant="link"
+              className="h-auto p-0 text-orange-800 underline"
+              onClick={() => router.push("/dashboard/social")}
+            >
+              Go to Social Settings to connect Reddit
+              <ExternalLink className="ml-1 h-3 w-3" />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {automations.length === 0 ? (
         <Card className="p-12 text-center">

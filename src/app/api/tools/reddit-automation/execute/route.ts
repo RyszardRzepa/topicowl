@@ -7,7 +7,7 @@ import {
   projects,
   redditProcessedPosts,
 } from "@/server/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "@/env";
 import type { ClerkPrivateMetadata } from "@/types";
@@ -166,9 +166,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      workflowToExecute =
-        automationResult.automation.workflow as WorkflowNode[];
+      workflowToExecute = automationResult.automation
+        .workflow as WorkflowNode[];
       targetProjectId = automationResult.projectId;
+
+      console.log("🤖 Loaded automation workflow:", {
+        automationId,
+        name: automationResult.automation.name,
+        workflowLength: Array.isArray(workflowToExecute)
+          ? workflowToExecute.length
+          : "not array",
+        workflowTypes: Array.isArray(workflowToExecute)
+          ? workflowToExecute.map((n) => n.type)
+          : "not array",
+        searchNode: workflowToExecute.find((n) => n.type === "search"),
+      });
 
       // Create execution run record
       const [executionRun] = await db
@@ -387,6 +399,7 @@ async function executeWorkflow(
     postsEvaluated: evaluationResults.length,
     postsApproved: evaluationResults.filter((e) => e.shouldReply).length,
     repliesGenerated: replies.filter((r) => r.success).length,
+    // duplicatesSkipped is tracked at save time in non-dryRun; expose 0 in dryRun
     duplicatesSkipped: 0,
     posts: posts.map((post) => {
       const evaluation = evaluationResults.find((e) => e.postId === post.id);
@@ -429,12 +442,13 @@ async function executeWorkflow(
 
 async function executeSearchNode(
   node: WorkflowNode,
-  context: { userId: string; projectId: number },
+  context: { userId: string; projectId: number; dryRun: boolean },
 ): Promise<RedditPost[]> {
+  console.log("🔍 executeSearchNode called with config:", node.config);
   const config = node.config as {
     subreddit: string;
     keywords: string[];
-    timeRange: "24h" | "7d" | "30d";
+    timeRange: "1h" | "24h";
     maxResults: number;
   };
 
@@ -475,9 +489,21 @@ async function executeSearchNode(
   const tokenData = (await tokenResponse.json()) as RedditTokenResponse;
   const accessToken = tokenData.access_token;
 
-  // Fetch posts from Reddit API (simplified implementation)
+  // Determine the time range for Reddit API (match search-preview behavior)
+  let sortParam = "hot";
+  let timeParam = "";
+  if (config.timeRange === "24h") {
+    sortParam = "top";
+    timeParam = "&t=day";
+  } else if (config.timeRange === "1h") {
+    sortParam = "top";
+    timeParam = "&t=hour";
+  }
+
+  // Fetch more posts initially to account for keyword filtering (like search-preview)
+  const fetchLimit = Math.min(config.maxResults * 3, 100);
   const response = await fetch(
-    `https://oauth.reddit.com/r/${config.subreddit}/hot.json?limit=${config.maxResults}`,
+    `https://oauth.reddit.com/r/${config.subreddit}/${sortParam}.json?limit=${fetchLimit}${timeParam}`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -491,39 +517,53 @@ async function executeSearchNode(
   }
 
   const data = (await response.json()) as RedditListing;
+  console.log("📦 Reddit API returned:", {
+    hasData: !!data.data,
+    childrenCount: data.data?.children?.length || 0,
+    firstPost: data.data?.children?.[0]?.data
+      ? {
+          title: data.data.children[0].data.title?.slice(0, 50) + "...",
+          subreddit: data.data.children[0].data.subreddit,
+        }
+      : null,
+  });
+
   const posts: RedditPost[] = data.data.children
     .map((child) => child.data)
     .filter((post) => {
       // Filter by keywords if specified
       if (config.keywords.length > 0) {
-        const content = `${post.title} ${post.selftext}`.toLowerCase();
-        return config.keywords.some((keyword: string) =>
+        const content = `${post.title} ${post.selftext ?? ""}`.toLowerCase();
+        const matches = config.keywords.some((keyword: string) =>
           content.includes(keyword.toLowerCase()),
         );
+        console.log(
+          `🔍 Post "${post.title?.slice(0, 30)}..." matches keywords:`,
+          matches,
+        );
+        return matches;
       }
       return true;
     });
 
-  if (posts.length > 0) {
-    const postIds = posts.map((p) => p.id);
-    const processedPosts = await db
-      .select({ postId: redditProcessedPosts.postId })
-      .from(redditProcessedPosts)
-      .where(
-        and(
-          eq(redditProcessedPosts.projectId, context.projectId),
-          inArray(redditProcessedPosts.postId, postIds),
-        ),
-      );
-    const processedPostIds = new Set(processedPosts.map((p) => p.postId));
-    const newPosts = posts.filter((post) => !processedPostIds.has(post.id));
+  console.log(`📊 Final posts after filtering: ${posts.length}`);
+
+  // Mirror search-preview result shaping
+  if (context.dryRun) {
+    // In dry run, do NOT exclude duplicates; slice to requested maxResults
+    const sliced = posts.slice(0, config.maxResults);
     console.log(
-      `Found ${posts.length} posts, ${processedPostIds.size} already processed, ${newPosts.length} new posts to evaluate`,
+      `🧪 DryRun: returning ${sliced.length}/${posts.length} posts (no dedupe)`,
     );
-    return newPosts;
+    return sliced;
   }
 
-  return posts;
+  // Non-dryRun: return sliced posts (parity with Preview); duplicates are handled when saving
+  const sliced = posts.slice(0, config.maxResults);
+  console.log(
+    `✅ Non-dryRun: returning ${sliced.length}/${posts.length} posts (no dedupe at search stage)`,
+  );
+  return sliced;
 }
 
 async function executeEvaluationNode(
@@ -555,7 +595,7 @@ Company: ${projectRecord.companyName ?? "Unknown"}
 Website: ${projectRecord.domain ?? ""}
 Product/Service: ${projectRecord.productDescription ?? ""}
 Brand Voice: ${projectRecord.toneOfVoice ?? "professional and helpful"}
-Target Keywords: ${(projectRecord.keywords as string[] ?? []).join(", ")}
+Target Keywords: ${((projectRecord.keywords as string[]) ?? []).join(", ")}
 
 EVALUATION CRITERIA:
 1. Relevance Score (0-10): How closely does the post relate to our business domain?
@@ -680,13 +720,13 @@ REDDIT FORMATTING:
 
 ORIGINAL POST:
 Title: ${post.title}
-Content: ${post.selftext || "[No text content]"}
+Content: ${post.selftext ?? "[No text content]"}
 Subreddit: r/${post.subreddit}
 
 EVALUATION CONTEXT:
 ${evaluation.reasoning}
 
-${replyConfig.replyPrompt ? `ADDITIONAL GUIDANCE: ${replyConfig.replyPrompt}` : ""}
+${replyConfig.replyPrompt ?? ""}
 
 Write a natural, helpful reply that adds value to the discussion.`;
 
