@@ -797,6 +797,25 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       generationId: generationRecord.id,
     });
 
+    // Persist pre-generated related articles early so they are available
+    // throughout the pipeline (even if generation fails before finalize)
+    try {
+      await db
+        .update(articleGeneration)
+        .set({
+          relatedArticles: context.relatedArticles,
+          updatedAt: new Date(),
+        })
+        .where(eq(articleGeneration.id, generationRecord.id));
+
+      console.log("Saved initial related articles to generation record", {
+        generationId: generationRecord.id,
+        count: context.relatedArticles?.length ?? 0,
+      });
+    } catch (e) {
+      console.log("Failed to save initial related articles", e);
+    }
+
     // Phase 1: Research
     console.log("Starting research phase");
     apiCallsLog.push("research-service");

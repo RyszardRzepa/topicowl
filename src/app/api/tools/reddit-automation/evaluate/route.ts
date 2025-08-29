@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { google } from "@ai-sdk/google";
 import { generateObject } from "ai";
+import { MODELS } from "@/constants";
 
 interface EvaluationResult {
   postId: string;
@@ -54,18 +55,6 @@ export async function POST(request: NextRequest) {
       await request.json(),
     );
 
-    // Verify user exists in database
-    const [userRecord] = await db
-      .select({ id: projects.userId })
-      .from(projects)
-      .where(eq(projects.userId, userId))
-      .limit(1);
-
-    if (!userRecord) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Verify project ownership
     const [projectRecord] = await db
       .select({
         id: projects.id,
@@ -126,7 +115,7 @@ AGE: ${Math.floor((Date.now() - post.created_utc * 1000) / (1000 * 60 * 60))} ho
 Provide detailed evaluation with specific reasoning for your scores.`;
 
         const { object } = await generateObject({
-          model: google("gemini-1.5-flash"),
+          model: google(MODELS.GEMINI_2_5_FLASH),
           schema: EvaluationResultSchema,
           system: systemPrompt,
           prompt: userPrompt,

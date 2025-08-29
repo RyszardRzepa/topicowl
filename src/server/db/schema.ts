@@ -587,3 +587,89 @@ export const socialPosts = contentbotSchema.table(
     projectIdIdx: index("social_posts_project_id_idx").on(table.projectId),
   }),
 );
+
+// Reddit tasks - the core of everything for weekly Reddit engagement
+export const redditTasks = contentbotSchema.table(
+  "reddit_tasks",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+
+    // Scheduling
+    scheduledDate: timestamp("scheduled_date", { withTimezone: true }).notNull(),
+    taskOrder: integer("task_order").default(1), // ordering within a day
+
+    // Task details
+    taskType: varchar("task_type", { length: 20 }).notNull(), // 'comment' or 'post'
+    subreddit: varchar("subreddit", { length: 255 }).notNull(),
+    searchKeywords: text("search_keywords"), // for finding relevant threads
+    prompt: text("prompt").notNull(), // what to write about
+    aiDraft: text("ai_draft"), // optional AI-generated content
+
+    // Completion tracking
+    status: varchar("status", { length: 20 }).default("pending").notNull(), // 'pending', 'completed', 'skipped'
+    redditUrl: text("reddit_url"), // link to actual submission
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    karmaEarned: integer("karma_earned").default(0),
+
+    // Metadata
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    projectDateIdx: index("reddit_tasks_project_date_idx").on(
+      table.projectId,
+      table.scheduledDate,
+    ),
+    statusIdx: index("reddit_tasks_status_idx").on(table.status),
+  }),
+);
+
+// User preferences for generating Reddit tasks
+export const redditSettings = contentbotSchema.table(
+  "reddit_settings",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+
+    // Generation preferences
+    tasksPerDay: integer("tasks_per_day").default(1),
+    commentRatio: integer("comment_ratio").default(80), // 80% comments, 20% posts (stored as integer percentage)
+
+    // Targeting
+    targetSubreddits: jsonb("target_subreddits").default([]).notNull(), // ["r/SaaS", "r/startups"]
+    expertiseTopics: jsonb("expertise_topics").default([]).notNull(), // for better prompt generation
+
+    // Settings
+    autoGenerateWeekly: boolean("auto_generate_weekly").default(true),
+    lastGeneratedDate: timestamp("last_generated_date", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    projectUniqueIdx: uniqueIndex("reddit_settings_project_unique_idx").on(
+      table.projectId,
+    ),
+  }),
+);

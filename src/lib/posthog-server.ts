@@ -14,7 +14,15 @@ export async function logServerError(
   error: unknown,
   params: { operation: string },
 ) {
-  console.log("heee");
+  // Do not send PostHog events in development
+  if (process.env.NODE_ENV !== "production") {
+    // Still log to console for local visibility
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    console.error(
+      `[DEV SERVER ERROR] Operation: ${params.operation} | Error: ${errorObj.message}${errorObj.stack ? "\nStack: " + errorObj.stack : ""}`,
+    );
+    return;
+  }
   const { userId } = await auth().catch();
 
   // Convert unknown error to Error object for PostHog
