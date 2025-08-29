@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json() as z.infer<typeof CreateAutomationSchema>;
     const validatedData = CreateAutomationSchema.parse(body);
 
     // Verify user exists in database
@@ -178,7 +178,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json() as z.infer<typeof UpdateAutomationSchema>;
     const validatedData = UpdateAutomationSchema.parse(body);
 
     // Verify user exists in database
