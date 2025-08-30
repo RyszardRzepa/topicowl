@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code: code,
-          redirect_uri: `${API_BASE_URL}/api/social/auth/reddit/callback`,
+          redirect_uri: `${API_BASE_URL}/api/reddit/callback`,
         }),
       },
     );
