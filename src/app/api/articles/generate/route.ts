@@ -6,12 +6,7 @@ import type { ApiResponse, VideoEmbed } from "@/types";
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
 import { db } from "@/server/db";
-import {
-  articles,
-  articleGeneration,
-  users,
-  projects,
-} from "@/server/db/schema";
+import { articles, articleGeneration, users, projects } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { hasCredits, deductCredit } from "@/lib/utils/credits";
 
@@ -105,32 +100,23 @@ async function validateAndSetupGeneration(
     throw new Error("Article generation already in progress");
   }
 
-  // Update article status to generating
-  console.log("Updating article status to generating", { articleId: id });
-  await db
-    .update(articles)
-    .set({
-      status: "generating",
-      updatedAt: new Date(),
-    })
-    .where(eq(articles.id, id));
-
   const keywords = Array.isArray(existingArticle.keywords)
     ? (existingArticle.keywords as string[])
     : [];
+  const effectiveKeywords = keywords.length > 0 ? keywords : [existingArticle.title];
 
   // Generate related articles early so we can include them in the immediate response
   const relatedArticles = await getRelatedArticles(
     existingArticle.projectId,
     existingArticle.title,
-    keywords,
+    effectiveKeywords,
   );
 
   return {
     articleId: id,
     userId: userRecord.id,
     article: existingArticle,
-    keywords: keywords.length > 0 ? keywords : [existingArticle.title],
+    keywords: effectiveKeywords,
     relatedArticles,
   };
 }
@@ -162,19 +148,24 @@ async function createOrResetArticleGeneration(
     .limit(1);
 
   if (existingRecord) {
+    const existingRelated = Array.isArray(existingRecord.relatedArticles)
+      ? existingRecord.relatedArticles
+      : [];
+
     console.log("Reusing existing generation record", {
       generationId: existingRecord.id,
       currentStatus: existingRecord.status,
       previousQualityControlReport: existingRecord.qualityControlReport,
+      existingRelatedArticlesCount: existingRelated.length,
     });
 
-    // Reset the existing record for a new generation attempt
+    // Reset the existing record for a new generation attempt while preserving related articles if any
     const [updatedRecord] = await db
       .update(articleGeneration)
       .set({
         status: "pending",
         progress: 0,
-        startedAt: new Date(),
+        startedAt: null, // defer startedAt to actual start
         completedAt: null,
         error: null,
         errorDetails: null,
@@ -184,7 +175,7 @@ async function createOrResetArticleGeneration(
         researchData: {},
         seoReport: {},
         imageKeywords: [],
-        relatedArticles: [], // Clear previous related articles to avoid stale data
+        relatedArticles: existingRelated.length > 0 ? existingRelated : [],
         updatedAt: new Date(),
       })
       .where(eq(articleGeneration.id, existingRecord.id))
@@ -207,11 +198,12 @@ async function createOrResetArticleGeneration(
       projectId: article.projectId,
       status: "pending",
       progress: 0,
-      startedAt: new Date(),
+      startedAt: null, // defer startedAt to actual start
       validationReport: "",
       researchData: {},
       seoReport: {},
       imageKeywords: [],
+      relatedArticles: [],
     })
     .returning();
 
@@ -351,7 +343,7 @@ async function writeArticle(
     researchData: researchData,
     title,
     keywords,
-    coverImage: coverImageUrl || undefined,
+    coverImage: coverImageUrl ?? undefined,
     videos,
     userId,
     projectId,
@@ -665,33 +657,33 @@ async function finalizeArticle(
     updateData.coverImageAlt = coverImageAlt;
   }
 
-  console.log("Finalizing article with SEO data", {
-    articleId,
-    hasSlug: !!updateData.slug,
-    hasMetaDescription: !!updateData.metaDescription,
-    metaKeywordsCount: updateData.metaKeywords?.length ?? 0,
-    hasCoverImage: !!coverImageUrl,
-    draftContentLength: updateData.draft.length,
-    draftContentWordCount: updateData.draft
-      .split(/\s+/)
-      .filter((word) => word.length > 0).length,
-    draftContentPreview: updateData.draft.substring(0, 200) + "...",
-  });
-
   await db.update(articles).set(updateData).where(eq(articles.id, articleId));
+
+  const generationUpdate: Record<string, unknown> = {
+    status: "completed",
+    progress: 100,
+    completedAt: new Date(),
+    draftContent: content,
+    updatedAt: new Date(),
+  };
+
+  // Only update relatedArticles if writeData has them and they're non-empty
+  if (writeData.relatedPosts && writeData.relatedPosts.length > 0) {
+    generationUpdate.relatedArticles = writeData.relatedPosts;
+    console.log("Updating related articles in generation record", {
+      generationId,
+      count: writeData.relatedPosts.length,
+    });
+  } else {
+    console.log("Keeping existing related articles in generation record", {
+      generationId,
+    });
+  }
 
   await db
     .update(articleGeneration)
-    .set({
-      status: "completed",
-      progress: 100,
-      completedAt: new Date(),
-      draftContent: content,
-      relatedArticles: writeData.relatedPosts ?? [],
-      updatedAt: new Date(),
-    })
+    .set(generationUpdate)
     .where(eq(articleGeneration.id, generationId));
-
   // Deduct 1 credit from user after successful generation
   const creditDeducted = await deductCredit(userId);
   if (!creditDeducted) {
@@ -784,6 +776,7 @@ async function generateArticle(context: GenerationContext): Promise<void> {
     console.log("Starting article generation", {
       articleId,
       title: article.title,
+      relatedArticlesCount: context.relatedArticles?.length ?? 0,
     });
 
     // Create or reuse generation record
@@ -793,9 +786,45 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       throw new Error("Failed to create generation record");
     }
 
-    console.log("Created generation record", {
-      generationId: generationRecord.id,
-    });
+    // Mark article as generating and set generation startedAt now
+    await db.update(articles).set({ status: "generating", updatedAt: new Date() }).where(eq(articles.id, articleId));
+    await db
+      .update(articleGeneration)
+      .set({ startedAt: new Date(), updatedAt: new Date() })
+      .where(eq(articleGeneration.id, generationRecord.id));
+
+    // Decide how to set related articles on the generation record
+    const existingRelated = Array.isArray(generationRecord.relatedArticles)
+      ? generationRecord.relatedArticles
+      : [];
+    const shouldUpdateRelatedArticles =
+      (context.relatedArticles?.length ?? 0) > 0 && existingRelated.length === 0;
+
+    if (shouldUpdateRelatedArticles) {
+      try {
+        await db
+          .update(articleGeneration)
+          .set({
+            relatedArticles: context.relatedArticles,
+            updatedAt: new Date(),
+          })
+          .where(eq(articleGeneration.id, generationRecord.id));
+
+        console.log("Saved new related articles to generation record", {
+          generationId: generationRecord.id,
+          count: context.relatedArticles.length,
+        });
+      } catch (e) {
+        console.log("Failed to save initial related articles", e);
+      }
+    } else if (existingRelated.length > 0) {
+      // Use existing related articles on the record if present
+      context.relatedArticles = existingRelated;
+      console.log("Using existing related articles from generation record", {
+        generationId: generationRecord.id,
+        count: existingRelated.length,
+      });
+    }
 
     // Phase 1: Research
     console.log("Starting research phase");
@@ -847,7 +876,8 @@ async function generateArticle(context: GenerationContext): Promise<void> {
 
     // Phase 5: Quality Control
     console.log("Starting quality control phase");
-    await updateGenerationProgress(generationRecord.id, "quality-control", 60);
+    // Remove duplicate progress set; writeArticle already set 60 at end
+    // await updateGenerationProgress(generationRecord.id, "quality-control", 60);
     apiCallsLog.push("quality-control-service");
 
     const qualityControlStartTime = Date.now();
@@ -911,7 +941,8 @@ async function generateArticle(context: GenerationContext): Promise<void> {
       !validationData.rawValidationText
         .toLowerCase()
         .includes("validation skipped");
-    const hasQualityControlIssues = qualityControlData.issues !== null;
+    const hasQualityControlIssues =
+      qualityControlData.issues !== null && qualityControlData.issues !== undefined;
 
     if (hasValidationIssues || hasQualityControlIssues) {
       apiCallsLog.push("update-service");
@@ -958,31 +989,15 @@ async function generateArticle(context: GenerationContext): Promise<void> {
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
-
-    console.log("userId!!!", userId);
     if (!userId) {
-      console.log("Unauthorized request - no user ID");
       return NextResponse.json(
         { success: false, error: "Unauthorized" } as ApiResponse,
         { status: 401 },
       );
     }
 
-    // Extract cookies/headers for forwarding to internal API calls
-    const cookieHeader = req.headers.get("cookie");
-    const authHeaders: Record<string, string> = {};
-    if (cookieHeader) {
-      authHeaders.cookie = cookieHeader;
-    }
-
     const body = (await req.json()) as ArticleGenerationRequest;
     const { articleId, forceRegenerate } = body;
-
-    console.log("Generate API request received", {
-      articleId,
-      forceRegenerate,
-      userId,
-    });
 
     // Validate request and setup generation context
     const context = await validateAndSetupGeneration(
@@ -991,15 +1006,9 @@ export async function POST(req: NextRequest) {
       forceRegenerate,
     );
 
-    console.log("Starting background generation process", {
-      articleTitle: context.article.title,
-      currentStatus: context.article.status,
-    });
-
-    // Use waitUntil to run generation in background
+    // Run generation in background
     waitUntil(generateArticle(context));
 
-    console.log("Generation request processed successfully");
     return NextResponse.json({
       success: true,
       data: {
@@ -1013,7 +1022,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Error generating article. Please try gain.",
+        error: "Error generating article. Please try again.",
       } as ApiResponse,
       { status: 500 },
     );

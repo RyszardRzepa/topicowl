@@ -11,6 +11,16 @@
 				"$tsc",
 				"$eslint-stylish"
 			]
+		},
+		{
+			"label": "Typecheck",
+			"type": "shell",
+			"command": "npm run typecheck",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
 		}
 	]
 }

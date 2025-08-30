@@ -9,7 +9,7 @@ import {
   webhookDeliveries,
   users,
 } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
 import crypto from "crypto";
 
@@ -82,6 +82,7 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
         .select({ relatedArticles: articleGeneration.relatedArticles })
         .from(articleGeneration)
         .where(eq(articleGeneration.articleId, article.id))
+        .orderBy(desc(articleGeneration.createdAt))
         .limit(1);
 
       relatedArticles = Array.isArray(generationRecord?.relatedArticles)

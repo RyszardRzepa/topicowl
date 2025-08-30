@@ -1,3 +1,5 @@
+IMPORTANT: Ask me questions for any clarification for the task before writing any code.
+
 # AI Coding Agent Instructions
 
 ## Core Architecture

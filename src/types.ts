@@ -309,3 +309,46 @@ export interface ApiResponse<T = unknown> {
   error?: string;
   message?: string;
 }
+
+// Reddit Task Types
+export interface RedditTask {
+  id: number;
+  projectId: number;
+  userId: string;
+  scheduledDate: Date;
+  taskOrder: number;
+  taskType: 'comment' | 'post';
+  subreddit: string;
+  searchKeywords: string | null;
+  prompt: string;
+  aiDraft: string | null;
+  status: 'pending' | 'completed' | 'skipped';
+  redditUrl: string | null;
+  completedAt: Date | null;
+  karmaEarned: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WeeklyTasksResponse {
+  success: boolean;
+  weekStartDate: string;
+  weekEndDate: string;
+  tasks: Record<string, RedditTask[]>; // Grouped by day (YYYY-MM-DD format)
+  statistics: {
+    totalTasks: number;
+    completedTasks: number;
+    skippedTasks: number;
+    pendingTasks: number;
+    completionRate: number;
+  };
+}
+
+export interface RedditSettings {
+  tasksPerDay: number;
+  commentRatio: number;
+  targetSubreddits: string[];
+  expertiseTopics: string[];
+  autoGenerateWeekly: boolean;
+  lastGeneratedDate?: string;
+}

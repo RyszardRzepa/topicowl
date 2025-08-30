@@ -1,0 +1,1 @@
+Before writing any code ask clarifying questions to user request. To make sure we are implementing the exact feature user is asking.

@@ -2,7 +2,31 @@ Before writing any code create.
 
 Create first doc md file in dir /docs for the plan implementation based on this todo template:
 
-# Implementation Plan
+
+  # Design Document: AI SEO Writer Example
+
+## Overview
+
+The AI SEO Writer is a sophisticated multi-agent system built on Next.js App Router that automates the entire SEO content creation process. It leverages Google Gemini AI for search and research capabilities, Claude Sonnet for high-quality content writing, and integrates with various external APIs for comprehensive SEO analysis and content optimization.
+
+This document outlines the technical architecture, components, data models, and integration points required to implement the system according to the requirements.
+
+
+### 2. Agent Components Example
+
+#### Website Analysis Agent
+- **Purpose**: Analyze website content and generate article settings
+- **Inputs**: Website URL, user preferences
+- **Outputs**: Article settings configuration
+- **Technologies**: Google Gemini Pro, web scraping
+- **Key Methods**:
+  - `analyzeWebsite(url: string): WebsiteAnalysis`
+  - `extractWebsiteMetadata(analysis: WebsiteAnalysis): WebsiteMetadata`
+  - `identifyTargetAudience(analysis: WebsiteAnalysis): AudienceProfile`
+  - `generateArticleSettings(metadata: WebsiteMetadata, audience: AudienceProfile): ArticleSettings`
+
+
+# Implementation Plan Example
 
 - [x] 1. Set up core API route for SEO strategy analysis
   - Create `/api/tools/seo-cluster-map/analyze/route.ts` with POST endpoint
@@ -53,30 +77,3 @@ Create first doc md file in dir /docs for the plan implementation based on this 
   - Add proper error boundaries and fallback UI
   - Ensure the page works without any authentication checks
   - _Requirements: 4.1, 4.3, 5.4, 5.6_
-
-
-  # Design Document: AI SEO Writer
-
-## Overview
-
-The AI SEO Writer is a sophisticated multi-agent system built on Next.js App Router that automates the entire SEO content creation process. It leverages Google Gemini AI for search and research capabilities, Claude Sonnet for high-quality content writing, and integrates with various external APIs for comprehensive SEO analysis and content optimization.
-
-This document outlines the technical architecture, components, data models, and integration points required to implement the system according to the requirements.
-
-## Architecture
-
-The system follows a microservices-oriented architecture with a central orchestration layer managing multiple specialized AI agents. Each agent is responsible for specific tasks within the content creation workflow.
-
-
-### 2. Agent Components
-
-#### Website Analysis Agent
-- **Purpose**: Analyze website content and generate article settings
-- **Inputs**: Website URL, user preferences
-- **Outputs**: Article settings configuration
-- **Technologies**: Google Gemini Pro, web scraping
-- **Key Methods**:
-  - `analyzeWebsite(url: string): WebsiteAnalysis`
-  - `extractWebsiteMetadata(analysis: WebsiteAnalysis): WebsiteMetadata`
-  - `identifyTargetAudience(analysis: WebsiteAnalysis): AudienceProfile`
-  - `generateArticleSettings(metadata: WebsiteMetadata, audience: AudienceProfile): ArticleSettings`

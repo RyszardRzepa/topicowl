@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         client_id: env.REDDIT_CLIENT_ID,
         response_type: "code",
         state,
-        redirect_uri: `${API_BASE_URL}/api/social/auth/reddit/callback`,
+        redirect_uri: `${API_BASE_URL}/api/reddit/callback`,
         duration: "permanent",
         scope: "identity mysubreddits read submit",
       }).toString();

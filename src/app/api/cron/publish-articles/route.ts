@@ -6,7 +6,7 @@ import {
   projects,
   webhookDeliveries,
 } from "@/server/db/schema";
-import { eq, and, lte } from "drizzle-orm";
+import { eq, and, lte, desc } from "drizzle-orm";
 import crypto from "crypto";
 
 // Types colocated with this API route
@@ -115,6 +115,7 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
         .select({ relatedArticles: articleGeneration.relatedArticles })
         .from(articleGeneration)
         .where(eq(articleGeneration.articleId, article.id))
+        .orderBy(desc(articleGeneration.createdAt))
         .limit(1);
 
       relatedArticles = Array.isArray(generationRecord?.relatedArticles)

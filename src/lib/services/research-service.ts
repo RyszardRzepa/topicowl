@@ -737,7 +737,7 @@ export async function performResearchDirect(
         tools: {
           google_search: google.tools.googleSearch({}),
         },
-        system: `Ensure the intent is current and based on real-time top results.`,
+        system: `Ensure the intent is current and based on real-time latest top results. Today is ${new Date().toISOString()}`,
         prompt: prompts.research(title, keywords, notes, domainsToExclude),
       });
 

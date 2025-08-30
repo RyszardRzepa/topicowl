@@ -12,7 +12,13 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    posthog.captureException(error);
+    if (process.env.NODE_ENV === "production") {
+      try {
+        posthog.captureException(error);
+      } catch (_) {
+        // no-op in development or if posthog not initialized
+      }
+    }
   }, [error]);
 
   return (
