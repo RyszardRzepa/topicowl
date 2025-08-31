@@ -105,22 +105,32 @@ export default function SocialDashboard() {
 
     try {
       setLoading("accounts", true);
-      const response = await fetch(
-        `/api/social/accounts?projectId=${currentProject.id}`,
+      
+      // Check Reddit connection
+      const redditResponse = await fetch(
+        `/api/reddit/status?projectId=${currentProject.id}`,
       );
 
-      if (!response.ok) {
-        const error = (await response.json()) as { error?: string };
-        throw new Error(error.error ?? "Failed to load accounts");
+      const accounts: Accounts = {
+        reddit: { connected: false },
+        x: { connected: false }, // X/Twitter not implemented yet
+      };
+
+      if (redditResponse.ok) {
+        const redditData = (await redditResponse.json()) as {
+          connected: boolean;
+          connection?: {
+            redditUsername: string;
+          };
+        };
+        
+        accounts.reddit = {
+          connected: redditData.connected,
+          username: redditData.connection?.redditUsername,
+        };
       }
 
-      const data = (await response.json()) as {
-        success: boolean;
-        data?: Accounts;
-      };
-      if (data.success && data.data) {
-        setAccounts(data.data);
-      }
+      setAccounts(accounts);
     } catch (error) {
       console.error("Failed to load accounts:", error);
       toast.error(
@@ -178,7 +188,14 @@ export default function SocialDashboard() {
     (platform: "reddit" | "x") => {
       if (!currentProject) return;
       setConnecting(platform);
-      window.location.href = `/api/social/auth/${platform}?projectId=${currentProject.id}`;
+      
+      if (platform === "reddit") {
+        window.location.href = `/api/reddit/auth?projectId=${currentProject.id}`;
+      } else {
+        // X/Twitter not implemented yet
+        toast.error("X/Twitter integration is not yet available");
+        setConnecting(null);
+      }
     },
     [currentProject],
   );

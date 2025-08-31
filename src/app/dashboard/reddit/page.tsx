@@ -71,13 +71,13 @@ export default function RedditPage() {
 
     try {
       const response = await fetch(
-        `/api/social/accounts?projectId=${currentProjectId}`,
+        `/api/reddit/status?projectId=${currentProjectId}`,
       );
       if (response.ok) {
         const data = (await response.json()) as {
-          data?: { reddit?: { connected: boolean } };
+          connected: boolean;
         };
-        setRedditConnected(data.data?.reddit?.connected ?? false);
+        setRedditConnected(data.connected);
       }
     } catch (error) {
       console.error("Error checking Reddit connection:", error);
