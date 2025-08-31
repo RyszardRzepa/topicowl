@@ -185,16 +185,67 @@ export async function POST(request: NextRequest) {
 
       console.log(`Fetching last 30 posts from r/${subredditName}`);
       try {
-        const resp = await fetch(
-          `https://www.reddit.com/${subPath}/new.json?limit=30`,
-          {
-            headers: { "User-Agent": "Contentbot/1.0" },
-            cache: "no-store",
-          },
-        );
+        // Try to get Reddit access token if available
+        const clerk = await clerkClient();
+        const user = await clerk.users.getUser(userRecord.id);
+        const metadata = (user.privateMetadata ?? {}) as ClerkPrivateMetadata;
+        const projectConnection = metadata.redditTokens?.[validatedData.projectId.toString()];
+        
+        let resp;
+        if (projectConnection) {
+          // Use authenticated Reddit API (more reliable in production)
+          try {
+            const accessToken = await refreshRedditToken(projectConnection.refreshToken);
+            resp = await fetch(
+              `https://oauth.reddit.com/${subPath}/new?limit=30`,
+              {
+                headers: { 
+                  "Authorization": `Bearer ${accessToken}`,
+                  "User-Agent": "web:contentbot:v1.0.0 (by /u/contentbot-dev)" 
+                },
+                cache: "no-store",
+              },
+            );
+          } catch (authError) {
+            console.warn(`Failed to use authenticated API for r/${subredditName}, falling back to public API:`, authError);
+            // Fall back to public API
+            resp = await fetch(
+              `https://www.reddit.com/${subPath}/new.json?limit=30`,
+              {
+                headers: { 
+                  "User-Agent": "web:contentbot:v1.0.0 (by /u/contentbot-dev)",
+                  "Accept": "application/json"
+                },
+                cache: "no-store",
+              },
+            );
+          }
+        } else {
+          // Use public API with better headers
+          resp = await fetch(
+            `https://www.reddit.com/${subPath}/new.json?limit=30`,
+            {
+              headers: { 
+                "User-Agent": "web:contentbot:v1.0.0 (by /u/contentbot-dev)",
+                "Accept": "application/json"
+              },
+              cache: "no-store",
+            },
+          );
+        }
         
         if (!resp.ok) {
-          console.warn(`Failed to fetch posts from r/${subredditName}: ${resp.status}`);
+          console.warn(`Failed to fetch posts from r/${subredditName}: ${resp.status} ${resp.statusText}`);
+          
+          if (resp.status === 403) {
+            console.warn(`403 Forbidden for r/${subredditName} - This typically happens in production due to:`);
+            console.warn(`- Server IP being flagged by Reddit as data center/hosting provider`);
+            console.warn(`- Consider using Reddit's OAuth API with proper authentication`);
+            console.warn(`- Or implement a proxy/rotation strategy`);
+          } else if (resp.status === 429) {
+            console.warn(`429 Rate Limited for r/${subredditName} - Adding delay before next request`);
+          }
+          
           continue;
         }
         
@@ -498,6 +549,7 @@ Return only the reply text, nothing else. Try to make the reply short, max 5 sen
     }
 
     // Only generate tasks for the posts we found - no artificial padding
+    // Limit to maximum 7 tasks for the week
     const finalTasks: Array<{
       dayOfWeek:
         | "Monday"
@@ -526,8 +578,13 @@ Return only the reply text, nothing else. Try to make the reply short, max 5 sen
       "Sunday",
     ] as const;
 
-    commentTasks.forEach((task, index) => {
-      const dayIndex = index % 7;
+    // Limit to maximum 7 tasks
+    const tasksToCreate = Math.min(commentTasks.length, 7);
+    console.log(`Creating ${tasksToCreate} tasks from ${commentTasks.length} available relevant posts`);
+
+    for (let i = 0; i < tasksToCreate; i++) {
+      const task = commentTasks[i]!;
+      const dayIndex = i % 7;
       finalTasks.push({
         dayOfWeek: days[dayIndex]!,
         taskType: "comment",
@@ -537,7 +594,7 @@ Return only the reply text, nothing else. Try to make the reply short, max 5 sen
         aiDraft: task.aiDraft,
         redditUrl: task.redditUrl,
       });
-    });
+    }
 
     // Convert to DB records
     const taskRecords = finalTasks.map((task, index) => {
