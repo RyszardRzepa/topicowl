@@ -145,7 +145,51 @@ export default function RedditPage() {
 
       if (response.ok) {
         toast.success("Task marked as completed!");
-        void fetchWeekData(); // Refresh data
+        // In-place state update to avoid refetch
+        setWeekData((prev) => {
+          if (!prev) return prev;
+          const updated: WeeklyTasksResponse = {
+            ...prev,
+            tasks: { ...prev.tasks },
+            statistics: { ...prev.statistics },
+          };
+
+          for (const dayKey of Object.keys(updated.tasks)) {
+            const dayTasks = updated.tasks[dayKey];
+            if (!dayTasks) continue;
+            const idx = dayTasks.findIndex((t) => t.id === taskId);
+            if (idx !== -1) {
+              const oldTask = dayTasks[idx]!; // assert exists
+              const wasCompleted = oldTask.status === "completed";
+              const wasSkipped = oldTask.status === "skipped";
+
+              const newTask = {
+                ...oldTask,
+                status: "completed" as const,
+                redditUrl: redditUrl ?? oldTask.redditUrl,
+                karmaEarned: karmaEarned ?? oldTask.karmaEarned,
+              };
+
+              const newDayTasks = [...dayTasks];
+              newDayTasks[idx] = newTask as typeof oldTask;
+              updated.tasks[dayKey] = newDayTasks;
+
+              if (!wasCompleted) {
+                updated.statistics.completedTasks += 1;
+                if (wasSkipped) {
+                  updated.statistics.skippedTasks = Math.max(0, updated.statistics.skippedTasks - 1);
+                } else {
+                  updated.statistics.pendingTasks = Math.max(0, updated.statistics.pendingTasks - 1);
+                }
+                const total = updated.statistics.totalTasks;
+                updated.statistics.completionRate = total > 0 ? Math.round((updated.statistics.completedTasks / total) * 100) : 0;
+              }
+              break;
+            }
+          }
+
+          return updated;
+        });
       } else {
         const error = (await response.json()) as { error?: string };
         toast.error(error.error ?? "Failed to complete task");
@@ -173,7 +217,49 @@ export default function RedditPage() {
 
       if (response.ok) {
         toast.success("Task skipped");
-        void fetchWeekData(); // Refresh data
+        // In-place state update to avoid refetch
+        setWeekData((prev) => {
+          if (!prev) return prev;
+          const updated: WeeklyTasksResponse = {
+            ...prev,
+            tasks: { ...prev.tasks },
+            statistics: { ...prev.statistics },
+          };
+
+          for (const dayKey of Object.keys(updated.tasks)) {
+            const dayTasks = updated.tasks[dayKey];
+            if (!dayTasks) continue;
+            const idx = dayTasks.findIndex((t) => t.id === taskId);
+            if (idx !== -1) {
+              const oldTask = dayTasks[idx]!;
+              const wasSkipped = oldTask.status === "skipped";
+              const wasCompleted = oldTask.status === "completed";
+
+              const newTask = {
+                ...oldTask,
+                status: "skipped" as const,
+              };
+
+              const newDayTasks = [...dayTasks];
+              newDayTasks[idx] = newTask as typeof oldTask;
+              updated.tasks[dayKey] = newDayTasks;
+
+              if (!wasSkipped) {
+                updated.statistics.skippedTasks += 1;
+                if (wasCompleted) {
+                  updated.statistics.completedTasks = Math.max(0, updated.statistics.completedTasks - 1);
+                } else {
+                  updated.statistics.pendingTasks = Math.max(0, updated.statistics.pendingTasks - 1);
+                }
+                const total = updated.statistics.totalTasks;
+                updated.statistics.completionRate = total > 0 ? Math.round((updated.statistics.completedTasks / total) * 100) : 0;
+              }
+              break;
+            }
+          }
+
+          return updated;
+        });
       } else {
         const error = (await response.json()) as { error?: string };
         toast.error(error.error ?? "Failed to skip task");

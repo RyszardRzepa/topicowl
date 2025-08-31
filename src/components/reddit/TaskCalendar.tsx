@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   format,
   startOfWeek,
@@ -153,6 +153,7 @@ const taskCategories = {
 const VISIBLE_START_HOUR = 0; // 12 AM
 const VISIBLE_END_HOUR = 24; // Midnight (exclusive upper bound)
 const VISIBLE_HOURS = VISIBLE_END_HOUR - VISIBLE_START_HOUR;
+const DEFAULT_SCROLL_TO_HOUR = 4; // Default view starts at 4 AM
 // Task visual height equals one-hour slot
 const TASK_BLOCK_MINUTES = 60;
 
@@ -174,6 +175,7 @@ export function TaskCalendar({
   projectId,
 }: GoogleCalendarProps) {
   const router = useRouter();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [currentDate, setCurrentDate] = useState(() => {
     // Start with the week data's start date if available, otherwise current date
@@ -183,6 +185,17 @@ export function TaskCalendar({
       return new Date();
     }
   });
+
+  // Auto-scroll to 4 AM on mount and when week changes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      // Each hour slot is 48px high (h-12 = 3rem = 48px)
+      const hourHeight = 48;
+      const scrollPosition = DEFAULT_SCROLL_TO_HOUR * hourHeight;
+      scrollContainerRef.current.scrollTop = scrollPosition;
+    }
+  }, [weekData.weekStartDate]); // Re-scroll when week changes
+
   const [draggedTask, setDraggedTask] = useState<RedditTask | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<{
     day: Date;
@@ -535,7 +548,10 @@ export function TaskCalendar({
       {/* Calendar Grid */}
       <div className="flex-1 overflow-hidden">
         {/* Single internal scroll container for the calendar view */}
-        <div className="h-full overflow-auto overscroll-contain">
+        <div 
+          ref={scrollContainerRef}
+          className="h-full overflow-auto overscroll-contain"
+        >
           {/* Optional empty-state helper above the grid */}
           {!currentWeekHasTasks && (
             <div className="text-muted-foreground px-4 py-2 text-center text-sm">
