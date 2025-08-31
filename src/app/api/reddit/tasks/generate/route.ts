@@ -34,16 +34,6 @@ const EvaluationResultSchema = z.object({
   suggestedApproach: z.string().optional(),
 });
 
-// Schema for keyword generation
-const KeywordGenerationSchema = z.object({
-  keywords: z.array(
-    z.object({
-      subreddit: z.string(),
-      searchTerms: z.array(z.string()).min(1).max(2),
-    }),
-  ),
-});
-
 // Schema for reply draft generation
 const ReplyDraftSchema = z.object({ draft: z.string() });
 
@@ -171,57 +161,10 @@ export async function POST(request: NextRequest) {
             projectRecord,
           );
 
-    // Generate keywords for each subreddit using AI
-    console.log("=== GENERATING KEYWORDS ===");
-    const keywordMap = new Map<string, string[]>();
+    // Skip keyword generation - we'll fetch the last 30 posts from each subreddit directly
+    console.log("=== FETCHING LATEST POSTS ===");
 
-    try {
-      const keywordPrompt = `Generate 1-2 relevant search terms for each subreddit to find posts where our business can provide value.
-
-CONTEXT:
-Company: ${projectRecord.companyName ?? "Unknown"}
-Website: ${projectRecord.domain ?? ""}
-Product/Service: ${projectRecord.productDescription ?? ""}
-Project Keywords: ${((projectRecord.keywords as string[]) ?? []).join(", ")}
-
-TARGET SUBREDDITS: ${subredditsToUse.join(", ")}
-
-For each subreddit, generate search terms that:
-1. Are specific to that community's interests and language
-2. Relate to problems our business solves
-3. Would find posts where helpful (non-promotional) advice is welcome
-4. Avoid overly commercial or salesy terms
-
-Examples:
-- r/entrepreneur: "scaling challenges", "founder struggles"  
-- r/startups: "mvp feedback", "product validation"
-- r/SaaS: "subscription pricing", "churn reduction"
-
-Return 1-2 search terms per subreddit that would find posts where we can genuinely help.`;
-
-      const { object: keywordResult } = await generateObject({
-        model: google(MODELS.GEMINI_2_5_FLASH),
-        schema: KeywordGenerationSchema,
-        system:
-          "You are an expert at finding relevant discussion opportunities on Reddit where businesses can provide genuine value without being promotional.",
-        prompt: keywordPrompt,
-        temperature: 0.3,
-      });
-
-      // Build keyword map
-      for (const item of keywordResult.keywords) {
-        const subredditName = item.subreddit.replace("r/", "");
-        keywordMap.set(subredditName, item.searchTerms);
-        console.log(`${item.subreddit}: [${item.searchTerms.join(", ")}]`);
-      }
-    } catch (error) {
-      console.warn(
-        "Keyword generation failed, using fallback approach:",
-        error,
-      );
-    }
-
-    // Fetch latest posts (10 per subreddit) from public Reddit API
+    // Fetch latest 30 posts from each subreddit from public Reddit API
     type RawRedditPost = {
       id: string;
       subreddit: string;
@@ -239,133 +182,69 @@ Return 1-2 search terms per subreddit that would find posts where we can genuine
     for (const sub of subredditsToUse) {
       const subPath = sub.startsWith("r/") ? sub : `r/${sub}`;
       const subredditName = sub.replace("r/", "");
-      const searchTerms = keywordMap.get(subredditName) ?? [];
 
-      let postsFound = false;
-
-      // Try keyword-based search first
-      if (searchTerms.length > 0) {
-        for (const searchTerm of searchTerms) {
-          try {
-            console.log(`Searching r/${subredditName} for: "${searchTerm}"`);
-            const searchUrl = `https://www.reddit.com/${subPath}/search.json?q=${encodeURIComponent(searchTerm)}&restrict_sr=1&sort=new&limit=20&t=week`;
-
-            const resp = await fetch(searchUrl, {
-              headers: { "User-Agent": "Contentbot/1.0" },
-              cache: "no-store",
-            });
-
-            if (!resp.ok) continue;
-            const json = (await resp.json()) as {
-              data: {
-                children: Array<{
-                  data: {
-                    id: string;
-                    subreddit: string;
-                    title: string;
-                    selftext?: string;
-                    author: string;
-                    score: number;
-                    created_utc: number;
-                    num_comments: number;
-                    url: string;
-                    permalink: string;
-                  };
-                }>;
-              };
-            };
-
-            for (const child of json.data.children) {
-              const d = child.data;
-              latestPosts.push({
-                id: d.id,
-                subreddit: d.subreddit,
-                title: d.title,
-                selftext: d.selftext ?? "",
-                author: d.author,
-                score: d.score ?? 0,
-                created_utc: d.created_utc ?? Math.floor(Date.now() / 1000),
-                num_comments: d.num_comments ?? 0,
-                url: d.url,
-                redditUrl: `https://reddit.com${d.permalink}`,
-              });
-            }
-
-            if (json.data.children.length > 0) {
-              postsFound = true;
-              console.log(
-                `Found ${json.data.children.length} posts for "${searchTerm}" in r/${subredditName}`,
-              );
-            }
-          } catch (e) {
-            console.warn(
-              `Failed to search for "${searchTerm}" in ${subPath}:`,
-              e,
-            );
-          }
-        }
-      }
-
-      // Fallback to newest posts if keyword search didn't find anything
-      if (!postsFound) {
-        console.log(
-          `No keyword results for r/${subredditName}, falling back to newest posts`,
+      console.log(`Fetching last 30 posts from r/${subredditName}`);
+      try {
+        const resp = await fetch(
+          `https://www.reddit.com/${subPath}/new.json?limit=30`,
+          {
+            headers: { "User-Agent": "Contentbot/1.0" },
+            cache: "no-store",
+          },
         );
-        try {
-          const resp = await fetch(
-            `https://www.reddit.com/${subPath}/new.json?limit=40`,
-            {
-              headers: { "User-Agent": "Contentbot/1.0" },
-              cache: "no-store",
-            },
-          );
-          if (!resp.ok) continue;
-          const json = (await resp.json()) as {
-            data: {
-              children: Array<{
-                data: {
-                  id: string;
-                  subreddit: string;
-                  title: string;
-                  selftext?: string;
-                  author: string;
-                  score: number;
-                  created_utc: number;
-                  num_comments: number;
-                  url: string;
-                  permalink: string;
-                };
-              }>;
-            };
-          };
-          for (const child of json.data.children) {
-            const d = child.data;
-            latestPosts.push({
-              id: d.id,
-              subreddit: d.subreddit,
-              title: d.title,
-              selftext: d.selftext ?? "",
-              author: d.author,
-              score: d.score ?? 0,
-              created_utc: d.created_utc ?? Math.floor(Date.now() / 1000),
-              num_comments: d.num_comments ?? 0,
-              url: d.url,
-              redditUrl: `https://reddit.com${d.permalink}`,
-            });
-          }
-          console.log(
-            `Fetched ${json.data.children.length} newest posts from r/${subredditName}`,
-          );
-        } catch (e) {
-          console.warn(`Failed to fetch newest posts for ${subPath}:`, e);
+        
+        if (!resp.ok) {
+          console.warn(`Failed to fetch posts from r/${subredditName}: ${resp.status}`);
+          continue;
         }
+        
+        const json = (await resp.json()) as {
+          data: {
+            children: Array<{
+              data: {
+                id: string;
+                subreddit: string;
+                title: string;
+                selftext?: string;
+                author: string;
+                score: number;
+                created_utc: number;
+                num_comments: number;
+                url: string;
+                permalink: string;
+              };
+            }>;
+          };
+        };
+        
+        for (const child of json.data.children) {
+          const d = child.data;
+          latestPosts.push({
+            id: d.id,
+            subreddit: d.subreddit,
+            title: d.title,
+            selftext: d.selftext ?? "",
+            author: d.author,
+            score: d.score ?? 0,
+            created_utc: d.created_utc ?? Math.floor(Date.now() / 1000),
+            num_comments: d.num_comments ?? 0,
+            url: d.url,
+            redditUrl: `https://reddit.com${d.permalink}`,
+          });
+        }
+        
+        console.log(
+          `Fetched ${json.data.children.length} posts from r/${subredditName}`,
+        );
+      } catch (e) {
+        console.warn(`Failed to fetch posts from r/${subredditName}:`, e);
       }
     }
 
     console.log(`=== REDDIT POSTS FETCHING ===`);
     console.log(`Target subreddits: ${subredditsToUse.join(", ")}`);
     console.log(
-      `Fetched a total of ${latestPosts.length} posts for evaluation.`,
+      `Fetched a total of ${latestPosts.length} posts (last 30 from each subreddit) for evaluation.`,
     );
 
     if (latestPosts.length === 0) {
