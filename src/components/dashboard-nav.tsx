@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, MessageSquare } from "lucide-react";
+import { FileText, MessageSquare, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -13,10 +13,10 @@ const navigationItems = [
     icon: <FileText className="h-5 w-5" />,
   },
   {
-    href: "/dashboard/social",
-    label: "Social",
-    icon: <MessageSquare className="h-5 w-5" />,
-  },
+    href: "/dashboard/reddit",
+    label: "Reddit",
+    icon: <Calendar className="h-5 w-5" />,
+  }
 ];
 
 export function DashboardNav() {
@@ -27,7 +27,8 @@ export function DashboardNav() {
       {navigationItems.map((item) => {
         const isActive =
           pathname === item.href ||
-          (item.href === "/dashboard/articles" && pathname === "/dashboard");
+          (item.href === "/dashboard/articles" && pathname === "/dashboard") ||
+          (item.href === "/dashboard/reddit" && pathname?.startsWith("/dashboard/reddit"));
 
         return (
           <Button
