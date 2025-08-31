@@ -16,6 +16,8 @@ import { google } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { MODELS } from "@/constants";
 
+export const maxDuration = 800;
+
 const GenerateTasksSchema = z.object({
   projectId: z.number(),
   weekStartDate: z.string().optional(), // ISO date string, defaults to current Monday
