@@ -360,10 +360,22 @@ export default function RedditPage() {
           <p className="mx-auto mb-6 max-w-md text-gray-600">
             Generate your weekly Reddit engagement tasks to get started.
           </p>
-          <GenerateTasksButton
-            projectId={currentProjectId}
-            onTasksGenerated={() => void fetchWeekData()}
-          />
+          <div className="flex justify-center gap-3">
+            <GenerateTasksButton
+              projectId={currentProjectId}
+              onTasksGenerated={() => void fetchWeekData()}
+            />
+            <Button
+              variant="outline"
+              onClick={() => router.push("/dashboard/reddit/settings")}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Reddit Settings
+            </Button>
+          </div>
+          <p className="mt-4 text-sm text-gray-500">
+            Having trouble generating tasks? Check your Reddit settings to configure target subreddits and keywords.
+          </p>
         </div>
       ) : (
         weekData &&

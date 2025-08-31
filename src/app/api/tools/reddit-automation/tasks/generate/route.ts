@@ -319,7 +319,7 @@ Provide detailed evaluation with specific reasoning for your scores.`;
     // Sort by score desc and pick those recommended to reply first
     const relevantPosts = evaluated
       .sort((a, b) => b.score - a.score)
-      .filter((r) => r.shouldReply || r.score >= 8);
+      .filter((r) => r.shouldReply || r.score >= 6);
 
     if (relevantPosts.length === 0) {
       return NextResponse.json(
