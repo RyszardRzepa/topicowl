@@ -26,7 +26,7 @@ export function GenerateTasksButton({
 
     setGenerating(true);
     try {
-      const response = await fetch("/api/tools/reddit-automation/tasks/generate", {
+      const response = await fetch("/api/reddit/tasks/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

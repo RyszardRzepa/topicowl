@@ -339,7 +339,7 @@ export function TaskCalendar({
         } else {
           // Fallback to direct API call if no onTaskUpdate prop provided
           const response = await fetch(
-            `/api/tools/reddit-automation/tasks/${taskId}`,
+            `/api/reddit/tasks/${taskId}`,
             {
               method: "PUT",
               headers: {
@@ -407,7 +407,7 @@ export function TaskCalendar({
 
       const scheduledDateTime = `${newTaskData.scheduledDate}T${newTaskData.scheduledTime}:00`;
 
-      const response = await fetch("/api/tools/reddit-automation/tasks", {
+      const response = await fetch("/api/reddit/tasks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

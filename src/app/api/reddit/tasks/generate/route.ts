@@ -34,6 +34,16 @@ const EvaluationResultSchema = z.object({
   suggestedApproach: z.string().optional(),
 });
 
+// Schema for keyword generation
+const KeywordGenerationSchema = z.object({
+  keywords: z.array(
+    z.object({
+      subreddit: z.string(),
+      searchTerms: z.array(z.string()).min(1).max(2),
+    }),
+  ),
+});
+
 // Schema for reply draft generation
 const ReplyDraftSchema = z.object({ draft: z.string() });
 
@@ -161,6 +171,56 @@ export async function POST(request: NextRequest) {
             projectRecord,
           );
 
+    // Generate keywords for each subreddit using AI
+    console.log("=== GENERATING KEYWORDS ===");
+    const keywordMap = new Map<string, string[]>();
+
+    try {
+      const keywordPrompt = `Generate 1-2 relevant search terms for each subreddit to find posts where our business can provide value.
+
+CONTEXT:
+Company: ${projectRecord.companyName ?? "Unknown"}
+Website: ${projectRecord.domain ?? ""}
+Product/Service: ${projectRecord.productDescription ?? ""}
+Project Keywords: ${((projectRecord.keywords as string[]) ?? []).join(", ")}
+
+TARGET SUBREDDITS: ${subredditsToUse.join(", ")}
+
+For each subreddit, generate search terms that:
+1. Are specific to that community's interests and language
+2. Relate to problems our business solves
+3. Would find posts where helpful (non-promotional) advice is welcome
+4. Avoid overly commercial or salesy terms
+
+Examples:
+- r/entrepreneur: "scaling challenges", "founder struggles"  
+- r/startups: "mvp feedback", "product validation"
+- r/SaaS: "subscription pricing", "churn reduction"
+
+Return 1-2 search terms per subreddit that would find posts where we can genuinely help.`;
+
+      const { object: keywordResult } = await generateObject({
+        model: google(MODELS.GEMINI_2_5_FLASH),
+        schema: KeywordGenerationSchema,
+        system:
+          "You are an expert at finding relevant discussion opportunities on Reddit where businesses can provide genuine value without being promotional.",
+        prompt: keywordPrompt,
+        temperature: 0.3,
+      });
+
+      // Build keyword map
+      for (const item of keywordResult.keywords) {
+        const subredditName = item.subreddit.replace("r/", "");
+        keywordMap.set(subredditName, item.searchTerms);
+        console.log(`${item.subreddit}: [${item.searchTerms.join(", ")}]`);
+      }
+    } catch (error) {
+      console.warn(
+        "Keyword generation failed, using fallback approach:",
+        error,
+      );
+    }
+
     // Fetch latest posts (10 per subreddit) from public Reddit API
     type RawRedditPost = {
       id: string;
@@ -178,67 +238,144 @@ export async function POST(request: NextRequest) {
     const latestPosts: RawRedditPost[] = [];
     for (const sub of subredditsToUse) {
       const subPath = sub.startsWith("r/") ? sub : `r/${sub}`;
-      try {
-        const resp = await fetch(
-          `https://www.reddit.com/${subPath}/new.json?limit=10`,
-          {
-            headers: { "User-Agent": "Contentbot/1.0" },
-            cache: "no-store",
-          },
-        );
-        if (!resp.ok) continue;
-        const json = (await resp.json()) as {
-          data: {
-            children: Array<{
+      const subredditName = sub.replace("r/", "");
+      const searchTerms = keywordMap.get(subredditName) ?? [];
+
+      let postsFound = false;
+
+      // Try keyword-based search first
+      if (searchTerms.length > 0) {
+        for (const searchTerm of searchTerms) {
+          try {
+            console.log(`Searching r/${subredditName} for: "${searchTerm}"`);
+            const searchUrl = `https://www.reddit.com/${subPath}/search.json?q=${encodeURIComponent(searchTerm)}&restrict_sr=1&sort=new&limit=20&t=week`;
+
+            const resp = await fetch(searchUrl, {
+              headers: { "User-Agent": "Contentbot/1.0" },
+              cache: "no-store",
+            });
+
+            if (!resp.ok) continue;
+            const json = (await resp.json()) as {
               data: {
-                id: string;
-                subreddit: string;
-                title: string;
-                selftext?: string;
-                author: string;
-                score: number;
-                created_utc: number;
-                num_comments: number;
-                url: string;
-                permalink: string;
+                children: Array<{
+                  data: {
+                    id: string;
+                    subreddit: string;
+                    title: string;
+                    selftext?: string;
+                    author: string;
+                    score: number;
+                    created_utc: number;
+                    num_comments: number;
+                    url: string;
+                    permalink: string;
+                  };
+                }>;
               };
-            }>;
-          };
-        };
-        for (const child of json.data.children) {
-          const d = child.data as {
-            id: string;
-            subreddit: string;
-            title: string;
-            selftext?: string;
-            author: string;
-            score: number;
-            created_utc: number;
-            num_comments: number;
-            url: string;
-            permalink: string;
-          };
-          latestPosts.push({
-            id: d.id,
-            subreddit: d.subreddit,
-            title: d.title,
-            selftext: d.selftext ?? "",
-            author: d.author,
-            score: d.score ?? 0,
-            created_utc: d.created_utc ?? Math.floor(Date.now() / 1000),
-            num_comments: d.num_comments ?? 0,
-            url: d.url,
-            redditUrl: `https://reddit.com${d.permalink}`, // Use the correct Reddit post URL
-          });
+            };
+
+            for (const child of json.data.children) {
+              const d = child.data;
+              latestPosts.push({
+                id: d.id,
+                subreddit: d.subreddit,
+                title: d.title,
+                selftext: d.selftext ?? "",
+                author: d.author,
+                score: d.score ?? 0,
+                created_utc: d.created_utc ?? Math.floor(Date.now() / 1000),
+                num_comments: d.num_comments ?? 0,
+                url: d.url,
+                redditUrl: `https://reddit.com${d.permalink}`,
+              });
+            }
+
+            if (json.data.children.length > 0) {
+              postsFound = true;
+              console.log(
+                `Found ${json.data.children.length} posts for "${searchTerm}" in r/${subredditName}`,
+              );
+            }
+          } catch (e) {
+            console.warn(
+              `Failed to search for "${searchTerm}" in ${subPath}:`,
+              e,
+            );
+          }
         }
-      } catch (e) {
-        console.warn(`Failed to fetch posts for ${subPath}:`, e);
+      }
+
+      // Fallback to newest posts if keyword search didn't find anything
+      if (!postsFound) {
+        console.log(
+          `No keyword results for r/${subredditName}, falling back to newest posts`,
+        );
+        try {
+          const resp = await fetch(
+            `https://www.reddit.com/${subPath}/new.json?limit=40`,
+            {
+              headers: { "User-Agent": "Contentbot/1.0" },
+              cache: "no-store",
+            },
+          );
+          if (!resp.ok) continue;
+          const json = (await resp.json()) as {
+            data: {
+              children: Array<{
+                data: {
+                  id: string;
+                  subreddit: string;
+                  title: string;
+                  selftext?: string;
+                  author: string;
+                  score: number;
+                  created_utc: number;
+                  num_comments: number;
+                  url: string;
+                  permalink: string;
+                };
+              }>;
+            };
+          };
+          for (const child of json.data.children) {
+            const d = child.data;
+            latestPosts.push({
+              id: d.id,
+              subreddit: d.subreddit,
+              title: d.title,
+              selftext: d.selftext ?? "",
+              author: d.author,
+              score: d.score ?? 0,
+              created_utc: d.created_utc ?? Math.floor(Date.now() / 1000),
+              num_comments: d.num_comments ?? 0,
+              url: d.url,
+              redditUrl: `https://reddit.com${d.permalink}`,
+            });
+          }
+          console.log(
+            `Fetched ${json.data.children.length} newest posts from r/${subredditName}`,
+          );
+        } catch (e) {
+          console.warn(`Failed to fetch newest posts for ${subPath}:`, e);
+        }
       }
     }
 
+    console.log(`=== REDDIT POSTS FETCHING ===`);
+    console.log(`Target subreddits: ${subredditsToUse.join(", ")}`);
     console.log(
       `Fetched a total of ${latestPosts.length} posts for evaluation.`,
     );
+
+    if (latestPosts.length === 0) {
+      return NextResponse.json(
+        {
+          error: `No posts found in target subreddits: ${subredditsToUse.join(", ")}. Check if subreddits are active or exist.`,
+        },
+        { status: 400 },
+      );
+    }
 
     // Evaluate posts for relevance using the same approach as /evaluate
     const evaluated: Array<{
@@ -316,16 +453,46 @@ Provide detailed evaluation with specific reasoning for your scores.`;
       }
     }
 
+    // Add detailed logging before filtering
+    console.log("=== EVALUATION RESULTS ===");
+    console.log(`Total posts evaluated: ${evaluated.length}`);
+
+    // Log top 10 results for debugging
+    const sortedByScore = evaluated.sort((a, b) => b.score - a.score);
+    sortedByScore.slice(0, 10).forEach((result, index) => {
+      console.log(
+        `${index + 1}. r/${result.post.subreddit}: "${result.post.title.slice(0, 60)}..."`,
+      );
+      console.log(
+        `   Score: ${result.score}/10, ShouldReply: ${result.shouldReply}`,
+      );
+      console.log(`   Reasoning: ${result.reasoning.slice(0, 100)}...`);
+      console.log("---");
+    });
+
     // Sort by score desc and pick those recommended to reply first
-    const relevantPosts = evaluated
-      .sort((a, b) => b.score - a.score)
-      .filter((r) => r.shouldReply || r.score >= 8);
+    // Lower threshold from 8 to 6 to be less strict
+    const relevantPosts = sortedByScore.filter(
+      (r) => r.shouldReply || r.score >= 6,
+    );
+
+    console.log(
+      `Posts passing filter (score >= 6 OR shouldReply=true): ${relevantPosts.length}`,
+    );
 
     if (relevantPosts.length === 0) {
+      // Provide more detailed error message with the actual scores
+      const topScores = sortedByScore
+        .slice(0, 5)
+        .map(
+          (r) =>
+            `r/${r.post.subreddit}: ${r.score}/10 (${r.shouldReply ? "recommended" : "not recommended"})`,
+        )
+        .join(", ");
+
       return NextResponse.json(
         {
-          error:
-            "No relevant posts found for comment generation. Try adjusting your target subreddits or project keywords.",
+          error: `No relevant posts found for comment generation. Highest scores: ${topScores}. Try adjusting your target subreddits or project keywords.`,
         },
         { status: 400 },
       );
@@ -346,10 +513,11 @@ Provide detailed evaluation with specific reasoning for your scores.`;
         ? `r/${src.post.subreddit}`
         : `r/${src.post.subreddit}`;
 
-      // Generate a short helpful reply draft
+      // Only generate AI draft for posts with score >= 6 to save API calls
       let aiDraft: string | undefined;
-      try {
-        const replyPrompt = `<instructions>
+      if (src.score >= 6) {
+        try {
+          const replyPrompt = `<instructions>
 You are an expert "voice-cloner" running on advanced language models.
 
 When writing in my voice, follow these precise style guidelines:
@@ -422,24 +590,29 @@ Subreddit: r/${src.post.subreddit}
 Write a helpful reply for the post above.
 Return only the reply text, nothing else. Try to make the reply short, max 5 sentences. If the question is simple, max 2 sentences.`;
 
-        const { object: replyObj } = await generateObject({
-          model: google(MODELS.GEMINI_2_5_PRO),
-          schema: ReplyDraftSchema,
-          system:
-            "You write natural, helpful Reddit replies that provide genuine value without being promotional.",
-          prompt: replyPrompt,
-          temperature: 0.5,
-        });
-        aiDraft = replyObj.draft;
-      } catch (error) {
-        console.warn("Failed to generate reply draft:", error);
-        aiDraft = undefined;
+          const { object: replyObj } = await generateObject({
+            model: google(MODELS.GEMINI_2_5_PRO),
+            schema: ReplyDraftSchema,
+            system:
+              "You write natural, helpful Reddit replies that provide genuine value without being promotional.",
+            prompt: replyPrompt,
+            temperature: 0.5,
+          });
+          aiDraft = replyObj.draft;
+        } catch (error) {
+          console.warn("Failed to generate reply draft:", error);
+          aiDraft = undefined;
+        }
+      } else {
+        console.log(
+          `Skipping draft generation for post with score ${src.score} (< 6)`,
+        );
       }
 
       commentTasks.push({
         subreddit: sub,
         searchKeywords: src.post.title.slice(0, 50),
-        prompt: `Reply to this post: ${src.post.title}`,
+        prompt: `Reply to this post: "${src.post.title}"`,
         aiDraft,
         redditUrl: src.post.redditUrl,
       });
@@ -730,5 +903,3 @@ function getDefaultSubreddits(projectRecord: {
 
   return Array.from(relevantSubs).slice(0, 7);
 }
-
-// (legacy AI-only weekly generator removed; tasks now derive from evaluated posts)
