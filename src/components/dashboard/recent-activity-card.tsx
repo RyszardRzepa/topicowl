@@ -11,6 +11,9 @@ interface RecentActivityCardProps {
 
 export function RecentActivityCard({ metrics }: RecentActivityCardProps) {
   const { recentActivity } = metrics;
+  
+  // Defensive programming - ensure we have a valid array
+  const activities = Array.isArray(recentActivity) ? recentActivity : [];
 
   const getActionIcon = (action: 'created' | 'generated' | 'published') => {
     switch (action) {
@@ -50,30 +53,34 @@ export function RecentActivityCard({ metrics }: RecentActivityCardProps) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Activity className="h-5 w-5 text-indigo-600" />
-          Recent Activity
+    <Card className="h-full hover:shadow-md transition-shadow duration-200 flex flex-col">
+      <CardHeader className="pb-2 flex-shrink-0">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Activity className="h-4 w-4 text-indigo-600 flex-shrink-0" />
+          <span className="truncate">Recent Activity</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        {recentActivity.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No recent activity</p>
+      <CardContent className="pt-0 pb-3 flex-1 min-h-0">
+        {activities.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-muted-foreground text-center">No recent activity</p>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {recentActivity.slice(0, 5).map((activity) => (
-              <div key={`${activity.id}-${activity.action}`} className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  {getActionIcon(activity.action)}
+          <div className="h-full overflow-y-auto space-y-2 pr-1">
+            {activities.slice(0, 10).map((activity) => (
+              <div key={`${activity.id}-${activity.action}`} className="flex items-start justify-between gap-2 p-2 rounded-lg bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
+                  <div className="flex-shrink-0 mt-0.5">
+                    {getActionIcon(activity.action)}
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{activity.title}</p>
+                    <p className="text-xs font-medium leading-relaxed line-clamp-2">{activity.title}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatTimestamp(activity.timestamp)}
                     </p>
                   </div>
                 </div>
-                <div className="ml-2 flex-shrink-0">
+                <div className="flex-shrink-0">
                   {getActionBadge(activity.action)}
                 </div>
               </div>

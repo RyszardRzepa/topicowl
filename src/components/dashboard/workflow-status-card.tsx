@@ -12,36 +12,41 @@ interface WorkflowStatusCardProps {
 export function WorkflowStatusCard({ metrics }: WorkflowStatusCardProps) {
   const { workflowCounts } = metrics;
   
+  // Defensive programming - ensure we have valid numbers
+  const planning = workflowCounts?.planning ?? 0;
+  const generating = workflowCounts?.generating ?? 0;
+  const publishing = workflowCounts?.publishing ?? 0;
+  
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Workflow className="h-5 w-5 text-purple-600" />
-          Workflow Status
+    <Card className="h-32 hover:shadow-md transition-shadow duration-200">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Workflow className="h-4 w-4 text-purple-600 flex-shrink-0" />
+          <span className="truncate">Workflow</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
+      <CardContent className="pt-0 pb-3">
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-sm">Planning</span>
+              <Clock className="h-3 w-3 text-orange-600 flex-shrink-0" />
+              <span className="text-xs font-medium">Planning</span>
             </div>
-            <Badge variant="orange">{workflowCounts.planning}</Badge>
+            <Badge variant="orange" className="h-5 min-w-[24px] text-xs justify-center">{planning}</Badge>
           </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-blue-600" />
-              <span className="text-sm">Generating</span>
+              <Zap className="h-3 w-3 text-blue-600 flex-shrink-0" />
+              <span className="text-xs font-medium">Generating</span>
             </div>
-            <Badge variant="blue">{workflowCounts.generating}</Badge>
+            <Badge variant="blue" className="h-5 min-w-[24px] text-xs justify-center">{generating}</Badge>
           </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Send className="h-4 w-4 text-green-600" />
-              <span className="text-sm">Publishing</span>
+              <Send className="h-3 w-3 text-green-600 flex-shrink-0" />
+              <span className="text-xs font-medium">Publishing</span>
             </div>
-            <Badge variant="green">{workflowCounts.publishing}</Badge>
+            <Badge variant="green" className="h-5 min-w-[24px] text-xs justify-center">{publishing}</Badge>
           </div>
         </div>
       </CardContent>

@@ -33,9 +33,7 @@ interface PlanningHubProps {
   ) => Promise<void>;
   onDeleteArticle: (articleId: string) => Promise<void>;
   onGenerateArticle: (articleId: string) => Promise<void>;
-  onScheduleGeneration: (articleId: string, scheduledAt: Date) => Promise<void>;
   onBulkGenerate: (articleIds: string[]) => Promise<void>;
-  onBulkSchedule: (articleIds: string[], scheduledAt: Date) => Promise<void>;
   onNavigateToArticle: (articleId: string) => void;
 }
 
@@ -45,9 +43,7 @@ export function PlanningHub({
   onUpdateArticle,
   onDeleteArticle,
   onGenerateArticle,
-  onScheduleGeneration,
   onBulkGenerate: _onBulkGenerate,
-  onBulkSchedule: _onBulkSchedule,
   onNavigateToArticle,
 }: PlanningHubProps) {
   const [isCreating, setIsCreating] = useState(false);
@@ -264,7 +260,6 @@ export function PlanningHub({
                   onUpdate={onUpdateArticle}
                   onDelete={onDeleteArticle}
                   onGenerate={handleGenerateArticle}
-                  onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
                   isButtonLoading={generatingArticleIds.has(article.id)}
                 />
@@ -290,7 +285,6 @@ export function PlanningHub({
                   onUpdate={onUpdateArticle}
                   onDelete={onDeleteArticle}
                   onGenerate={handleGenerateArticle}
-                  onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
                   isButtonLoading={generatingArticleIds.has(article.id)}
                 />
@@ -314,7 +308,6 @@ export function PlanningHub({
                   article={article}
                   mode="planning"
                   onGenerate={handleGenerateArticle}
-                  onScheduleGeneration={onScheduleGeneration}
                   onNavigate={onNavigateToArticle}
                   isButtonLoading={generatingArticleIds.has(article.id)}
                 />

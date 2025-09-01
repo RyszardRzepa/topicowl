@@ -9,7 +9,6 @@ import type {
   DatabaseArticle,
   KanbanColumn,
 } from "@/app/api/articles/board/route";
-import type { ScheduleGenerationResponse } from "@/app/api/articles/schedule-generation/route";
 import type { SchedulePublishingResponse } from "@/app/api/articles/schedule-publishing/route";
 
 export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
@@ -304,58 +303,6 @@ export function useWorkflowArticles() {
     }
   };
 
-  const handleScheduleGeneration = async (
-    articleId: string,
-    scheduledAt: Date,
-  ) => {
-    const project = requireProject();
-    if (!project) return;
-    try {
-      const article = articles.find((a) => a.id === articleId);
-      const response = await fetch("/api/articles/schedule-generation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-project-id": project,
-        },
-        body: JSON.stringify({
-          articleId: parseInt(articleId, 10),
-          scheduledAt: scheduledAt.toISOString(),
-        }),
-      });
-      const result = (await response.json()) as ScheduleGenerationResponse;
-      if (!response.ok || !result.success)
-        throw new Error(result.error ?? "Failed to schedule generation");
-      setArticles((prev) =>
-        prev.map((a) =>
-          a.id === articleId
-            ? {
-                ...a,
-                generationScheduledAt: scheduledAt.toISOString(),
-                status: a.status === "idea" ? "to_generate" : a.status,
-              }
-            : a,
-        ),
-      );
-      const formattedDate = scheduledAt.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-      toast.success("Generation scheduled successfully!", {
-        description: article
-          ? `"${article.title}" will be generated on ${formattedDate}.`
-          : `Article will be generated on ${formattedDate}.`,
-      });
-    } catch (err) {
-      console.error("Failed to schedule generation:", err);
-      toast.error("Failed to schedule generation", {
-        description: "Please try again or check your connection.",
-      });
-      setError("Failed to schedule generation");
-    }
-  };
 
   const handlePublishArticle = async (articleId: string) => {
     const project = requireProject();
@@ -507,24 +454,6 @@ export function useWorkflowArticles() {
     );
   };
 
-  const handleBulkScheduleGeneration = async (
-    articleIds: string[],
-    scheduledAt: Date,
-  ) => {
-    for (const id of articleIds)
-      await handleScheduleGeneration(id, scheduledAt);
-    const formattedDate = scheduledAt.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    toast.success(
-      `Scheduled ${articleIds.length} article${articleIds.length > 1 ? "s" : ""} for generation!`,
-      { description: `All articles will be generated on ${formattedDate}.` },
-    );
-  };
-
   const handleBulkPublish = async (articleIds: string[]) => {
     for (const id of articleIds) await handlePublishArticle(id);
     toast.success(
@@ -569,12 +498,10 @@ export function useWorkflowArticles() {
       update: handleUpdateArticle,
       delete: handleDeleteArticle,
       generate: handleGenerateArticle,
-      scheduleGeneration: handleScheduleGeneration,
       publish: handlePublishArticle,
       schedulePublishing: handleSchedulePublishing,
       cancelPublishSchedule: handleCancelPublishSchedule,
       bulkGenerate: handleBulkGenerate,
-      bulkScheduleGeneration: handleBulkScheduleGeneration,
       bulkPublish: handleBulkPublish,
       bulkSchedulePublishing: handleBulkSchedulePublishing,
       refreshCredits: refreshCreditsSafe,

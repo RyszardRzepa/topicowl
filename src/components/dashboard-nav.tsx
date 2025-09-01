@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, MessageSquare, Calendar } from "lucide-react";
+import { FileText, MessageSquare, Calendar, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const navigationItems = [
+  {
+    href: "/dashboard",
+    label: "Overview",
+    icon: <BarChart3 className="h-5 w-5" />,
+  },
   {
     href: "/dashboard/articles",
     label: "Articles",
@@ -27,7 +32,6 @@ export function DashboardNav() {
       {navigationItems.map((item) => {
         const isActive =
           pathname === item.href ||
-          (item.href === "/dashboard/articles" && pathname === "/dashboard") ||
           (item.href === "/dashboard/reddit" && pathname?.startsWith("/dashboard/reddit"));
 
         return (

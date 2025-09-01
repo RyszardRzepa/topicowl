@@ -1193,7 +1193,7 @@ export function TaskCalendar({
                   )}
                   {selectedTask?.taskType === "post" && selectedTask?.subreddit && (
                     <a
-                      href={`https://reddit.com/r/${selectedTask.subreddit}`}
+                      href={`https://reddit.com/${selectedTask.subreddit}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:text-primary/80 inline-flex items-center gap-1 font-medium transition-colors"

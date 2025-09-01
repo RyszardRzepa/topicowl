@@ -8,7 +8,6 @@ import {
   projects,
   redditTasks,
   userCredits,
-  articleGeneration,
 } from "@/server/db/schema";
 import { eq, and, gte, lte, ne, sql, desc } from "drizzle-orm";
 import type { ClerkPrivateMetadata } from "@/types";
@@ -25,7 +24,7 @@ interface ArticleMetrics {
   recentActivity: Array<{
     id: string;
     title: string;
-    action: 'created' | 'generated' | 'published';
+    action: "created" | "generated" | "published";
     timestamp: string;
   }>;
   credits: {
@@ -126,147 +125,171 @@ export async function GET(request: NextRequest) {
     nextThreeDays.setDate(now.getDate() + 3);
     nextThreeDays.setHours(23, 59, 59, 999);
 
-    // Fetch article metrics
-    const [
-      totalThisMonthResult,
-      publishedLastWeekResult,
-      workflowCountsResult,
-      recentActivityResult,
-      userCreditsResult,
-    ] = await Promise.all([
-      // Total articles created this month
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(articles)
-        .where(
-          and(
-            eq(articles.projectId, projectId),
-            gte(articles.createdAt, startOfMonth),
-            ne(articles.status, "deleted"),
+    // Fetch article metrics with error handling for each query
+    let articleMetrics: ArticleMetrics;
+
+    try {
+      const [
+        totalThisMonthResult,
+        publishedLastWeekResult,
+        workflowCountsResult,
+        recentActivityResult,
+        userCreditsResult,
+      ] = await Promise.all([
+        // Total articles created this month
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(articles)
+          .where(
+            and(
+              eq(articles.projectId, projectId),
+              gte(articles.createdAt, startOfMonth),
+              ne(articles.status, "deleted"),
+            ),
           ),
-        ),
 
-      // Articles published in last 7 days
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(articles)
-        .where(
-          and(
-            eq(articles.projectId, projectId),
-            eq(articles.status, "published"),
-            gte(articles.publishedAt, startOfLastWeek),
+        // Articles published in last 7 days
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(articles)
+          .where(
+            and(
+              eq(articles.projectId, projectId),
+              eq(articles.status, "published"),
+              gte(articles.publishedAt, startOfLastWeek),
+            ),
           ),
-        ),
 
-      // Workflow phase counts
-      db
-        .select({
-          status: articles.status,
-          count: sql<number>`count(*)`,
-        })
-        .from(articles)
-        .where(
-          and(
-            eq(articles.projectId, projectId),
-            ne(articles.status, "deleted"),
-          ),
-        )
-        .groupBy(articles.status),
+        // Workflow phase counts
+        db
+          .select({
+            status: articles.status,
+            count: sql<number>`count(*)`,
+          })
+          .from(articles)
+          .where(
+            and(
+              eq(articles.projectId, projectId),
+              ne(articles.status, "deleted"),
+            ),
+          )
+          .groupBy(articles.status),
 
-      // Recent activity (last 10 articles with activity)
-      db
-        .select({
-          id: articles.id,
-          title: articles.title,
-          status: articles.status,
-          createdAt: articles.createdAt,
-          publishedAt: articles.publishedAt,
-          updatedAt: articles.updatedAt,
-        })
-        .from(articles)
-        .where(
-          and(
-            eq(articles.projectId, projectId),
-            ne(articles.status, "deleted"),
-          ),
-        )
-        .orderBy(desc(articles.updatedAt))
-        .limit(10),
+        // Recent activity (last 10 articles with activity)
+        db
+          .select({
+            id: articles.id,
+            title: articles.title,
+            status: articles.status,
+            createdAt: articles.createdAt,
+            publishedAt: articles.publishedAt,
+            updatedAt: articles.updatedAt,
+          })
+          .from(articles)
+          .where(
+            and(
+              eq(articles.projectId, projectId),
+              ne(articles.status, "deleted"),
+            ),
+          )
+          .orderBy(desc(articles.updatedAt))
+          .limit(10),
 
-      // User credits
-      db
-        .select({ amount: userCredits.amount })
-        .from(userCredits)
-        .where(eq(userCredits.userId, userId))
-        .limit(1),
-    ]);
+        // User credits
+        db
+          .select({ amount: userCredits.amount })
+          .from(userCredits)
+          .where(eq(userCredits.userId, userId))
+          .limit(1),
+      ]);
 
-    // Process article metrics
-    const totalThisMonth = totalThisMonthResult[0]?.count ?? 0;
-    const publishedLastWeek = publishedLastWeekResult[0]?.count ?? 0;
+      // Process article metrics
+      const totalThisMonth = Number(totalThisMonthResult[0]?.count ?? 0);
+      const publishedLastWeek = Number(publishedLastWeekResult[0]?.count ?? 0);
 
-    // Map workflow statuses to phases
-    const workflowCounts = {
-      planning: 0,
-      generating: 0,
-      publishing: 0,
-    };
-
-    workflowCountsResult.forEach((row) => {
-      const count = row.count;
-      switch (row.status) {
-        case "idea":
-        case "scheduled":
-          workflowCounts.planning += count;
-          break;
-        case "queued":
-        case "to_generate":
-        case "generating":
-          workflowCounts.generating += count;
-          break;
-        case "wait_for_publish":
-          workflowCounts.publishing += count;
-          break;
-        // "published" and "failed" don't count toward active workflow
-      }
-    });
-
-    // Process recent activity
-    const recentActivity = recentActivityResult.map((article) => {
-      let action: 'created' | 'generated' | 'published';
-      let timestamp: string;
-
-      if (article.status === "published" && article.publishedAt) {
-        action = "published";
-        timestamp = article.publishedAt.toISOString();
-      } else if (article.status === "wait_for_publish" || article.status === "published") {
-        action = "generated";
-        timestamp = article.updatedAt.toISOString();
-      } else {
-        action = "created";
-        timestamp = article.createdAt.toISOString();
-      }
-
-      return {
-        id: article.id.toString(),
-        title: article.title,
-        action,
-        timestamp,
+      // Map workflow statuses to phases
+      const workflowCounts = {
+        planning: 0,
+        generating: 0,
+        publishing: 0,
       };
-    });
 
-    const credits = {
-      balance: userCreditsResult[0]?.amount ?? 0,
-      usedThisMonth: 0, // TODO: Calculate from generation history if needed
-    };
+      workflowCountsResult.forEach((row) => {
+        const count = Number(row.count);
+        switch (row.status) {
+          case "idea":
+          case "scheduled":
+            workflowCounts.planning += count;
+            break;
+          case "queued":
+          case "to_generate":
+          case "generating":
+            workflowCounts.generating += count;
+            break;
+          case "wait_for_publish":
+            workflowCounts.publishing += count;
+            break;
+          // "published" and "failed" don't count toward active workflow
+        }
+      });
 
-    const articleMetrics: ArticleMetrics = {
-      totalThisMonth,
-      publishedLastWeek,
-      workflowCounts,
-      recentActivity,
-      credits,
-    };
+      // Process recent activity
+      const recentActivity = recentActivityResult.map((article) => {
+        let action: "created" | "generated" | "published";
+        let timestamp: string;
+
+        if (article.status === "published" && article.publishedAt) {
+          action = "published";
+          timestamp = article.publishedAt.toISOString();
+        } else if (
+          article.status === "wait_for_publish" ||
+          article.status === "published"
+        ) {
+          action = "generated";
+          timestamp = article.updatedAt.toISOString();
+        } else {
+          action = "created";
+          timestamp = article.createdAt.toISOString();
+        }
+
+        return {
+          id: article.id.toString(),
+          title: article.title,
+          action,
+          timestamp,
+        };
+      });
+
+      const credits = {
+        balance: Number(userCreditsResult[0]?.amount ?? 0),
+        usedThisMonth: 0, // TODO: Calculate from generation history if needed
+      };
+
+      articleMetrics = {
+        totalThisMonth,
+        publishedLastWeek,
+        workflowCounts,
+        recentActivity,
+        credits,
+      };
+    } catch (articleError) {
+      console.error("Error fetching article data:", articleError);
+      // Provide fallback article metrics to ensure API doesn't fail completely
+      articleMetrics = {
+        totalThisMonth: 0,
+        publishedLastWeek: 0,
+        workflowCounts: {
+          planning: 0,
+          generating: 0,
+          publishing: 0,
+        },
+        recentActivity: [],
+        credits: {
+          balance: 0,
+          usedThisMonth: 0,
+        },
+      };
+    }
 
     // Check Reddit connection status
     let redditData: { connected: boolean; data: RedditMetrics | null } = {
@@ -280,63 +303,60 @@ export async function GET(request: NextRequest) {
       const metadata = (user.privateMetadata ?? {}) as ClerkPrivateMetadata;
       const projectConnection = metadata.redditTokens?.[projectIdParam];
 
-      if (projectConnection) {
+      if (projectConnection?.refreshToken) {
         // Fetch Reddit metrics
-        const [
-          weeklyTasksResult,
-          todaysPendingResult,
-          upcomingTasksResult,
-        ] = await Promise.all([
-          // Weekly Reddit task stats
-          db
-            .select({
-              status: redditTasks.status,
-              count: sql<number>`count(*)`,
-              totalKarma: sql<number>`sum(${redditTasks.karmaEarned})`,
-            })
-            .from(redditTasks)
-            .where(
-              and(
-                eq(redditTasks.projectId, projectId),
-                gte(redditTasks.scheduledDate, startOfWeek),
-                lte(redditTasks.scheduledDate, endOfWeek),
-              ),
-            )
-            .groupBy(redditTasks.status),
+        const [weeklyTasksResult, todaysPendingResult, upcomingTasksResult] =
+          await Promise.all([
+            // Weekly Reddit task stats
+            db
+              .select({
+                status: redditTasks.status,
+                count: sql<number>`count(*)`,
+                totalKarma: sql<number>`sum(${redditTasks.karmaEarned})`,
+              })
+              .from(redditTasks)
+              .where(
+                and(
+                  eq(redditTasks.projectId, projectId),
+                  gte(redditTasks.scheduledDate, startOfWeek),
+                  lte(redditTasks.scheduledDate, endOfWeek),
+                ),
+              )
+              .groupBy(redditTasks.status),
 
-          // Today's pending tasks
-          db
-            .select({ count: sql<number>`count(*)` })
-            .from(redditTasks)
-            .where(
-              and(
-                eq(redditTasks.projectId, projectId),
-                eq(redditTasks.status, "pending"),
-                gte(redditTasks.scheduledDate, startOfToday),
-                lte(redditTasks.scheduledDate, endOfToday),
+            // Today's pending tasks
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(redditTasks)
+              .where(
+                and(
+                  eq(redditTasks.projectId, projectId),
+                  eq(redditTasks.status, "pending"),
+                  gte(redditTasks.scheduledDate, startOfToday),
+                  lte(redditTasks.scheduledDate, endOfToday),
+                ),
               ),
-            ),
 
-          // Upcoming tasks (next 3 days)
-          db
-            .select({
-              id: redditTasks.id,
-              prompt: redditTasks.prompt,
-              subreddit: redditTasks.subreddit,
-              scheduledDate: redditTasks.scheduledDate,
-            })
-            .from(redditTasks)
-            .where(
-              and(
-                eq(redditTasks.projectId, projectId),
-                eq(redditTasks.status, "pending"),
-                gte(redditTasks.scheduledDate, now),
-                lte(redditTasks.scheduledDate, nextThreeDays),
-              ),
-            )
-            .orderBy(redditTasks.scheduledDate, redditTasks.taskOrder)
-            .limit(10),
-        ]);
+            // Upcoming tasks (next 3 days)
+            db
+              .select({
+                id: redditTasks.id,
+                prompt: redditTasks.prompt,
+                subreddit: redditTasks.subreddit,
+                scheduledDate: redditTasks.scheduledDate,
+              })
+              .from(redditTasks)
+              .where(
+                and(
+                  eq(redditTasks.projectId, projectId),
+                  eq(redditTasks.status, "pending"),
+                  gte(redditTasks.scheduledDate, now),
+                  lte(redditTasks.scheduledDate, nextThreeDays),
+                ),
+              )
+              .orderBy(redditTasks.scheduledDate, redditTasks.taskOrder)
+              .limit(10),
+          ]);
 
         // Process Reddit metrics
         let totalTasks = 0;
@@ -344,20 +364,24 @@ export async function GET(request: NextRequest) {
         let karmaEarned = 0;
 
         weeklyTasksResult.forEach((row) => {
-          const count = row.count;
+          const count = Number(row.count);
           totalTasks += count;
           if (row.status === "completed") {
             completedTasks += count;
-            karmaEarned += row.totalKarma ?? 0;
+            karmaEarned += Number(row.totalKarma ?? 0);
           }
         });
 
-        const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-        const todaysPendingTasks = todaysPendingResult[0]?.count ?? 0;
+        const completionRate =
+          totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        const todaysPendingTasks = Number(todaysPendingResult[0]?.count ?? 0);
 
         const upcomingTasks = upcomingTasksResult.map((task) => ({
           id: task.id,
-          title: task.prompt.length > 50 ? `${task.prompt.substring(0, 50)}...` : task.prompt,
+          title:
+            task.prompt.length > 50
+              ? `${task.prompt.substring(0, 50)}...`
+              : task.prompt,
           subreddit: task.subreddit,
           scheduledDate: task.scheduledDate.toISOString(),
         }));
@@ -378,7 +402,12 @@ export async function GET(request: NextRequest) {
       }
     } catch (redditError) {
       console.error("Error fetching Reddit data:", redditError);
-      // Continue with Reddit disconnected state
+      // Continue with Reddit disconnected state - this ensures graceful degradation
+      // If Reddit data fails to load, we still return article data
+      redditData = {
+        connected: false,
+        data: null,
+      };
     }
 
     const response: DashboardStatsResponse = {
