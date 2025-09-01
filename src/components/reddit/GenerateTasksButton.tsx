@@ -6,6 +6,18 @@ import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek } from "date-fns";
 
+interface GenerateTasksResponse {
+  tasksGenerated: number;
+  taskDistribution: {
+    comments: number;
+    posts: number;
+  };
+}
+
+interface GenerateTasksError {
+  error: string;
+}
+
 interface GenerateTasksButtonProps {
   projectId: number;
   weekStartDate?: Date;
@@ -44,11 +56,12 @@ export function GenerateTasksButton({
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to generate tasks");
+        const errorData = await response.json() as GenerateTasksError;
+        throw new Error(errorData.error ?? "Failed to generate tasks");
       }
+
+      const data = await response.json() as GenerateTasksResponse;
 
       // Show success message with details
       const weekRange = format(targetWeekStart, "MMM d") + " - " + format(new Date(targetWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000), "MMM d");
