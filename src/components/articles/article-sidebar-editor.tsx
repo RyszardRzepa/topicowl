@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
-import { ArticleActionButtons } from "./article-action-buttons";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
 import { ArticleMetadata } from "./article-metadata";
 
@@ -100,11 +99,7 @@ export function ArticleSidebarEditor({
       <CardContent>
         <div className="space-y-4">
           <div className="border-b pb-4">
-            <ArticleActionButtons
-              article={article}
-              onSuccess={onSuccess}
-              onError={onError}
-            />
+          
           </div>
           {/* Title */}
           <div>

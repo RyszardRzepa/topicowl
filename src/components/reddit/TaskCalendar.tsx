@@ -839,7 +839,7 @@ export function TaskCalendar({
                           dragOverSlot?.day.getTime() === day.getTime() &&
                           dragOverSlot?.hour === slot.hour &&
                           dragOverSlot?.minute === slot.minute && (
-                            <div className="bg-primary text-primary-foreground absolute -top-6 left-2 z-10 rounded px-2 py-1 text-xs whitespace-nowrap shadow-lg">
+                            <div className="bg-primary text-primary-foreground absolute -top-6 left-2 z-10 rounded px-2 py-1 text-xs whitespace-nowrap">
                               {formatTimeSlot(slot.hour, slot.minute)}
                             </div>
                           )}
@@ -857,7 +857,7 @@ export function TaskCalendar({
                         <div
                           key={task.id}
                           className={cn(
-                            "group absolute cursor-pointer rounded-md border p-2 shadow-sm",
+                            "group absolute cursor-pointer rounded-md border p-2",
                             category.color,
                             category.textColor,
                             "task-card-interactive transition-all duration-200 ease-in-out",
@@ -1180,7 +1180,7 @@ export function TaskCalendar({
               <p className="text-foreground mb-2 text-sm">
                 {selectedTask?.prompt}{" "}
                 <span className="text-xs">
-                  {selectedTask?.redditUrl && (
+                  {selectedTask?.taskType === "comment" && selectedTask?.redditUrl && (
                     <a
                       href={selectedTask.redditUrl}
                       target="_blank"
@@ -1189,6 +1189,17 @@ export function TaskCalendar({
                     >
                       <ExternalLink className="h-3 w-3" />
                       View Original Post
+                    </a>
+                  )}
+                  {selectedTask?.taskType === "post" && selectedTask?.subreddit && (
+                    <a
+                      href={`https://reddit.com/${selectedTask.subreddit}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary/80 inline-flex items-center gap-1 font-medium transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {selectedTask.subreddit}
                     </a>
                   )}
                 </span>

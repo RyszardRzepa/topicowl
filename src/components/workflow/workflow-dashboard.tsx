@@ -268,9 +268,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
             onUpdateArticle={actions.update}
             onDeleteArticle={actions.delete}
             onGenerateArticle={actions.generate}
-            onScheduleGeneration={actions.scheduleGeneration}
             onBulkGenerate={actions.bulkGenerate}
-            onBulkSchedule={actions.bulkScheduleGeneration}
             onNavigateToArticle={handleNavigateToArticle}
           />
         </TabsContent>
@@ -279,7 +277,6 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
           <ArticleGenerations
             articles={generationsArticles}
             onRetryGeneration={actions.generate}
-            onScheduleGeneration={actions.scheduleGeneration}
             onNavigateToArticle={handleNavigateToArticle}
             onRefresh={fetchArticles}
             onUpdateArticleStatus={actions.update}
