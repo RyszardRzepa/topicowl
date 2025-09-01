@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-  Calendar,
   Settings,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,32 +19,51 @@ export default function RedditPage() {
   const router = useRouter();
   const currentProjectId = useCurrentProjectId();
   const [weekData, setWeekData] = useState<WeeklyTasksResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [weekLoading, setWeekLoading] = useState(false);
   const [redditConnected, setRedditConnected] = useState<boolean | null>(null);
   const [hasRedditSettings, setHasRedditSettings] = useState<boolean | null>(
     null,
   );
   const [selectedTask, setSelectedTask] = useState<RedditTask | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => 
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
 
-  const fetchWeekData = useCallback(async () => {
+  const fetchWeekData = useCallback(async (weekStartDate?: Date, isInitialLoad = false) => {
     if (!currentProjectId) return;
 
     try {
-      setLoading(true);
-      const response = await fetch(
-        `/api/reddit/tasks/week?projectId=${currentProjectId}`,
-      );
+      // Only show full loading on initial load, use week loading for navigation
+      if (isInitialLoad) {
+        setInitialLoading(true);
+      } else {
+        setWeekLoading(true);
+      }
+      
+      // Build URL with optional week parameter
+      let url = `/api/reddit/tasks/week?projectId=${currentProjectId}`;
+      if (weekStartDate) {
+        url += `&weekStartDate=${weekStartDate.toISOString()}`;
+      }
+      
+      const response = await fetch(url);
 
       if (response.ok) {
         const data = (await response.json()) as WeeklyTasksResponse;
         setWeekData(data);
+        // Update current week start if we got data
+        if (data.weekStartDate) {
+          setCurrentWeekStart(new Date(data.weekStartDate));
+        }
       } else if (response.status === 404) {
         // No tasks found, that's okay
+        const targetWeekStart = weekStartDate ?? startOfWeek(new Date(), { weekStartsOn: 1 });
         setWeekData({
           success: true,
-          weekStartDate: new Date().toISOString(),
-          weekEndDate: new Date().toISOString(),
+          weekStartDate: targetWeekStart.toISOString(),
+          weekEndDate: new Date(targetWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString(),
           tasks: {},
           statistics: {
             totalTasks: 0,
@@ -55,6 +73,7 @@ export default function RedditPage() {
             completionRate: 0,
           },
         });
+        setCurrentWeekStart(targetWeekStart);
       } else {
         toast.error("Failed to load tasks");
       }
@@ -62,7 +81,11 @@ export default function RedditPage() {
       console.error("Error fetching week data:", error);
       toast.error("Failed to load tasks");
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setInitialLoading(false);
+      } else {
+        setWeekLoading(false);
+      }
     }
   }, [currentProjectId]);
 
@@ -106,7 +129,7 @@ export default function RedditPage() {
 
   useEffect(() => {
     if (currentProjectId) {
-      void fetchWeekData();
+      void fetchWeekData(undefined, true); // Mark as initial load
       void checkRedditConnection();
       void checkRedditSettings();
     }
@@ -308,44 +331,59 @@ export default function RedditPage() {
     const updatedWeekData = { ...weekData };
     updatedWeekData.tasks = { ...weekData.tasks };
 
-    // Find and update the task across all days
-    Object.keys(updatedWeekData.tasks).forEach((dayKey) => {
+    // Find the task to move
+    let taskToMove: RedditTask | null = null;
+    let sourceDay: string | null = null;
+
+    // First, find and remove the task from its current location
+    for (const dayKey of Object.keys(updatedWeekData.tasks)) {
       const dayTasks = updatedWeekData.tasks[dayKey];
       if (dayTasks) {
         const taskIndex = dayTasks.findIndex((task) => task.id === taskId);
         if (taskIndex !== -1) {
-          // Remove task from current day
+          // Found the task, remove it from current day
           const updatedDayTasks = [...dayTasks];
-          const [taskToMove] = updatedDayTasks.splice(taskIndex, 1);
+          [taskToMove] = updatedDayTasks.splice(taskIndex, 1);
           updatedWeekData.tasks[dayKey] = updatedDayTasks;
-
-          // Apply updates to the task
-          if (taskToMove && updates.scheduledDate) {
-            const updatedTask = { ...taskToMove, ...updates };
-            const newDayKey = format(
-              new Date(updates.scheduledDate),
-              "yyyy-MM-dd",
-            );
-
-            // Add task to new day
-            updatedWeekData.tasks[newDayKey] ??= [];
-            updatedWeekData.tasks[newDayKey] = [
-              ...(updatedWeekData.tasks[newDayKey] ?? []),
-              updatedTask,
-            ];
-          }
+          sourceDay = dayKey;
+          break; // Stop after finding the first (and only) occurrence
         }
       }
-    });
+    }
+
+    // If we found the task and have updates, add it to the new location
+    if (taskToMove && updates.scheduledDate) {
+      const updatedTask = { ...taskToMove, ...updates };
+      const newDayKey = format(
+        new Date(updates.scheduledDate),
+        "yyyy-MM-dd",
+      );
+
+      // Ensure the target day exists
+      if (!updatedWeekData.tasks[newDayKey]) {
+        updatedWeekData.tasks[newDayKey] = [];
+      }
+
+      // Add task to new day
+      updatedWeekData.tasks[newDayKey] = [
+        ...updatedWeekData.tasks[newDayKey],
+        updatedTask,
+      ];
+    }
 
     setWeekData(updatedWeekData);
   };
 
   const handleRefresh = () => {
-    void fetchWeekData();
+    void fetchWeekData(currentWeekStart, false);
   };
 
-  if (loading) {
+  const handleWeekChange = (weekStartDate: Date) => {
+    setCurrentWeekStart(weekStartDate);
+    void fetchWeekData(weekStartDate, false); // Not an initial load
+  };
+
+  if (initialLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center py-12">
@@ -354,8 +392,6 @@ export default function RedditPage() {
       </div>
     );
   }
-
-  const hasTasks = weekData && weekData.statistics.totalTasks > 0;
 
   // Show Reddit connection screen if not connected
   if (redditConnected === false) {
@@ -437,32 +473,6 @@ export default function RedditPage() {
             Configure Settings
           </Button>
         </div>
-      ) : !hasTasks ? (
-        <div className="py-12 text-center">
-          <Calendar className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-          <h3 className="mb-2 text-lg font-semibold text-gray-900">
-            No Tasks This Week
-          </h3>
-          <p className="mx-auto mb-6 max-w-md text-gray-600">
-            Generate your weekly Reddit engagement tasks to get started.
-          </p>
-          <div className="flex justify-center gap-3">
-            <GenerateTasksButton
-              projectId={currentProjectId}
-              onTasksGenerated={() => void fetchWeekData()}
-            />
-            <Button
-              variant="outline"
-              onClick={() => router.push("/dashboard/reddit/settings")}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Reddit Settings
-            </Button>
-          </div>
-          <p className="mt-4 text-sm text-gray-500">
-            Having trouble generating tasks? Check your Reddit settings to configure target subreddits and keywords.
-          </p>
-        </div>
       ) : (
         weekData &&
         currentProjectId && (
@@ -471,10 +481,11 @@ export default function RedditPage() {
               weekData={weekData}
               onTaskClick={handleTaskClick}
               onRefresh={handleRefresh}
+              onWeekChange={handleWeekChange}
               onTaskUpdate={handleTaskUpdate}
               onTaskOptimisticUpdate={handleTaskOptimisticUpdate}
               onTaskComplete={handleTaskComplete}
-              loading={loading}
+              loading={weekLoading}
               projectId={currentProjectId}
             />
           </div>

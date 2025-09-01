@@ -8,7 +8,7 @@ import {
   projects,
   users,
 } from "@/server/db/schema";
-import { eq, and, gte, lt } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ClerkPrivateMetadata } from "@/types";
 import {
@@ -25,7 +25,7 @@ export const maxDuration = 800;
 
 const GenerateTasksSchema = z.object({
   projectId: z.number(),
-  weekStartDate: z.string().optional(), // ISO date string, defaults to current Monday
+  weekStartDate: z.string().datetime().optional(), // ISO date string, defaults to current Monday
 });
 
 export async function POST(request: NextRequest) {
@@ -89,35 +89,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate week start date (current Monday if not provided)
-    const weekStartDate = validatedData.weekStartDate
-      ? new Date(validatedData.weekStartDate)
-      : getCurrentWeekStart();
-
-    // Check if tasks already exist for this week (inclusive start, exclusive end)
-    const existingTasks = await db
-      .select({ id: redditTasks.id })
-      .from(redditTasks)
-      .where(
-        and(
-          eq(redditTasks.projectId, validatedData.projectId),
-          gte(redditTasks.scheduledDate, weekStartDate),
-          lt(
-            redditTasks.scheduledDate,
-            new Date(weekStartDate.getTime() + 7 * 24 * 60 * 60 * 1000),
-          ),
-        ),
-      )
-      .limit(1);
-
-    if (existingTasks.length > 0) {
-      return NextResponse.json(
-        {
-          error:
-            "Tasks already exist for this week. Delete existing tasks first if you want to regenerate.",
-        },
-        { status: 400 },
-      );
+    let weekStartDate: Date;
+    if (validatedData.weekStartDate) {
+      weekStartDate = new Date(validatedData.weekStartDate);
+      // Ensure the provided date is a Monday (day 1) for consistency
+      if (weekStartDate.getDay() !== 1) {
+        return NextResponse.json(
+          {
+            error: "weekStartDate must be a Monday. Please provide the start of the week (Monday) for task generation.",
+            providedDate: validatedData.weekStartDate,
+            dayOfWeek: weekStartDate.getDay(),
+          },
+          { status: 400 },
+        );
+      }
+    } else {
+      weekStartDate = getCurrentWeekStart();
     }
+
+    // Calculate week end date for response information
+    const weekEndDate = new Date(weekStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     // Determine target subreddits: prefer settings.targetSubreddits, otherwise discover
     const targetSubreddits: string[] = Array.isArray(settings.targetSubreddits)
@@ -223,6 +214,8 @@ export async function POST(request: NextRequest) {
       success: true,
       tasksGenerated: savedTasks.length,
       weekStartDate: weekStartDate.toISOString(),
+      weekEndDate: weekEndDate.toISOString(),
+      weekRange: `${weekStartDate.toISOString().split('T')[0]} to ${weekEndDate.toISOString().split('T')[0]}`,
       taskDistribution: {
         comments: commentTasks,
         posts: postTasks,

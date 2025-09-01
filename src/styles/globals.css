@@ -109,6 +109,32 @@
       transform: scaleX(1);
     }
   }
+
+  /* Google Calendar style task cards */
+  .task-card-interactive {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .task-card-interactive:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Pulse animation for high overlap count indicators */
+  @keyframes overlap-pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 0.9;
+    }
+  }
+
+  .animate-overlap-pulse {
+    animation: overlap-pulse 2s ease-in-out infinite;
+  }
 }
 
 @theme inline {

@@ -13,7 +13,6 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
   Settings,
   Clock,
   X,
@@ -47,12 +46,26 @@ import { cn } from "@/lib/utils";
 import type { RedditTask, WeeklyTasksResponse } from "@/types";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { GenerateTasksButton } from "./GenerateTasksButton";
+
+// Task layout types
+interface TaskLayout {
+  left: string;
+  width: string;
+  zIndex: number;
+}
+
+// Interface to track task column positioning during layout calculation
+interface TaskWithColumn extends RedditTask {
+  columnIndex: number;
+}
 
 interface GoogleCalendarProps {
   weekData: WeeklyTasksResponse;
   onTaskClick: (task: RedditTask) => void;
   loading?: boolean;
   onRefresh?: () => void;
+  onWeekChange?: (weekStartDate: Date) => void;
   onTaskUpdate?: (
     taskId: number,
     updates: { scheduledDate?: Date },
@@ -164,11 +177,127 @@ const timeSlots = Array.from({ length: VISIBLE_HOURS }, (_, i) => {
   return { hour, minute, index: i };
 });
 
+const calculateTaskLayout = (tasksForDay: RedditTask[]): Map<number, TaskLayout> => {
+  const layoutMap = new Map<number, TaskLayout>();
+  
+  // Use a fixed 60-minute duration for all tasks, as per the existing UI logic.
+  const TASK_DURATION_MS = 60 * 60 * 1000;
+
+  // 1. Sort tasks primarily by start time, then by ID for stable ordering.
+  const sortedTasks = [...tasksForDay].sort((a, b) => {
+    const startA = new Date(a.scheduledDate).getTime();
+    const startB = new Date(b.scheduledDate).getTime();
+    if (startA !== startB) {
+      return startA - startB;
+    }
+    return a.id - b.id;
+  });
+
+  // 2. Identify groups of overlapping tasks.
+  const groups: TaskWithColumn[][] = [];
+  if (sortedTasks.length > 0) {
+    let currentGroup: TaskWithColumn[] = [sortedTasks[0] as TaskWithColumn];
+    let groupEndTime = new Date(sortedTasks[0]!.scheduledDate).getTime() + TASK_DURATION_MS;
+
+    for (let i = 1; i < sortedTasks.length; i++) {
+      const task = sortedTasks[i] as TaskWithColumn;
+      const taskStartTime = new Date(task.scheduledDate).getTime();
+
+      // If the current task starts after the latest end time in the group,
+      // the previous group is finished. Start a new one.
+      if (taskStartTime >= groupEndTime) {
+        groups.push(currentGroup);
+        currentGroup = [task];
+      } else {
+        currentGroup.push(task);
+      }
+      
+      // Update the group's collective end time.
+      groupEndTime = Math.max(groupEndTime, taskStartTime + TASK_DURATION_MS);
+    }
+    groups.push(currentGroup); // Add the last group.
+  }
+
+  // 3. Calculate layout for each group.
+  groups.forEach(group => {
+    // This will hold the "columns" of tasks. Each inner array is a column.
+    const columns: TaskWithColumn[][] = [];
+
+    group.forEach(task => {
+      const taskStartTime = new Date(task.scheduledDate).getTime();
+      let placed = false;
+
+      // Find the first column where this task can fit without collision.
+      for (const column of columns) {
+        const lastTaskInColumn = column[column.length - 1]!;
+        const lastTaskEndTime = new Date(lastTaskInColumn.scheduledDate).getTime() + TASK_DURATION_MS;
+        
+        if (taskStartTime >= lastTaskEndTime) {
+          column.push(task);
+          task.columnIndex = columns.indexOf(column);
+          placed = true;
+          break;
+        }
+      }
+
+      // If it didn't fit, it needs a new column.
+      if (!placed) {
+        columns.push([task]);
+        task.columnIndex = columns.length - 1;
+      }
+    });
+
+    const totalColumns = columns.length;
+
+    // 4. Generate CSS properties for each task in the group to create the overlap effect.
+    group.forEach(task => {
+      const columnIndex = task.columnIndex;
+      
+      // Calculate base width per column
+      const baseWidthPercentage = 100 / totalColumns;
+      
+      // For visual overlap, make each task slightly wider but ensure no overflow
+      // We add overlap only if there are multiple columns and it won't cause overflow
+      let visualWidth = baseWidthPercentage;
+      let leftPosition = columnIndex * baseWidthPercentage;
+      
+      if (totalColumns > 1) {
+        // Add small overlap (max 8px equivalent, about 2% of a typical column)
+        const overlapPercentage = Math.min(2, baseWidthPercentage * 0.1);
+        visualWidth = baseWidthPercentage + overlapPercentage;
+        
+        // Adjust left position to create staggered effect but prevent overflow
+        const maxLeftAdjustment = Math.min(1, overlapPercentage * 0.5);
+        leftPosition = columnIndex * baseWidthPercentage - (maxLeftAdjustment * columnIndex);
+        
+        // Ensure the rightmost task doesn't overflow
+        if (leftPosition + visualWidth > 100) {
+          visualWidth = 100 - leftPosition;
+        }
+        
+        // Ensure left position doesn't go negative
+        leftPosition = Math.max(0, leftPosition);
+      }
+
+      layoutMap.set(task.id, {
+        width: `${visualWidth}%`,
+        left: `${leftPosition}%`,
+        zIndex: 10 + columnIndex, // Tasks in later columns appear on top
+      });
+    });
+  });
+
+  return layoutMap;
+};
+
+
+
 export function TaskCalendar({
   weekData,
   onTaskClick,
   loading = false,
   onRefresh,
+  onWeekChange,
   onTaskUpdate,
   onTaskOptimisticUpdate,
   onTaskComplete,
@@ -186,6 +315,12 @@ export function TaskCalendar({
     }
   });
 
+  // Helper function to calculate week start date from the current calendar view
+  // This ensures the generate button always targets the currently displayed week
+  const getCurrentWeekStart = (): Date => {
+    return startOfWeek(currentDate, { weekStartsOn: 1 });
+  };
+
   // Auto-scroll to 4 AM on mount and when week changes
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -195,6 +330,26 @@ export function TaskCalendar({
       scrollContainerRef.current.scrollTop = scrollPosition;
     }
   }, [weekData.weekStartDate]); // Re-scroll when week changes
+
+  // Sync currentDate with weekData when it changes from external sources
+  useEffect(() => {
+    try {
+      const weekDataStart = new Date(weekData.weekStartDate);
+      // Only update if the week data represents a different week than current state
+      const currentWeekDataStart = startOfWeek(weekDataStart, {
+        weekStartsOn: 1,
+      });
+      const currentStateWeekStart = startOfWeek(currentDate, {
+        weekStartsOn: 1,
+      });
+
+      if (currentWeekDataStart.getTime() !== currentStateWeekStart.getTime()) {
+        setCurrentDate(weekDataStart);
+      }
+    } catch {
+      // If weekData.weekStartDate is invalid, keep current state
+    }
+  }, [weekData.weekStartDate, currentDate]);
 
   const [draggedTask, setDraggedTask] = useState<RedditTask | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<{
@@ -218,10 +373,6 @@ export function TaskCalendar({
     scheduledDate: "",
     scheduledTime: "",
   });
-
-  const handleRefresh = () => {
-    onRefresh?.();
-  };
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -256,13 +407,30 @@ export function TaskCalendar({
   };
 
   const navigateWeek = (direction: "prev" | "next") => {
-    setCurrentDate((prev) =>
-      direction === "prev" ? subWeeks(prev, 1) : addWeeks(prev, 1),
-    );
+    setCurrentDate((prev) => {
+      const newDate =
+        direction === "prev" ? subWeeks(prev, 1) : addWeeks(prev, 1);
+      const newWeekStart = startOfWeek(newDate, { weekStartsOn: 1 });
+
+      // Notify parent component of week change
+      if (onWeekChange) {
+        onWeekChange(newWeekStart);
+      }
+
+      return newDate;
+    });
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date());
+    const today = new Date();
+    const todayWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+
+    setCurrentDate(today);
+
+    // Notify parent component of week change
+    if (onWeekChange) {
+      onWeekChange(todayWeekStart);
+    }
   };
 
   // Check if current week has any tasks
@@ -351,18 +519,15 @@ export function TaskCalendar({
           });
         } else {
           // Fallback to direct API call if no onTaskUpdate prop provided
-          const response = await fetch(
-            `/api/reddit/tasks/${taskId}`,
-            {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                scheduledDate: newScheduledDate.toISOString(),
-              }),
+          const response = await fetch(`/api/reddit/tasks/${taskId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
             },
-          );
+            body: JSON.stringify({
+              scheduledDate: newScheduledDate.toISOString(),
+            }),
+          });
 
           if (!response.ok) {
             throw new Error("Failed to update task");
@@ -499,13 +664,19 @@ export function TaskCalendar({
             Reddit Tasks Calendar
           </h2>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goToToday}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToToday}
+              disabled={false}
+            >
               Today
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigateWeek("prev")}
+              disabled={false}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -513,30 +684,32 @@ export function TaskCalendar({
               variant="ghost"
               size="icon"
               onClick={() => navigateWeek("next")}
+              disabled={false}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <span className="text-foreground ml-2 text-lg font-medium">
-              {format(weekStart, "MMMM yyyy")}
-            </span>
+            <div className="ml-2 flex items-center gap-2">
+              <span className="text-foreground text-lg font-medium">
+                {format(weekStart, "MMMM yyyy")}
+              </span>
+              {loading && (
+                <div className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
+            <GenerateTasksButton
+              projectId={projectId}
+              weekStartDate={getCurrentWeekStart()}
+              onTasksGenerated={() => onRefresh?.()}
               disabled={loading}
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
+            />
             <Button
               variant="outline"
-              onClick={() =>
-                router.push("/dashboard/reddit/settings")
-              }
+              onClick={() => router.push("/dashboard/reddit/settings")}
             >
               <Settings className="mr-2 h-4 w-4" />
               Settings
@@ -548,7 +721,7 @@ export function TaskCalendar({
       {/* Calendar Grid */}
       <div className="flex-1 overflow-hidden">
         {/* Single internal scroll container for the calendar view */}
-        <div 
+        <div
           ref={scrollContainerRef}
           className="h-full overflow-auto overscroll-contain"
         >
@@ -586,6 +759,9 @@ export function TaskCalendar({
             {/* Day columns */}
             {weekDays.map((day) => {
               const tasksForDay = getTasksForDay(day);
+
+              // Calculate layout for tasks on this day
+              const taskLayouts = calculateTaskLayout(tasksForDay);
 
               return (
                 <div
@@ -640,6 +816,7 @@ export function TaskCalendar({
                     {/* Tasks */}
                     {tasksForDay.map((task) => {
                       const position = getTaskPosition(task);
+                      const taskLayout = taskLayouts.get(task.id);
                       const category = taskCategories[getTaskCategory(task)];
                       const IconComponent = category.icon;
 
@@ -647,16 +824,35 @@ export function TaskCalendar({
                         <div
                           key={task.id}
                           className={cn(
-                            "absolute right-1 left-1 cursor-pointer rounded-md border border-white/20 p-2 shadow-sm",
+                            "group absolute cursor-pointer rounded-md border p-2 shadow-sm",
                             category.color,
                             category.textColor,
-                            "transition-all hover:shadow-md",
+                            "task-card-interactive transition-all duration-200 ease-in-out",
+                            // Google Calendar-style overlap styling
+                            "hover:z-50 hover:scale-105 hover:shadow-lg",
+                            "border-white/30",
+                            // CRITICAL FIX: Make other tasks non-interactive during drag operation
+                            // This allows drop events to reach the time slot underneath
+                            !!draggedTask && draggedTask.id !== task.id && "pointer-events-none",
+                            // Drag states for the original task being dragged
                             draggedTask?.id === task.id &&
-                              "scale-95 opacity-50",
+                              "z-0 scale-95 opacity-50",
                             isUpdatingTask && "pointer-events-none opacity-75",
                             "select-none", // Prevent text selection during drag
                           )}
-                          style={position}
+                          style={{
+                            ...position,
+                            ...(taskLayout ?? {
+                              left: "2px",
+                              width: "calc(100% - 4px)",
+                              zIndex: 1,
+                            }),
+                            // Enhanced z-index management for drag state
+                            zIndex:
+                              draggedTask?.id === task.id
+                                ? 0
+                                : taskLayout?.zIndex ?? 1,
+                          }}
                           draggable={!isUpdatingTask}
                           onDragStart={(e) => handleDragStart(e, task)}
                           onDragEnd={handleDragEnd}
@@ -664,6 +860,25 @@ export function TaskCalendar({
                             e.stopPropagation();
                             if (!isUpdatingTask) {
                               openTaskModal(task);
+                            }
+                          }}
+                          onMouseEnter={(e) => {
+                            // Enhanced hover effects for overlapped tasks
+                            if (taskLayout && !draggedTask) {
+                              const element = e.currentTarget as HTMLElement;
+                              element.style.zIndex = "999";
+                              element.style.transform = "scale(1.05)";
+                              element.style.boxShadow =
+                                "0 12px 32px -8px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(0, 0, 0, 0.15)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            // Restore original styling with smooth transition
+                            if (taskLayout && !draggedTask) {
+                              const element = e.currentTarget as HTMLElement;
+                              element.style.zIndex = taskLayout.zIndex.toString();
+                              element.style.transform = "scale(1)";
+                              element.style.boxShadow = "";
                             }
                           }}
                         >
@@ -680,6 +895,59 @@ export function TaskCalendar({
                           </div>
                         </div>
                       );
+                    })}
+
+                    {/* Invisible clickable overlay for time slot creation - positioned above tasks */}
+                    {timeSlots.map((slot) => {
+                      const tasksInSlot = tasksForDay.filter(task => {
+                        const taskDate = new Date(task.scheduledDate);
+                        return taskDate.getHours() === slot.hour;
+                      });
+
+                      // If there are overlapping tasks in this slot, create a clickable area on the right side
+                      if (tasksInSlot.length > 0) {
+                        const slotTaskLayouts = tasksInSlot
+                          .map(task => taskLayouts.get(task.id))
+                          .filter((layout): layout is TaskLayout => layout !== undefined);
+
+                        if (slotTaskLayouts.length > 0) {
+                          const maxTaskLayout = slotTaskLayouts.reduce((max, layout) => {
+                            const maxRight = parseFloat(max.left) + parseFloat(max.width);
+                            const layoutRight = parseFloat(layout.left) + parseFloat(layout.width);
+                            return layoutRight > maxRight ? layout : max;
+                          });
+
+                          // Create a clickable area to the right of the rightmost task
+                          const rightmostPosition = parseFloat(maxTaskLayout.left) + parseFloat(maxTaskLayout.width);
+                          const remainingSpace = 100 - rightmostPosition;
+                          
+                          if (remainingSpace > 10) { // Only show if there's at least 10% space
+                            return (
+                              <div
+                                key={`clickable-${slot.index}`}
+                                className="absolute h-12 cursor-pointer transition-colors hover:bg-accent/10"
+                                style={{
+                                  top: `${(slot.index * 100) / timeSlots.length}%`,
+                                  left: `${rightmostPosition}%`,
+                                  width: `${remainingSpace}%`,
+                                  zIndex: 999, // Above all tasks
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTimeSlotClick(day, slot.hour, 0);
+                                }}
+                                onDragOver={(e) => handleDragOver(e, day, slot.hour, 0)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, day, slot.hour, 0)}
+                              >
+                                {/* Visual indicator for the clickable area on hover */}
+                                <div className="h-full w-full opacity-0 hover:opacity-30 transition-opacity bg-primary/20 rounded-r-md" />
+                              </div>
+                            );
+                          }
+                        }
+                      }
+                      return null;
                     })}
                   </div>
                 </div>
@@ -859,19 +1127,21 @@ export function TaskCalendar({
             <div>
               <h3 className="mb-2 text-sm font-medium">Description</h3>
               <p className="text-foreground mb-2 text-sm">
-                {selectedTask?.prompt} <span className="text-xs">{selectedTask?.redditUrl && (
-                  <a
-                    href={selectedTask.redditUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:text-primary/80 inline-flex items-center gap-1 font-medium transition-colors"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    View Original Post
-                  </a>
-                )}</span>
+                {selectedTask?.prompt}{" "}
+                <span className="text-xs">
+                  {selectedTask?.redditUrl && (
+                    <a
+                      href={selectedTask.redditUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary/80 inline-flex items-center gap-1 font-medium transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      View Original Post
+                    </a>
+                  )}
+                </span>
               </p>
-              
             </div>
 
             {/* AI Draft section - only for comment tasks */}

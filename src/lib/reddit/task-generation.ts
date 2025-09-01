@@ -291,7 +291,7 @@ export function distributeTasksAcrossWeek(
   searchKeywords: string;
   prompt: string;
   aiDraft: string | null;
-  redditUrl: string;
+  redditUrl: string | null;
 }> {
   const { weekStartDate, maxTasksPerWeek = 7, defaultTaskTime = { hours: 9, minutes: 0 } } = options;
 
@@ -313,7 +313,7 @@ export function distributeTasksAcrossWeek(
     searchKeywords: string;
     prompt: string;
     aiDraft: string | null;
-    redditUrl: string;
+    redditUrl: string | null;
   }> = [];
 
   for (let i = 0; i < tasksToCreate; i++) {
