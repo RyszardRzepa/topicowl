@@ -352,3 +352,54 @@ export interface RedditSettings {
   autoGenerateWeekly: boolean;
   lastGeneratedDate?: string;
 }
+
+// Dashboard overview types
+export interface ArticleMetrics {
+  totalThisMonth: number;
+  publishedLastWeek: number;
+  workflowCounts: {
+    planning: number;
+    generating: number;
+    publishing: number;
+  };
+  recentActivity: Array<{
+    id: string;
+    title: string;
+    action: 'created' | 'generated' | 'published';
+    timestamp: string;
+  }>;
+  credits: {
+    balance: number;
+    usedThisMonth: number;
+  };
+}
+
+export interface RedditMetrics {
+  weeklyStats: {
+    totalTasks: number;
+    completedTasks: number;
+    completionRate: number;
+    karmaEarned: number;
+  };
+  todaysPendingTasks: number;
+  upcomingTasks: Array<{
+    id: number;
+    title: string;
+    subreddit: string;
+    scheduledDate: string;
+  }>;
+}
+
+export interface DashboardStatsResponse {
+  articles: ArticleMetrics;
+  reddit: {
+    connected: boolean;
+    data: RedditMetrics | null;
+  };
+}
+
+export interface DashboardState {
+  data: DashboardStatsResponse | null;
+  loading: boolean;
+  error: string | null;
+}

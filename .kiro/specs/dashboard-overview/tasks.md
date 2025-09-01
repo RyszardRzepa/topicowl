@@ -1,20 +1,20 @@
 # Implementation Plan
 
-- [ ] 1. Create unified dashboard stats API endpoint
+- [x] 1. Create unified dashboard stats API endpoint
   - Create `/api/dashboard/stats` endpoint to fetch all dashboard statistics in one request
   - Aggregate both article statistics and Reddit task statistics
   - Handle Reddit connection status internally and return appropriate data structure
   - Implement proper error handling and project-based data isolation
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 2. Implement dashboard data types and interfaces
+- [x] 2. Implement dashboard data types and interfaces
   - Define ArticleMetrics interface in `src/types.ts`
   - Define RedditMetrics interface in `src/types.ts`
   - Define DashboardStatsResponse interface in `src/types.ts`
   - Define DashboardState interface in `src/types.ts`
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 3. Create article metrics section components
+- [-] 3. Create article metrics section components
   - Implement ArticleStatsCard component showing monthly totals and weekly published count
   - Implement WorkflowStatusCard component showing planning/generating/publishing counts
   - Implement RecentActivityCard component showing recent article actions
@@ -84,10 +84,3 @@
   - Test integration with existing workflow and Reddit pages
   - Verify quick action navigation works correctly
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
-
-- [ ] 12. Add loading skeletons and performance optimizations
-  - Implement unified skeleton loading component for entire dashboard
-  - Add React.memo optimization for metric components
-  - Implement proper data caching for single API endpoint
-  - Add refresh functionality for updating stale dashboard data
-  - _Requirements: 5.1, 5.4, 5.5_
