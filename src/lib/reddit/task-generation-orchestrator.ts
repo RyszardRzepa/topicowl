@@ -314,15 +314,6 @@ export async function generateRedditTasks(
     );
 
     if (taskGenerationResult.tasks.length === 0) {
-      // Provide detailed error message with the actual scores
-      const topScores = sortedByScore
-        .slice(0, 5)
-        .map(
-          (r) =>
-            `r/${r.post.subreddit}: ${r.score}/10 (${r.shouldReply ? "recommended" : "not recommended"})`,
-        )
-        .join(", ");
-
       return {
         success: false,
         tasks: [],
@@ -348,7 +339,12 @@ export async function generateRedditTasks(
           recordingErrors: [],
           totalProcessingTimeMs: Date.now() - startTime,
         },
-        error: `No relevant posts found for comment generation. Highest scores: ${topScores}. Try adjusting your target subreddits or project keywords.`,
+        error: createUserFriendlyErrorMessage(
+          config.subreddits,
+          evaluationResult.totalEvaluated,
+          evaluationResult.statistics.recommendedCount,
+          evaluationResult.statistics.averageScore,
+        ),
       };
     }
 
@@ -469,4 +465,32 @@ export async function generateRedditTasks(
       error: errorMessage,
     };
   }
+}
+
+/**
+ * Creates a user-friendly error message when no tasks can be generated
+ */
+function createUserFriendlyErrorMessage(
+  subreddits: string[],
+  totalEvaluated: number,
+  recommendedCount: number,
+  averageScore: number,
+): string {
+  const subredditList = subreddits.map(s => `r/${s}`).join(", ");
+  
+  if (totalEvaluated === 0) {
+    return `No posts were found in ${subredditList}. These subreddits might be inactive or private.`;
+  }
+
+  if (recommendedCount === 0) {
+    if (averageScore < 3) {
+      return `We found ${totalEvaluated} posts in ${subredditList}, but none were relevant to your project. Try selecting subreddits more closely related to your business or industry.`;
+    } else if (averageScore < 6) {
+      return `We found ${totalEvaluated} posts in ${subredditList} with moderate relevance (average score: ${averageScore.toFixed(1)}/10). Consider refining your project keywords or trying different subreddits for better matches.`;
+    } else {
+      return `We found ${totalEvaluated} relevant posts in ${subredditList} (average score: ${averageScore.toFixed(1)}/10), but they didn't meet the threshold for task generation. This might be due to timing or content guidelines.`;
+    }
+  }
+
+  return `We found ${recommendedCount} relevant posts out of ${totalEvaluated} evaluated, but couldn't generate tasks from them. Please try again or adjust your target subreddits.`;
 }

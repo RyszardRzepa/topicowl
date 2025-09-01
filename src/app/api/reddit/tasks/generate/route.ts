@@ -171,13 +171,40 @@ export async function POST(request: NextRequest) {
     const orchestrationResult = await generateRedditTasks(orchestrationConfig);
 
     if (!orchestrationResult.success) {
+      const stats = orchestrationResult.statistics;
       return NextResponse.json(
         {
+          success: false,
           error: orchestrationResult.error,
-          duplicateFilteringStats:
-            orchestrationResult.statistics.duplicateFilteringStats,
-          duplicatesFiltered: orchestrationResult.statistics.duplicatesFiltered,
-          duplicateDetails: orchestrationResult.statistics.duplicateDetails,
+          weekStartDate: weekStartDate.toISOString(),
+          weekEndDate: weekEndDate.toISOString(),
+          weekRange: `${weekStartDate.toISOString().split('T')[0]} to ${weekEndDate.toISOString().split('T')[0]}`,
+          // Comprehensive error statistics
+          statistics: {
+            totalSubredditsTargeted: stats.totalSubredditsTargeted,
+            totalPostsFetched: stats.totalPostsFetched,
+            fetchErrors: stats.fetchErrors,
+            duplicateFilteringStats: stats.duplicateFilteringStats,
+            duplicatesFiltered: stats.duplicatesFiltered,
+            duplicateDetails: stats.duplicateDetails,
+            totalPostsEvaluated: stats.totalPostsEvaluated,
+            evaluationErrors: stats.evaluationErrors,
+            averageScore: stats.averageScore,
+            recommendedCount: stats.recommendedCount,
+            highScoreCount: stats.highScoreCount,
+            mediumScoreCount: stats.mediumScoreCount,
+            lowScoreCount: stats.lowScoreCount,
+            relevantPostsFound: stats.relevantPostsFound,
+            tasksGenerated: stats.tasksGenerated,
+            draftsGenerated: stats.draftsGenerated,
+            postsRecorded: stats.postsRecorded,
+            recordingErrors: stats.recordingErrors,
+            processingTime: stats.totalProcessingTimeMs,
+          },
+          // Legacy fields for backward compatibility
+          duplicateFilteringStats: stats.duplicateFilteringStats,
+          duplicatesFiltered: stats.duplicatesFiltered,
+          duplicateDetails: stats.duplicateDetails,
         },
         { status: 400 },
       );
@@ -222,6 +249,40 @@ export async function POST(request: NextRequest) {
         commentRatio: actualCommentRatio,
         expectedRatio: settings.commentRatio ?? 80,
       },
+      // Comprehensive statistics as required by task 12
+      statistics: {
+        // Fetch statistics
+        totalSubredditsTargeted: stats.totalSubredditsTargeted,
+        totalPostsFetched: stats.totalPostsFetched,
+        fetchErrors: stats.fetchErrors,
+        
+        // Duplicate filtering statistics
+        duplicateFilteringStats: stats.duplicateFilteringStats,
+        duplicatesFiltered: stats.duplicatesFiltered,
+        duplicateDetails: stats.duplicateDetails,
+        
+        // Evaluation statistics
+        totalPostsEvaluated: stats.totalPostsEvaluated,
+        evaluationErrors: stats.evaluationErrors,
+        averageScore: stats.averageScore,
+        recommendedCount: stats.recommendedCount,
+        highScoreCount: stats.highScoreCount,
+        mediumScoreCount: stats.mediumScoreCount,
+        lowScoreCount: stats.lowScoreCount,
+        
+        // Task generation statistics
+        relevantPostsFound: stats.relevantPostsFound,
+        tasksGenerated: stats.tasksGenerated,
+        draftsGenerated: stats.draftsGenerated,
+        
+        // Post recording statistics
+        postsRecorded: stats.postsRecorded,
+        recordingErrors: stats.recordingErrors,
+        
+        // Processing time
+        processingTime: stats.totalProcessingTimeMs,
+      },
+      // Legacy fields for backward compatibility
       duplicateFilteringStats: stats.duplicateFilteringStats,
       duplicatesFiltered: stats.duplicatesFiltered,
       duplicateDetails: stats.duplicateDetails,

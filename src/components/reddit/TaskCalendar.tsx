@@ -15,13 +15,13 @@ import {
   ChevronRight,
   Settings,
   Clock,
-  X,
   MessageSquare,
   FileText,
   ExternalLink,
   ChevronDown,
   ChevronUp,
   Copy,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { RedditTask, WeeklyTasksResponse } from "@/types";
@@ -139,7 +140,7 @@ const taskCategories = {
     color: "bg-gray-300",
     textColor: "text-gray-700",
     label: "Skipped",
-    icon: X,
+    icon: Clock,
   },
   comment: {
     color: "bg-chart-2",
@@ -177,9 +178,11 @@ const timeSlots = Array.from({ length: VISIBLE_HOURS }, (_, i) => {
   return { hour, minute, index: i };
 });
 
-const calculateTaskLayout = (tasksForDay: RedditTask[]): Map<number, TaskLayout> => {
+const calculateTaskLayout = (
+  tasksForDay: RedditTask[],
+): Map<number, TaskLayout> => {
   const layoutMap = new Map<number, TaskLayout>();
-  
+
   // Use a fixed 60-minute duration for all tasks, as per the existing UI logic.
   const TASK_DURATION_MS = 60 * 60 * 1000;
 
@@ -197,7 +200,8 @@ const calculateTaskLayout = (tasksForDay: RedditTask[]): Map<number, TaskLayout>
   const groups: TaskWithColumn[][] = [];
   if (sortedTasks.length > 0) {
     let currentGroup: TaskWithColumn[] = [sortedTasks[0] as TaskWithColumn];
-    let groupEndTime = new Date(sortedTasks[0]!.scheduledDate).getTime() + TASK_DURATION_MS;
+    let groupEndTime =
+      new Date(sortedTasks[0]!.scheduledDate).getTime() + TASK_DURATION_MS;
 
     for (let i = 1; i < sortedTasks.length; i++) {
       const task = sortedTasks[i] as TaskWithColumn;
@@ -211,7 +215,7 @@ const calculateTaskLayout = (tasksForDay: RedditTask[]): Map<number, TaskLayout>
       } else {
         currentGroup.push(task);
       }
-      
+
       // Update the group's collective end time.
       groupEndTime = Math.max(groupEndTime, taskStartTime + TASK_DURATION_MS);
     }
@@ -219,19 +223,20 @@ const calculateTaskLayout = (tasksForDay: RedditTask[]): Map<number, TaskLayout>
   }
 
   // 3. Calculate layout for each group.
-  groups.forEach(group => {
+  groups.forEach((group) => {
     // This will hold the "columns" of tasks. Each inner array is a column.
     const columns: TaskWithColumn[][] = [];
 
-    group.forEach(task => {
+    group.forEach((task) => {
       const taskStartTime = new Date(task.scheduledDate).getTime();
       let placed = false;
 
       // Find the first column where this task can fit without collision.
       for (const column of columns) {
         const lastTaskInColumn = column[column.length - 1]!;
-        const lastTaskEndTime = new Date(lastTaskInColumn.scheduledDate).getTime() + TASK_DURATION_MS;
-        
+        const lastTaskEndTime =
+          new Date(lastTaskInColumn.scheduledDate).getTime() + TASK_DURATION_MS;
+
         if (taskStartTime >= lastTaskEndTime) {
           column.push(task);
           task.columnIndex = columns.indexOf(column);
@@ -250,31 +255,32 @@ const calculateTaskLayout = (tasksForDay: RedditTask[]): Map<number, TaskLayout>
     const totalColumns = columns.length;
 
     // 4. Generate CSS properties for each task in the group to create the overlap effect.
-    group.forEach(task => {
+    group.forEach((task) => {
       const columnIndex = task.columnIndex;
-      
+
       // Calculate base width per column
       const baseWidthPercentage = 100 / totalColumns;
-      
+
       // For visual overlap, make each task slightly wider but ensure no overflow
       // We add overlap only if there are multiple columns and it won't cause overflow
       let visualWidth = baseWidthPercentage;
       let leftPosition = columnIndex * baseWidthPercentage;
-      
+
       if (totalColumns > 1) {
         // Add small overlap (max 8px equivalent, about 2% of a typical column)
         const overlapPercentage = Math.min(2, baseWidthPercentage * 0.1);
         visualWidth = baseWidthPercentage + overlapPercentage;
-        
+
         // Adjust left position to create staggered effect but prevent overflow
         const maxLeftAdjustment = Math.min(1, overlapPercentage * 0.5);
-        leftPosition = columnIndex * baseWidthPercentage - (maxLeftAdjustment * columnIndex);
-        
+        leftPosition =
+          columnIndex * baseWidthPercentage - maxLeftAdjustment * columnIndex;
+
         // Ensure the rightmost task doesn't overflow
         if (leftPosition + visualWidth > 100) {
           visualWidth = 100 - leftPosition;
         }
-        
+
         // Ensure left position doesn't go negative
         leftPosition = Math.max(0, leftPosition);
       }
@@ -289,8 +295,6 @@ const calculateTaskLayout = (tasksForDay: RedditTask[]): Map<number, TaskLayout>
 
   return layoutMap;
 };
-
-
 
 export function TaskCalendar({
   weekData,
@@ -365,6 +369,7 @@ export function TaskCalendar({
   const [selectedTask, setSelectedTask] = useState<RedditTask | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [isCompletingTask, setIsCompletingTask] = useState(false);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [newTaskData, setNewTaskData] = useState({
     taskType: "comment" as "comment" | "post",
     subreddit: "",
@@ -374,7 +379,7 @@ export function TaskCalendar({
     scheduledTime: "",
   });
 
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const getTasksForDay = (day: Date) => {
@@ -583,7 +588,12 @@ export function TaskCalendar({
     try {
       setIsCreatingTask(true);
 
-      const scheduledDateTime = `${newTaskData.scheduledDate}T${newTaskData.scheduledTime}:00`;
+      // Create a proper Date object and convert to ISO string
+      const localDateTime = `${newTaskData.scheduledDate}T${newTaskData.scheduledTime}:00`;
+      const scheduledDate = new Date(localDateTime);
+
+      // Convert to ISO string for proper datetime validation
+      const scheduledDateTime = scheduledDate.toISOString();
 
       const response = await fetch("/api/reddit/tasks", {
         method: "POST",
@@ -652,6 +662,29 @@ export function TaskCalendar({
     } catch (error) {
       console.error("Failed to copy text:", error);
       toast.error("Failed to copy text. Please try again.");
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    try {
+      setIsDeletingTask(true);
+
+      const response = await fetch(`/api/reddit/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete task");
+      }
+
+      toast.success("Task deleted successfully!");
+      closeTaskModal();
+      onRefresh?.();
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete task. Please try again.");
+    } finally {
+      setIsDeletingTask(false);
     }
   };
 
@@ -833,7 +866,9 @@ export function TaskCalendar({
                             "border-white/30",
                             // CRITICAL FIX: Make other tasks non-interactive during drag operation
                             // This allows drop events to reach the time slot underneath
-                            !!draggedTask && draggedTask.id !== task.id && "pointer-events-none",
+                            !!draggedTask &&
+                              draggedTask.id !== task.id &&
+                              "pointer-events-none",
                             // Drag states for the original task being dragged
                             draggedTask?.id === task.id &&
                               "z-0 scale-95 opacity-50",
@@ -851,7 +886,7 @@ export function TaskCalendar({
                             zIndex:
                               draggedTask?.id === task.id
                                 ? 0
-                                : taskLayout?.zIndex ?? 1,
+                                : (taskLayout?.zIndex ?? 1),
                           }}
                           draggable={!isUpdatingTask}
                           onDragStart={(e) => handleDragStart(e, task)}
@@ -876,7 +911,8 @@ export function TaskCalendar({
                             // Restore original styling with smooth transition
                             if (taskLayout && !draggedTask) {
                               const element = e.currentTarget as HTMLElement;
-                              element.style.zIndex = taskLayout.zIndex.toString();
+                              element.style.zIndex =
+                                taskLayout.zIndex.toString();
                               element.style.transform = "scale(1)";
                               element.style.boxShadow = "";
                             }
@@ -899,7 +935,7 @@ export function TaskCalendar({
 
                     {/* Invisible clickable overlay for time slot creation - positioned above tasks */}
                     {timeSlots.map((slot) => {
-                      const tasksInSlot = tasksForDay.filter(task => {
+                      const tasksInSlot = tasksForDay.filter((task) => {
                         const taskDate = new Date(task.scheduledDate);
                         return taskDate.getHours() === slot.hour;
                       });
@@ -907,25 +943,36 @@ export function TaskCalendar({
                       // If there are overlapping tasks in this slot, create a clickable area on the right side
                       if (tasksInSlot.length > 0) {
                         const slotTaskLayouts = tasksInSlot
-                          .map(task => taskLayouts.get(task.id))
-                          .filter((layout): layout is TaskLayout => layout !== undefined);
+                          .map((task) => taskLayouts.get(task.id))
+                          .filter(
+                            (layout): layout is TaskLayout =>
+                              layout !== undefined,
+                          );
 
                         if (slotTaskLayouts.length > 0) {
-                          const maxTaskLayout = slotTaskLayouts.reduce((max, layout) => {
-                            const maxRight = parseFloat(max.left) + parseFloat(max.width);
-                            const layoutRight = parseFloat(layout.left) + parseFloat(layout.width);
-                            return layoutRight > maxRight ? layout : max;
-                          });
+                          const maxTaskLayout = slotTaskLayouts.reduce(
+                            (max, layout) => {
+                              const maxRight =
+                                parseFloat(max.left) + parseFloat(max.width);
+                              const layoutRight =
+                                parseFloat(layout.left) +
+                                parseFloat(layout.width);
+                              return layoutRight > maxRight ? layout : max;
+                            },
+                          );
 
                           // Create a clickable area to the right of the rightmost task
-                          const rightmostPosition = parseFloat(maxTaskLayout.left) + parseFloat(maxTaskLayout.width);
+                          const rightmostPosition =
+                            parseFloat(maxTaskLayout.left) +
+                            parseFloat(maxTaskLayout.width);
                           const remainingSpace = 100 - rightmostPosition;
-                          
-                          if (remainingSpace > 10) { // Only show if there's at least 10% space
+
+                          if (remainingSpace > 10) {
+                            // Only show if there's at least 10% space
                             return (
                               <div
                                 key={`clickable-${slot.index}`}
-                                className="absolute h-12 cursor-pointer transition-colors hover:bg-accent/10"
+                                className="hover:bg-accent/10 absolute h-12 cursor-pointer transition-colors"
                                 style={{
                                   top: `${(slot.index * 100) / timeSlots.length}%`,
                                   left: `${rightmostPosition}%`,
@@ -936,12 +983,14 @@ export function TaskCalendar({
                                   e.stopPropagation();
                                   handleTimeSlotClick(day, slot.hour, 0);
                                 }}
-                                onDragOver={(e) => handleDragOver(e, day, slot.hour, 0)}
+                                onDragOver={(e) =>
+                                  handleDragOver(e, day, slot.hour, 0)
+                                }
                                 onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, day, slot.hour, 0)}
                               >
                                 {/* Visual indicator for the clickable area on hover */}
-                                <div className="h-full w-full opacity-0 hover:opacity-30 transition-opacity bg-primary/20 rounded-r-md" />
+                                <div className="bg-primary/20 h-full w-full rounded-r-md opacity-0 transition-opacity hover:opacity-30" />
                               </div>
                             );
                           }
@@ -958,158 +1007,149 @@ export function TaskCalendar({
       </div>
 
       {/* New Task Creation Modal */}
-      {showNewTaskForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card max-h-[80vh] w-[30vw] overflow-y-auto rounded-lg p-6 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-foreground text-lg font-semibold">
-                Create New Task
-              </h2>
-              <Button variant="ghost" size="icon" onClick={cancelTaskCreation}>
-                <X className="h-4 w-4" />
-              </Button>
+      <Dialog open={showNewTaskForm} onOpenChange={setShowNewTaskForm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Task</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label
+                htmlFor="taskType"
+                className="text-foreground mb-1 block text-sm font-medium"
+              >
+                Task Type
+              </Label>
+              <Select
+                value={newTaskData.taskType}
+                onValueChange={(value: "comment" | "post") =>
+                  setNewTaskData((prev) => ({ ...prev, taskType: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="comment">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Comment Task
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="post">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Post Task
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <Label
-                  htmlFor="taskType"
-                  className="text-foreground mb-1 block text-sm font-medium"
-                >
-                  Task Type
-                </Label>
-                <Select
-                  value={newTaskData.taskType}
-                  onValueChange={(value: "comment" | "post") =>
-                    setNewTaskData((prev) => ({ ...prev, taskType: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="comment">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4" />
-                        Comment Task
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="post">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        Post Task
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label
+                htmlFor="subreddit"
+                className="text-foreground mb-1 block text-sm font-medium"
+              >
+                Subreddit *
+              </Label>
+              <SubredditAutosuggestions
+                inputId="subreddit"
+                className="w-full"
+                value={newTaskData.subreddit}
+                onChange={(value) =>
+                  setNewTaskData((prev) => ({ ...prev, subreddit: value }))
+                }
+                placeholder="Select subreddit"
+                disabled={isCreatingTask}
+              />
+            </div>
 
-              <div>
-                <Label
-                  htmlFor="subreddit"
-                  className="text-foreground mb-1 block text-sm font-medium"
-                >
-                  Subreddit *
-                </Label>
-                <SubredditAutosuggestions
-                  inputId="subreddit"
-                  className="w-full"
-                  value={newTaskData.subreddit}
-                  onChange={(value) =>
-                    setNewTaskData((prev) => ({ ...prev, subreddit: value }))
-                  }
-                  placeholder="Select subreddit"
-                  disabled={isCreatingTask}
-                />
-              </div>
+            <div>
+              <Label
+                htmlFor="prompt"
+                className="text-foreground mb-1 block text-sm font-medium"
+              >
+                Task Description *
+              </Label>
+              <Textarea
+                id="prompt"
+                placeholder="Describe what to comment or post about..."
+                value={newTaskData.prompt}
+                onChange={(e) =>
+                  setNewTaskData((prev) => ({
+                    ...prev,
+                    prompt: e.target.value,
+                  }))
+                }
+                rows={3}
+              />
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label
-                  htmlFor="prompt"
+                  htmlFor="scheduledDate"
                   className="text-foreground mb-1 block text-sm font-medium"
                 >
-                  Task Description *
+                  Date
                 </Label>
-                <Textarea
-                  id="prompt"
-                  placeholder="Describe what to comment or post about..."
-                  value={newTaskData.prompt}
+                <Input
+                  id="scheduledDate"
+                  type="date"
+                  value={newTaskData.scheduledDate}
                   onChange={(e) =>
                     setNewTaskData((prev) => ({
                       ...prev,
-                      prompt: e.target.value,
+                      scheduledDate: e.target.value,
                     }))
                   }
-                  rows={3}
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label
-                    htmlFor="scheduledDate"
-                    className="text-foreground mb-1 block text-sm font-medium"
-                  >
-                    Date
-                  </Label>
-                  <Input
-                    id="scheduledDate"
-                    type="date"
-                    value={newTaskData.scheduledDate}
-                    onChange={(e) =>
-                      setNewTaskData((prev) => ({
-                        ...prev,
-                        scheduledDate: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label
-                    htmlFor="scheduledTime"
-                    className="text-foreground mb-1 block text-sm font-medium"
-                  >
-                    Time
-                  </Label>
-                  <Input
-                    id="scheduledTime"
-                    type="time"
-                    value={newTaskData.scheduledTime}
-                    onChange={(e) =>
-                      setNewTaskData((prev) => ({
-                        ...prev,
-                        scheduledTime: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={cancelTaskCreation}
-                  className="flex-1 bg-transparent"
-                  disabled={isCreatingTask}
+              <div>
+                <Label
+                  htmlFor="scheduledTime"
+                  className="text-foreground mb-1 block text-sm font-medium"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={createTask}
-                  className="flex-1"
-                  disabled={
-                    !newTaskData.subreddit.trim() ||
-                    !newTaskData.prompt.trim() ||
-                    isCreatingTask
+                  Time
+                </Label>
+                <Input
+                  id="scheduledTime"
+                  type="time"
+                  value={newTaskData.scheduledTime}
+                  onChange={(e) =>
+                    setNewTaskData((prev) => ({
+                      ...prev,
+                      scheduledTime: e.target.value,
+                    }))
                   }
-                >
-                  {isCreatingTask ? "Creating..." : "Create Task"}
-                </Button>
+                />
               </div>
             </div>
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={cancelTaskCreation}
+              disabled={isCreatingTask}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={createTask}
+              disabled={
+                !newTaskData.subreddit.trim() ||
+                !newTaskData.prompt.trim() ||
+                isCreatingTask
+              }
+            >
+              {isCreatingTask ? "Creating..." : "Create Task"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Task Details Modal */}
       <Dialog open={showTaskModal} onOpenChange={setShowTaskModal}>
@@ -1120,12 +1160,23 @@ export function TaskCalendar({
               {selectedTask?.taskType === "comment"
                 ? "Comment Task"
                 : "Post Task"}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  selectedTask && handleDeleteTask(selectedTask.id)
+                }
+                disabled={isDeletingTask}
+                className="text-muted-foreground hover:text-foreground hover:bg-muted ml-2 h-6 w-6 p-0"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <h3 className="mb-2 text-sm font-medium">Description</h3>
+              <h3 className="mb-2 text-sm font-medium">Title:</h3>
               <p className="text-foreground mb-2 text-sm">
                 {selectedTask?.prompt}{" "}
                 <span className="text-xs">

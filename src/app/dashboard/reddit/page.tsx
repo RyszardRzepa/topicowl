@@ -343,7 +343,8 @@ export default function RedditPage() {
         if (taskIndex !== -1) {
           // Found the task, remove it from current day
           const updatedDayTasks = [...dayTasks];
-          [taskToMove] = updatedDayTasks.splice(taskIndex, 1);
+          const removed = updatedDayTasks.splice(taskIndex, 1);
+          taskToMove = removed[0] ?? null;
           updatedWeekData.tasks[dayKey] = updatedDayTasks;
           sourceDay = dayKey;
           break; // Stop after finding the first (and only) occurrence
@@ -360,9 +361,7 @@ export default function RedditPage() {
       );
 
       // Ensure the target day exists
-      if (!updatedWeekData.tasks[newDayKey]) {
-        updatedWeekData.tasks[newDayKey] = [];
-      }
+      updatedWeekData.tasks[newDayKey] ??= [];
 
       // Add task to new day
       updatedWeekData.tasks[newDayKey] = [

@@ -6,6 +6,13 @@ import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek } from "date-fns";
 
+// Helper function to format date for API without timezone issues
+const formatDateForAPI = (date: Date): string => {
+  // Create a new date at noon local time to avoid timezone issues
+  const safeDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+  return safeDate.toISOString();
+};
+
 interface GenerateTasksResponse {
   tasksGenerated: number;
   taskDistribution: {
@@ -52,7 +59,7 @@ export function GenerateTasksButton({
         },
         body: JSON.stringify({
           projectId,
-          weekStartDate: targetWeekStart.toISOString(),
+          weekStartDate: formatDateForAPI(targetWeekStart),
         }),
       });
 
