@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { startOfWeek, format } from "date-fns";
 import { toast } from "sonner";
 import { ArticleCalendarGrid } from "./ArticleCalendarGrid";
+import { ArticleCreationModal } from "./ArticleCreationModal";
+import { ArticleDetailModal } from "./ArticleDetailModal";
 import { useProject } from "@/contexts/project-context";
 import type { WeeklyArticlesResponse } from "@/app/api/articles/calendar/week/route";
 
@@ -262,164 +264,24 @@ export function ArticleCalendarView({ className }: ArticleCalendarViewProps) {
         onWeekChange={handleWeekChange}
       />
 
-      {/* TODO: Add ArticleCreationModal component */}
-      {showCreationForm && selectedTimeSlot && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Create New Article</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Scheduled for {format(selectedTimeSlot.day, "MMM d, yyyy")} at{" "}
-              {selectedTimeSlot.hour.toString().padStart(2, "0")}:
-              {selectedTimeSlot.minute.toString().padStart(2, "0")}
-            </p>
-            
-            {/* Temporary simple form - will be replaced with proper modal component */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const title = formData.get("title") as string;
-                
-                if (!title.trim()) {
-                  toast.error("Please enter a title");
-                  return;
-                }
-                
-                const scheduledAt = new Date(selectedTimeSlot.day);
-                scheduledAt.setHours(selectedTimeSlot.hour, selectedTimeSlot.minute, 0, 0);
-                
-                handleCreateArticle({
-                  title: title.trim(),
-                  description: formData.get("description") as string || undefined,
-                  notes: formData.get("notes") as string || undefined,
-                  scheduledAt,
-                  scheduleType: "generation", // Default to generation scheduling
-                });
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Article Title *
-                </label>
-                <input
-                  name="title"
-                  type="text"
-                  required
-                  className="w-full px-3 py-2 border border-input rounded-md"
-                  placeholder="Enter article title..."
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-input rounded-md"
-                  placeholder="Brief description (optional)..."
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Notes
-                </label>
-                <textarea
-                  name="notes"
-                  rows={2}
-                  className="w-full px-3 py-2 border border-input rounded-md"
-                  placeholder="Notes for AI generation (optional)..."
-                />
-              </div>
-              
-              <div className="flex gap-2 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90"
-                >
-                  Create Article
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCreationForm(false);
-                    setSelectedTimeSlot(null);
-                  }}
-                  className="px-4 py-2 border border-input rounded-md hover:bg-muted"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ArticleCreationModal
+        open={showCreationForm}
+        onClose={() => {
+          setShowCreationForm(false);
+          setSelectedTimeSlot(null);
+        }}
+        timeSlot={selectedTimeSlot}
+        onCreateArticle={handleCreateArticle}
+      />
 
-      {/* TODO: Add ArticleDetailModal component */}
-      {showArticleModal && selectedArticle && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Article Details</h3>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground">
-                  Title
-                </label>
-                <p className="text-sm">{selectedArticle.title}</p>
-              </div>
-              
-              {selectedArticle.description && (
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground">
-                    Description
-                  </label>
-                  <p className="text-sm">{selectedArticle.description}</p>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground">
-                  Status
-                </label>
-                <p className="text-sm capitalize">{selectedArticle.status.replace("_", " ")}</p>
-              </div>
-              
-              {selectedArticle.generationProgress !== undefined && selectedArticle.generationProgress !== null && selectedArticle.generationProgress > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground">
-                    Generation Progress
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-muted rounded-full h-2">
-                      <div
-                        className="bg-primary h-2 rounded-full transition-all"
-                        style={{ width: `${selectedArticle.generationProgress}%` }}
-                      />
-                    </div>
-                    <span className="text-sm">{selectedArticle.generationProgress}%</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex gap-2 pt-6">
-              <button
-                onClick={() => {
-                  setShowArticleModal(false);
-                  setSelectedArticle(null);
-                }}
-                className="flex-1 px-4 py-2 border border-input rounded-md hover:bg-muted"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ArticleDetailModal
+        open={showArticleModal}
+        onClose={() => {
+          setShowArticleModal(false);
+          setSelectedArticle(null);
+        }}
+        article={selectedArticle}
+      />
     </div>
   );
 }

@@ -452,8 +452,33 @@ export function ArticleCalendarGrid({
                     {timeSlots.map(({ hour }) => (
                       <div
                         key={`${day.toISOString()}-${hour}`}
-                        className="h-16 border-b border-border/50 hover:bg-muted/50 cursor-pointer transition-colors"
+                        className="h-16 border-b border-border/50 hover:bg-muted/50 cursor-pointer transition-colors relative"
                         onClick={() => handleTimeSlotClick(day, hour)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          e.currentTarget.classList.add("bg-primary/10");
+                        }}
+                        onDragLeave={(e) => {
+                          e.currentTarget.classList.remove("bg-primary/10");
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove("bg-primary/10");
+                          
+                          try {
+                            const data = JSON.parse(e.dataTransfer.getData("application/json"));
+                            if (data.type === "article" && data.article) {
+                              onArticleDrag(data.article, {
+                                day: day,
+                                hour: hour,
+                                minute: 0
+                              });
+                            }
+                          } catch (error) {
+                            console.error("Error handling drag drop:", error);
+                          }
+                        }}
                       >
                         {/* Click area for creating new articles */}
                       </div>
@@ -469,7 +494,7 @@ export function ArticleCalendarGrid({
                         <div
                           key={article.id}
                           className={cn(
-                            "absolute p-2 rounded-md border shadow-sm cursor-pointer transition-all hover:shadow-md",
+                            "absolute p-2 rounded-md border shadow-sm cursor-move transition-all hover:shadow-md hover:scale-105",
                             category.color,
                             category.textColor
                           )}
@@ -480,6 +505,14 @@ export function ArticleCalendarGrid({
                             left: layout?.left || "0%",
                             zIndex: layout?.zIndex || 1,
                             minHeight: "48px",
+                          }}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("application/json", JSON.stringify({
+                              type: "article",
+                              article: article
+                            }));
+                            e.dataTransfer.effectAllowed = "move";
                           }}
                           onClick={() => onArticleClick(article)}
                         >
