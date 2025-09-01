@@ -544,7 +544,7 @@ Return only the reply text, nothing else. Try to make the reply short, max 5 sen
       commentTasks.push({
         subreddit: sub,
         searchKeywords: src.post.title.slice(0, 50),
-        prompt: `Reply to this post: "${src.post.title}"`,
+        prompt: `${src.post.title}`,
         aiDraft,
         redditUrl: src.post.redditUrl,
       });

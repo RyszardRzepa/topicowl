@@ -5,6 +5,10 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+]);
+
+// Define public API routes (external/webhook routes that should remain open)
+const isPublicApiRoute = createRouteMatcher([
   "/api/webhooks/clerk",
   "/api/external(.*)",
   "/api/tools/seo-cluster-map/analyze",
@@ -16,14 +20,19 @@ export default clerkMiddleware(async (auth, req) => {
     return;
   }
 
-  // For non-API routes, require authentication
-  if (!req.nextUrl.pathname.startsWith("/api/")) {
+  // Allow specific public API routes to pass through without authentication
+  if (isPublicApiRoute(req)) {
+    return;
+  }
+
+  // For API routes, require authentication (this will now protect all internal API routes)
+  if (req.nextUrl.pathname.startsWith("/api/")) {
     await auth.protect();
     return;
   }
 
-  // For API routes, let them handle their own auth and project validation
-  return;
+  // For non-API routes, require authentication
+  await auth.protect();
 });
 
 export const config = {
