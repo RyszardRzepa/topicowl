@@ -262,6 +262,10 @@ export const articleGeneration = contentbotSchema.table(
     status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, researching, writing, quality-control, validating, updating, completed, failed
     progress: integer("progress").default(0).notNull(), // 0-100 percentage
 
+    // Agent progress tracking
+    currentPhase: text("current_phase"), // initializing, research, writing, seo-audit, validation, updating, image-selection, schema-generation, finalizing, completed
+    lastUpdated: timestamp("last_updated", { withTimezone: true }),
+
     outline: jsonb("outline"),
 
     // Phase timestamps
@@ -276,6 +280,20 @@ export const articleGeneration = contentbotSchema.table(
     qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
     seoReport: jsonb("seo_report").default({}).notNull(),
     writePrompt: text("write_prompt"), // Store the AI prompt used for writing
+
+    // Agent-specific fields for meta optimization
+    metaVariants: jsonb("meta_variants"), // Array of title/description variants with CTR scores
+    externalLinksUsed: text("external_links_used").array(), // Array of external links used in content
+    headingsOutline: jsonb("headings_outline"), // Structured heading outline with keywords
+
+    // Agent validation and quality control
+    validationReport2: jsonb("validation_report_2"), // Enhanced validation report with confidence scores
+    linkIssues: jsonb("link_issues"), // Link validation issues and fixes
+    schemaJson: text("schema_json"), // Generated JSON-LD schema markup
+
+    // Agent image selection
+    coverImageUrl2: text("cover_image_url_2"), // Agent-selected cover image URL
+    coverImageAlt2: text("cover_image_alt_2"), // Agent-generated alt text
 
     // Related articles
     relatedArticles: jsonb("related_articles")
