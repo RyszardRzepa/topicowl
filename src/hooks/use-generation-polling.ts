@@ -90,6 +90,9 @@ export function useGenerationPolling({
         estimatedCompletion: result.estimatedCompletion,
         startedAt: result.startedAt,
         completedAt: result.completedAt,
+        currentPhase: (result).currentPhase,
+        seoScore: (result).seoScore,
+        seoIssues: (result).seoIssues,
       };
       setStatus(newStatus);
       statusCb.current?.(newStatus);

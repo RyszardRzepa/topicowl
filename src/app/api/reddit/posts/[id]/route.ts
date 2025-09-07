@@ -63,7 +63,7 @@ export interface DeletePostResponse {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
@@ -71,7 +71,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const postId = parseInt(params.id, 10);
+    const { id } = await params;
+    const postId = parseInt(id, 10);
     if (isNaN(postId)) {
       return NextResponse.json(
         {
@@ -267,7 +268,7 @@ export async function PUT(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
@@ -275,7 +276,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const postId = parseInt(params.id, 10);
+    const { id } = await params;
+    const postId = parseInt(id, 10);
     if (isNaN(postId)) {
       return NextResponse.json(
         {

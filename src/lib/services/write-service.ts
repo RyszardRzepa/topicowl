@@ -44,6 +44,7 @@ export interface WriteResponse {
   slug: string;
   excerpt: string;
   metaDescription: string;
+  introParagraph: string;
   readingTime: string;
   content: string;
   author: string;

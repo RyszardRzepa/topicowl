@@ -86,6 +86,11 @@ export const blogPostSchema = z.object({
   metaDescription: z
     .string()
     .describe("An SEO-friendly description for the blog post. Max 160 char."),
+  introParagraph: z
+    .string()
+    .describe(
+      "The article intro (1–3 sentences) that appears immediately after the H1.",
+    ),
   readingTime: z
     .string()
     .describe("An estimated reading time, e.g., '5 min read'."),

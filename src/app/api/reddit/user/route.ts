@@ -222,6 +222,12 @@ export async function GET(request: NextRequest) {
         subreddits,
       } satisfies RedditUserSubredditsResponse);
     }
+
+    // Fallback - should never reach here due to validation above
+    return NextResponse.json(
+      { error: "Invalid action parameter" },
+      { status: 400 },
+    );
   } catch (error) {
     console.error("Reddit user API error:", error);
     return NextResponse.json(

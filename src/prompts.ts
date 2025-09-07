@@ -592,7 +592,7 @@ ${data.researchData}
 
 2) Section order (must match exactly):
    # {title}
-   Short introduction (2–4 sentences)
+   Short introduction (max 2 sentences, single paragraph)
    ## TL;DR
    - 3–6 succinct bullets with key takeaways
    4–6 main sections (≈200–300 words each) with examples/cases
@@ -607,10 +607,12 @@ ${data.researchData}
    - Natural, descriptive anchors (never raw domains).
    - Each external URL used at most once.
    - Do **not** include or mention any domain in <excluded_domains>.
+   - Do **not** invent new external links; use only <external_sources>.
 
 5) Grounding & honesty:
-   - Use only facts present in <research> or <external_sources>.
-   - If a fact isn’t supported, omit it or say it’s unknown. No fabrication.
+   - Use only facts present in <research> or <external_sources>; never invent stats, names, prices, quotes, or dates.
+   - Any number, metric, or date MUST be explicitly present in <research> or <external_sources>.
+   - If a fact isn’t supported, omit it or explicitly say it’s unknown. No fabrication or generic "experts say" claims.
    - If Citations API is enabled by the caller, attach citations to lines/claims. If not, include a “## Sources” section listing only the links actually used.
 
 6) Videos (if any and enabled): ${
@@ -625,7 +627,25 @@ ${data.researchData}
 
 8) Tie-breakers when rules conflict (in this order):
    Factual accuracy & grounding > Section order > Clarity/Readability > Tone > Word target.
+
+9) Intro rules:
+   - Exactly one intro paragraph between the H1 and the TL;DR heading
+   - Do not add an "Introduction" heading
+   - No other elements (lists, images, headings) between H1 and TL;DR
 </constraints>
+
+<schema_field_rules>
+If the calling system requires returning a JSON object (e.g., blogPostSchema), apply these rules strictly:
+- content: must be exactly the Markdown you produced under these constraints.
+- title/slug: derive slug from the title; do not add tracking or extra paths.
+- author: set to "Content Team" unless explicitly provided; do not invent real names.
+- date: use <date>.
+- tags: only include items from provided keywords; do not invent new tags.
+- relatedPosts: only include slugs explicitly listed in <internal_links>; otherwise leave empty/omit.
+- coverImage/imageCaption: omit if not provided by the system; do not fabricate URLs or captions.
+- metaDescription/excerpt/readingTime: derive from the article body; no new facts.
+- introParagraph: 1–3 sentence intro that appears immediately after the H1 in the Markdown; no external links; must summarize the article’s core value succinctly.
+</schema_field_rules>
 
 <workflow>
 1) Read <research> and extract key, citable claims, stats, and examples.
@@ -638,7 +658,7 @@ ${data.researchData}
 <quality_checklist>
 - One H1 only; nothing precedes it.
 - Section order exactly as specified.
-- All non-obvious claims supported by <research> or <external_sources>.
+- All non-obvious claims supported by <research> or <external_sources>; any numbers/dates appear verbatim from sources.
 - No excluded domains used or mentioned.
 - Link counts within limits; each external URL unique.
 - Tone matches <tone>; audience matches <audience>.
@@ -706,6 +726,56 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
 </final>
 `;
   },
+
+  // Targeted SEO improvements without inventing new facts or links
+  seoAuditFix: (
+    articleMarkdown: string,
+    params: {
+      seoReportJson: string; // JSON string with { score, issues[], metrics }
+      validationReportJson?: string; // Optional JSON string with link issues and accuracy
+      targetKeywords?: string[];
+      internalLinks?: string[]; // allowable internal slugs/URLs for linking
+      languageCode?: string;
+      maxWords?: number;
+    },
+  ) => `
+<role>
+You are a senior SEO editor. Apply only structural and phrasing adjustments required to satisfy the SEO audit issues while preserving factual content. Do not invent any new facts, numbers, or external links.
+</role>
+
+<inputs>
+<article>
+${articleMarkdown}
+</article>
+
+<seo_report_json>
+${params.seoReportJson}
+</seo_report_json>
+
+<validation_report_json>
+${params.validationReportJson ?? ""}
+</validation_report_json>
+
+<target_keywords>${(params.targetKeywords ?? []).join(", ")}</target_keywords>
+<internal_links>${(params.internalLinks ?? []).join("\n")}</internal_links>
+<language>${params.languageCode ?? "en"}</language>
+<max_words>${params.maxWords ?? 1800}</max_words>
+</inputs>
+
+<strict_rules>
+1) Do NOT add new external links. You may add at most two internal links only from <internal_links> if explicitly requested by the SEO issues.
+2) Do NOT add new claims, stats, company names, or dates. Only rephrase, move, or expand existing content for clarity/readability and keyword placement.
+3) One H1 only. Ensure H2/H3 structure matches the intent of the SEO issues (e.g., add missing H2 headings) without introducing unsupported topics.
+4) Keyword placement: integrate target keywords naturally in H1/H2/first 100–150 words ONLY if it can be done without changing factual meaning; avoid stuffing; do not exceed 2.5% density per keyword.
+5) Readability: shorten long sentences/paragraphs; use lists where appropriate. Keep language in <language>.
+6) If validation report includes broken links, remove them; do not add replacement external links unless explicitly listed in validation.
+7) Do not modify tone or audience. Do not change meta/slug/schema.
+</strict_rules>
+
+<output>
+Return ONLY the updated Markdown article. No commentary.
+</output>
+`,
 
   validation: (article: string) => `
   <system_prompt>
@@ -1129,6 +1199,8 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   - Date: ${currentDate}
   - Make ONLY the necessary factual corrections
   - Do not change writing style, paragraph structure, or add new content sections
+  - Do not introduce any new external links; preserve the original link set unless a link is explicitly flagged as broken in validation results
+  - Do not invent new data (stats, names, prices, dates). Only modify claims directly supported by validation results
   </guidelines>
   
   <seo_preservation>
@@ -1169,9 +1241,10 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   2. If "No factual issues identified", return the article unchanged
   3. For each CLAIM with STATUS: UNVERIFIED or CONTRADICTED:
      - Locate the incorrect fact in the original article
-     - Research and apply the correct information based on the REASON provided
+     - Apply the correct information based strictly on the provided REASON and linked sources
      - Ensure corrections flow naturally with existing content
      - Maintain the same sentence structure and writing style
+     - If a correction requires a source link, use an existing external link already present in the article or provided in the validation results; do not add new external URLs
   4. Preserve all other content exactly as written
   5. Keep the same word count (±50 words maximum variance)
   6. Ensure all JSON schema fields remain properly formatted
@@ -1219,15 +1292,16 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   ✅ SEO elements are maintained
   ✅ JSON schema compliance is preserved
   ✅ No new content sections added
+  ✅ No new external links were introduced; broken links flagged by validation were removed or replaced only with provided links
   ✅ Factual accuracy is improved
   </quality_control>
   
   <output_format>
-  Return EXACT JSON complying with blogPostSchema (id, title, slug, excerpt, metaDescription, readingTime, content, author, date, coverImage, imageCaption, tags, relatedPosts).
+  Return EXACT JSON complying with blogPostSchema (id, title, slug, excerpt, metaDescription, introParagraph, readingTime, content, author, date, coverImage, imageCaption, tags, relatedPosts).
   </output_format>
   
   <final_reminder>
-  Focus solely on factual corrections. Do not rewrite, restructure, or add new information. Maintain the article's original voice and flow.
+  Focus solely on factual corrections. Do not rewrite, restructure, or add new information. Maintain the article's original voice and flow. Do not invent any new facts, links, or schema fields.
   </final_reminder>
       `;
   },
@@ -1249,6 +1323,7 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   You are an expert content strategist creating a complete article outline in markdown format from research data.
   
   🚨 CRITICAL REQUIREMENTS:
+  - Use ONLY topics and claims supported by <researchData> and provided <sources>; do not introduce unsupported sections that require missing data.
   
   OUTPUT FORMAT: Return a complete markdown outline with full article structure that follows this example:
   
@@ -1325,6 +1400,7 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   
   🚨 KEYWORD CONSTRAINT: You MUST ONLY use these provided keywords: ${keywords.join(", ")}
   - Do NOT create, generate, or suggest any new keywords
+  - Do NOT add sections that rely on data or statistics not present in <researchData> or <sources>
   - Focus your outline strictly on the keywords given
 
   <section_flexibility>
@@ -1754,7 +1830,7 @@ Return only the finished Markdown article that passes <quality_checklist>. No pr
   </quality_improvement_focus>
   
   <output_format>
-  Return EXACT JSON complying with blogPostSchema (id, title, slug, excerpt, metaDescription, readingTime, content, author, date, coverImage, imageCaption, tags, relatedPosts).
+  Return EXACT JSON complying with blogPostSchema (id, title, slug, excerpt, metaDescription, introParagraph, readingTime, content, author, date, coverImage, imageCaption, tags, relatedPosts).
   </output_format>
   
   <final_reminder>

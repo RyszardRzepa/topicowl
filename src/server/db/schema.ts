@@ -170,6 +170,7 @@ export const articles = contentbotSchema.table(
     // Content fields (populated after generation)
     slug: varchar("slug", { length: 255 }),
     metaDescription: varchar("meta_description", { length: 255 }),
+    introParagraph: text("intro_paragraph"),
     metaKeywords: jsonb("meta_keywords").default([]).notNull(),
     draft: text("draft"),
     content: text("content"), // Final published content
@@ -276,7 +277,7 @@ export const articleGeneration = contentbotSchema.table(
     // Phase results
     researchData: jsonb("research_data").default({}).notNull(),
     draftContent: text("draft_content"),
-    validationReport: text("validation_report"),
+    validationReport: jsonb("validation_report").default({}),
     qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
     seoReport: jsonb("seo_report").default({}).notNull(),
     writePrompt: text("write_prompt"), // Store the AI prompt used for writing
@@ -287,13 +288,11 @@ export const articleGeneration = contentbotSchema.table(
     headingsOutline: jsonb("headings_outline"), // Structured heading outline with keywords
 
     // Agent validation and quality control
-    validationReport2: jsonb("validation_report_2"), // Enhanced validation report with confidence scores
     linkIssues: jsonb("link_issues"), // Link validation issues and fixes
     schemaJson: text("schema_json"), // Generated JSON-LD schema markup
 
     // Agent image selection
-    coverImageUrl2: text("cover_image_url_2"), // Agent-selected cover image URL
-    coverImageAlt2: text("cover_image_alt_2"), // Agent-generated alt text
+    // Removed duplicate image fields (migration 0055)
 
     // Related articles
     relatedArticles: jsonb("related_articles")
@@ -314,6 +313,8 @@ export const articleGeneration = contentbotSchema.table(
     // Error handling
     error: text("error"),
     errorDetails: jsonb("error_details"),
+
+    introParagraph: text("intro_paragraph"),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -619,7 +620,9 @@ export const redditTasks = contentbotSchema.table(
       .notNull(),
 
     // Scheduling
-    scheduledDate: timestamp("scheduled_date", { withTimezone: true }).notNull(),
+    scheduledDate: timestamp("scheduled_date", {
+      withTimezone: true,
+    }).notNull(),
     taskOrder: integer("task_order").default(1), // ordering within a day
 
     // Task details

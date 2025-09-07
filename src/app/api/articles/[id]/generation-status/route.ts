@@ -30,6 +30,10 @@ export interface GenerationStatus {
   estimatedCompletion?: string;
   startedAt: string;
   completedAt?: string;
+  // SEO audit fields (optional during generation)
+  currentPhase?: string;
+  seoScore?: number;
+  seoIssues?: Array<{ code: string; severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; message: string }>;
 }
 
 export async function GET(
@@ -162,6 +166,67 @@ export async function GET(
       }
     };
 
+    // Derive SEO report details
+    const rawSeo: unknown = latestGeneration.seoReport ?? {};
+    
+    // Type guard for SEO report structure
+    const isSeoReport = (obj: unknown): obj is { score?: unknown; issues?: unknown[] } => {
+      return obj !== null && typeof obj === "object" && !Array.isArray(obj);
+    };
+    
+    // Type guard for SEO issue structure
+    const isSeoIssue = (obj: unknown): obj is { code: string; severity?: string; message: string } => {
+      return (
+        obj !== null &&
+        typeof obj === "object" &&
+        !Array.isArray(obj) &&
+        typeof (obj as Record<string, unknown>).code === "string" &&
+        typeof (obj as Record<string, unknown>).message === "string"
+      );
+    };
+    
+    const seoScore = isSeoReport(rawSeo) && typeof rawSeo.score === "number" 
+      ? rawSeo.score 
+      : undefined;
+    
+    let seoIssues: Array<{ code: string; severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; message: string }> | undefined;
+    
+    if (isSeoReport(rawSeo) && Array.isArray(rawSeo.issues)) {
+      const order: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+      const validIssues = rawSeo.issues.filter(isSeoIssue);
+      
+      seoIssues = validIssues
+        .map((issue) => ({
+          code: issue.code,
+          severity: (String(issue.severity ?? "MEDIUM").toUpperCase() as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"),
+          message: issue.message,
+        }))
+        .sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9))
+        .slice(0, 5);
+    }
+
+    // Map to high-level phase for UI (including SEO sub-phases)
+    const currentPhaseRaw = latestGeneration.currentPhase ?? undefined;
+    const mapPhaseFromCurrent = (p?: string): string | undefined => {
+      switch (p) {
+        case "research":
+          return "research";
+        case "writing":
+          return "writing";
+        case "quality-control":
+          return "quality-control";
+        case "validation":
+          return "validation";
+        case "seo-audit":
+        case "seo-remediation":
+        case "schema-generation":
+        case "image-selection":
+          return "optimization";
+        default:
+          return undefined;
+      }
+    };
+
     const status: GenerationStatus = {
       articleId: id,
       status: mapStatus(latestGeneration.status),
@@ -171,7 +236,8 @@ export async function GET(
           ? undefined
           : getPhaseDescription(latestGeneration.status),
       phase:
-        latestGeneration.status === "researching"
+        mapPhaseFromCurrent(currentPhaseRaw) ??
+        (latestGeneration.status === "researching"
           ? "research"
           : latestGeneration.status === "writing"
             ? "writing"
@@ -181,12 +247,15 @@ export async function GET(
                 ? "validation"
                 : latestGeneration.status === "updating"
                   ? "optimization"
-                  : undefined,
+                  : undefined),
       startedAt:
         latestGeneration.startedAt?.toISOString() ??
         latestGeneration.createdAt.toISOString(),
       completedAt: latestGeneration.completedAt?.toISOString(),
       error: latestGeneration.error ?? undefined,
+      currentPhase: currentPhaseRaw,
+      seoScore,
+      seoIssues,
     };
 
     return NextResponse.json({

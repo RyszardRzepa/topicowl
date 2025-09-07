@@ -6,6 +6,10 @@ export const MODELS = {
   OPENAI_GPT_5: "gpt-5-2025-08-07",
 } as const;
 
+// SEO & Quality thresholds
+export const SEO_MIN_SCORE =75
+export const SEO_MAX_REMEDIATION_PASSES = 3
+
 // Pricing plans for credit purchases
 export const PRICING_PLANS = {
   STARTER: {
