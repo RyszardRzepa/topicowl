@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users, projects } from "@/server/db/schema";
+import { articles, users, projects, articleGeneration } from "@/server/db/schema";
 import { max, eq, and, ne } from "drizzle-orm";
 import { z } from "zod";
 import { logServerError } from "@/lib/posthog-server";
@@ -17,6 +17,9 @@ export interface CreateArticleRequest {
   targetAudience?: string;
   notes?: string;
   projectId: number;
+  // Calendar scheduling parameters
+  generationScheduledAt?: string; // ISO datetime string
+  publishScheduledAt?: string; // ISO datetime string
 }
 
 const createArticleSchema = z.object({
@@ -26,6 +29,9 @@ const createArticleSchema = z.object({
   targetAudience: z.string().optional(),
   notes: z.string().optional(),
   projectId: z.number().int().positive(),
+  // Calendar scheduling parameters
+  generationScheduledAt: z.string().datetime().optional(),
+  publishScheduledAt: z.string().datetime().optional(),
 });
 
 // POST /api/articles - Create new article
@@ -79,15 +85,57 @@ export async function POST(req: NextRequest) {
 
     const nextPosition = (maxPositionResult[0]?.maxPosition ?? -1) + 1;
 
+    // Determine initial status based on scheduling
+    let initialStatus: "idea" | "scheduled" = "idea";
+    if (validatedData.generationScheduledAt) {
+      initialStatus = "scheduled";
+    }
+
+    // Prepare article data excluding scheduling fields
+    const { generationScheduledAt, publishScheduledAt, ...articleData } = validatedData;
+
     const [newArticle] = await db
       .insert(articles)
       .values({
-        ...validatedData,
+        ...articleData,
         userId: userRecord.id,
-        status: "idea",
+        status: initialStatus,
         kanbanPosition: nextPosition,
+        publishScheduledAt: publishScheduledAt ? new Date(publishScheduledAt) : null,
       })
       .returning();
+
+    if (!newArticle) {
+      return NextResponse.json(
+        { error: "Failed to create article" },
+        { status: 500 },
+      );
+    }
+
+    // Create generation record if generation is scheduled
+    if (generationScheduledAt) {
+      const scheduledDate = new Date(generationScheduledAt);
+      
+      // Validate scheduled time is in the future
+      if (scheduledDate <= new Date()) {
+        // Rollback - delete the article we just created
+        await db.delete(articles).where(eq(articles.id, newArticle.id));
+        return NextResponse.json(
+          { error: "Generation scheduled time must be in the future" },
+          { status: 400 },
+        );
+      }
+
+      await db
+        .insert(articleGeneration)
+        .values({
+          articleId: newArticle.id,
+          userId: userRecord.id,
+          projectId: validatedData.projectId,
+          scheduledAt: scheduledDate,
+          status: "pending",
+        });
+    }
 
     return NextResponse.json(newArticle, { status: 201 });
   } catch (error) {
