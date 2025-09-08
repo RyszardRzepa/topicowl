@@ -9,13 +9,16 @@ import {
   redditTasks,
   userCredits,
 } from "@/server/db/schema";
-import { eq, and, gte, lte, ne, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, ne, sql, desc, inArray } from "drizzle-orm";
 import type { ClerkPrivateMetadata } from "@/types";
 
 // Dashboard stats response types
 interface ArticleMetrics {
-  totalThisMonth: number;
-  publishedLastWeek: number;
+  totalThisMonth: number; // existing metric retained for backward compatibility
+  totalPublishedAllTime: number; // NEW: all-time published count
+  plannedThisWeek: number; // NEW: articles scheduled to publish this week (planning statuses with publishScheduledAt in week range)
+  publishedThisWeek: number; // NEW: articles published within current week window
+  publishedLastWeek: number; // UPDATED: strictly previous week (not rolling 7 days)
   workflowCounts: {
     planning: number;
     generating: number;
@@ -111,16 +114,23 @@ export async function GET(request: NextRequest) {
     // Calculate date ranges
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastWeek = new Date(now);
-    startOfLastWeek.setDate(now.getDate() - 7);
+  // Week boundaries (Monday -> Sunday per getCurrentWeekStart)
+  const currentWeekStart = getCurrentWeekStart();
+  const currentWeekEnd = new Date(currentWeekStart);
+  currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
+  currentWeekEnd.setHours(23, 59, 59, 999);
+
+  const lastWeekStart = new Date(currentWeekStart);
+  lastWeekStart.setDate(currentWeekStart.getDate() - 7);
+  const lastWeekEnd = new Date(lastWeekStart);
+  lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+  lastWeekEnd.setHours(23, 59, 59, 999);
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
     const endOfToday = new Date(now);
     endOfToday.setHours(23, 59, 59, 999);
-    const startOfWeek = getCurrentWeekStart();
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23, 59, 59, 999);
+  const startOfWeek = currentWeekStart; // alias for existing Reddit logic
+  const endOfWeek = currentWeekEnd;
     const nextThreeDays = new Date(now);
     nextThreeDays.setDate(now.getDate() + 3);
     nextThreeDays.setHours(23, 59, 59, 999);
@@ -131,6 +141,9 @@ export async function GET(request: NextRequest) {
     try {
       const [
         totalThisMonthResult,
+        totalPublishedAllTimeResult,
+        plannedThisWeekResult,
+        publishedThisWeekResult,
         publishedLastWeekResult,
         workflowCountsResult,
         recentActivityResult,
@@ -147,8 +160,7 @@ export async function GET(request: NextRequest) {
               ne(articles.status, "deleted"),
             ),
           ),
-
-        // Articles published in last 7 days
+        // Total published all time
         db
           .select({ count: sql<number>`count(*)` })
           .from(articles)
@@ -156,7 +168,49 @@ export async function GET(request: NextRequest) {
             and(
               eq(articles.projectId, projectId),
               eq(articles.status, "published"),
-              gte(articles.publishedAt, startOfLastWeek),
+            ),
+          ),
+        // Planned (scheduled) to publish this week across planning statuses
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(articles)
+          .where(
+            and(
+              eq(articles.projectId, projectId),
+              inArray(articles.status, [
+                "idea",
+                "scheduled",
+                "queued",
+                "to_generate",
+                "generating",
+                "wait_for_publish",
+              ]),
+              gte(articles.publishScheduledAt, currentWeekStart),
+              lte(articles.publishScheduledAt, currentWeekEnd),
+            ),
+          ),
+        // Published this week
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(articles)
+          .where(
+            and(
+              eq(articles.projectId, projectId),
+              eq(articles.status, "published"),
+              gte(articles.publishedAt, currentWeekStart),
+              lte(articles.publishedAt, currentWeekEnd),
+            ),
+          ),
+        // Published last week (previous full week window)
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(articles)
+          .where(
+            and(
+              eq(articles.projectId, projectId),
+              eq(articles.status, "published"),
+              gte(articles.publishedAt, lastWeekStart),
+              lte(articles.publishedAt, lastWeekEnd),
             ),
           ),
 
@@ -205,7 +259,16 @@ export async function GET(request: NextRequest) {
 
       // Process article metrics
       const totalThisMonth = Number(totalThisMonthResult[0]?.count ?? 0);
-      const publishedLastWeek = Number(publishedLastWeekResult[0]?.count ?? 0);
+      const totalPublishedAllTime = Number(
+        totalPublishedAllTimeResult[0]?.count ?? 0,
+      );
+      const plannedThisWeek = Number(plannedThisWeekResult[0]?.count ?? 0);
+      const publishedThisWeek = Number(
+        publishedThisWeekResult[0]?.count ?? 0,
+      );
+      const publishedLastWeek = Number(
+        publishedLastWeekResult[0]?.count ?? 0,
+      );
 
       // Map workflow statuses to phases
       const workflowCounts = {
@@ -267,6 +330,9 @@ export async function GET(request: NextRequest) {
 
       articleMetrics = {
         totalThisMonth,
+        totalPublishedAllTime,
+        plannedThisWeek,
+        publishedThisWeek,
         publishedLastWeek,
         workflowCounts,
         recentActivity,
@@ -277,6 +343,9 @@ export async function GET(request: NextRequest) {
       // Provide fallback article metrics to ensure API doesn't fail completely
       articleMetrics = {
         totalThisMonth: 0,
+        totalPublishedAllTime: 0,
+        plannedThisWeek: 0,
+        publishedThisWeek: 0,
         publishedLastWeek: 0,
         workflowCounts: {
           planning: 0,

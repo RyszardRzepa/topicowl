@@ -6,35 +6,33 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText,
-  Clock,
-  CheckCircle,
+  CalendarRange,
+  CheckCircle2,
   AlertCircle,
-  RefreshCw,
-  Zap,
-  MessageSquare,
+  Target,
   TrendingUp,
-  Users,
+  PieChart,
   Link2,
   ArrowRight,
+  ListChecks,
 } from "lucide-react";
 import Link from "next/link";
 
 function DashboardContent() {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const { data, loading, error, refreshStats, isRedditConnected } =
-    useDashboardStats();
+  const { data, loading, error, isRedditConnected } = useDashboardStats();
 
   // Helper to safely get metric values with fallbacks
   const getMetric = (path: string, defaultValue = 0): number => {
     const paths = path.split(".");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
-    let current: any = data;
+    let current: unknown = data as Record<string, unknown> | null;
     for (const p of paths) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      current = current?.[p];
+      if (current && typeof current === "object" && p in (current as Record<string, unknown>)) {
+        current = (current as Record<string, unknown>)[p];
+      } else {
+        return defaultValue;
+      }
       if (current === undefined || current === null) return defaultValue;
     }
-    // Handle both string and number values
     if (typeof current === "string") {
       const parsed = parseInt(current, 10);
       return isNaN(parsed) ? defaultValue : parsed;
@@ -42,7 +40,6 @@ function DashboardContent() {
     return typeof current === "number" ? current : defaultValue;
   };
 
-  // Loading skeleton - more compact
   if (loading && !data) {
     return (
       <div className="min-h-screen bg-gray-50/50 p-4 sm:p-6 lg:p-8">
@@ -50,12 +47,12 @@ function DashboardContent() {
           <div className="mb-6 flex items-center justify-between">
             <div className="h-9 w-24 animate-pulse rounded bg-gray-200" />
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 8 }, (_, i) => (
               <Card key={i}>
-                <CardContent className="p-4">
-                  <div className="space-y-2">
-                    <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+                <CardContent className="p-5">
+                  <div className="space-y-3">
+                    <div className="h-3 w-20 animate-pulse rounded bg-gray-200" />
                     <div className="h-8 w-16 animate-pulse rounded bg-gray-200" />
                   </div>
                 </CardContent>
@@ -67,7 +64,6 @@ function DashboardContent() {
     );
   }
 
-  // Main dashboard view
   return (
     <div className="">
       <div className="mx-auto">
@@ -86,178 +82,185 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Article Metrics Section */}
-        <div className="mb-6">
-          <h2 className="mb-3 text-lg font-semibold text-gray-700">
-            Article Performance
+        {/* Unified Main Stats */}
+        <div className="mb-10">
+          <h2 className="mb-4 text-lg font-semibold text-gray-800">
+            Key Metrics
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {/* Total Published All Time */}
+            <Card className="relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-muted-foreground text-sm">
-                      Total This Month
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Total Articles
                     </p>
-                    <p className="text-2xl font-bold">
-                      {getMetric("articles.totalThisMonth", 0)}
+                    <p className="mt-2 text-3xl font-semibold">
+                      {getMetric("articles.totalPublishedAllTime", 0)}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Published all-time
                     </p>
                   </div>
-                  <FileText className="h-8 w-8 text-blue-500 opacity-20" />
+                  <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
+                    <FileText className="h-6 w-6" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
+            {/* Planned This Week */}
+            <Card className="relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-muted-foreground text-sm">Planning</p>
-                    <p className="text-2xl font-bold">
-                      {getMetric("articles.workflowCounts.planning", 0)}
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Planned This Week
                     </p>
+                    <p className="mt-2 text-3xl font-semibold">
+                      {getMetric("articles.plannedThisWeek", 0)}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">Scheduled</p>
                   </div>
-                  <Clock className="h-8 w-8 text-orange-500 opacity-20" />
+                  <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
+                    <CalendarRange className="h-6 w-6" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
+            {/* Published This Week */}
+            <Card className="relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-muted-foreground text-sm">Generating</p>
-                    <p className="text-2xl font-bold">
-                      {getMetric("articles.workflowCounts.generating", 0)}
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Published This Week
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold">
+                      {getMetric("articles.publishedThisWeek", 0)}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Current week (Mon-Sun)
                     </p>
                   </div>
-                  <CheckCircle className="h-8 w-8 text-green-500 opacity-20" />
+                  <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
+            {/* Published Last Week */}
+            <Card className="relative overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                       Published Last Week
                     </p>
-                    <p className="text-2xl font-bold">
+                    <p className="mt-2 text-3xl font-semibold">
                       {getMetric("articles.publishedLastWeek", 0)}
                     </p>
+                    <p className="mt-1 text-xs text-gray-500">Previous week</p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-purple-500 opacity-20" />
+                  <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
+                    <TrendingUp className="h-6 w-6" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
 
-        {/* Reddit Metrics Section */}
+        {/* Reddit Key Stats */}
         <div className="mb-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-700">
-              Reddit Engagement
-            </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">Reddit</h2>
             {!isRedditConnected && (
               <Link href="/settings/integrations">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-blue-600 hover:text-blue-700"
-                >
-                  Connect Reddit
-                  <ArrowRight className="ml-1 h-3 w-3" />
+                <Button variant="outline" size="sm" className="gap-1">
+                  <Link2 className="h-4 w-4" /> Connect
                 </Button>
               </Link>
             )}
           </div>
-
           {isRedditConnected ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-muted-foreground text-sm">
-                        Total Tasks
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Tasks This Week
                       </p>
-                      <p className="text-2xl font-bold">
+                      <p className="mt-2 text-3xl font-semibold">
                         {getMetric("reddit.data.weeklyStats.totalTasks", 0)}
                       </p>
+                      <p className="mt-1 text-xs text-gray-500">Scheduled</p>
                     </div>
-                    <MessageSquare className="h-8 w-8 text-orange-500 opacity-20" />
+                    <div className="rounded-lg bg-orange-50 p-2 text-orange-600">
+                      <Target className="h-6 w-6" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-muted-foreground text-sm">Completed</p>
-                      <p className="text-2xl font-bold">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Completed
+                      </p>
+                      <p className="mt-2 text-3xl font-semibold">
                         {getMetric("reddit.data.weeklyStats.completedTasks", 0)}
                       </p>
+                      <p className="mt-1 text-xs text-gray-500">This week</p>
                     </div>
-                    <Zap className="h-8 w-8 text-yellow-500 opacity-20" />
+                    <div className="rounded-lg bg-green-50 p-2 text-green-600">
+                      <ListChecks className="h-6 w-6" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                         Completion Rate
                       </p>
-                      <p className="text-2xl font-bold">
-                        {getMetric("reddit.data.weeklyStats.completionRate", 0)}
-                        %
+                      <p className="mt-2 text-3xl font-semibold">
+                        {getMetric("reddit.data.weeklyStats.completionRate", 0)}%
                       </p>
+                      <p className="mt-1 text-xs text-gray-500">Of tasks</p>
                     </div>
-                    <Users className="h-8 w-8 text-blue-500 opacity-20" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-muted-foreground text-sm">
-                        Karma Earned
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {getMetric("reddit.data.weeklyStats.karmaEarned", 0)}
-                      </p>
+                    <div className="rounded-lg bg-sky-50 p-2 text-sky-600">
+                      <PieChart className="h-6 w-6" />
                     </div>
-                    <CheckCircle className="h-8 w-8 text-green-500 opacity-20" />
                   </div>
                 </CardContent>
               </Card>
             </div>
           ) : (
             <Card className="border-dashed">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
+              <CardContent className="p-8">
+                <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-orange-100 p-2">
-                      <Link2 className="h-5 w-5 text-orange-600" />
+                      <Link2 className="h-6 w-6 text-orange-600" />
                     </div>
                     <div>
                       <p className="font-medium">Reddit Not Connected</p>
                       <p className="text-muted-foreground text-sm">
-                        Connect Reddit to track engagement metrics
+                        Connect Reddit to track engagement & completion rate
                       </p>
                     </div>
                   </div>
-                  <Link href="/settings/integrations">
-                    <Button size="sm">
-                      Connect
-                      <ArrowRight className="ml-1 h-3 w-3" />
+                  <Link href="/settings/integrations" className="shrink-0">
+                    <Button size="sm" className="gap-1">
+                      Connect <ArrowRight className="h-3 w-3" />
                     </Button>
                   </Link>
                 </div>

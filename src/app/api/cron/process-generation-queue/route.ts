@@ -11,6 +11,7 @@ import {
   validateAndSetupGeneration,
   generateArticle,
   createOrResetArticleGeneration,
+  claimArticleForGeneration,
 } from "@/lib/services/generation-orchestrator";
 
 type ProcessResult = {
@@ -54,19 +55,21 @@ async function processDueQueue(): Promise<ProcessResult["data"]> {
   for (const item of due) {
     processedIds.push(item.id);
     try {
-      // Skip if already generating
-      if (item.articleStatus === "generating") {
-        // Remove stale queue item to avoid duplicate display
-        await db.delete(generationQueue).where(eq(generationQueue.id, item.id));
-        continue;
-      }
-
-      // Validate credits and access; prepare generation context
+      // Validate credits/access first using current status
       const context = await validateAndSetupGeneration(
         item.userId,
         String(item.articleId),
         false,
       );
+
+      // Atomic claim to close race with other triggers
+      const claim = await claimArticleForGeneration(item.articleId);
+
+      if (claim !== "claimed") {
+        // Someone else took it or state changed; clean up this queue item
+        await db.delete(generationQueue).where(eq(generationQueue.id, item.id));
+        continue;
+      }
 
       // Ensure a generation record exists, set anchor time for calendar UX
       const genRecord = await createOrResetArticleGeneration(
@@ -128,4 +131,3 @@ export async function GET() {
 export async function POST() {
   return GET();
 }
-

@@ -236,6 +236,17 @@ export function ArticlesCalendar() {
   // In-place anchors for generating articles (keeps them visible in their original slot)
   const [generatingSlots, setGeneratingSlots] = useState<Map<number, string>>(new Map());
 
+  // View mode: timeline (current) or board (kanban-style by day)
+  const [viewMode, setViewMode] = useState<"timeline" | "board">("board");
+
+  const isPastDay = useCallback((d: Date) => {
+    const day = new Date(d);
+    day.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return day.getTime() < today.getTime();
+  }, []);
+
   // Auto-scroll to morning
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -458,6 +469,12 @@ export function ArticlesCalendar() {
     setIsCreating(true);
   };
 
+  const openCreateForDay = (day: Date, defaultHour = 9, defaultMinute = 0) => {
+    // For board view quick-add. Allow past times here; user can adjust in picker, but clamp to future on save
+    setCreatingAt({ date: day, hour: defaultHour, minute: defaultMinute });
+    setIsCreating(true);
+  };
+
   const createScheduledIdea = async () => {
     if (!projectId) return;
     if (!creatingAt) return;
@@ -485,6 +502,11 @@ export function ArticlesCalendar() {
       // 2) Schedule via generation queue
       const localDateTime = new Date(creatingAt.date);
       localDateTime.setHours(creatingAt.hour, creatingAt.minute, 0, 0);
+      if (localDateTime.getTime() < Date.now()) {
+        toast.error("Cannot schedule in the past");
+        setIsSubmitting(false);
+        return;
+      }
       const scheduledIso = localDateTime.toISOString();
 
       const queueRes = await fetch("/api/articles/generation-queue", {
@@ -569,6 +591,51 @@ export function ArticlesCalendar() {
         `/api/articles/generation-queue?queueItemId=${item.id}`,
         { method: "DELETE" },
       );
+      if (!del.ok) throw new Error("Failed to remove from queue");
+      const add = await fetch("/api/articles/generation-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articleId: item.articleId,
+          scheduledForDate: newDate.toISOString(),
+        }),
+      });
+      if (!add.ok) throw new Error("Failed to reschedule");
+      toast.success("Rescheduled successfully");
+      await fetchQueue();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to reschedule");
+    } finally {
+      setIsUpdating(false);
+      setDragOverSlot(null);
+    }
+  };
+
+  // Board drop handler: drop onto a day keeps the item's existing time
+  const onDropToDay = async (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    const idStr = e.dataTransfer.getData("text/plain");
+    const aId = parseInt(idStr, 10);
+    if (!aId || isNaN(aId)) return;
+
+    const item = scheduledItems.find((s) => s.articleId === aId);
+    if (!item) return;
+
+    const original = new Date(item.scheduledForDate);
+    const newDate = new Date(day);
+    newDate.setHours(original.getHours(), original.getMinutes(), 0, 0);
+    if (newDate.getTime() < Date.now()) {
+      toast.error("Cannot move to the past");
+      return;
+    }
+    if (newDate.getTime() === original.getTime()) return;
+
+    try {
+      setIsUpdating(true);
+      const del = await fetch(`/api/articles/generation-queue?queueItemId=${item.id}`, {
+        method: "DELETE",
+      });
       if (!del.ok) throw new Error("Failed to remove from queue");
       const add = await fetch("/api/articles/generation-queue", {
         method: "POST",
@@ -769,6 +836,23 @@ export function ArticlesCalendar() {
                   <div className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
                 )}
               </div>
+              {/* View toggle */}
+              <div className="ml-2 hidden items-center gap-1 sm:flex">
+                <Button
+                  size="sm"
+                  variant={viewMode === "board" ? "default" : "outline"}
+                  onClick={() => setViewMode("board")}
+                >
+                  Board
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "timeline" ? "default" : "outline"}
+                  onClick={() => setViewMode("timeline")}
+                >
+                  Timeline
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -859,13 +943,11 @@ export function ArticlesCalendar() {
 
         {/* Generating banner removed: show progress inside calendar cards */}
 
-        {/* Calendar Grid */}
+        {/* Calendar Content */}
         <div className="flex-1 overflow-hidden">
-          <div
-            ref={scrollContainerRef}
-            className="h-full overflow-auto overscroll-contain"
-          >
-            <div className="grid h-full grid-cols-8">
+          {viewMode === "timeline" ? (
+            <div ref={scrollContainerRef} className="h-full overflow-auto overscroll-contain">
+              <div className="grid h-full grid-cols-8">
               {/* Time column */}
               <div className="border-border bg-muted/30 border-r">
                 <div className="border-border bg-card sticky top-0 z-20 h-16 border-b"></div>
@@ -1389,8 +1471,317 @@ export function ArticlesCalendar() {
                   </div>
                 );
               })}
+              </div>
             </div>
-          </div>
+          ) : (
+            // Board view: 7 columns with stacked, time-sorted cards
+            <div className="h-full overflow-auto overscroll-contain p-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-7 md:gap-3">
+                {weekDays.map((day) => {
+                  // Build a combined list of events for the day
+                  const queuedForDay = scheduledItems.filter((s) =>
+                    isSameDay(new Date(s.scheduledForDate), day),
+                  );
+                  const generatingForDay = generatingCalendarEvents.filter((e) =>
+                    isSameDay(new Date(e.dateIso), day),
+                  );
+                  const publishScheduledForDay = publishScheduledEvents.filter((e) =>
+                    isSameDay(new Date(e.dateIso), day),
+                  );
+                  const publishedForDay = publishedEvents.filter((e) =>
+                    isSameDay(new Date(e.dateIso), day),
+                  );
+                  const generationScheduledForDay = generationScheduledEvents.filter((e) =>
+                    isSameDay(new Date(e.dateIso), day),
+                  );
+
+                  type BoardEvent =
+                    | { kind: "queued"; key: string; dateIso: string; item: QueueItem; title: string; overdue: boolean }
+                    | { kind: "generating"; key: string; dateIso: string; article: Article; title: string }
+                    | { kind: "publishScheduled"; key: string; dateIso: string; article: Article; title: string }
+                    | { kind: "published"; key: string; dateIso: string; article: Article; title: string }
+                    | { kind: "generationScheduled"; key: string; dateIso: string; article: Article; title: string };
+
+                  const events: BoardEvent[] = [
+                    ...queuedForDay.map((q) => ({
+                      kind: "queued" as const,
+                      key: `q-${q.id}`,
+                      dateIso: q.scheduledForDate,
+                      item: q,
+                      title: articleById.get(q.articleId)?.title ?? q.title,
+                      overdue: overdueQueueItemIds.has(q.id),
+                    })),
+                    ...generatingForDay.map((e) => ({
+                      kind: "generating" as const,
+                      key: `gen-${e.id}`,
+                      dateIso: e.dateIso,
+                      article: e.article,
+                      title: e.title,
+                    })),
+                    ...publishScheduledForDay.map((e) => ({
+                      kind: "publishScheduled" as const,
+                      key: `pubsch-${e.id}`,
+                      dateIso: e.dateIso,
+                      article: e.article,
+                      title: e.title,
+                    })),
+                    ...publishedForDay.map((e) => ({
+                      kind: "published" as const,
+                      key: `pub-${e.id}`,
+                      dateIso: e.dateIso,
+                      article: e.article,
+                      title: e.title,
+                    })),
+                    ...generationScheduledForDay.map((e) => ({
+                      kind: "generationScheduled" as const,
+                      key: `gensch-${e.id}`,
+                      dateIso: e.dateIso,
+                      article: e.article,
+                      title: e.title,
+                    })),
+                  ].sort((a, b) => new Date(a.dateIso).getTime() - new Date(b.dateIso).getTime());
+
+                  return (
+                    <div key={day.toISOString()} className="flex min-h-0 flex-col overflow-hidden rounded-md border">
+                      {/* Day header */}
+                      <div className="border-border bg-card flex items-center justify-between gap-2 border-b p-2 rounded-t-md">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground text-xs uppercase">
+                            {format(day, "EEE")}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-lg font-medium",
+                              isSameDay(day, new Date())
+                                ? "bg-primary text-primary-foreground flex h-8 w-8 items-center justify-center rounded-full"
+                                : "text-foreground",
+                            )}
+                          >
+                            {format(day, "d")}
+                          </span>
+                        </div>
+                        {!isPastDay(day) && (
+                          <Button size="icon" variant="ghost" onClick={() => openCreateForDay(day)} aria-label="Add idea">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Events list */}
+                      <div
+                        className={cn(
+                          "flex-1 space-y-2 p-2",
+                          isUpdating && "pointer-events-none opacity-75",
+                        )}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (!dragOverSlot || dragOverSlot.day.getTime() !== day.getTime()) {
+                            setDragOverSlot({ day, hour: -1, minute: 0 });
+                          }
+                        }}
+                        onDrop={(e) => onDropToDay(e, day)}
+                      >
+                        {events.length === 0 ? (
+                          <div className="text-muted-foreground text-xs">No items</div>
+                        ) : null}
+
+                        {events.map((ev) => {
+                          const time = format(new Date(ev.dateIso), "HH:mm");
+                          if (ev.kind === "queued") {
+                            const item = ev.item;
+                            return (
+                              <div
+                                key={ev.key}
+                                className={cn(
+                                  "task-card-interactive cursor-pointer rounded-md border p-2 text-white select-none",
+                                  ev.overdue ? "bg-destructive/80" : "bg-chart-4",
+                                  "border-white/30",
+                                )}
+                                draggable={!isUpdating && !ev.overdue}
+                                onDragStart={(e) => onDragStart(e, item.articleId)}
+                                onDragEnd={onDragEnd}
+                              >
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <div className="min-w-0">
+                                      <div className="text-xs leading-tight font-medium break-words whitespace-normal">
+                                        {time} — {ev.title}
+                                      </div>
+                                      <div className="text-[10px] opacity-90">Idea</div>
+                                    </div>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
+                                    <div className="flex items-start justify-between">
+                                      <div className="min-w-0 pr-3">
+                                        {(() => {
+                                          const a = articleById.get(item.articleId);
+                                          const href = a?.slug ? `/articles/${a.slug}` : `/dashboard/articles/${a?.id ?? item.articleId}`;
+                                          return (
+                                            <a href={href} className="text-base font-semibold leading-tight break-words underline-offset-2 hover:underline">{ev.title}</a>
+                                          );
+                                        })()}
+                                        <div className="text-muted-foreground mt-1 text-sm">
+                                          {format(new Date(item.scheduledForDate), "EEEE, MMMM d • h:mma")} {ev.overdue && <span className="text-destructive ml-2 font-medium">Overdue</span>}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEditModal(item);
+                                              }}
+                                              aria-label="Edit"
+                                            >
+                                              <Edit3 className="h-4 w-4" />
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">Edit</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleGenerateNow(item);
+                                              }}
+                                              aria-label="Generate now"
+                                            >
+                                              <Play className="h-4 w-4" />
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">Generate now</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleDeleteArticle(item);
+                                              }}
+                                              aria-label="Delete article"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">Delete article</TooltipContent>
+                                        </Tooltip>
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            );
+                          }
+                          if (ev.kind === "generating") {
+                            const a = ev.article;
+                            const progress = Math.max(0, Math.min(100, a.generationProgress ?? 0));
+                            return (
+                              <div key={ev.key} className={cn("task-card-interactive cursor-pointer rounded-md border p-2 select-none", "bg-card text-foreground border-white/30")}
+                              >
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-medium leading-tight whitespace-normal break-words">{time} — {ev.title}</div>
+                                      <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                                        <span className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
+                                          <Zap className="h-3 w-3" />
+                                          {a.generationPhase ? a.generationPhase.charAt(0).toUpperCase() + a.generationPhase.slice(1) : "Processing"}
+                                        </span>
+                                      </div>
+                                      <div className="mt-1">
+                                        <div className="h-[6px] rounded bg-muted">
+                                          <div className="h-[6px] rounded bg-chart-3" style={{ width: `${progress}%` }} />
+                                        </div>
+                                        <div className="mt-1 text-[10px] text-muted-foreground">{progress}% complete</div>
+                                      </div>
+                                    </div>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
+                                    <div className="min-w-0 pr-3">
+                                      <div className="text-base font-semibold leading-tight break-words">{ev.title}</div>
+                                      <div className="text-muted-foreground mt-1 flex items-center gap-2 text-sm">
+                                        <span className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-xs font-medium">
+                                          <Zap className="h-3 w-3" />
+                                          {a.generationPhase ? a.generationPhase.charAt(0).toUpperCase() + a.generationPhase.slice(1) : "Processing"}
+                                        </span>
+                                        <span>Creating content</span>
+                                      </div>
+                                      <div className="mt-2">
+                                        <Progress value={progress} />
+                                        <div className="text-muted-foreground mt-1 text-xs">{progress}% complete</div>
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            );
+                          }
+                          if (ev.kind === "publishScheduled") {
+                            const href = ev.article.slug ? `/articles/${ev.article.slug}` : `/dashboard/articles/${ev.article.id}`;
+                            return (
+                              <Popover key={ev.key}>
+                                <PopoverTrigger asChild>
+                                  <div className={cn("task-card-interactive cursor-pointer rounded-md border p-2 text-white select-none", "bg-chart-3 border-white/30")}
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="text-xs leading-tight font-medium break-words whitespace-normal">{time} — {ev.title}</div>
+                                      <div className="text-[10px] opacity-90">Publish scheduled</div>
+                                    </div>
+                                  </div>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
+                                  <div className="min-w-0 pr-3">
+                                    <a href={href} className="text-base font-semibold leading-tight break-words underline-offset-2 hover:underline">{ev.title}</a>
+                                    <div className="text-muted-foreground mt-1 text-sm">{format(new Date(ev.dateIso), "EEEE, MMMM d • h:mma")} — publish scheduled</div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            );
+                          }
+                          if (ev.kind === "published") {
+                            const href = ev.article.slug ? `/articles/${ev.article.slug}` : `/dashboard/articles/${ev.article.id}`;
+                            return (
+                              <Popover key={ev.key}>
+                                <PopoverTrigger asChild>
+                                  <div className={cn("task-card-interactive cursor-pointer rounded-md border p-2 text-white select-none", "bg-chart-1 border-white/30")}
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="text-xs leading-tight font-medium break-words whitespace-normal">{time} — {ev.title}</div>
+                                      <div className="text-[10px] opacity-90">Published</div>
+                                    </div>
+                                  </div>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
+                                  <div className="min-w-0 pr-3">
+                                    <a href={href} className="text-base font-semibold leading-tight break-words underline-offset-2 hover:underline">{ev.title}</a>
+                                    <div className="text-muted-foreground mt-1 text-sm">{format(new Date(ev.dateIso), "EEEE, MMMM d • h:mma")} — published</div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            );
+                          }
+                          // generationScheduled (legacy)
+                          return (
+                            <div key={ev.key} className={cn("task-card-interactive cursor-pointer rounded-md border p-2 text-white select-none", "bg-chart-4 border-white/30")}>
+                              <div className="min-w-0">
+                                <div className="text-xs leading-tight font-medium break-words whitespace-normal">{time} — {ev.title}</div>
+                                <div className="text-[10px] opacity-90">Generation scheduled</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Create Modal */}
@@ -1439,6 +1830,19 @@ export function ArticlesCalendar() {
                   placeholder="Add notes or requirements..."
                   className="min-h-[80px] resize-none"
                   disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="text-foreground mb-2 block text-sm font-medium">
+                  Scheduled Time
+                </label>
+                <DateTimePicker
+                  value={creatingAt ? new Date(new Date(creatingAt.date).setHours(creatingAt.hour, creatingAt.minute, 0, 0)) : undefined}
+                  onChange={(d) => {
+                    if (!d) return;
+                    setCreatingAt({ date: d, hour: d.getHours(), minute: d.getMinutes() });
+                  }}
+                  minDate={new Date(Date.now() + 60000)}
                 />
               </div>
               {creatingAt && (

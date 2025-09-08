@@ -362,6 +362,9 @@ export interface RedditSettings {
 // Dashboard overview types
 export interface ArticleMetrics {
   totalThisMonth: number;
+  totalPublishedAllTime: number;
+  plannedThisWeek: number;
+  publishedThisWeek: number;
   publishedLastWeek: number;
   workflowCounts: {
     planning: number;

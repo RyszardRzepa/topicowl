@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { articles, articleGeneration, users, projects } from "@/server/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, ne } from "drizzle-orm";
 import type { VideoEmbed } from "@/types";
 
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
@@ -30,6 +30,40 @@ export interface GenerationContext {
   article: typeof articles.$inferSelect;
   keywords: string[];
   relatedArticles: string[];
+}
+
+// Attempt to atomically claim an article for generation by flipping its status
+// to "generating" if and only if it is not already generating/published/deleted.
+// Returns:
+// - "claimed" when this caller acquired the claim
+// - "already_generating" when another worker has the claim
+// - "not_claimable" for other states (e.g., published/deleted)
+export async function claimArticleForGeneration(
+  articleId: number,
+): Promise<"claimed" | "already_generating" | "not_claimable"> {
+  const [updated] = await db
+    .update(articles)
+    .set({ status: "generating", updatedAt: new Date() })
+    .where(
+      and(
+        eq(articles.id, articleId),
+        ne(articles.status, "generating"),
+        ne(articles.status, "published"),
+        ne(articles.status, "deleted"),
+      ),
+    )
+    .returning({ id: articles.id });
+
+  if (updated) return "claimed";
+
+  const [current] = await db
+    .select({ status: articles.status })
+    .from(articles)
+    .where(eq(articles.id, articleId))
+    .limit(1);
+  if (!current) return "not_claimable";
+  if (current.status === "generating") return "already_generating";
+  return "not_claimable";
 }
 
 export async function validateAndSetupGeneration(
