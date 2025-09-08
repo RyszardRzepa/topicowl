@@ -210,6 +210,7 @@ export function ArticlePreviewClient({
             coverImageAlt={article.coverImageAlt ?? undefined}
             onImageUpdate={handleCoverImageSave}
             isLoading={isSaving}
+            articleStatus={article.status}
           />
 
           {/* Content Editor */}
@@ -219,6 +220,7 @@ export function ArticlePreviewClient({
             onSave={handleUnifiedSave}
             isLoading={isSaving}
             placeholder="Start writing your article content..."
+            articleStatus={article.status}
           />
         </div>
 
@@ -236,6 +238,7 @@ export function ArticlePreviewClient({
               setShowErrorMessage(message);
               setTimeout(() => setShowErrorMessage(null), 5000);
             }}
+            articleStatus={article.status}
           />
         </div>
       </div>

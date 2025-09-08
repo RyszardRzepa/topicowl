@@ -28,6 +28,7 @@ interface ArticleSidebarEditorProps {
   }) => void;
   onSuccess?: (message: string) => void;
   onError?: (message: string) => void;
+  articleStatus?: string;
 }
 
 // Article type options - you can expand this based on your needs
@@ -46,6 +47,7 @@ export function ArticleSidebarEditor({
   onMetadataChange,
   onSuccess,
   onError,
+  articleStatus,
 }: ArticleSidebarEditorProps) {
   const [formData, setFormData] = useState({
     title: currentMetadata?.title ?? article.title ?? "",
@@ -117,6 +119,7 @@ export function ArticleSidebarEditor({
               }
               placeholder="Article title"
               className="text-sm"
+              disabled={articleStatus === "published"}
             />
           </div>
 
@@ -137,6 +140,7 @@ export function ArticleSidebarEditor({
                     type="button"
                     onClick={() => handleRemoveKeyword(keyword)}
                     className="ml-1 hover:text-red-600"
+                    disabled={articleStatus === "published"}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -155,6 +159,7 @@ export function ArticleSidebarEditor({
                   }
                 }}
                 className="text-sm"
+                disabled={articleStatus === "published"}
               />
               <Button
                 type="button"
@@ -162,6 +167,7 @@ export function ArticleSidebarEditor({
                 variant="outline"
                 size="sm"
                 className="px-2"
+                disabled={articleStatus === "published"}
               >
                 <Plus className="h-3 w-3" />
               </Button>
@@ -186,6 +192,7 @@ export function ArticleSidebarEditor({
                 }))
               }
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              disabled={articleStatus === "published"}
             >
               {ARTICLE_TYPES.map((type) => (
                 <option key={type.value} value={type.value}>
@@ -216,6 +223,7 @@ export function ArticleSidebarEditor({
               rows={3}
               maxLength={160}
               className="resize-none text-sm"
+              disabled={articleStatus === "published"}
             />
           </div>
 
@@ -235,6 +243,7 @@ export function ArticleSidebarEditor({
               }
               placeholder="article-url-slug"
               className="text-sm"
+              disabled={articleStatus === "published"}
             />
           </div>
 

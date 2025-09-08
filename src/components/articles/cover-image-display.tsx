@@ -23,6 +23,7 @@ interface CoverImageDisplayProps {
     coverImageAlt: string;
   }) => void;
   isLoading?: boolean;
+  articleStatus?: string;
 }
 
 export function CoverImageDisplay({
@@ -30,6 +31,7 @@ export function CoverImageDisplay({
   coverImageAlt = "",
   onImageUpdate,
   isLoading = false,
+  articleStatus,
 }: CoverImageDisplayProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempImageUrl, setTempImageUrl] = useState(coverImageUrl);
@@ -91,14 +93,16 @@ export function CoverImageDisplay({
                 Add a cover image to make your article more engaging
               </p>
             </div>
-            <Button
-              onClick={() => setIsEditing(true)}
-              variant="outline"
-              className="mt-4"
-            >
-              <ImageIcon className="mr-2 h-4 w-4" />
-              Add Cover Image
-            </Button>
+            {articleStatus !== "published" && (
+              <Button
+                onClick={() => setIsEditing(true)}
+                variant="outline"
+                className="mt-4"
+              >
+                <ImageIcon className="mr-2 h-4 w-4" />
+                Add Cover Image
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -289,26 +293,28 @@ export function CoverImageDisplay({
             </Tooltip>
 
             {/* Hover overlay */}
-            <div className="bg-opacity-50 absolute inset-0 flex items-center justify-center space-x-3 bg-black opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsEditing(true)}
-                className="bg-white/90 text-gray-900 hover:bg-white"
-              >
-                <Edit3 className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleRemove}
-                className="bg-red-600/90 hover:bg-red-600"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Remove
-              </Button>
-            </div>
+            {articleStatus !== "published" && (
+              <div className="bg-opacity-50 absolute inset-0 flex items-center justify-center space-x-3 bg-black opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="bg-white/90 text-gray-900 hover:bg-white"
+                >
+                  <Edit3 className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleRemove}
+                  className="bg-red-600/90 hover:bg-red-600"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Remove
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -40,6 +40,7 @@ interface ContentEditorWithPreviewProps {
   onSave?: () => Promise<void>;
   isLoading?: boolean;
   placeholder?: string;
+  articleStatus?: string;
 }
 
 // Convert YouTube/video markdown links to iframe directive format
@@ -145,6 +146,7 @@ export function ContentEditorWithPreview({
   onSave,
   isLoading = false,
   placeholder = "Start writing your article...",
+  articleStatus,
 }: ContentEditorWithPreviewProps) {
   const editorRef = useRef<MDXEditorMethods>(null);
   const sanitizedInitialContent = sanitizeContentForEditor(initialContent);
@@ -238,41 +240,43 @@ export function ContentEditorWithPreview({
           )}
 
           {/* Floating Editor Actions */}
-          <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-500">
-                {getWordCount(currentContent)} words
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={toggleMarkdownMode}
-                  className="flex items-center gap-2"
-                >
-                  {isMarkdownMode ? (
-                    <>
-                      <Eye className="h-4 w-4" />
-                      Preview
-                    </>
-                  ) : (
-                    <>
-                      <Code className="h-4 w-4" />
-                      Edit in Markdown
-                    </>
-                  )}
-                </Button>
+          {articleStatus !== "published" && (
+            <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-500">
+                  {getWordCount(currentContent)} words
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={toggleMarkdownMode}
+                    className="flex items-center gap-2"
+                  >
+                    {isMarkdownMode ? (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        Preview
+                      </>
+                    ) : (
+                      <>
+                        <Code className="h-4 w-4" />
+                        Edit in Markdown
+                      </>
+                    )}
+                  </Button>
 
-                <Button
-                  onClick={handleSave}
-                  disabled={isLoading}
-                  className="flex items-center gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  {isLoading ? "Saving..." : "Save Changes"}
-                </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={isLoading}
+                    className="flex items-center gap-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isLoading ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>
