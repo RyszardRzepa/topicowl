@@ -31,6 +31,8 @@ export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
     status: correctedStatus,
     // DatabaseArticle doesn't expose projectId in imported type; fallback to 0 to satisfy required field
     projectId: (dbArticle as unknown as { projectId?: number }).projectId ?? 0,
+    // Include slug if present in the board payload
+    slug: (dbArticle as unknown as { slug?: string | null }).slug ?? undefined,
     keywords: Array.isArray(dbArticle.keywords)
       ? (dbArticle.keywords as string[])
       : [],

@@ -156,6 +156,7 @@ export interface Article {
   content?: string;
   status: ArticleStatus;
   projectId: number; // Required project association
+  slug?: string; // URL slug for article page
   keywords?: string[];
   targetWordCount?: number;
   publishDate?: string;

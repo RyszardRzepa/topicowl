@@ -115,10 +115,7 @@
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .task-card-interactive:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
+  /* Removed global hover grow/shadow for task cards to avoid unintended scaling */
 
   /* Pulse animation for high overlap count indicators */
   @keyframes overlap-pulse {
@@ -196,9 +193,10 @@
   --border: #d1d5db; /* Darker border for better visibility */
   --input: #ffffff; /* White input backgrounds */
   --ring: #016251; /* Brand green for focus rings */
-  --chart-1: #016251; /* Brand green for charts */
+  /* Calendar/legend palette: distinct green vs blue */
+  --chart-1: #16a34a; /* Green (Published) */
   --chart-2: rgba(255, 102, 26, 1); /* Brand orange for charts */
-  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-3: #2563eb; /* Blue (Generated) */
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: #2b2823; /* Brand dark gray for sidebar */
@@ -231,9 +229,9 @@
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.05);
   --ring: #016251;
-  --chart-1: #016251; /* Brand green for charts */
+  --chart-1: #22c55e; /* Green (Published) */
   --chart-2: rgba(255, 102, 26, 1); /* Brand orange for charts */
-  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-3: #3b82f6; /* Blue (Generated) */
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: #2b2823;

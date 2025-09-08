@@ -1,9 +1,12 @@
-import { WorkflowDashboard } from "@/components/workflow/workflow-dashboard";
+"use client";
+import { ArticlesCalendar } from "@/components/articles/ArticlesCalendar";
 
 export default function ArticlesPage() {
   return (
-    <div className="mx-auto max-w-6xl">
-      <WorkflowDashboard />
+    <div className="container mx-auto">
+      <div className="h-[85vh]">
+        <ArticlesCalendar />
+      </div>
     </div>
   );
 }

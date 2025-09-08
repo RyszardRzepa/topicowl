@@ -6,6 +6,8 @@ import {
   users,
   articleGeneration,
   projects,
+  generationQueue,
+  webhookDeliveries,
 } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
@@ -643,31 +645,33 @@ export async function DELETE(
       );
     }
 
-    // Check if article is already deleted
-    if (existingArticle[0]!.status === "deleted") {
+    // Prevent deleting while actively generating to avoid race conditions
+    if (existingArticle[0]!.status === "generating") {
       return NextResponse.json(
         {
           success: false,
-          error: "Article is already deleted",
+          error: "Cannot delete an article while it is generating",
         },
-        { status: 410 },
+        { status: 409 },
       );
     }
 
-    // Soft delete the article by updating status to "deleted"
-    const [deletedArticle] = await db
-      .update(articles)
-      .set({
-        status: "deleted",
-        updatedAt: new Date(),
-      })
+    // Hard delete: remove dependent records first to satisfy FKs, then remove the article
+    await db.delete(generationQueue).where(eq(generationQueue.articleId, articleId));
+    await db
+      .delete(articleGeneration)
+      .where(eq(articleGeneration.articleId, articleId));
+    await db.delete(webhookDeliveries).where(eq(webhookDeliveries.articleId, articleId));
+
+    const [removed] = await db
+      .delete(articles)
       .where(eq(articles.id, articleId))
-      .returning();
+      .returning({ id: articles.id, title: articles.title });
 
     return NextResponse.json({
       success: true,
-      message: "Article deleted successfully",
-      data: deletedArticle,
+      message: "Article permanently deleted",
+      data: removed,
     });
   } catch (error) {
     console.error("Delete article error:", error);
