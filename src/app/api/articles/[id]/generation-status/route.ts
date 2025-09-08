@@ -9,7 +9,7 @@ import {
   projects,
 } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
-import type { ApiResponse } from "@/types";
+import type { ApiResponse, SeoChecklist } from "@/types";
 
 // Types colocated with this API route
 export interface GenerationStatus {
@@ -34,6 +34,7 @@ export interface GenerationStatus {
   currentPhase?: string;
   seoScore?: number;
   seoIssues?: Array<{ code: string; severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; message: string }>;
+  checklist?: SeoChecklist;
 }
 
 export async function GET(
@@ -256,6 +257,7 @@ export async function GET(
       currentPhase: currentPhaseRaw,
       seoScore,
       seoIssues,
+      checklist: latestGeneration.checklist as SeoChecklist | undefined,
     };
 
     return NextResponse.json({

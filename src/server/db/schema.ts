@@ -70,6 +70,7 @@ export const projects = contentbotSchema.table(
     // Project-specific article settings
     toneOfVoice: text("tone_of_voice"),
     articleStructure: text("article_structure"),
+    structureTemplate: jsonb("structure_template"),
     maxWords: integer("max_words").default(800),
     excludedDomains: jsonb("excluded_domains")
       .default([])
@@ -186,6 +187,7 @@ export const articles = contentbotSchema.table(
 
     // User-provided notes for AI guidance
     notes: text("notes"),
+    structureOverride: jsonb("structure_override"),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -268,6 +270,7 @@ export const articleGeneration = contentbotSchema.table(
     lastUpdated: timestamp("last_updated", { withTimezone: true }),
 
     outline: jsonb("outline"),
+    artifacts: jsonb("artifacts").default({}).notNull(),
 
     // Phase timestamps
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
@@ -280,6 +283,7 @@ export const articleGeneration = contentbotSchema.table(
     validationReport: jsonb("validation_report").default({}),
     qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
     seoReport: jsonb("seo_report").default({}).notNull(),
+    checklist: jsonb("checklist"),
     writePrompt: text("write_prompt"), // Store the AI prompt used for writing
 
     // Agent-specific fields for meta optimization

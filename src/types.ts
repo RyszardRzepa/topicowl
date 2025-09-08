@@ -73,6 +73,50 @@ export const videoEmbedSchema = z.object({
 
 export type VideoEmbed = z.infer<typeof videoEmbedSchema>;
 
+export type SectionType =
+  | "title"
+  | "intro"
+  | "tldr"
+  | "section"
+  | "video"
+  | "table"
+  | "faq";
+
+export interface StructureSection {
+  id: string;
+  type: SectionType;
+  label?: string;
+  required?: boolean;
+  enabled?: boolean;
+  minWords?: number;
+  minItems?: number;
+  maxItems?: number;
+}
+
+export interface StructureTemplate {
+  version: number;
+  sections: StructureSection[];
+}
+
+export interface EffectiveOutline extends StructureTemplate {}
+
+export interface SeoChecklist {
+  structure: {
+    singleH1: boolean;
+    h2CountOk: boolean;
+    hasTldr: boolean;
+    hasFaq: boolean;
+  };
+  links: { internalMin: boolean; externalMin: boolean; brokenExternalLinks: number };
+  citations: { citedSourcesMin: boolean };
+  quotes: { hasExpertQuote: boolean };
+  stats: { hasTwoDataPoints: boolean };
+  images: { allHaveAlt: boolean };
+  keywords: { h1HasPrimary: boolean };
+  meta: { metaDescriptionOk: boolean; slugPresent: boolean };
+  jsonLd: { blogPosting: boolean; faqPage: boolean };
+}
+
 // Blog post schema for AI-generated content - includes all SEO fields
 export const blogPostSchema = z.object({
   id: z

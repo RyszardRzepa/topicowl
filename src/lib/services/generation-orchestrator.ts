@@ -1,7 +1,7 @@
 import { db } from "@/server/db";
 import { articles, articleGeneration, users, projects } from "@/server/db/schema";
 import { eq, and, desc, ne } from "drizzle-orm";
-import type { VideoEmbed } from "@/types";
+import type { VideoEmbed, StructureTemplate } from "@/types";
 
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
@@ -536,7 +536,10 @@ export async function handleGenerationError(
   }
 }
 
-export async function generateArticle(context: GenerationContext): Promise<void> {
+export async function generateArticle(
+  context: GenerationContext,
+  lockedOutline?: StructureTemplate,
+): Promise<void> {
   const { articleId, userId, article, keywords } = context;
   let generationRecord: typeof articleGeneration.$inferSelect | null = null;
 
@@ -544,6 +547,12 @@ export async function generateArticle(context: GenerationContext): Promise<void>
     logger.info("generation:start", { articleId, title: article.title });
 
     generationRecord = await createOrResetArticleGeneration(articleId, userId);
+    if (lockedOutline && generationRecord) {
+      await db
+        .update(articleGeneration)
+        .set({ outline: lockedOutline, artifacts: { outline: lockedOutline } })
+        .where(eq(articleGeneration.id, generationRecord.id));
+    }
     await db.update(articles).set({ status: "generating", updatedAt: new Date() }).where(eq(articles.id, articleId));
     await db
       .update(articleGeneration)
