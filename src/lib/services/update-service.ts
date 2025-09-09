@@ -62,7 +62,7 @@ export async function performUpdateLogic(
     throw new Error("Article and validationText are required");
   }
 
-  const model = anthropic(MODELS.CLAUDE_SONET_4);
+  const model = anthropic(MODELS.CLAUDE_SONNET_4);
 
   const { object: articleObject } = await generateObject({
     model,
@@ -166,7 +166,7 @@ export async function performGenericUpdate(
     );
   } else {
     // Handle other types of updates (existing logic)
-    const model = anthropic(MODELS.CLAUDE_SONET_4);
+    const model = anthropic(MODELS.CLAUDE_SONNET_4);
 
     let correctionsOrValidationText: Correction[] | string;
 

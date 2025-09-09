@@ -8,6 +8,17 @@ import { generateText, generateObject } from "ai";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { z } from "zod";
+import { getModel } from "../ai-models";
+import { env } from "@/env";
+
+// Jina API configuration - adjust these values based on your needs
+const JINA_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 2000, // 2 seconds
+  maxDelay: 30000, // 30 seconds
+  timeoutMs: 120000, // 2 minutes
+  apiTimeout: 800, // API-level timeout in seconds (sent in x-timeout header)
+} as const;
 
 // Re-export types from the API route
 export interface ResearchRequest {
@@ -28,6 +39,66 @@ export interface ResearchResponse {
     url: string;
     reason?: string;
   }>;
+}
+
+// Jina API types
+interface JinaMessage {
+  role: "assistant" | "user";
+  content: string;
+}
+
+interface JinaRequest {
+  model: string;
+  messages: JinaMessage[];
+  stream: boolean;
+  reasoning_effort: "low" | "medium" | "high";
+  team_size: number;
+  max_returned_urls: number;
+  no_direct_answer: boolean;
+}
+
+interface JinaUrlCitation {
+  title: string;
+  exactQuote: string;
+  url: string;
+  dateTime: string;
+}
+
+interface JinaAnnotation {
+  type: "url_citation";
+  url_citation: JinaUrlCitation;
+}
+
+interface JinaDelta {
+  content: string;
+  type: "text";
+  annotations: JinaAnnotation[];
+}
+
+interface JinaChoice {
+  index: number;
+  delta: JinaDelta;
+  logprobs: null;
+  finish_reason: "stop";
+}
+
+interface JinaUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+interface JinaResponse {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  system_fingerprint: string;
+  choices: JinaChoice[];
+  usage: JinaUsage;
+  visitedURLs: string[];
+  readURLs: string[];
+  numURLs: number;
 }
 
 // Grounding metadata types for Gemini
@@ -423,7 +494,7 @@ async function searchAndValidateYouTubeVideos(
     const maxAttempts = 3;
     let attempt = 1;
     let youtubeSearchResult = await generateText({
-      model: google(MODELS.GEMINI_2_5_FLASH),
+      model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
       providerOptions: {
         google: {
           thinkingConfig: {
@@ -447,7 +518,7 @@ async function searchAndValidateYouTubeVideos(
         `[YOUTUBE_SEARCH] No sources returned, retrying attempt ${attempt}/${maxAttempts}`,
       );
       youtubeSearchResult = await generateText({
-        model: google(MODELS.GEMINI_2_5_FLASH),
+        model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
         providerOptions: {
           google: {
             thinkingConfig: {
@@ -638,7 +709,7 @@ async function searchAndValidateYouTubeVideos(
       .join("\n");
 
     const selectionResult = await generateObject({
-      model: google(MODELS.GEMINI_2_5_FLASH),
+      model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
       schema: videoSelectionSchema,
       prompt: `From the following validated and accessible YouTube URLs, select the ONE best video that is most relevant to the article topic "${title}".
           YouTube URLs found (all verified as accessible):
@@ -681,9 +752,260 @@ async function searchAndValidateYouTubeVideos(
   }
 }
 
+// Jina Research API functions with improved error handling and timeout management
+async function callJinaResearchAPI(
+  title: string,
+  keywords: string[],
+  notes?: string,
+  excludedDomains?: string[],
+): Promise<JinaResponse> {
+  
+  // Create the context for Jina research
+  const siteContext = notes ?? "General content platform focusing on quality research and insights";
+  const targetKeywords = keywords.join(", ");
+  const excludedDomainsStr = excludedDomains?.length ? excludedDomains.join(", ") : "";
+  const market = "Global English-speaking audience";
+
+  const jinaRequest: JinaRequest = {
+    model: MODELS.JINA_DEEPSEARCH_V1,
+    messages: [
+      {
+        role: "assistant",
+        content: "You are \"Topic Hunter,\" a source-driven research agent. Use ONLY the URLs returned by DeepSearch. Never invent links. Cite in-text as [S1], [S2]… and list raw URLs under a final Sources section."
+      },
+      {
+        role: "user", 
+        content: `Research this article topic for TopicOwl content platform.
+
+Topic: ${title}
+Primary query: ${title}
+Target keywords (comma-separated): ${targetKeywords}
+Context (short, 1–2 lines): ${siteContext}
+Geography: ${market}
+Excluded domains (optional): ${excludedDomainsStr}
+
+Output a concise research brief with:
+1) Executive insight (2–3 sentences, what the article should claim)
+2) SERP intent map (primary/secondary intents + who ranks)
+3) Key findings (5–8 bullet points with [S#])
+4) Data & stats to cite (3–6 items with [S#] and exact figures)
+5) Content gaps/opportunities (3–5 bullets with [S#] where relevant)
+6) Draft outline (H2/H3 only, max 12 items)
+7) FAQs (4–6 Q&A, each grounded with [S#])
+8) Internal links suggestions (3–5 slugs/anchors; if unknown, write TODO)
+9) Risk checks (ambiguities/dated info/conflicts with [S#])
+
+Rules:
+- Use only DeepSearch URLs. Never modify or guess URLs.
+- Every claim that isn't common knowledge gets a citation [S#].
+- If something is ungrounded, mark UNGROUNDED and keep it minimal.
+- Keep it tight and actionable.
+
+At the end, print:
+Sources:
+S1: <URL>
+S2: <URL>
+…`
+      }
+    ],
+    stream: false,
+    reasoning_effort: "medium",
+    team_size: 2,
+    max_returned_urls: 40,
+    no_direct_answer: true
+  };
+
+  // Retry configuration for handling transient errors like 524
+  const { maxRetries, baseDelay, maxDelay, timeoutMs } = JINA_CONFIG;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[JINA_RESEARCH] Attempt ${attempt}/${maxRetries} for topic: ${title}`);
+
+
+      const response = await fetch("https://deepsearch.jina.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${env.JINA_API_KEY}`,
+        },
+        body: JSON.stringify(jinaRequest),
+      });
+
+      if (response.ok) {
+        console.log(`[JINA_RESEARCH] Successfully completed on attempt ${attempt}`);
+        return response.json() as Promise<JinaResponse>;
+      }
+
+      // Handle specific error statuses
+      const isRetryableError = response.status === 524 || // Gateway timeout
+                               response.status === 502 || // Bad gateway
+                               response.status === 503 || // Service unavailable
+                               response.status === 429;   // Too many requests
+
+      if (!isRetryableError || attempt === maxRetries) {
+        throw new Error(`Jina API error: ${response.status} ${response.statusText}`);
+      }
+
+      // Log retryable error and wait before next attempt
+      console.warn(`[JINA_RESEARCH] Retryable error ${response.status} on attempt ${attempt}, retrying...`);
+
+    } catch (error) {
+      if (attempt === maxRetries) {
+        // Categorize error for better handling
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            throw new Error(`Jina API request timeout after ${timeoutMs/1000}s`);
+          }
+          if (error.message.includes('524')) {
+            throw new Error(`Jina API gateway timeout (524) - service overloaded`);
+          }
+        }
+        throw error;
+      }
+
+      console.warn(`[JINA_RESEARCH] Error on attempt ${attempt}:`, error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    // Exponential backoff with jitter
+    if (attempt < maxRetries) {
+      const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
+      const jitteredDelay = delay + Math.random() * 1000; // Add up to 1s jitter
+      console.log(`[JINA_RESEARCH] Waiting ${Math.round(jitteredDelay)}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, jitteredDelay));
+    }
+  }
+
+  throw new Error("Jina API: Maximum retries exceeded");
+}
+
+function extractSourcesFromJinaResponse(jinaResponse: JinaResponse): Array<{ url: string; title?: string }> {
+  const sources: Array<{ url: string; title?: string }> = [];
+  const seenUrls = new Set<string>();
+
+  // Extract sources from annotations in the response
+  for (const choice of jinaResponse.choices) {
+    for (const annotation of choice.delta.annotations ?? []) {
+      if (annotation.type === "url_citation" && annotation.url_citation) {
+        const url = annotation.url_citation.url;
+        const title = annotation.url_citation.title;
+        
+        if (!seenUrls.has(url)) {
+          seenUrls.add(url);
+          sources.push({ url, title });
+        }
+      }
+    }
+  }
+
+  // Also extract from visitedURLs and readURLs as fallback
+  for (const url of jinaResponse.readURLs ?? []) {
+    if (!seenUrls.has(url)) {
+      seenUrls.add(url);
+      sources.push({ url });
+    }
+  }
+
+  // Extract additional sources from visitedURLs if we don't have enough
+  if (sources.length < 5) {
+    for (const url of jinaResponse.visitedURLs ?? []) {
+      if (!seenUrls.has(url) && sources.length < 15) {
+        seenUrls.add(url);
+        sources.push({ url });
+      }
+    }
+  }
+
+  console.log(`[JINA_RESEARCH] Extracted ${sources.length} sources from Jina response`);
+  return sources;
+}
+
+async function performJinaResearch(
+  title: string,
+  keywords: string[],
+  notes?: string,
+  excludedDomains?: string[],
+): Promise<{ researchData: string; sources: Array<{ url: string; title?: string }> }> {
+  try {
+    console.log("[JINA_RESEARCH] Starting Jina research for:", title);
+    
+    const jinaResponse = await callJinaResearchAPI(title, keywords, notes, excludedDomains);
+    
+    // Extract content from response
+    const researchData = jinaResponse.choices
+      .map(choice => choice.delta.content)
+      .join("\n")
+      .trim();
+
+    // Extract sources
+    const sources = extractSourcesFromJinaResponse(jinaResponse);
+
+    console.log(`[JINA_RESEARCH] Completed research with ${researchData.length} chars and ${sources.length} sources`);
+    
+    return {
+      researchData,
+      sources
+    };
+  } catch (error) {
+    console.error("[JINA_RESEARCH] Error during Jina research:", error);
+    
+    // Categorize the error for better user understanding
+    let errorMessage = "Jina research failed";
+    if (error instanceof Error) {
+      if (error.message.includes('timeout')) {
+        errorMessage = "Jina research timed out - the service may be experiencing high load";
+      } else if (error.message.includes('524')) {
+        errorMessage = "Jina research gateway timeout - the service is temporarily overloaded";
+      } else if (error.message.includes('502') || error.message.includes('503')) {
+        errorMessage = "Jina research service temporarily unavailable";
+      } else if (error.message.includes('429')) {
+        errorMessage = "Jina research rate limit exceeded";
+      } else if (error.message.includes('401') || error.message.includes('403')) {
+        errorMessage = "Jina API authentication failed";
+      }
+    }
+    
+    // Create a descriptive error that includes troubleshooting info
+    const enhancedError = new Error(`${errorMessage}. Using Gemini research only. Original error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    enhancedError.name = 'JinaResearchError';
+    
+    throw enhancedError;
+  }
+}
+
+function mergeResearchResults(
+  geminiResult: { researchData: string; sources: Array<{ url: string; title?: string }> },
+  jinaResult: { researchData: string; sources: Array<{ url: string; title?: string }> }
+): { researchData: string; sources: Array<{ url: string; title?: string }> } {
+  console.log("[RESEARCH_MERGE] Merging Gemini and Jina research results");
+
+  // Merge research data - prioritize Jina's structured format but include Gemini insights
+  const mergedResearchData = `# Research Brief
+
+## Jina DeepSearch Analysis
+${jinaResult.researchData}
+
+## Additional Gemini Insights
+${geminiResult.researchData}`;
+
+  // Merge and deduplicate sources
+  const allSources = [...jinaResult.sources, ...geminiResult.sources];
+  const uniqueSources = Array.from(
+    new Map(allSources.map(source => [source.url, source])).values()
+  );
+
+  console.log(`[RESEARCH_MERGE] Merged results: ${uniqueSources.length} unique sources`);
+
+  return {
+    researchData: mergedResearchData,
+    sources: uniqueSources
+  };
+}
+
 /**
  * Core research function that can be called directly without HTTP
  * Extracted from /api/articles/research/route.ts
+ * Now runs both Gemini and Jina research in parallel and merges results
  */
 export async function performResearchDirect(
   request: ResearchRequest,
@@ -703,7 +1025,7 @@ export async function performResearchDirect(
   const domainsToExclude = excludedDomains ?? [];
 
   console.log(
-    `[RESEARCH_SERVICE] Starting research for "${title}" with ${keywords.length} keywords`,
+    `[RESEARCH_SERVICE] Starting parallel research (Gemini + Jina) for "${title}" with ${keywords.length} keywords`,
   );
   if (domainsToExclude.length > 0) {
     console.log(
@@ -712,102 +1034,59 @@ export async function performResearchDirect(
   }
 
   try {
-    // Retry logic for when sources are empty or not returned
-    let text: string;
-    let sources: Array<{
-      sourceType: string;
-      url: string;
-      title?: string;
-    }> = [];
-    let attempt = 1;
-    const maxAttempts = 1;
+    // Run Gemini and Jina research in parallel
+    const [geminiResult, jinaResult] = await Promise.allSettled([
+      performGeminiResearch(title, keywords, notes, domainsToExclude),
+      performJinaResearch(title, keywords, notes, domainsToExclude),
+    ]);
 
-    do {
-      console.log(`[RESEARCH_SERVICE] Attempt ${attempt}/${maxAttempts}`);
+    let finalResearchData: string;
+    let finalSources: Array<{ url: string; title?: string }> = [];
 
-      const result = await generateText({
-        model: google(MODELS.GEMINI_2_5_FLASH),
-        providerOptions: {
-          google: {
-            thinkingConfig: {
-              thinkingBudget: 0,
-            },
-          },
-        },
-        tools: {
-          google_search: google.tools.googleSearch({}),
-        },
-        system: `Ensure the intent is current and based on real-time latest top results. Today is ${new Date().toISOString()}`,
-        prompt: prompts.research(title, keywords, notes, domainsToExclude),
-      });
-
-      text = result.text;
-
-      // Get sources from result.sources or fallback to grounding metadata
-      let resultSources = (result.sources ?? []) as Array<{
-        sourceType: string;
-        url: string;
-        title?: string;
-      }>;
-
-      // Fallback to grounding metadata or text extraction when sources is empty
-      if (resultSources.length === 0) {
-        console.log(
-          "[RESEARCH_SERVICE] Sources empty, checking grounding metadata and text",
-        );
-
-        const meta = result.providerMetadata?.google?.groundingMetadata as
-          | GroundingMetadata
-          | undefined;
-        const chunks = meta?.groundingChunks ?? [];
-        const supports = meta?.groundingSupports ?? [];
-
-        // First try grounding metadata
-        const derivedSources = extractSourcesFromGroundingMetadata(
-          chunks,
-          supports,
-        );
-        if (derivedSources.length > 0) {
-          console.log(
-            `[RESEARCH_SERVICE] Derived ${derivedSources.length} sources from grounding metadata`,
-          );
-          resultSources = derivedSources;
+    // Handle results based on what succeeded
+    if (geminiResult.status === "fulfilled" && jinaResult.status === "fulfilled") {
+      console.log("[RESEARCH_SERVICE] Both Gemini and Jina research successful, merging results");
+      const merged = mergeResearchResults(geminiResult.value, jinaResult.value);
+      finalResearchData = merged.researchData;
+      finalSources = merged.sources;
+    } else if (geminiResult.status === "fulfilled") {
+      console.warn("[RESEARCH_SERVICE] Jina research failed, using Gemini results only");
+      if (jinaResult.status === "rejected") {
+        const error: unknown = jinaResult.reason;
+        if (error instanceof Error && error.name === 'JinaResearchError') {
+          console.error("[RESEARCH_SERVICE] Jina error:", error.message);
         } else {
-          // If still no sources, try to extract from text
-          console.log(
-            "[RESEARCH_SERVICE] Attempting to extract sources from response text",
-          );
-          resultSources = extractSourcesFromText(text);
+          console.error("[RESEARCH_SERVICE] Jina error:", error instanceof Error ? error.message : 'Unknown error');
         }
       }
-
-      sources = resultSources;
-
-      console.log(
-        `[RESEARCH_SERVICE] Attempt ${attempt} - sources count:`,
-        sources.length,
-      );
-
-      // Break if we have sources or reached max attempts
-      if (sources.length > 0 || attempt >= maxAttempts) {
-        break;
+      finalResearchData = geminiResult.value.researchData;
+      finalSources = geminiResult.value.sources;
+    } else if (jinaResult.status === "fulfilled") {
+      console.warn("[RESEARCH_SERVICE] Gemini research failed, using Jina results only");
+      if (geminiResult.status === "rejected") {
+        console.error("[RESEARCH_SERVICE] Gemini error:", geminiResult.reason);
       }
-
-      attempt++;
-    } while (attempt <= maxAttempts);
-
-    // Throw error if no sources found after all attempts
-    if (sources.length === 0) {
-      console.error("[RESEARCH_SERVICE] No sources found after all attempts");
-      throw new Error(
-        "Failed to find any sources for research after multiple attempts",
-      );
+      finalResearchData = jinaResult.value.researchData;
+      finalSources = jinaResult.value.sources;
+    } else {
+      console.error("[RESEARCH_SERVICE] Both research methods failed");
+      if (geminiResult.status === "rejected") {
+        console.error("[RESEARCH_SERVICE] Gemini error:", geminiResult.reason);
+      }
+      if (jinaResult.status === "rejected") {
+        console.error("[RESEARCH_SERVICE] Jina error:", jinaResult.reason);
+      }
+      throw new Error("Both Gemini and Jina research failed");
     }
 
-    console.log("[RESEARCH_SERVICE] Final sources:", sources);
-
     // Resolve Google redirect URLs and validate source availability
-    const processedSources = await resolveAndValidateSources(sources);
+    const processedSources = await resolveAndValidateSources(
+      finalSources.map(source => ({
+        sourceType: "web",
+        url: source.url,
+        title: source.title
+      }))
+    );
 
     // Separate valid and invalid sources
     const validSources = processedSources.filter((source) => source.isValid);
@@ -832,18 +1111,6 @@ export async function performResearchDirect(
     console.log(
       `[RESEARCH_SERVICE] Resolved and validated sources: ${validSources.length} valid, ${invalidSources.length} invalid`,
     );
-
-    // Log the final valid sources
-    if (finalResolvedSources.length > 0) {
-      console.log(
-        `[RESEARCH_SERVICE] Final valid sources:`,
-        finalResolvedSources.map((s) => ({ title: s.title, url: s.url })),
-      );
-    } else {
-      console.warn(
-        `[RESEARCH_SERVICE] No valid sources found after resolution and validation`,
-      );
-    }
 
     // Filter sources to remove excluded domains
     const filteredSources =
@@ -875,7 +1142,7 @@ export async function performResearchDirect(
           });
 
     // Filter research text to remove vertex AI URLs and excluded domains
-    const filteredText = filterTextContent(text, domainsToExclude);
+    const filteredText = filterTextContent(finalResearchData, domainsToExclude);
 
     // Search for YouTube videos specifically for the article title
     const selectedVideo = await searchAndValidateYouTubeVideos(title);
@@ -904,4 +1171,113 @@ export async function performResearchDirect(
       `Research failed: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
+}
+
+// Legacy Gemini-only research function (now used as part of parallel research)
+async function performGeminiResearch(
+  title: string,
+  keywords: string[],
+  notes?: string,
+  domainsToExclude: string[] = [],
+): Promise<{ researchData: string; sources: Array<{ url: string; title?: string }> }> {
+  console.log(`[GEMINI_RESEARCH] Starting Gemini research for "${title}"`);
+
+  // Retry logic for when sources are empty or not returned
+  let text: string;
+  let sources: Array<{
+    sourceType: string;
+    url: string;
+    title?: string;
+  }> = [];
+  let attempt = 1;
+  const maxAttempts = 1;
+
+  do {
+    console.log(`[GEMINI_RESEARCH] Attempt ${attempt}/${maxAttempts}`);
+
+    const result = await generateText({
+      model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
+      providerOptions: {
+        google: {
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        },
+      },
+      tools: {
+        google_search: google.tools.googleSearch({}),
+      },
+      system: `Ensure the intent is current and based on real-time latest top results. Today is ${new Date().toISOString()}`,
+      prompt: prompts.research(title, keywords, notes, domainsToExclude),
+    });
+
+    text = result.text;
+
+    // Get sources from result.sources or fallback to grounding metadata
+    let resultSources = (result.sources ?? []) as Array<{
+      sourceType: string;
+      url: string;
+      title?: string;
+    }>;
+
+    // Fallback to grounding metadata or text extraction when sources is empty
+    if (resultSources.length === 0) {
+      console.log(
+        "[GEMINI_RESEARCH] Sources empty, checking grounding metadata and text",
+      );
+
+      const meta = result.providerMetadata?.google?.groundingMetadata as
+        | GroundingMetadata
+        | undefined;
+      const chunks = meta?.groundingChunks ?? [];
+      const supports = meta?.groundingSupports ?? [];
+
+      // First try grounding metadata
+      const derivedSources = extractSourcesFromGroundingMetadata(
+        chunks,
+        supports,
+      );
+      if (derivedSources.length > 0) {
+        console.log(
+          `[GEMINI_RESEARCH] Derived ${derivedSources.length} sources from grounding metadata`,
+        );
+        resultSources = derivedSources;
+      } else {
+        // If still no sources, try to extract from text
+        console.log(
+          "[GEMINI_RESEARCH] Attempting to extract sources from response text",
+        );
+        resultSources = extractSourcesFromText(text);
+      }
+    }
+
+    sources = resultSources;
+
+    console.log(
+      `[GEMINI_RESEARCH] Attempt ${attempt} - sources count:`,
+      sources.length,
+    );
+
+    // Break if we have sources or reached max attempts
+    if (sources.length > 0 || attempt >= maxAttempts) {
+      break;
+    }
+
+    attempt++;
+  } while (attempt <= maxAttempts);
+
+  // Throw error if no sources found after all attempts
+  if (sources.length === 0) {
+    console.error("[GEMINI_RESEARCH] No sources found after all attempts");
+    throw new Error(
+      "Failed to find any sources for research after multiple attempts",
+    );
+  }
+
+  console.log("[GEMINI_RESEARCH] Final sources:", sources.length);
+
+  return {
+    researchData: text,
+    sources: sources.map(s => ({ url: s.url, title: s.title }))
+  };
 }

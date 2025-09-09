@@ -16,6 +16,7 @@ export const env = createEnv({
     UNSPLASH_SECRET_KEY: z.string().min(1).optional(),
     PEXELS_API_KEY: z.string().min(1),
     OPENAI_API_KEY: z.string(),
+    JINA_API_KEY: z.string(),
 
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: z.string().min(1),
@@ -79,6 +80,7 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
 
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    JINA_API_KEY: process.env.JINA_API_KEY,
 
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: process.env.REDDIT_CLIENT_ID,

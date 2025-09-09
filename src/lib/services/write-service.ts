@@ -3,14 +3,14 @@
  * Extracted from the write API route to allow direct function calls
  */
 
-import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
+import { getModel } from "@/lib/ai-models";
 import { db } from "@/server/db";
 import { projects, users, articleGeneration } from "@/server/db/schema";
 import type { ResearchResponse } from "@/lib/services/research-service";
-import { blogPostSchema } from "@/types";
+import { blogPostSchema, type StructureTemplate } from "@/types";
 import { eq } from "drizzle-orm";
 import { getUserExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
@@ -32,7 +32,7 @@ interface WriteRequest {
     title?: string;
   }>;
   notes?: string;
-  outline?: import("@/types").StructureTemplate | string;
+  outline?: StructureTemplate,
   userId: string;
   projectId: number;
   relatedArticles?: string[];
@@ -229,8 +229,14 @@ export async function performWriteLogic(
       ? `\n\nIMPORTANT: Do not include any links to the following excluded domains in your response: ${excludedDomains.join(", ")}. If any of these domains appear in your source material, do not reference them or include links to them in the generated content.`
       : "";
 
-  // Build the complete prompt
+  // Build the complete prompt - prioritize project articleStructure over request outline
   const outlineText = (() => {
+    // 1. First priority: Project's articleStructure setting
+    if (settingsData.articleStructure && settingsData.articleStructure.trim().length > 0) {
+      return settingsData.articleStructure.trim();
+    }
+    
+    // 2. Fallback to request.outline if no project structure
     const ol = request.outline as unknown;
     if (!ol) return undefined;
     if (typeof ol === "string") return ol;
@@ -327,7 +333,7 @@ export async function performWriteLogic(
 
   try {
     const result = await generateObject({
-      model: anthropic(MODELS.CLAUDE_SONET_4),
+      model: await getModel('anthropic', MODELS.CLAUDE_SONNET_4, "write-service"),
       schema: blogPostSchema,
       prompt: writePrompt,
       maxRetries: 2,
@@ -344,7 +350,7 @@ export async function performWriteLogic(
               stack: aiError.stack?.slice(0, 500),
             }
           : aiError,
-      model: MODELS.CLAUDE_SONET_4,
+      model: MODELS.CLAUDE_SONNET_4,
       hasVideos,
       schemaUsed: "blogPostSchema",
       requiredFields: Object.keys(blogPostSchema.shape),
@@ -438,7 +444,6 @@ export async function regenerateSection(request: {
   generationId?: number;
 }): Promise<{ updatedContent: string; updatedSectionHeading: string }>
 {
-  const { google } = await import("@ai-sdk/google");
   const { generateText } = await import("ai");
   if (!request.articleMarkdown || !request.sectionHeading) {
     throw new Error("Both articleMarkdown and sectionHeading are required");
@@ -490,7 +495,7 @@ ${request.researchData.researchData}
 `;
 
   const { text: updatedSection } = await generateText({
-    model: google(MODELS.GEMINI_2_5_FLASH),
+    model: await getModel('anthropic', MODELS.CLAUDE_SONNET_4, "write-service"),
     prompt,
     maxRetries: 2,
     maxOutputTokens: 2000,

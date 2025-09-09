@@ -206,8 +206,22 @@ export function ArticlesBoard() {
   const allBoardEvents = useMemo<ArticleEvent[]>(() => {
     const events: ArticleEvent[] = [];
     
+    // Get set of article IDs that are currently in the queue to avoid duplicates
+    const queuedArticleIds = new Set(queueItems.map(q => q.articleId));
+    
     // Process all visible articles
     for (const article of allBoardArticles) {
+      const articleId = parseInt(article.id);
+      
+      // Skip articles that are currently in the queue - they'll be handled as queued items
+      if (queuedArticleIds.has(articleId) && 
+          (article.status === STATUSES.IDEA || 
+           article.status === STATUSES.SCHEDULED || 
+           article.status === STATUSES.QUEUED || 
+           article.status === STATUSES.TO_GENERATE)) {
+        continue;
+      }
+      
       const eventConfig = getBoardEventConfig(article.status, !!article.publishScheduledAt);
       
       // Determine the display date based on article status and scheduling
@@ -215,8 +229,8 @@ export function ArticlesBoard() {
       
       switch (article.status) {
         case STATUSES.GENERATING:
-          // Show on generation start date or today if no start date
-          displayDate = article.generationStartedAt ?? new Date().toISOString();
+          // Show on originally scheduled date, fallback to generation start date or today
+          displayDate = article.publishScheduledAt ?? article.generationStartedAt ?? new Date().toISOString();
           break;
           
         case STATUSES.WAIT_FOR_PUBLISH:
@@ -235,13 +249,12 @@ export function ArticlesBoard() {
           break;
           
         case STATUSES.FAILED:
-          // Show on generation start/completion date or today
-          displayDate = article.generationCompletedAt ?? article.generationStartedAt ?? new Date().toISOString();
+          // Show on originally scheduled date, fallback to generation dates or today
+          displayDate = article.publishScheduledAt ?? article.generationCompletedAt ?? article.generationStartedAt ?? new Date().toISOString();
           break;
           
         default:
-          // For ideas, scheduled, queued, etc. - check if they're in the queue
-          // If not in queue, use generation scheduled date or today
+          // For ideas, scheduled, queued, etc. - use generation scheduled date or today
           displayDate = article.generationScheduledAt ?? new Date().toISOString();
           break;
       }
@@ -258,7 +271,7 @@ export function ArticlesBoard() {
     }
     
     return events;
-  }, [allBoardArticles, weekDays]);
+  }, [allBoardArticles, weekDays, queueItems]);
 
   type ArticleEvent = {
     id: string;

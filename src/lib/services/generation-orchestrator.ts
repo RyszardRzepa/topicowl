@@ -2,9 +2,6 @@ import { db } from "@/server/db";
 import { articles, articleGeneration, users, projects } from "@/server/db/schema";
 import { eq, and, desc, ne } from "drizzle-orm";
 import type { VideoEmbed, StructureTemplate } from "@/types";
-import { google } from "@ai-sdk/google";
-import { generateObject } from "ai";
-import { z } from "zod";
 
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
@@ -29,6 +26,9 @@ import { performSeoRemediation } from "@/lib/services/seo-remediation-service";
 import { SEO_MAX_REMEDIATION_PASSES } from "@/constants";
 import { captureAndAttachScreenshots } from "@/lib/services/screenshot-service";
 import { generateJsonLd } from "@/lib/services/schema-generator-service";
+import { validateTemplateCompliance, formatComplianceReport } from "@/lib/services/template-compliance-service";
+import type { TemplateComplianceResult } from "@/lib/services/template-compliance-service";
+import { normalizeTemplate } from "@/lib/services/template-parser-service";
 
 export interface GenerationContext {
   articleId: number;
@@ -54,82 +54,6 @@ async function mergeArtifacts(
     .where(eq(articleGeneration.id, generationId));
 }
 
-function outlineToString(outline: StructureTemplate): string {
-  // Convert structured outline to a concise human-readable sequence for prompting
-  const parts: string[] = [];
-  for (const s of outline.sections) {
-    const label = s.label ?? s.id;
-    switch (s.type) {
-      case "title":
-        parts.push("H1 title");
-        break;
-      case "intro":
-        parts.push("Intro paragraph (immediately after H1)");
-        break;
-      case "tldr":
-        parts.push(`TL;DR (${s.minItems ?? 3}-${s.maxItems ?? 5} bullets)`);
-        break;
-      case "section":
-        parts.push(`Section: ${label}${s.minWords ? ` (≥${s.minWords} words)` : ""}`);
-        break;
-      case "video":
-        if (s.enabled !== false) parts.push("Video (optional)");
-        break;
-      case "table":
-        if (s.enabled !== false) parts.push("Table (optional)");
-        break;
-      case "faq":
-        parts.push(`FAQ (${s.minItems ?? 2}-${s.maxItems ?? 5} Q/A)`);
-        break;
-      default:
-        parts.push(label);
-    }
-  }
-  return parts.join(" → ");
-}
-
-function mergeEffectiveOutline(
-  template?: StructureTemplate | null,
-  override?: StructureTemplate | null,
-  locked?: StructureTemplate | null,
-): StructureTemplate | undefined {
-  if (locked) return locked;
-  if (override && Array.isArray(override.sections) && override.sections.length > 0) return override;
-  if (template && Array.isArray(template.sections) && template.sections.length > 0) return template;
-  return undefined;
-}
-
-async function generateFallbackOutlineMarkdown(
-  title: string,
-  keywords: string[],
-  researchData: string,
-  userId: string,
-  sources?: Array<{ url: string; title?: string }>,
-  videos?: Array<{ title: string; url: string }>,
-  notes?: string,
-): Promise<string | undefined> {
-  try {
-    const outlineSchema = z.object({ markdownOutline: z.string() });
-    const { object } = await generateObject({
-      model: google((await import("@/constants")).MODELS.GEMINI_2_5_FLASH),
-      schema: outlineSchema,
-      prompt: (await import("@/prompts")).prompts.outline(
-        title,
-        keywords,
-        researchData,
-        videos,
-        notes,
-        sources,
-        undefined,
-      ),
-      maxRetries: 2,
-    });
-    return object.markdownOutline;
-  } catch (e) {
-    logger.warn("outline:fallback_failed", e);
-    return undefined;
-  }
-}
 
 // Attempt to atomically claim an article for generation by flipping its status
 // to "generating" if and only if it is not already generating/published/deleted.
@@ -409,25 +333,9 @@ async function performQualityControl(
       .limit(1)
       .then((rows) => rows[0]);
 
-    // Derive human-readable structure from effective outline to guide QC
-    const outlineForQc = (() => {
-      const raw = generationRecord?.outline;
-      if (!raw) return undefined;
-      if (typeof raw === "string") return raw;
-      if (
-        typeof raw === "object" &&
-        raw !== null &&
-        "sections" in (raw as Record<string, unknown>) &&
-        Array.isArray((raw as { sections?: unknown }).sections)
-      ) {
-        return outlineToString(raw as StructureTemplate);
-      }
-      return undefined;
-    })();
-
     const qualityControlData = await performQualityControlLogic({
       articleContent: content,
-      userSettings: outlineForQc ? { articleStructure: outlineForQc } : undefined,
+      userSettings: undefined,
       originalPrompt: generationRecord?.writePrompt ?? "",
       userId: userId,
       projectId: projectId,
@@ -484,36 +392,6 @@ async function validateArticle(
     });
     return fallbackResponse;
   }
-}
-
-async function updateArticleIfNeeded(
-  content: string,
-  validationText: string,
-  qualityControlIssues: string | null | undefined,
-  outlineText?: string,
-): Promise<string> {
-  const hasValidationIssues =
-    validationText &&
-    !validationText.includes("No factual issues identified") &&
-    !validationText.toLowerCase().includes("validation skipped");
-  const hasQualityControlIssues = qualityControlIssues !== null && qualityControlIssues !== undefined;
-  if (!hasValidationIssues && !hasQualityControlIssues) {
-    logger.debug("update:skip", { reason: "no issues" });
-    return content;
-  }
-
-  let combinedFeedback = "";
-  if (hasValidationIssues) combinedFeedback += `## Validation Issues\n\n${validationText}\n\n`;
-  if (hasQualityControlIssues)
-    combinedFeedback += `## Quality Control Issues\n\n${qualityControlIssues}\n\n`;
-
-  logger.debug("update:start", { feedbackLength: combinedFeedback.length });
-  const updateResult = await performGenericUpdate({
-    article: content,
-    validationText: combinedFeedback,
-    settings: outlineText ? { articleStructure: outlineText } : undefined,
-  });
-  return updateResult.updatedContent ?? content;
 }
 
 async function finalizeArticle(
@@ -661,7 +539,6 @@ export async function handleGenerationError(
 
 export async function generateArticle(
   context: GenerationContext,
-  lockedOutline?: StructureTemplate,
 ): Promise<void> {
   const { articleId, userId, article, keywords } = context;
   let generationRecord: typeof articleGeneration.$inferSelect | null = null;
@@ -670,92 +547,6 @@ export async function generateArticle(
     logger.info("generation:start", { articleId, title: article.title });
 
     generationRecord = await createOrResetArticleGeneration(articleId, userId);
-    // Phase 0: Build and persist effective outline (locked → override → template → undefined)
-    try {
-      // Resolve an "effective outline" that can be either a structured template
-      // or a plain string template selected by the user in project settings.
-      let resolvedOutline: StructureTemplate | string | undefined = undefined;
-
-      if (lockedOutline) {
-        resolvedOutline = lockedOutline;
-      } else {
-        const [proj] = await db
-          .select({ articleStructure: projects.articleStructure })
-          .from(projects)
-          .where(eq(projects.id, article.projectId))
-          .limit(1);
-
-        // Try to interpret project.articleStructure either as JSON StructureTemplate or plain text
-        const projectOutlineRaw = (proj?.articleStructure ?? "").trim();
-        let projectOutline: StructureTemplate | string | undefined = undefined;
-        if (projectOutlineRaw.length > 0) {
-          try {
-            const parsed = JSON.parse(projectOutlineRaw) as unknown;
-            if (
-              parsed &&
-              typeof parsed === "object" &&
-              "sections" in (parsed as Record<string, unknown>) &&
-              Array.isArray((parsed as { sections?: unknown }).sections)
-            ) {
-              projectOutline = parsed as StructureTemplate;
-            } else {
-              projectOutline = projectOutlineRaw; // treat as plain string template
-            }
-          } catch {
-            projectOutline = projectOutlineRaw; // not JSON, keep as provided string
-          }
-        }
-
-        // Article-level override (JSON structure)
-        const overrideRaw = article.structureOverride as unknown;
-        let overrideTemplate: StructureTemplate | undefined = undefined;
-        if (
-          overrideRaw &&
-          typeof overrideRaw === "object" &&
-          "sections" in (overrideRaw as Record<string, unknown>) &&
-          Array.isArray((overrideRaw as { sections?: unknown }).sections)
-        ) {
-          overrideTemplate = overrideRaw as StructureTemplate;
-        }
-
-        // Precedence: locked > override > project template
-        if (overrideTemplate) {
-          resolvedOutline = overrideTemplate;
-        } else if (projectOutline) {
-          resolvedOutline = projectOutline;
-        } else {
-          resolvedOutline = undefined;
-        }
-      }
-
-      if (resolvedOutline !== undefined && generationRecord) {
-        await db
-          .update(articleGeneration)
-          .set({ outline: resolvedOutline })
-          .where(eq(articleGeneration.id, generationRecord.id));
-        await mergeArtifacts(generationRecord.id, { outline: resolvedOutline });
-      } else if (generationRecord) {
-        // Fallback: generate Markdown outline via LLM
-        const fallbackOutline = await generateFallbackOutlineMarkdown(
-          article.title,
-          keywords,
-          "",
-          userId,
-          [],
-          [],
-          article.notes ?? undefined,
-        );
-        if (fallbackOutline) {
-          await db
-            .update(articleGeneration)
-            .set({ outline: fallbackOutline })
-            .where(eq(articleGeneration.id, generationRecord.id));
-          await mergeArtifacts(generationRecord.id, { outline: fallbackOutline });
-        }
-      }
-    } catch (e) {
-      logger.warn("outline:build_failed", e);
-    }
     await db.update(articles).set({ status: "generating", updatedAt: new Date() }).where(eq(articles.id, articleId));
     await db
       .update(articleGeneration)
@@ -792,7 +583,14 @@ export async function generateArticle(
       article.projectId,
     );
 
-    // Phase 3: Write (pass effective outline via notes hint if available)
+    // Phase 3: Write
+    // Get project article structure
+    const [projectData] = await db
+      .select({ articleStructure: projects.articleStructure })
+      .from(projects)
+      .where(eq(projects.id, article.projectId))
+      .limit(1);
+
     const writeData = await writeArticle(
       researchData,
       article.title,
@@ -803,17 +601,8 @@ export async function generateArticle(
       article.projectId,
       context.relatedArticles,
       researchData.videos,
-      (() => {
-        // Include effective outline in notes (if available) to guide structure deterministically
-        const ol = generationRecord?.outline as StructureTemplate | undefined;
-        if (ol && Array.isArray(ol.sections) && ol.sections.length > 0) {
-          const olText = outlineToString(ol);
-          const base = article.notes ?? "";
-          return `${base}\n\nEffective outline (MUST FOLLOW EXACTLY):\n${olText}`.trim();
-        }
-        return article.notes ?? undefined;
-      })(),
-      (generationRecord?.outline as StructureTemplate | undefined),
+      article.notes ?? undefined,
+      projectData?.articleStructure ?? undefined,
     );
 
     // Phase 3.5: Screenshots of linked pages -> upload via Vercel Blob and embed
@@ -844,6 +633,58 @@ export async function generateArticle(
       article.projectId,
     );
 
+    // Phase 4.5: Template Compliance Validation - Simplified
+    let templateComplianceResult: TemplateComplianceResult | null = null;
+    // Template compliance validation is simplified - just check if project has article structure
+    try {
+      const [proj] = await db
+        .select({ articleStructure: projects.articleStructure })
+        .from(projects)
+        .where(eq(projects.id, article.projectId))
+        .limit(1);
+      
+      const projectTemplate = proj?.articleStructure?.trim();
+      if (projectTemplate && projectTemplate.length > 0) {
+        const normalizedTemplate = normalizeTemplate(projectTemplate);
+        if (normalizedTemplate) {
+          templateComplianceResult = validateTemplateCompliance(writeData.content ?? "", normalizedTemplate);
+          
+          logger.debug("template-compliance:validated", {
+            isCompliant: templateComplianceResult.isCompliant,
+            score: templateComplianceResult.score,
+            violationsCount: templateComplianceResult.violations.length
+          });
+
+          // Store compliance result in artifacts
+          await mergeArtifacts(generationRecord.id, { 
+            templateCompliance: templateComplianceResult,
+            complianceReport: formatComplianceReport(templateComplianceResult)
+          });
+
+          // Log compliance issues if any
+          if (!templateComplianceResult.isCompliant) {
+            logger.warn("template-compliance:violations", {
+              articleId,
+              generationId: generationRecord.id,
+              violations: templateComplianceResult.violations.map(v => ({
+                section: v.sectionId,
+                type: v.violationType,
+                severity: v.severity,
+                description: v.description
+              }))
+            });
+          }
+        } else {
+          logger.debug("template-compliance:skipped", { reason: "invalid_template_format" });
+        }
+      } else {
+        logger.debug("template-compliance:skipped", { reason: "no_template_found" });
+      }
+    } catch (error) {
+      logger.warn("template-compliance:error", error);
+      // Don't fail generation due to compliance validation errors
+    }
+
     // Phase 5: Validation + initial SEO audit in parallel
     await updateGenerationProgress(generationRecord.id, "validating", 80, { currentPhase: "seo-audit" });
     const [validationData] = await Promise.all([
@@ -857,27 +698,87 @@ export async function generateArticle(
       }),
     ]);
 
-    // Phase 6: Update content if needed (factual/QC)
-    const outlineTextForUpdate = (() => {
-      const raw = generationRecord?.outline as unknown;
-      if (!raw) return undefined;
-      if (typeof raw === "string") return raw;
-      if (
-        typeof raw === "object" &&
-        raw !== null &&
-        "sections" in (raw as Record<string, unknown>) &&
-        Array.isArray((raw as { sections?: unknown }).sections)
-      ) {
-        return outlineToString(raw as StructureTemplate);
+    // Phase 6: Update content if needed (factual/QC/template compliance)
+    // Combine all issues for content update
+    let combinedIssues = "";
+    
+    // Add validation issues
+    const hasValidationIssues =
+      validationData.rawValidationText &&
+      !validationData.rawValidationText.includes("No factual issues identified") &&
+      !validationData.rawValidationText.toLowerCase().includes("validation skipped");
+    if (hasValidationIssues) {
+      combinedIssues += `## Validation Issues\n\n${validationData.rawValidationText}\n\n`;
+    }
+    
+    // Add quality control issues
+    const hasQualityControlIssues = qualityControlData.issues !== null && qualityControlData.issues !== undefined;
+    if (hasQualityControlIssues) {
+      combinedIssues += `## Quality Control Issues\n\n${qualityControlData.issues}\n\n`;
+    }
+    
+    // Add template compliance issues
+    const hasTemplateIssues = templateComplianceResult && !templateComplianceResult.isCompliant;
+    if (hasTemplateIssues && templateComplianceResult) {
+      const complianceReport = formatComplianceReport(templateComplianceResult);
+      combinedIssues += `## Template Compliance Issues\n\n${complianceReport}\n\n`;
+      combinedIssues += `## Template Requirements\n\nThe article must follow the project's article structure requirements.\n\n`;
+    }
+
+    // Update content if there are any issues
+    let finalContent = writeData.content ?? "";
+    if (combinedIssues.trim().length > 0) {
+      logger.debug("update:start", { 
+        hasValidationIssues,
+        hasQualityControlIssues,
+        hasTemplateIssues,
+        combinedIssuesLength: combinedIssues.length 
+      });
+      
+      const updateResult = await performGenericUpdate({
+        article: finalContent,
+        validationText: combinedIssues,
+        settings: undefined,
+      });
+      finalContent = updateResult.updatedContent ?? finalContent;
+
+      // Re-validate template compliance after updates if there were template issues
+      if (hasTemplateIssues && templateComplianceResult) {
+        try {
+          // Get project template again for re-validation
+          const [proj] = await db
+            .select({ articleStructure: projects.articleStructure })
+            .from(projects)
+            .where(eq(projects.id, article.projectId))
+            .limit(1);
+          
+          const projectTemplate = proj?.articleStructure?.trim();
+          if (projectTemplate && projectTemplate.length > 0) {
+            const normalizedTemplate = normalizeTemplate(projectTemplate);
+            if (normalizedTemplate) {
+              const updatedCompliance = validateTemplateCompliance(finalContent, normalizedTemplate);
+              
+              logger.debug("template-compliance:post-update", {
+                originalScore: templateComplianceResult.score,
+                updatedScore: updatedCompliance.score,
+                improved: updatedCompliance.score > templateComplianceResult.score,
+                isNowCompliant: updatedCompliance.isCompliant
+              });
+
+              // Store the updated compliance result
+              await mergeArtifacts(generationRecord.id, { 
+                templateCompliancePostUpdate: updatedCompliance,
+                complianceImprovement: updatedCompliance.score - templateComplianceResult.score
+              });
+            }
+          }
+        } catch (error) {
+          logger.warn("template-compliance:post-update-error", error);
+        }
       }
-      return undefined;
-    })();
-    const finalContent = await updateArticleIfNeeded(
-      writeData.content ?? "",
-      validationData.rawValidationText ?? "",
-      qualityControlData.issues,
-      outlineTextForUpdate,
-    );
+    } else {
+      logger.debug("update:skip", { reason: "no issues" });
+    }
 
     // Phase 7: SEO remediation loop with re-audit
     let contentForSeo = finalContent;

@@ -118,6 +118,11 @@ export interface SeoChecklist {
   keywords: { h1HasPrimary: boolean };
   meta: { metaDescriptionOk: boolean; slugPresent: boolean };
   jsonLd: { blogPosting: boolean; faqPage: boolean };
+  templateCompliance?: {
+    isCompliant: boolean;
+    score: number;
+    violations: number;
+  };
 }
 
 // Blog post schema for AI-generated content - includes all SEO fields

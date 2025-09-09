@@ -40,25 +40,45 @@ if (!projectRecord) return NextResponse.json({ error: 'Project not found or acce
 
 - **Never use `any` type** - strict TypeScript enforcement  
 - **No utility functions in API routes** - inline all business logic directly  
-- **No new helpers in `src/lib`** - write logic where it's used
-- **Types**: Common types in `src/types.ts`, API-specific types colocated with routes
 - **Use `??` instead of `||`** for null coalescing
 - **Never run `npm run dev`** - development server is managed separately
 
+## Project Structure Rules (Strict Enforcement)
+
+**File Creation Guidelines**:
+- **Utils** (`src/lib/utils/`): Pure functions with NO external API calls, only create if used in 3+ places
+- **Services** (`src/lib/services/`): Functions that call external APIs (database, AI models, webhooks)
+- **Types**: Common types in `src/types.ts`, API-specific types colocated with routes
+- **Components**: Feature-based organization, no generic helpers in component files
+
+**Forbidden Patterns**:
+- Creating utils for single-use code - inline instead
+- Database calls in utils - move to services
+- Business logic in API routes - inline or extract to services
+- Shared state in utils - use React Context or component props
+
 ## Database Architecture
 
-**Schema**: `topicowl` (aliased as `topicowl` in config) with multi-project isolation:
+**Schema**: `topicowl` (using `contentbotSchema = pgSchema("topicowl")`) with multi-project isolation:
 
 ```typescript
-// Key tables relationship
-users (id: text) -> projects (userId: text) -> articles (projectId: int)
-                                           -> article_generation (projectId: int)
-                                           -> generation_queue (projectId: int)
+// Key tables relationship (contentbot schema)
+users (id: text) -> projects (userId: text, id: serial) -> articles (projectId: int)
+                                                        -> article_generation (projectId: int) 
+                                                        -> generation_queue (projectId: int)
+                                                        -> webhook_deliveries (projectId: int)
+                                                        -> api_keys (projectId: int)
 ```
 
+**Key schema patterns**:
+- All project-scoped tables include `projectId` foreign key to `projects.id`
+- Use `jsonb` fields for structured data (keywords, artifacts, metadata)
+- PostgreSQL enums for status fields (`articleStatusEnum`)
+- Composite indexes on `(userId, projectId)` for efficient multi-tenant queries
+
 **Migration commands**:
-- `npm run db:generate` - Generate migrations from schema changes
-- `npm run db:migrate` - Apply migrations to database  
+- `npm run db:generate` - Generate migrations from schema changes  
+- `npm run db:migrate` - Apply migrations to database
 - `npm run db:studio` - Open Drizzle Studio for data inspection
 
 ## Project Context System
@@ -73,27 +93,59 @@ const { currentProject, projects, switchToProject } = useProject();
 
 ## AI Generation Pipeline
 
-Articles flow through a multi-phase generation system:
+Articles flow through a sophisticated multi-phase generation system with service-based architecture:
 
-1. **Planning** (`idea` status) - User creates article concepts
-2. **Generation Queue** (`scheduled` -> `generating`) - Queued background processing  
+1. **Planning** (`idea` status) - User creates article concepts  
+2. **Generation Queue** (`scheduled` -> `generating`) - Background processing with `generation-orchestrator.ts`
 3. **Content Phases** - `research` -> `outline` -> `writing` -> `quality-control` -> `validation` -> `updating`
 4. **Publishing** (`wait_for_publish` -> `published`) - Webhook delivery to external systems
 
-Track generation state in `article_generation` table, not `articles` directly.
+**Service Architecture**: Each phase has dedicated service in `src/lib/services/`:
+- `research-service.ts` - Content research and data gathering
+- `write-service.ts` - AI-powered article writing 
+- `quality-control-service.ts` - Content quality assessment
+- `validation-service.ts` - SEO and compliance validation
+- `update-service.ts` - Generic content updates
+- `generation-orchestrator.ts` - Coordinates entire pipeline
+
+**State Management**: Track generation state in `article_generation` table with `artifacts` jsonb field for phase results. Never modify articles table directly during generation.
 
 ## Component Architecture Patterns
 
-**Feature-based organization**:
-- `src/components/ui/` - Generic Radix primitives  
-- `src/components/articles/` - Article-specific features
-- `src/components/workflow/` - Kanban and dashboard views
-- `src/components/settings/` - Configuration forms
+**Recommended Project Structure** (following Vercel best practices):
+
+```
+src/
+├── app/                         # Next.js 15 App Router
+│   ├── (auth)/                 # Route groups for auth layouts
+│   ├── dashboard/              # Main app routes
+│   ├── api/                    # API routes with resource-based organization
+│   ├── globals.css             # Global styles
+│   ├── layout.tsx              # Root layout
+│   └── page.tsx                # Landing page
+├── components/
+│   ├── ui/                     # Generic Radix primitives (reusable)
+│   ├── features/               # Feature-specific components
+│   │   ├── articles/           # Article-specific features
+│   │   ├── workflow/           # Kanban and dashboard views
+│   │   └── settings/           # Configuration forms
+│   └── layout/                 # Layout-specific components
+├── lib/
+│   ├── services/               # External API integrations (DB, AI, webhooks)
+│   ├── utils/                  # Pure utility functions (3+ usage rule)
+│   └── hooks/                  # Custom React hooks
+├── server/
+│   └── db/                     # Database layer (schema, connection)
+├── types.ts                    # Shared domain types
+├── constants.ts                # App-wide constants
+└── env.js                      # Environment validation
+```
 
 **Key patterns**:
 - Server components for data fetching, client components for interactivity
 - Project context required for all authenticated views  
-- Colocate types with API routes, not in shared files
+- Colocate types with API routes, not in shared files unless used 3+ places
+- Feature-based component organization over generic grouping
 
 ## API Route Conventions
 
@@ -104,6 +156,12 @@ Examples:
 - `/api/articles/[id]/route.ts` - Single article operations
 - `/api/articles/generate/route.ts` - Action-based endpoint  
 - `/api/articles/[id]/cancel-schedule/route.ts` - Nested resource action
+
+**Implementation Rules**:
+- Inline all business logic - no separate util functions
+- Extract complex operations to services (`src/lib/services/`)
+- Colocate request/response types with the route file
+- Follow the 3-step auth pattern for every route
 
 **Error handling**:
 ```typescript
@@ -120,11 +178,16 @@ try {
 
 ## External Integrations
 
-**AI Models**: Vercel AI SDK with Gemini (primary), Claude, OpenAI
+**AI Models**: Vercel AI SDK with multiple providers:
+- **Gemini** (primary): `gemini-2.5-flash`, `gemini-2.5-pro` via `@ai-sdk/google`
+- **Claude**: `claude-sonnet-4-20250514` via `@ai-sdk/anthropic` 
+- **OpenAI**: `gpt-5-2025-08-07` via `@ai-sdk/openai`
+- Model constants defined in `src/constants.ts`
+
 **Authentication**: Clerk with webhook user lifecycle management  
-**Image Search**: Unsplash API with proper attribution tracking
+**Image Search**: Unsplash and Pexels APIs with proper attribution tracking
 **Content Research**: Reddit API with project-scoped OAuth tokens stored in Clerk metadata
-**Publishing**: Webhook delivery system with retry logic and status tracking
+**Publishing**: Webhook delivery system with retry logic in `webhook_deliveries` table
 
 ## Development Workflow
 
@@ -142,7 +205,8 @@ try {
 **Project isolation failures**: Check all queries include proper `projectId` filtering  
 **Authentication issues**: Verify Clerk `userId` matches database user records
 **Generation stuck**: Check `article_generation` table status and error fields
-**Webhook delivery**: Monitor `webhook_deliveries` table for failed attempts
+**Webhook delivery**: Monitor `webhook_deliveries` table for failed attempts with retry tracking
 **Reddit integration**: Tokens stored as keyed objects in Clerk `privateMetadata`
+**AI Model failures**: Check model constants in `src/constants.ts` match provider capabilities
 
 The system prioritizes data security through multi-layer project isolation - always validate project ownership before any database operations.

@@ -1,8 +1,8 @@
-import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { MODELS } from "@/constants";
 import { prompts } from "@/prompts";
 import type { SeoReport } from "@/lib/services/seo-audit-service";
+import { getModel } from "../ai-models";
 
 export interface SeoRemediationParams {
   articleMarkdown: string;
@@ -43,7 +43,8 @@ export async function performSeoRemediation(
     maxWords: params.maxWords,
   });
 
-  const { text } = await generateText({ model: google(MODELS.GEMINI_2_5_FLASH), prompt });
+  const model = await getModel('google',MODELS.GEMINI_2_5_FLASH, "seo-remedation-service")
+  const { text } = await generateText({ model, prompt });
 
   return { updatedMarkdown: text };
 }

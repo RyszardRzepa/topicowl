@@ -594,16 +594,14 @@ ${data.researchData}
    - **Markdown only**.
    - Exactly **one H1** (the title) and **nothing before it**.
 
-2) Section order (must match exactly):
-   If <required_outline> is non-empty, FOLLOW IT EXACTLY (presence and order). Otherwise, use the default order below.
-   # {title}
-   Short introduction (max 2 sentences, single paragraph)
-   ## TL;DR
-   - 3–6 succinct bullets with key takeaways
-   4–6 main sections (≈200–300 words each) with examples/cases
-   ## FAQ
-   - 4–6 Q&A
-   Optional: ## Sources (only if API-level citations are not attached)
+2) Section order (CRITICAL - FOLLOW EXACTLY):
+   ${
+     outlineText && outlineText.trim().length > 0
+       ? `**MANDATORY**: Follow this exact structure template - this is your REQUIRED outline:
+
+${outlineText}`
+       : ``
+   }
 
 3) Paragraphs: aim for 2–5 sentences. Clarity > rigid limits.
 
@@ -634,9 +632,10 @@ ${data.researchData}
    Factual accuracy & grounding > Section order > Clarity/Readability > Tone > Word target.
 
 9) Intro rules:
-   - Exactly one intro paragraph between the H1 and the TL;DR heading
-   - Do not add an "Introduction" heading
-   - No other elements (lists, images, headings) between H1 and TL;DR
+   - Exactly one intro paragraph immediately after the H1 title
+   - Do not add an "Introduction" heading  
+   - No other elements (lists, images, headings) between H1 and the first content section
+   - The intro should flow naturally into whatever section comes next in your template
 </constraints>
 
 <schema_field_rules>
@@ -1244,15 +1243,36 @@ Return ONLY the updated Markdown article. No commentary.
   <update_instructions>
   1. Review the validation results above
   2. If "No factual issues identified", return the article unchanged
-  3. For each CLAIM with STATUS: UNVERIFIED or CONTRADICTED:
-     - Locate the incorrect fact in the original article
-     - Apply the correct information based strictly on the provided REASON and linked sources
-     - Ensure corrections flow naturally with existing content
-     - Maintain the same sentence structure and writing style
-     - If a correction requires a source link, use an existing external link already present in the article or provided in the validation results; do not add new external URLs
+  3. For each issue type, apply appropriate fixes:
+  
+  FACTUAL CORRECTIONS:
+  - For each CLAIM with STATUS: UNVERIFIED or CONTRADICTED:
+    - Locate the incorrect fact in the original article
+    - Apply the correct information based strictly on the provided REASON and linked sources
+    - Ensure corrections flow naturally with existing content
+    - Maintain the same sentence structure and writing style
+    - If a correction requires a source link, use an existing external link already present in the article or provided in the validation results; do not add new external URLs
+  
+  QUALITY CONTROL FIXES:
+  - Address tone of voice inconsistencies by adjusting language and style
+  - Fix structural problems while maintaining overall article flow
+  - Improve keyword integration and density as needed
+  - Enhance readability and engagement based on feedback
+  
+  TEMPLATE COMPLIANCE FIXES:
+  - If Template Compliance Issues are present, prioritize fixing structural violations:
+    - Add missing required sections (TL;DR, FAQ, etc.)
+    - Ensure proper heading hierarchy (single H1, appropriate H2s)
+    - Meet minimum word count requirements for sections
+    - Add required number of TL;DR bullets and FAQ items
+    - Include video/table sections if required by template
+  - Follow the Template Requirements section exactly as specified
+  - Maintain the exact section order and structure outlined in the template
+  
   4. Preserve all other content exactly as written
-  5. Keep the same word count (±50 words maximum variance)
+  5. Keep the same word count (±50 words maximum variance) unless template compliance requires expansion
   6. Ensure all JSON schema fields remain properly formatted
+  7. PRIORITY ORDER: Template structure compliance > Factual accuracy > Quality improvements > SEO preservation
   </update_instructions>
   `
       : `
