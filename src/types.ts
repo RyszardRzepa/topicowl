@@ -98,7 +98,7 @@ export interface StructureTemplate {
   sections: StructureSection[];
 }
 
-export interface EffectiveOutline extends StructureTemplate {}
+export type EffectiveOutline = StructureTemplate;
 
 export interface SeoChecklist {
   structure: {
@@ -106,12 +106,15 @@ export interface SeoChecklist {
     h2CountOk: boolean;
     hasTldr: boolean;
     hasFaq: boolean;
+    tldrCountOk?: boolean;
+    sectionMinWordsOk?: boolean;
+    faqItemsCountOk?: boolean;
   };
   links: { internalMin: boolean; externalMin: boolean; brokenExternalLinks: number };
   citations: { citedSourcesMin: boolean };
   quotes: { hasExpertQuote: boolean };
   stats: { hasTwoDataPoints: boolean };
-  images: { allHaveAlt: boolean };
+  images: { allHaveAlt: boolean; requiredWhenLinks?: boolean; maxThree?: boolean; spreadOut?: boolean };
   keywords: { h1HasPrimary: boolean };
   meta: { metaDescriptionOk: boolean; slugPresent: boolean };
   jsonLd: { blogPosting: boolean; faqPage: boolean };
@@ -227,28 +230,8 @@ export interface Article {
   publishedAt?: string;
 }
 
-// Settings types - domain entity for application configuration
-export interface ArticleSettings {
-  id: string;
-  projectId: number; // Required project association
-  name: string;
-  defaultWordCount: number;
-  tone: "professional" | "casual" | "authoritative" | "friendly";
-  keywords: string[];
-  competitorUrls: string[];
-  publishingSchedule?: {
-    frequency: "daily" | "weekly" | "monthly";
-    time: string; // HH:MM format
-    timezone: string;
-  };
-  seoSettings: {
-    focusKeywordDensity: number; // percentage
-    enableInternalLinking: boolean;
-    metaDescriptionLength: number;
-  };
-  createdAt: string;
-  updatedAt: string;
-}
+// ArticleSettings interface removed - settings are now stored directly in projects table
+// This eliminates duplication and provides a single source of truth for project settings
 
 // Reddit integration types for project-specific connections
 export interface ProjectRedditConnection {

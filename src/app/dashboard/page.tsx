@@ -26,7 +26,11 @@ function DashboardContent() {
     const paths = path.split(".");
     let current: unknown = data as Record<string, unknown> | null;
     for (const p of paths) {
-      if (current && typeof current === "object" && p in (current as Record<string, unknown>)) {
+      if (
+        current &&
+        typeof current === "object" &&
+        p in (current as Record<string, unknown>)
+      ) {
         current = (current as Record<string, unknown>)[p];
       } else {
         return defaultValue;
@@ -84,89 +88,87 @@ function DashboardContent() {
 
         {/* Unified Main Stats */}
         <div className="mb-10">
-          <h2 className="mb-4 text-lg font-semibold text-gray-800">
-            Key Metrics
-          </h2>
+          <h2 className="mb-4 text-lg font-semibold text-gray-800">Articles</h2>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {/* Total Published All Time */}
-            <Card className="relative overflow-hidden">
-              <CardContent className="p-5">
+            <Card className="relative overflow-hidden border-0 shadow-sm">
+              <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    <p className="text-sm font-medium text-gray-600">
                       Total Articles
                     </p>
-                    <p className="mt-2 text-3xl font-semibold">
+                    <p className="mt-2 text-2xl font-semibold text-gray-900">
                       {getMetric("articles.totalPublishedAllTime", 0)}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
                       Published all-time
                     </p>
                   </div>
-                  <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
-                    <FileText className="h-6 w-6" />
+                  <div className="rounded-lg bg-gray-100 p-2">
+                    <FileText className="h-5 w-5 text-gray-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Planned This Week */}
-            <Card className="relative overflow-hidden">
-              <CardContent className="p-5">
+            <Card className="relative overflow-hidden border-0 shadow-sm">
+              <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    <p className="text-sm font-medium text-gray-600">
                       Planned This Week
                     </p>
-                    <p className="mt-2 text-3xl font-semibold">
+                    <p className="mt-2 text-2xl font-semibold text-gray-900">
                       {getMetric("articles.plannedThisWeek", 0)}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">Scheduled</p>
                   </div>
-                  <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
-                    <CalendarRange className="h-6 w-6" />
+                  <div className="rounded-lg bg-gray-100 p-2">
+                    <CalendarRange className="h-5 w-5 text-gray-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Published This Week */}
-            <Card className="relative overflow-hidden">
-              <CardContent className="p-5">
+            <Card className="relative overflow-hidden border-0 shadow-sm">
+              <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    <p className="text-sm font-medium text-gray-600">
                       Published This Week
                     </p>
-                    <p className="mt-2 text-3xl font-semibold">
+                    <p className="mt-2 text-2xl font-semibold text-gray-900">
                       {getMetric("articles.publishedThisWeek", 0)}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
                       Current week (Mon-Sun)
                     </p>
                   </div>
-                  <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
-                    <CheckCircle2 className="h-6 w-6" />
+                  <div className="rounded-lg bg-gray-100 p-2">
+                    <CheckCircle2 className="h-5 w-5 text-gray-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Published Last Week */}
-            <Card className="relative overflow-hidden">
-              <CardContent className="p-5">
+            <Card className="relative overflow-hidden border-0 shadow-sm">
+              <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    <p className="text-sm font-medium text-gray-600">
                       Published Last Week
                     </p>
-                    <p className="mt-2 text-3xl font-semibold">
+                    <p className="mt-2 text-2xl font-semibold text-gray-900">
                       {getMetric("articles.publishedLastWeek", 0)}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">Previous week</p>
                   </div>
-                  <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
-                    <TrendingUp className="h-6 w-6" />
+                  <div className="rounded-lg bg-gray-100 p-2">
+                    <TrendingUp className="h-5 w-5 text-gray-600" />
                   </div>
                 </div>
               </CardContent>
@@ -188,72 +190,75 @@ function DashboardContent() {
           </div>
           {isRedditConnected ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Card>
-                <CardContent className="p-5">
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      <p className="text-sm font-medium text-gray-600">
                         Tasks This Week
                       </p>
-                      <p className="mt-2 text-3xl font-semibold">
+                      <p className="mt-2 text-2xl font-semibold text-gray-900">
                         {getMetric("reddit.data.weeklyStats.totalTasks", 0)}
                       </p>
                       <p className="mt-1 text-xs text-gray-500">Scheduled</p>
                     </div>
-                    <div className="rounded-lg bg-orange-50 p-2 text-orange-600">
-                      <Target className="h-6 w-6" />
+                    <div className="rounded-lg bg-gray-100 p-2">
+                      <Target className="h-5 w-5 text-gray-600" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="p-5">
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      <p className="text-sm font-medium text-gray-600">
                         Completed
                       </p>
-                      <p className="mt-2 text-3xl font-semibold">
+                      <p className="mt-2 text-2xl font-semibold text-gray-900">
                         {getMetric("reddit.data.weeklyStats.completedTasks", 0)}
                       </p>
                       <p className="mt-1 text-xs text-gray-500">This week</p>
                     </div>
-                    <div className="rounded-lg bg-green-50 p-2 text-green-600">
-                      <ListChecks className="h-6 w-6" />
+                    <div className="rounded-lg bg-gray-100 p-2">
+                      <ListChecks className="h-5 w-5 text-gray-600" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="p-5">
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      <p className="text-sm font-medium text-gray-600">
                         Completion Rate
                       </p>
-                      <p className="mt-2 text-3xl font-semibold">
-                        {getMetric("reddit.data.weeklyStats.completionRate", 0)}%
+                      <p className="mt-2 text-2xl font-semibold text-gray-900">
+                        {getMetric("reddit.data.weeklyStats.completionRate", 0)}
+                        %
                       </p>
                       <p className="mt-1 text-xs text-gray-500">Of tasks</p>
                     </div>
-                    <div className="rounded-lg bg-sky-50 p-2 text-sky-600">
-                      <PieChart className="h-6 w-6" />
+                    <div className="rounded-lg bg-gray-100 p-2">
+                      <PieChart className="h-5 w-5 text-gray-600" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
           ) : (
-            <Card className="border-dashed">
+            <Card className="border-dashed border-gray-300 bg-gray-50/50">
               <CardContent className="p-8">
                 <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-lg bg-orange-100 p-2">
-                      <Link2 className="h-6 w-6 text-orange-600" />
+                    <div className="rounded-lg bg-gray-100 p-2">
+                      <Link2 className="h-5 w-5 text-gray-600" />
                     </div>
                     <div>
-                      <p className="font-medium">Reddit Not Connected</p>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="font-medium text-gray-900">
+                        Reddit Not Connected
+                      </p>
+                      <p className="text-sm text-gray-600">
                         Connect Reddit to track engagement & completion rate
                       </p>
                     </div>

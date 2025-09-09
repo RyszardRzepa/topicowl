@@ -1,6 +1,6 @@
 {
-  "id": "8cf84444-e02d-4e0c-b547-1bdbf4da265d",
-  "prevId": "20535f0d-5bee-4869-88cb-3137b9de1d44",
+  "id": "dd1e0134-4d7c-46f7-a833-18523f88a28b",
+  "prevId": "8cf84444-e02d-4e0c-b547-1bdbf4da265d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -982,12 +982,6 @@
         "article_structure": {
           "name": "article_structure",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "structure_template": {
-          "name": "structure_template",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

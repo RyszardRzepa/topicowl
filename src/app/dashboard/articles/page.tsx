@@ -1,11 +1,11 @@
 "use client";
-import { ArticlesCalendar } from "@/components/articles/ArticlesCalendar";
+import { ArticlesBoard } from "@/components/articles/ArticlesBoard";
 
 export default function ArticlesPage() {
   return (
     <div className="container mx-auto">
       <div className="h-[85vh]">
-        <ArticlesCalendar />
+        <ArticlesBoard />
       </div>
     </div>
   );

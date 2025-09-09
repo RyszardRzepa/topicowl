@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { projects, articleSettings } from "@/server/db/schema";
+import { projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { ApiResponse, Project } from "@/types";
@@ -211,19 +211,14 @@ export async function POST(request: NextRequest): Promise<Response> {
           keywords: finalKeywords,
           webhookEnabled: false,
           webhookEvents: ["article.published"],
-          // Do NOT set article settings fields here (schema cleanup path); leave null
+          // Set analysis data directly on project (single source of truth)
+          toneOfVoice: analysisData?.toneOfVoice,
+          articleStructure: analysisData?.contentStrategy?.articleStructure,
+          maxWords: analysisData?.contentStrategy?.maxWords ?? 800,
         })
         .returning();
       newProject = inserted[0] as Project | undefined;
       if (!newProject) throw new Error("Insert failed");
-      if (analysisData) {
-        await tx.insert(articleSettings).values({
-          projectId: newProject.id,
-          toneOfVoice: analysisData.toneOfVoice,
-          articleStructure: analysisData.contentStrategy?.articleStructure,
-          maxWords: analysisData.contentStrategy?.maxWords ?? 800,
-        });
-      }
     });
 
     if (!newProject) {

@@ -1,5 +1,4 @@
 export const MODELS = {
-  GEMINI_FLASH_2_5: "gemini-2.0-flash-exp",
   GEMINI_2_5_FLASH: "gemini-2.5-flash",
   GEMINI_2_5_PRO: "gemini-2.5-pro",
   CLAUDE_SONET_4: "claude-sonnet-4-20250514",

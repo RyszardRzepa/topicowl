@@ -9,7 +9,6 @@ import {
   varchar,
   serial,
   index,
-  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
@@ -70,7 +69,6 @@ export const projects = contentbotSchema.table(
     // Project-specific article settings
     toneOfVoice: text("tone_of_voice"),
     articleStructure: text("article_structure"),
-    structureTemplate: jsonb("structure_template"),
     maxWords: integer("max_words").default(800),
     excludedDomains: jsonb("excluded_domains")
       .default([])
@@ -318,7 +316,7 @@ export const articleGeneration = contentbotSchema.table(
     error: text("error"),
     errorDetails: jsonb("error_details"),
 
-    introParagraph: text("intro_paragraph"),
+    // introParagraph removed - use articles.introParagraph as single source of truth
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -336,44 +334,8 @@ export const articleGeneration = contentbotSchema.table(
   }),
 );
 
-// Article Settings table for global configuration
-export const articleSettings = contentbotSchema.table(
-  "article_settings",
-  {
-    id: serial("id").primaryKey(),
-    projectId: integer("project_id")
-      .references(() => projects.id)
-      .notNull(),
-    toneOfVoice: text("tone_of_voice"),
-    articleStructure: text("article_structure"),
-    maxWords: integer("max_words").default(800),
-
-    // Competitor domain exclusion
-    excludedDomains: jsonb("excluded_domains")
-      .default([])
-      .notNull()
-      .$type<string[]>(),
-
-    // Sitemap functionality
-    sitemapUrl: text("sitemap_url"), // User's website sitemap URL (e.g., https://example.com/sitemap.xml)
-
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    // Index on project_id for efficient querying of project's article settings
-    projectIdIdx: index("article_settings_project_id_idx").on(table.projectId),
-    // Unique constraint to ensure only one settings record per project
-    projectIdUnique: unique("article_settings_project_id_unique").on(
-      table.projectId,
-    ),
-  }),
-);
+// Article Settings table removed - settings are now stored directly in projects table
+// This eliminates duplication and provides a single source of truth for project settings
 
 // Reddit posts table for scheduling Reddit posts
 export const redditPosts = contentbotSchema.table(

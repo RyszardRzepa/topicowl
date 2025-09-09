@@ -4,6 +4,7 @@
  */
 
 import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
@@ -102,7 +103,7 @@ export async function performQualityControlUpdate(
     throw new Error("Article and qualityControlIssues are required");
   }
 
-  const model = anthropic(MODELS.CLAUDE_SONET_4);
+  const model = google(MODELS.GEMINI_2_5_FLASH);
 
   const { object: articleObject } = await generateObject({
     model,

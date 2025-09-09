@@ -35,6 +35,9 @@ export const env = createEnv({
     STRIPE_PRIVATE_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
+    CF_ACCOUNT_ID: z.string(),
+    CF_API_TOKEN: z.string(),
+
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -80,6 +83,9 @@ export const env = createEnv({
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: process.env.REDDIT_CLIENT_ID,
     REDDIT_CLIENT_SECRET: process.env.REDDIT_CLIENT_SECRET,
+
+    CF_ACCOUNT_ID: process.env.CF_ACCOUNT_ID,
+    CF_API_TOKEN: process.env.CF_API_TOKEN,
 
     // X (Twitter) OAuth 2.0 configuration
     X_CLIENT_ID: process.env.X_CLIENT_ID,

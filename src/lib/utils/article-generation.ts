@@ -3,12 +3,12 @@
  */
 
 import { db } from "../../server/db";
-import { articleSettings, projects } from "../../server/db/schema";
+import { projects } from "../../server/db/schema";
 import { eq } from "drizzle-orm";
 import { isDomainExcluded } from "./domain";
 
 /**
- * Retrieves excluded domains for a project from article settings
+ * Retrieves excluded domains for a project from projects table
  * @param projectId - The project ID
  */
 export async function getProjectExcludedDomains(
@@ -19,33 +19,17 @@ export async function getProjectExcludedDomains(
       `[DOMAIN_FILTER] Retrieving excluded domains for project: ${projectId}`,
     );
 
-    // Try article settings first (new structure)
-    const settings = await db
-      .select({ excludedDomains: articleSettings.excludedDomains })
-      .from(articleSettings)
-      .where(eq(articleSettings.projectId, projectId))
-      .limit(1);
-
-    if (settings.length > 0) {
-      const excludedDomains = settings[0]!.excludedDomains;
-      console.log(
-        `[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains from article_settings for project ${projectId}`,
-      );
-      return excludedDomains;
-    }
-
-    // Fallback to project table settings
-    const projectSettings = await db
+    // Get excluded domains directly from projects table (single source of truth)
+    const [projectRecord] = await db
       .select({ excludedDomains: projects.excludedDomains })
       .from(projects)
       .where(eq(projects.id, projectId))
       .limit(1);
 
-    const excludedDomains =
-      projectSettings.length > 0 ? projectSettings[0]!.excludedDomains : [];
+    const excludedDomains = projectRecord?.excludedDomains ?? [];
 
     console.log(
-      `[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains from projects table for project ${projectId}`,
+      `[DOMAIN_FILTER] Found ${excludedDomains.length} excluded domains for project ${projectId}`,
     );
 
     return excludedDomains;

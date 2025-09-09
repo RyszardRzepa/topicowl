@@ -2,6 +2,9 @@ import { db } from "@/server/db";
 import { articles, articleGeneration, users, projects } from "@/server/db/schema";
 import { eq, and, desc, ne } from "drizzle-orm";
 import type { VideoEmbed, StructureTemplate } from "@/types";
+import { google } from "@ai-sdk/google";
+import { generateObject } from "ai";
+import { z } from "zod";
 
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
@@ -20,9 +23,12 @@ import { performGenericUpdate } from "@/lib/services/update-service";
 import { performImageSelectionLogic } from "@/lib/services/image-selection-service";
 
 import { runSeoAudit } from "@/lib/services/seo-audit-service";
-import { passesQualityGates } from "@/lib/services/quality-gates";
+import { passesQualityGates, passesChecklist } from "@/lib/services/quality-gates";
+import type { SeoChecklist } from "@/types";
 import { performSeoRemediation } from "@/lib/services/seo-remediation-service";
 import { SEO_MAX_REMEDIATION_PASSES } from "@/constants";
+import { captureAndAttachScreenshots } from "@/lib/services/screenshot-service";
+import { generateJsonLd } from "@/lib/services/schema-generator-service";
 
 export interface GenerationContext {
   articleId: number;
@@ -30,6 +36,99 @@ export interface GenerationContext {
   article: typeof articles.$inferSelect;
   keywords: string[];
   relatedArticles: string[];
+}
+
+async function mergeArtifacts(
+  generationId: number,
+  fragment: Record<string, unknown>,
+): Promise<void> {
+  const [current] = await db
+    .select({ artifacts: articleGeneration.artifacts })
+    .from(articleGeneration)
+    .where(eq(articleGeneration.id, generationId))
+    .limit(1);
+  const next = { ...(current?.artifacts ?? {}), ...fragment } as Record<string, unknown>;
+  await db
+    .update(articleGeneration)
+    .set({ artifacts: next, updatedAt: new Date(), lastUpdated: new Date() })
+    .where(eq(articleGeneration.id, generationId));
+}
+
+function outlineToString(outline: StructureTemplate): string {
+  // Convert structured outline to a concise human-readable sequence for prompting
+  const parts: string[] = [];
+  for (const s of outline.sections) {
+    const label = s.label ?? s.id;
+    switch (s.type) {
+      case "title":
+        parts.push("H1 title");
+        break;
+      case "intro":
+        parts.push("Intro paragraph (immediately after H1)");
+        break;
+      case "tldr":
+        parts.push(`TL;DR (${s.minItems ?? 3}-${s.maxItems ?? 5} bullets)`);
+        break;
+      case "section":
+        parts.push(`Section: ${label}${s.minWords ? ` (≥${s.minWords} words)` : ""}`);
+        break;
+      case "video":
+        if (s.enabled !== false) parts.push("Video (optional)");
+        break;
+      case "table":
+        if (s.enabled !== false) parts.push("Table (optional)");
+        break;
+      case "faq":
+        parts.push(`FAQ (${s.minItems ?? 2}-${s.maxItems ?? 5} Q/A)`);
+        break;
+      default:
+        parts.push(label);
+    }
+  }
+  return parts.join(" → ");
+}
+
+function mergeEffectiveOutline(
+  template?: StructureTemplate | null,
+  override?: StructureTemplate | null,
+  locked?: StructureTemplate | null,
+): StructureTemplate | undefined {
+  if (locked) return locked;
+  if (override && Array.isArray(override.sections) && override.sections.length > 0) return override;
+  if (template && Array.isArray(template.sections) && template.sections.length > 0) return template;
+  return undefined;
+}
+
+async function generateFallbackOutlineMarkdown(
+  title: string,
+  keywords: string[],
+  researchData: string,
+  userId: string,
+  sources?: Array<{ url: string; title?: string }>,
+  videos?: Array<{ title: string; url: string }>,
+  notes?: string,
+): Promise<string | undefined> {
+  try {
+    const outlineSchema = z.object({ markdownOutline: z.string() });
+    const { object } = await generateObject({
+      model: google((await import("@/constants")).MODELS.GEMINI_2_5_FLASH),
+      schema: outlineSchema,
+      prompt: (await import("@/prompts")).prompts.outline(
+        title,
+        keywords,
+        researchData,
+        videos,
+        notes,
+        sources,
+        undefined,
+      ),
+      maxRetries: 2,
+    });
+    return object.markdownOutline;
+  } catch (e) {
+    logger.warn("outline:fallback_failed", e);
+    return undefined;
+  }
 }
 
 // Attempt to atomically claim an article for generation by flipping its status
@@ -268,6 +367,7 @@ async function writeArticle(
   relatedArticles: string[],
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
+  outline?: StructureTemplate | string,
 ): Promise<WriteResponse> {
   await updateGenerationProgress(generationId, "writing", 50);
   logger.debug("writing:start", { title, hasCoverImage: !!coverImageUrl });
@@ -284,6 +384,7 @@ async function writeArticle(
     generationId,
     sources: researchData.sources ?? [],
     notes: notes ?? undefined,
+    outline,
   });
 
   await updateGenerationProgress(generationId, "quality-control", 60, {
@@ -308,9 +409,25 @@ async function performQualityControl(
       .limit(1)
       .then((rows) => rows[0]);
 
+    // Derive human-readable structure from effective outline to guide QC
+    const outlineForQc = (() => {
+      const raw = generationRecord?.outline;
+      if (!raw) return undefined;
+      if (typeof raw === "string") return raw;
+      if (
+        typeof raw === "object" &&
+        raw !== null &&
+        "sections" in (raw as Record<string, unknown>) &&
+        Array.isArray((raw as { sections?: unknown }).sections)
+      ) {
+        return outlineToString(raw as StructureTemplate);
+      }
+      return undefined;
+    })();
+
     const qualityControlData = await performQualityControlLogic({
       articleContent: content,
-      userSettings: {},
+      userSettings: outlineForQc ? { articleStructure: outlineForQc } : undefined,
       originalPrompt: generationRecord?.writePrompt ?? "",
       userId: userId,
       projectId: projectId,
@@ -373,6 +490,7 @@ async function updateArticleIfNeeded(
   content: string,
   validationText: string,
   qualityControlIssues: string | null | undefined,
+  outlineText?: string,
 ): Promise<string> {
   const hasValidationIssues =
     validationText &&
@@ -390,7 +508,11 @@ async function updateArticleIfNeeded(
     combinedFeedback += `## Quality Control Issues\n\n${qualityControlIssues}\n\n`;
 
   logger.debug("update:start", { feedbackLength: combinedFeedback.length });
-  const updateResult = await performGenericUpdate({ article: content, validationText: combinedFeedback });
+  const updateResult = await performGenericUpdate({
+    article: content,
+    validationText: combinedFeedback,
+    settings: outlineText ? { articleStructure: outlineText } : undefined,
+  });
   return updateResult.updatedContent ?? content;
 }
 
@@ -402,6 +524,7 @@ async function finalizeArticle(
   coverImageAlt: string,
   generationId: number,
   userId: string,
+  publishReady: boolean,
   videos?: VideoEmbed[],
 ): Promise<void> {
   // Ensure intro paragraph exists immediately after H1
@@ -416,7 +539,7 @@ async function finalizeArticle(
     slug?: string;
     metaDescription: string;
     metaKeywords?: string[];
-    status: "wait_for_publish";
+    status: "wait_for_publish" | "to_generate";
     updatedAt: Date;
     coverImageUrl?: string;
     coverImageAlt?: string;
@@ -425,7 +548,7 @@ async function finalizeArticle(
     draft: finalContentWithIntro,
     videos: videos ?? [],
     metaDescription: writeData.metaDescription ?? "",
-    status: "wait_for_publish",
+    status: publishReady ? "wait_for_publish" : "to_generate",
     updatedAt: new Date(),
   };
   if (writeData.slug) updateData.slug = writeData.slug;
@@ -547,11 +670,91 @@ export async function generateArticle(
     logger.info("generation:start", { articleId, title: article.title });
 
     generationRecord = await createOrResetArticleGeneration(articleId, userId);
-    if (lockedOutline && generationRecord) {
-      await db
-        .update(articleGeneration)
-        .set({ outline: lockedOutline, artifacts: { outline: lockedOutline } })
-        .where(eq(articleGeneration.id, generationRecord.id));
+    // Phase 0: Build and persist effective outline (locked → override → template → undefined)
+    try {
+      // Resolve an "effective outline" that can be either a structured template
+      // or a plain string template selected by the user in project settings.
+      let resolvedOutline: StructureTemplate | string | undefined = undefined;
+
+      if (lockedOutline) {
+        resolvedOutline = lockedOutline;
+      } else {
+        const [proj] = await db
+          .select({ articleStructure: projects.articleStructure })
+          .from(projects)
+          .where(eq(projects.id, article.projectId))
+          .limit(1);
+
+        // Try to interpret project.articleStructure either as JSON StructureTemplate or plain text
+        const projectOutlineRaw = (proj?.articleStructure ?? "").trim();
+        let projectOutline: StructureTemplate | string | undefined = undefined;
+        if (projectOutlineRaw.length > 0) {
+          try {
+            const parsed = JSON.parse(projectOutlineRaw) as unknown;
+            if (
+              parsed &&
+              typeof parsed === "object" &&
+              "sections" in (parsed as Record<string, unknown>) &&
+              Array.isArray((parsed as { sections?: unknown }).sections)
+            ) {
+              projectOutline = parsed as StructureTemplate;
+            } else {
+              projectOutline = projectOutlineRaw; // treat as plain string template
+            }
+          } catch {
+            projectOutline = projectOutlineRaw; // not JSON, keep as provided string
+          }
+        }
+
+        // Article-level override (JSON structure)
+        const overrideRaw = article.structureOverride as unknown;
+        let overrideTemplate: StructureTemplate | undefined = undefined;
+        if (
+          overrideRaw &&
+          typeof overrideRaw === "object" &&
+          "sections" in (overrideRaw as Record<string, unknown>) &&
+          Array.isArray((overrideRaw as { sections?: unknown }).sections)
+        ) {
+          overrideTemplate = overrideRaw as StructureTemplate;
+        }
+
+        // Precedence: locked > override > project template
+        if (overrideTemplate) {
+          resolvedOutline = overrideTemplate;
+        } else if (projectOutline) {
+          resolvedOutline = projectOutline;
+        } else {
+          resolvedOutline = undefined;
+        }
+      }
+
+      if (resolvedOutline !== undefined && generationRecord) {
+        await db
+          .update(articleGeneration)
+          .set({ outline: resolvedOutline })
+          .where(eq(articleGeneration.id, generationRecord.id));
+        await mergeArtifacts(generationRecord.id, { outline: resolvedOutline });
+      } else if (generationRecord) {
+        // Fallback: generate Markdown outline via LLM
+        const fallbackOutline = await generateFallbackOutlineMarkdown(
+          article.title,
+          keywords,
+          "",
+          userId,
+          [],
+          [],
+          article.notes ?? undefined,
+        );
+        if (fallbackOutline) {
+          await db
+            .update(articleGeneration)
+            .set({ outline: fallbackOutline })
+            .where(eq(articleGeneration.id, generationRecord.id));
+          await mergeArtifacts(generationRecord.id, { outline: fallbackOutline });
+        }
+      }
+    } catch (e) {
+      logger.warn("outline:build_failed", e);
     }
     await db.update(articles).set({ status: "generating", updatedAt: new Date() }).where(eq(articles.id, articleId));
     await db
@@ -589,7 +792,7 @@ export async function generateArticle(
       article.projectId,
     );
 
-    // Phase 3: Write
+    // Phase 3: Write (pass effective outline via notes hint if available)
     const writeData = await writeArticle(
       researchData,
       article.title,
@@ -600,8 +803,38 @@ export async function generateArticle(
       article.projectId,
       context.relatedArticles,
       researchData.videos,
-      article.notes ?? undefined,
+      (() => {
+        // Include effective outline in notes (if available) to guide structure deterministically
+        const ol = generationRecord?.outline as StructureTemplate | undefined;
+        if (ol && Array.isArray(ol.sections) && ol.sections.length > 0) {
+          const olText = outlineToString(ol);
+          const base = article.notes ?? "";
+          return `${base}\n\nEffective outline (MUST FOLLOW EXACTLY):\n${olText}`.trim();
+        }
+        return article.notes ?? undefined;
+      })(),
+      (generationRecord?.outline as StructureTemplate | undefined),
     );
+
+    // Phase 3.5: Screenshots of linked pages -> upload via Vercel Blob and embed
+    try {
+      const { updatedMarkdown, screenshots } = await captureAndAttachScreenshots({
+        articleId,
+        generationId: generationRecord.id,
+        markdown: writeData.content ?? "",
+        projectId: article.projectId,
+      });
+      if (updatedMarkdown && updatedMarkdown !== (writeData.content ?? "")) {
+        await updateGenerationProgress(generationRecord.id, "writing", 58, {
+          draftContent: updatedMarkdown,
+        });
+      }
+      await mergeArtifacts(generationRecord.id, { screenshots });
+      // Use the version with screenshots for downstream steps
+      writeData.content = updatedMarkdown || writeData.content;
+    } catch (e) {
+      logger.warn("screenshots:failed", e);
+    }
 
     // Phase 4: Quality Control
     const qualityControlData = await performQualityControl(
@@ -625,10 +858,25 @@ export async function generateArticle(
     ]);
 
     // Phase 6: Update content if needed (factual/QC)
+    const outlineTextForUpdate = (() => {
+      const raw = generationRecord?.outline as unknown;
+      if (!raw) return undefined;
+      if (typeof raw === "string") return raw;
+      if (
+        typeof raw === "object" &&
+        raw !== null &&
+        "sections" in (raw as Record<string, unknown>) &&
+        Array.isArray((raw as { sections?: unknown }).sections)
+      ) {
+        return outlineToString(raw as StructureTemplate);
+      }
+      return undefined;
+    })();
     const finalContent = await updateArticleIfNeeded(
       writeData.content ?? "",
       validationData.rawValidationText ?? "",
       qualityControlData.issues,
+      outlineTextForUpdate,
     );
 
     // Phase 7: SEO remediation loop with re-audit
@@ -691,6 +939,37 @@ export async function generateArticle(
       updateArticleScore: true,
     });
 
+    // Evaluate checklist-based gates
+    let publishReady = true;
+    try {
+      const [latest] = await db
+        .select({ checklist: articleGeneration.checklist })
+        .from(articleGeneration)
+        .where(eq(articleGeneration.id, generationRecord.id))
+        .limit(1);
+      const checklist = latest?.checklist as SeoChecklist | undefined;
+      if (checklist) {
+        const gate = passesChecklist(checklist, { allowNoImages: false, requireFaq: true, maxBrokenExternalLinks: 0 });
+        publishReady = gate.passed;
+        if (!gate.passed) logger.warn("gates:checklist_failed", { failures: gate.failures });
+      }
+    } catch (e) {
+      logger.warn("gates:checklist_eval_error", e);
+      publishReady = false;
+    }
+
+    // JSON-LD generation and persistence (artifacts + column)
+    try {
+      const schema = await generateJsonLd({ article, markdown: contentForSeo });
+      await db
+        .update(articleGeneration)
+        .set({ schemaJson: schema.raw, updatedAt: new Date(), lastUpdated: new Date() })
+        .where(eq(articleGeneration.id, generationRecord.id));
+      await mergeArtifacts(generationRecord.id, { jsonLd: schema });
+    } catch (e) {
+      logger.warn("schema:generate_failed", e);
+    }
+
     // Finalize
     await finalizeArticle(
       articleId,
@@ -700,6 +979,7 @@ export async function generateArticle(
       coverImageAlt,
       generationRecord.id,
       userId,
+      publishReady,
       researchData.videos,
     );
 

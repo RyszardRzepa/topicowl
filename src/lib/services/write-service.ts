@@ -32,6 +32,7 @@ interface WriteRequest {
     title?: string;
   }>;
   notes?: string;
+  outline?: import("@/types").StructureTemplate | string;
   userId: string;
   projectId: number;
   relatedArticles?: string[];
@@ -229,6 +230,62 @@ export async function performWriteLogic(
       : "";
 
   // Build the complete prompt
+  const outlineText = (() => {
+    const ol = request.outline as unknown;
+    if (!ol) return undefined;
+    if (typeof ol === "string") return ol;
+    // Narrow an outline object that contains a sections array
+    interface OutlineSection {
+      type: string;
+      id?: string;
+      label?: string;
+      minItems?: number;
+      maxItems?: number;
+      minWords?: number;
+      enabled?: boolean;
+    }
+    interface OutlineWithSections { sections: OutlineSection[] }
+    if (
+      typeof ol === "object" &&
+      ol !== null &&
+      "sections" in (ol as Record<string, unknown>) &&
+      Array.isArray((ol as { sections?: unknown }).sections)
+    ) {
+      const sections = (ol as OutlineWithSections).sections;
+      const parts: string[] = [];
+      for (const s of sections) {
+        const label = s.label ?? s.id;
+        switch (s.type) {
+          case "title":
+            parts.push("H1 title");
+            break;
+          case "intro":
+            parts.push("Intro paragraph (immediately after H1)");
+            break;
+          case "tldr":
+            parts.push(`TL;DR (${s.minItems ?? 3}-${s.maxItems ?? 5} bullets)`);
+            break;
+          case "section":
+            parts.push(`Section: ${label}${s.minWords ? ` (≥${s.minWords} words)` : ""}`);
+            break;
+          case "video":
+            if (s.enabled !== false) parts.push("Video (optional)");
+            break;
+          case "table":
+            if (s.enabled !== false) parts.push("Table (optional)");
+            break;
+          case "faq":
+            parts.push(`FAQ (${s.minItems ?? 2}-${s.maxItems ?? 5} Q/A)`);
+            break;
+          default:
+            parts.push(label ?? "");
+        }
+      }
+      return parts.map((p) => `- ${p}`).join("\n");
+    }
+    return undefined;
+  })();
+
   const writePrompt =
     prompts.writing(
       {
@@ -241,6 +298,7 @@ export async function performWriteLogic(
       settingsData,
       request.relatedArticles ?? [],
       excludedDomains,
+      outlineText,
     ) + excludedDomainsInstruction;
 
   // Save the write prompt to the database if generationId is provided
@@ -366,4 +424,97 @@ export async function performWriteLogic(
   });
 
   return responseObject;
+}
+
+export async function regenerateSection(request: {
+  articleMarkdown: string;
+  sectionHeading: string; // exact H2 heading text to replace
+  researchData: ResearchResponse;
+  title: string;
+  keywords: string[];
+  notes?: string;
+  userId: string;
+  projectId: number;
+  generationId?: number;
+}): Promise<{ updatedContent: string; updatedSectionHeading: string }>
+{
+  const { google } = await import("@ai-sdk/google");
+  const { generateText } = await import("ai");
+  if (!request.articleMarkdown || !request.sectionHeading) {
+    throw new Error("Both articleMarkdown and sectionHeading are required");
+  }
+
+  // Locate the section boundaries (H2 blocks)
+  const lines = request.articleMarkdown.split(/\r?\n/);
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const lineI = lines[i];
+    if (lineI && /^##\s+/.test(lineI)) {
+      const heading = lineI.replace(/^##\s+/, "").trim();
+      if (start === -1 && heading.toLowerCase() === request.sectionHeading.trim().toLowerCase()) {
+        start = i;
+        // find end at next H2 or EOF
+        for (let j = i + 1; j < lines.length; j++) {
+          const lineJ = lines[j];
+            if (lineJ && /^##\s+/.test(lineJ)) { end = j; break; }
+        }
+        break;
+      }
+    }
+  }
+  if (start === -1) {
+    throw new Error(`Section heading not found: ${request.sectionHeading}`);
+  }
+
+  const originalSection = lines.slice(start, end).join("\n");
+  const prompt = `
+You will rewrite ONLY the following Markdown section of an article, preserving the H2 heading but improving clarity, examples, and SEO within constraints. Do not touch any other parts of the article.
+
+<section_heading>${request.sectionHeading}</section_heading>
+
+<original_section>
+${originalSection}
+</original_section>
+
+<research>
+${request.researchData.researchData}
+</research>
+
+<rules>
+- Return ONLY the updated section block, starting with the same '## ${request.sectionHeading}' line.
+- Keep links grounded in research; do not introduce new external domains beyond those present in the article context.
+- Keep length comparable; improve readability and add specific, grounded examples if available.
+- Do not modify other sections, title, TL;DR, or FAQ.
+</rules>
+`;
+
+  const { text: updatedSection } = await generateText({
+    model: google(MODELS.GEMINI_2_5_FLASH),
+    prompt,
+    maxRetries: 2,
+    maxOutputTokens: 2000,
+  });
+
+  if (!updatedSection?.trim().startsWith(`## ${request.sectionHeading}`)) {
+    throw new Error("Model did not return a section starting with the target heading");
+  }
+
+  const next = [
+    ...lines.slice(0, start),
+    ...updatedSection.split(/\r?\n/),
+    ...lines.slice(end),
+  ].join("\n");
+
+  // Optionally persist the prompt for debugging
+  if (request.generationId) {
+    try {
+      await db
+        .update(articleGeneration)
+        .set({ updatedAt: new Date() })
+        .where(eq(articleGeneration.id, request.generationId));
+    } catch {}
+  }
+
+  return { updatedContent: next, updatedSectionHeading: request.sectionHeading };
 }

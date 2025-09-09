@@ -6,7 +6,6 @@ import {
   articles,
   generationQueue,
   articleGeneration,
-  articleSettings,
   webhookDeliveries,
 } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -240,10 +239,7 @@ export async function DELETE(
         .delete(webhookDeliveries)
         .where(eq(webhookDeliveries.projectId, projectId));
 
-      // Delete article settings
-      await db
-        .delete(articleSettings)
-        .where(eq(articleSettings.projectId, projectId));
+      // articleSettings table removed - settings now in projects table
 
       // Delete article generation records
       await db

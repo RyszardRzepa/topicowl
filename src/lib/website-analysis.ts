@@ -66,7 +66,7 @@ export async function analyzeWebsitePure(
     console.log(`[WEBSITE_ANALYSIS] Starting web research for: ${domain}`);
 
     const result = await generateText({
-      model: google(MODELS.GEMINI_FLASH_2_5),
+      model: google(MODELS.GEMINI_2_5_FLASH),
       providerOptions: {
         google: {
           thinkingConfig: {
@@ -112,7 +112,7 @@ ${researchData}`
 
   try {
     const { object } = await generateObject({
-      model: google(MODELS.GEMINI_FLASH_2_5),
+      model: google(MODELS.GEMINI_2_5_FLASH),
       schema: WebsiteAnalysisSchema,
       prompt: combinedContent +
         "\n\nDetect the primary content language of the website. Return both a BCP-47 compliant code (e.g., 'en', 'en-US', 'pl') in languageCode and a human-readable languageName.",

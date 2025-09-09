@@ -1,6 +1,6 @@
 {
-  "id": "8cf84444-e02d-4e0c-b547-1bdbf4da265d",
-  "prevId": "20535f0d-5bee-4869-88cb-3137b9de1d44",
+  "id": "2f42518b-f055-4580-9cfa-ad1b50aa91e4",
+  "prevId": "dd1e0134-4d7c-46f7-a833-18523f88a28b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -304,12 +304,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "intro_paragraph": {
-          "name": "intro_paragraph",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -388,116 +382,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "topicowl.article_settings": {
-      "name": "article_settings",
-      "schema": "topicowl",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tone_of_voice": {
-          "name": "tone_of_voice",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "article_structure": {
-          "name": "article_structure",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "max_words": {
-          "name": "max_words",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 800
-        },
-        "excluded_domains": {
-          "name": "excluded_domains",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "sitemap_url": {
-          "name": "sitemap_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "article_settings_project_id_idx": {
-          "name": "article_settings_project_id_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "article_settings_project_id_projects_id_fk": {
-          "name": "article_settings_project_id_projects_id_fk",
-          "tableFrom": "article_settings",
-          "tableTo": "projects",
-          "schemaTo": "topicowl",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "article_settings_project_id_unique": {
-          "name": "article_settings_project_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -982,12 +866,6 @@
         "article_structure": {
           "name": "article_structure",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "structure_template": {
-          "name": "structure_template",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

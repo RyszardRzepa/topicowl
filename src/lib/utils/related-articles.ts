@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { articleSettings, projects, users } from "@/server/db/schema";
+import { projects, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeSitemapUrl, validateSitemapUrl } from "./sitemap";
 
@@ -10,37 +10,20 @@ export interface RelatedArticle {
   url: string;
 }
 
-// Function to fetch blog slugs from project's sitemap (project settings first, fallback to legacy articleSettings)
+// Function to fetch blog slugs from project's sitemap
 async function fetchProjectBlogSlugs(projectId: number): Promise<string[]> {
   try {
-    // 1. Prefer sitemapUrl from projects table (per-project setup)
+    // Get sitemapUrl from projects table (single source of truth)
     const [projectRecord] = await db
       .select({ sitemapUrl: projects.sitemapUrl })
       .from(projects)
       .where(eq(projects.id, projectId))
       .limit(1);
 
-    let rawSitemapUrl: string | null = projectRecord?.sitemapUrl ?? null;
-
-    // 2. Fallback: legacy article_settings table
-    if (!rawSitemapUrl) {
-      const [legacySettings] = await db
-        .select({ sitemap_url: articleSettings.sitemapUrl })
-        .from(articleSettings)
-        .where(eq(articleSettings.projectId, projectId))
-        .limit(1);
-      rawSitemapUrl = legacySettings?.sitemap_url ?? null;
-      if (rawSitemapUrl) {
-        console.log(
-          `Using legacy article_settings sitemap URL for project ${projectId}`,
-        );
-      }
-    }
+    const rawSitemapUrl = projectRecord?.sitemapUrl;
 
     if (!rawSitemapUrl) {
-      console.log(
-        `No sitemap URL configured for project ${projectId} (projects or article_settings)`,
-      );
+      console.log(`No sitemap URL configured for project ${projectId}`);
       return [];
     }
 

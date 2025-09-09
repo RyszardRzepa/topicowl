@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articleSettings, projects, users } from "@/server/db/schema";
+import { projects, users } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeSitemapUrl, validateSitemapUrl } from "@/lib/utils/sitemap";
@@ -194,29 +194,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update or create article settings with sitemap URL using projectId
-    const [existingSettings] = await db
-      .select({ id: articleSettings.id })
-      .from(articleSettings)
-      .where(eq(articleSettings.projectId, validatedData.projectId))
-      .limit(1);
-
-    if (existingSettings) {
-      // Update existing settings
-      await db
-        .update(articleSettings)
-        .set({
-          sitemapUrl: sitemapResult.sitemapUrl,
-          updatedAt: new Date(),
-        })
-        .where(eq(articleSettings.id, existingSettings.id));
-    } else {
-      // Create new settings
-      await db.insert(articleSettings).values({
-        projectId: validatedData.projectId,
+    // Update project's sitemap URL directly
+    await db
+      .update(projects)
+      .set({
         sitemapUrl: sitemapResult.sitemapUrl,
-      });
-    }
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, validatedData.projectId));
 
     const now = new Date();
     const cacheExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
