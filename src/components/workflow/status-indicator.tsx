@@ -78,7 +78,7 @@ export function StatusIndicator({
       case "optimization":
         return {
           icon: Target,
-          label: "Optimizing",
+          label: "SEO Optimizing",
           color: "text-brand-orange",
           description: "SEO optimization and final touches",
         };

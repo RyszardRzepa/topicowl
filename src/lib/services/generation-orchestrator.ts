@@ -291,7 +291,7 @@ async function writeArticle(
   relatedArticles: string[],
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
-  outline?: StructureTemplate | string,
+  outline?: StructureTemplate,
 ): Promise<WriteResponse> {
   await updateGenerationProgress(generationId, "writing", 50);
   logger.debug("writing:start", { title, hasCoverImage: !!coverImageUrl });
@@ -591,6 +591,12 @@ export async function generateArticle(
       .where(eq(projects.id, article.projectId))
       .limit(1);
 
+    // Convert string template to StructureTemplate if available
+    let normalizedOutline: StructureTemplate | undefined;
+    if (projectData?.articleStructure?.trim()) {
+      normalizedOutline = normalizeTemplate(projectData.articleStructure) ?? undefined;
+    }
+
     const writeData = await writeArticle(
       researchData,
       article.title,
@@ -602,27 +608,47 @@ export async function generateArticle(
       context.relatedArticles,
       researchData.videos,
       article.notes ?? undefined,
-      projectData?.articleStructure ?? undefined,
+      normalizedOutline,
     );
 
     // Phase 3.5: Screenshots of linked pages -> upload via Vercel Blob and embed
     try {
+      logger.debug("screenshots:starting", { articleId, generationId: generationRecord.id });
       const { updatedMarkdown, screenshots } = await captureAndAttachScreenshots({
         articleId,
         generationId: generationRecord.id,
         markdown: writeData.content ?? "",
         projectId: article.projectId,
       });
+      
+      const screenshotCount = Object.keys(screenshots).length;
+      const successfulScreenshots = Object.values(screenshots).filter(s => s.status === 200).length;
+      
+      logger.debug("screenshots:completed", { 
+        articleId, 
+        generationId: generationRecord.id,
+        totalScreenshots: screenshotCount,
+        successfulScreenshots,
+        hasUpdatedMarkdown: updatedMarkdown && updatedMarkdown !== (writeData.content ?? "")
+      });
+      
       if (updatedMarkdown && updatedMarkdown !== (writeData.content ?? "")) {
         await updateGenerationProgress(generationRecord.id, "writing", 58, {
           draftContent: updatedMarkdown,
         });
+        logger.debug("screenshots:markdown_updated", { articleId, generationId: generationRecord.id });
       }
       await mergeArtifacts(generationRecord.id, { screenshots });
       // Use the version with screenshots for downstream steps
       writeData.content = updatedMarkdown || writeData.content;
     } catch (e) {
-      logger.warn("screenshots:failed", e);
+      logger.error("screenshots:failed", { 
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+        articleId, 
+        generationId: generationRecord.id,
+        projectId: article.projectId
+      });
     }
 
     // Phase 4: Quality Control

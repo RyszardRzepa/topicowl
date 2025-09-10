@@ -26,6 +26,18 @@ export async function captureAndAttachScreenshots(
   params: ScreenshotParams,
 ): Promise<ScreenshotResult> {
   const { markdown, articleId, projectId } = params;
+
+  // Validate Cloudflare credentials before proceeding
+  if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
+    console.warn("screenshots:config_missing", {
+      hasToken: !!env.CF_API_TOKEN,
+      hasAccountId: !!env.CF_ACCOUNT_ID,
+      articleId,
+      projectId
+    });
+    return { updatedMarkdown: markdown, screenshots: {} };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const client = new Cloudflare({
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -105,6 +117,8 @@ export async function captureAndAttachScreenshots(
 
   let lastInsertedLine = -10;
   for (const link of candidates) {
+    console.log("screenshots:attempting", { url: link.absUrl, articleId, projectId });
+    
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const res = await client.browserRendering.screenshot.create({
@@ -112,6 +126,14 @@ export async function captureAndAttachScreenshots(
         account_id: accountId,
         url: link.absUrl,
         screenshotOptions: { omitBackground: true },
+      });
+
+      console.log("screenshots:api_response", { 
+        url: link.absUrl, 
+        hasResult: !!res,
+        responseType: typeof res,
+        articleId,
+        projectId
       });
 
       // According to Cloudflare documentation, the screenshot response should contain the binary data
@@ -159,6 +181,7 @@ export async function captureAndAttachScreenshots(
       }
 
       if (!buffer) {
+        console.warn("screenshots:no_buffer", { url: link.url, responseType: typeof screenshot, articleId });
         screenshots[link.url] = {
           imageUrl: "",
           alt: link.text ?? "screenshot",
@@ -182,7 +205,9 @@ export async function captureAndAttachScreenshots(
           access: "public",
           contentType: "image/png",
         });
-      } catch {
+        console.log("screenshots:upload_success", { url: link.url, blobUrl: blob.url, articleId });
+      } catch (uploadError) {
+        console.error("screenshots:upload_failed", { url: link.url, error: uploadError, articleId });
         screenshots[link.url] = {
           imageUrl: "",
           alt: link.text ?? "screenshot", 
@@ -221,8 +246,15 @@ export async function captureAndAttachScreenshots(
         lns.splice(insertAt, 0, "", imgMd, "");
         updated = lns.join("\n");
         lastInsertedLine = insertAt + 1; // image line index
+        console.log("screenshots:markdown_inserted", { url: link.url, insertLine: insertAt, articleId });
       }
-    } catch {
+    } catch (screenshotError) {
+      console.error("screenshots:failed_individual", { 
+        url: link.url, 
+        error: screenshotError, 
+        articleId, 
+        projectId 
+      });
       screenshots[link.url] = {
         imageUrl: "",
         alt: link.text ?? "screenshot",
@@ -230,6 +262,14 @@ export async function captureAndAttachScreenshots(
       };
     }
   }
+
+  console.log("screenshots:completed", { 
+    totalCandidates: candidates.length,
+    successfulScreenshots: Object.values(screenshots).filter(s => s.status === 200).length,
+    failedScreenshots: Object.values(screenshots).filter(s => s.status !== 200).length,
+    articleId,
+    projectId
+  });
 
   return { updatedMarkdown: updated, screenshots };
 }
