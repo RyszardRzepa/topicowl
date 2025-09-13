@@ -8,6 +8,7 @@ import { generateText, generateObject } from "ai";
 import { z } from "zod";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
+import { getModel } from "../ai-models";
 
 // Re-export types from the API route
 export interface ValidateRequest {
@@ -51,7 +52,11 @@ export async function performValidateLogic(
   }
 
   const { text: rawValidationText } = await generateText({
-    model: google(MODELS.GEMINI_2_5_FLASH),
+    model: await getModel(
+      "google",
+      MODELS.GEMINI_2_5_FLASH,
+      "research-service",
+    ),
     providerOptions: {
       google: {
         thinkingConfig: {
@@ -71,7 +76,7 @@ export async function performValidateLogic(
 
   // Then extract structured data from validation text - only claims that are not valid or partially true
   const { object } = await generateObject({
-    model: google(MODELS.GEMINI_2_5_FLASH),
+    model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "validation-service"),
     schema: validationResponseSchema,
     prompt: `
       Extract structured validation data from the following fact-checking results.

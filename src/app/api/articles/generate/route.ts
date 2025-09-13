@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { auth } from "@clerk/nextjs/server";
-import type { ApiResponse } from "@/types";
+import type { ApiResponse, StructureTemplate } from "@/types";
 import { logServerError } from "@/lib/posthog-server";
 import {
   validateAndSetupGeneration,
@@ -15,6 +15,7 @@ export const maxDuration = 800;
 export interface ArticleGenerationRequest {
   articleId: string;
   forceRegenerate?: boolean;
+  lockedOutline?: StructureTemplate;
 }
 
 export async function POST(req: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as ArticleGenerationRequest;
-    const { articleId, forceRegenerate } = body;
+    const { articleId, forceRegenerate, lockedOutline } = body;
 
     const context = await validateAndSetupGeneration(
       userId,

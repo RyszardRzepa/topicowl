@@ -1,5 +1,10 @@
 import { db } from "@/server/db";
-import { articles, articleGeneration, users, projects } from "@/server/db/schema";
+import {
+  articles,
+  articleGeneration,
+  users,
+  projects,
+} from "@/server/db/schema";
 import { eq, and, desc, ne } from "drizzle-orm";
 import type { VideoEmbed } from "@/types";
 
@@ -19,10 +24,16 @@ import type { ValidateResponse } from "@/lib/services/validation-service";
 import { performGenericUpdate } from "@/lib/services/update-service";
 import { performImageSelectionLogic } from "@/lib/services/image-selection-service";
 
+import { generateStructuredOutline } from "@/lib/services/outline-generator-service";
 import { runSeoAudit } from "@/lib/services/seo-audit-service";
-import { passesQualityGates } from "@/lib/services/quality-gates";
+import {
+  passesQualityGates,
+  passesChecklist,
+} from "@/lib/services/quality-gates";
+import type { SeoChecklist } from "@/types";
 import { performSeoRemediation } from "@/lib/services/seo-remediation-service";
-import { SEO_MAX_REMEDIATION_PASSES } from "@/constants";
+import { captureSpecificScreenshots } from "@/lib/services/screenshot-service";
+import { generateJsonLd } from "@/lib/services/schema-generator-service";
 
 export interface GenerationContext {
   articleId: number;
@@ -30,6 +41,25 @@ export interface GenerationContext {
   article: typeof articles.$inferSelect;
   keywords: string[];
   relatedArticles: string[];
+}
+
+async function mergeArtifacts(
+  generationId: number,
+  fragment: Record<string, unknown>,
+): Promise<void> {
+  const [current] = await db
+    .select({ artifacts: articleGeneration.artifacts })
+    .from(articleGeneration)
+    .where(eq(articleGeneration.id, generationId))
+    .limit(1);
+  const next = { ...(current?.artifacts ?? {}), ...fragment } as Record<
+    string,
+    unknown
+  >;
+  await db
+    .update(articleGeneration)
+    .set({ artifacts: next, updatedAt: new Date(), lastUpdated: new Date() })
+    .where(eq(articleGeneration.id, generationId));
 }
 
 // Attempt to atomically claim an article for generation by flipping its status
@@ -82,7 +112,8 @@ export async function validateAndSetupGeneration(
   const userHasCredits = await hasCredits(userRecord.id);
   if (!userHasCredits) throw new Error("Insufficient credits");
 
-  if (!articleId || isNaN(parseInt(articleId))) throw new Error("Invalid article ID");
+  if (!articleId || isNaN(parseInt(articleId)))
+    throw new Error("Invalid article ID");
   const id = parseInt(articleId);
 
   const [result] = await db
@@ -102,7 +133,8 @@ export async function validateAndSetupGeneration(
   const keywords = Array.isArray(existingArticle.keywords)
     ? (existingArticle.keywords as string[])
     : [];
-  const effectiveKeywords = keywords.length > 0 ? keywords : [existingArticle.title];
+  const effectiveKeywords =
+    keywords.length > 0 ? keywords : [existingArticle.title];
 
   const relatedArticles = await getRelatedArticles(
     existingArticle.projectId,
@@ -205,7 +237,6 @@ async function performResearch(
   title: string,
   keywords: string[],
   generationId: number,
-  userId: string,
   projectId: number,
   notes?: string,
 ): Promise<ResearchResponse> {
@@ -213,17 +244,20 @@ async function performResearch(
   logger.debug("research:start", { title, keywordsCount: keywords.length });
 
   const excludedDomains = await getProjectExcludedDomains(projectId);
-  const researchData = await performResearchDirect({
+  const comprehensiveResearchData = await performResearchDirect({
     title,
     keywords,
     notes,
     excludedDomains,
   });
 
+  // Save the comprehensive research data structure to the database
   await updateGenerationProgress(generationId, "researching", 25, {
-    researchData,
+    researchData: comprehensiveResearchData,
   });
-  return researchData;
+
+  // Return the unified response for backwards compatibility
+  return comprehensiveResearchData.unified;
 }
 
 async function selectCoverImage(
@@ -268,28 +302,54 @@ async function writeArticle(
   relatedArticles: string[],
   videos?: Array<{ title: string; url: string }>,
   notes?: string,
+  outlineMarkdown?: string,
+  sourcesOverride?: Array<{ url: string; title?: string }>,
+  screenshotsForWriter?: Array<{
+    url: string;
+    alt?: string;
+    sectionHeading?: string;
+    placement?: "start" | "middle" | "end";
+  }>,
 ): Promise<WriteResponse> {
-  await updateGenerationProgress(generationId, "writing", 50);
-  logger.debug("writing:start", { title, hasCoverImage: !!coverImageUrl });
-
-  const writeData = await performWriteLogic({
-    researchData: researchData,
+  await updateGenerationProgress(generationId, "writing", 35);
+  logger.debug("ai-first-writing:start", {
     title,
-    keywords,
-    coverImage: coverImageUrl ?? undefined,
-    videos,
-    userId,
-    projectId,
-    relatedArticles,
-    generationId,
-    sources: researchData.sources ?? [],
-    notes: notes ?? undefined,
+    hasCoverImage: !!coverImageUrl,
+    hasOutline: !!outlineMarkdown,
   });
 
-  await updateGenerationProgress(generationId, "quality-control", 60, {
-    draftContent: writeData.content ?? "",
-  });
-  return writeData;
+  try {
+    // Use the simplified write service with the AI-generated outline
+    const writeData = await performWriteLogic({
+      researchData: researchData,
+      title,
+      keywords,
+      coverImage: coverImageUrl ?? undefined,
+      videos,
+      userId,
+      projectId,
+      relatedArticles,
+      generationId,
+      sources:
+        sourcesOverride && sourcesOverride.length > 0
+          ? sourcesOverride
+          : (researchData.sources ?? []),
+      notes: notes ?? undefined,
+      outlineMarkdown, // Pass the markdown outline directly
+      screenshots: screenshotsForWriter,
+    });
+
+    await updateGenerationProgress(generationId, "writing", 60);
+    logger.debug("ai-first-writing:completed");
+
+    return writeData;
+  } catch (error) {
+    logger.error("ai-first-writing:error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      generationId,
+    });
+    throw error;
+  }
 }
 
 async function performQualityControl(
@@ -310,18 +370,14 @@ async function performQualityControl(
 
     const qualityControlData = await performQualityControlLogic({
       articleContent: content,
-      userSettings: {},
+      userSettings: undefined,
       originalPrompt: generationRecord?.writePrompt ?? "",
       userId: userId,
       projectId: projectId,
       generationId: generationId,
     });
 
-    const processingTime = Date.now() - startTime;
-    logger.debug("quality-control:done", {
-      isValid: qualityControlData.isValid,
-      processingTimeMs: processingTime,
-    });
+    logger.debug("quality-control:done");
 
     // Save the report (string or null)
     await updateGenerationProgress(generationId, "quality-control", 70, {
@@ -331,8 +387,14 @@ async function performQualityControl(
     return qualityControlData;
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logger.warn("quality-control:error", { error, processingTimeMs: processingTime });
-    const fallbackResponse: QualityControlResponse = { issues: null, isValid: true };
+    logger.warn("quality-control:error", {
+      error,
+      processingTimeMs: processingTime,
+    });
+    const fallbackResponse: QualityControlResponse = {
+      issues: null,
+      isValid: true,
+    };
     await updateGenerationProgress(generationId, "quality-control", 70, {
       qualityControlReport: null,
     });
@@ -369,31 +431,6 @@ async function validateArticle(
   }
 }
 
-async function updateArticleIfNeeded(
-  content: string,
-  validationText: string,
-  qualityControlIssues: string | null | undefined,
-): Promise<string> {
-  const hasValidationIssues =
-    validationText &&
-    !validationText.includes("No factual issues identified") &&
-    !validationText.toLowerCase().includes("validation skipped");
-  const hasQualityControlIssues = qualityControlIssues !== null && qualityControlIssues !== undefined;
-  if (!hasValidationIssues && !hasQualityControlIssues) {
-    logger.debug("update:skip", { reason: "no issues" });
-    return content;
-  }
-
-  let combinedFeedback = "";
-  if (hasValidationIssues) combinedFeedback += `## Validation Issues\n\n${validationText}\n\n`;
-  if (hasQualityControlIssues)
-    combinedFeedback += `## Quality Control Issues\n\n${qualityControlIssues}\n\n`;
-
-  logger.debug("update:start", { feedbackLength: combinedFeedback.length });
-  const updateResult = await performGenericUpdate({ article: content, validationText: combinedFeedback });
-  return updateResult.updatedContent ?? content;
-}
-
 async function finalizeArticle(
   articleId: number,
   writeData: WriteResponse,
@@ -402,6 +439,7 @@ async function finalizeArticle(
   coverImageAlt: string,
   generationId: number,
   userId: string,
+  publishReady: boolean,
   videos?: VideoEmbed[],
 ): Promise<void> {
   // Ensure intro paragraph exists immediately after H1
@@ -416,7 +454,7 @@ async function finalizeArticle(
     slug?: string;
     metaDescription: string;
     metaKeywords?: string[];
-    status: "wait_for_publish";
+    status: "wait_for_publish" | "scheduled";
     updatedAt: Date;
     coverImageUrl?: string;
     coverImageAlt?: string;
@@ -425,11 +463,12 @@ async function finalizeArticle(
     draft: finalContentWithIntro,
     videos: videos ?? [],
     metaDescription: writeData.metaDescription ?? "",
-    status: "wait_for_publish",
+    status: publishReady ? "wait_for_publish" : "scheduled",
     updatedAt: new Date(),
   };
   if (writeData.slug) updateData.slug = writeData.slug;
-  if (writeData.tags && writeData.tags.length > 0) updateData.metaKeywords = writeData.tags;
+  if (writeData.tags && writeData.tags.length > 0)
+    updateData.metaKeywords = writeData.tags;
   if (coverImageUrl) {
     updateData.coverImageUrl = coverImageUrl;
     updateData.coverImageAlt = coverImageAlt;
@@ -452,10 +491,14 @@ async function finalizeArticle(
   if (writeData.relatedPosts && writeData.relatedPosts.length > 0) {
     generationUpdate.relatedArticles = writeData.relatedPosts;
   }
-  await db.update(articleGeneration).set(generationUpdate).where(eq(articleGeneration.id, generationId));
+  await db
+    .update(articleGeneration)
+    .set(generationUpdate)
+    .where(eq(articleGeneration.id, generationId));
 
   const creditDeducted = await deductCredit(userId);
-  if (!creditDeducted) logger.warn("credits:deduct_failed", { userId, articleId });
+  if (!creditDeducted)
+    logger.warn("credits:deduct_failed", { userId, articleId });
 }
 
 // Ensure exactly one intro paragraph exists between H1 and TL;DR (or first H2 if TL;DR missing)
@@ -473,7 +516,12 @@ function ensureSingleIntro(markdown: string, intro: string): string {
   }
   if (h1Idx === -1) {
     for (let i = 0; i < lines.length - 1; i++) {
-      if (lines[i + 1] && /^=+$/.test(lines[i + 1]!) && lines[i] && lines[i]!.trim().length > 0) {
+      if (
+        lines[i + 1] &&
+        /^=+$/.test(lines[i + 1]!) &&
+        lines[i] &&
+        lines[i]!.trim().length > 0
+      ) {
         h1Idx = i + 1;
         break;
       }
@@ -490,13 +538,20 @@ function ensureSingleIntro(markdown: string, intro: string): string {
   const firstH2Idx = lines.findIndex(
     (l, idx) => idx > h1Idx && /^\s*##\s+/.test(l),
   );
-  const stopIdx = tldrIdx !== -1 ? tldrIdx : firstH2Idx !== -1 ? firstH2Idx : -1;
+  const stopIdx =
+    tldrIdx !== -1 ? tldrIdx : firstH2Idx !== -1 ? firstH2Idx : -1;
 
   const head = lines.slice(0, h1Idx + 1).join("\n");
-  const tail = stopIdx !== -1 ? lines.slice(stopIdx).join("\n") : lines.slice(h1Idx + 1).join("\n");
+  const tail =
+    stopIdx !== -1
+      ? lines.slice(stopIdx).join("\n")
+      : lines.slice(h1Idx + 1).join("\n");
 
   // Rebuild so that between H1 and stopIdx there is exactly one intro paragraph
-  const rebuilt = `${head}\n\n${intro.trim()}\n\n${tail}`.replace(/\n{3,}/g, "\n\n");
+  const rebuilt = `${head}\n\n${intro.trim()}\n\n${tail}`.replace(
+    /\n{3,}/g,
+    "\n\n",
+  );
   return rebuilt;
 }
 
@@ -514,7 +569,10 @@ export async function handleGenerationError(
       .limit(1);
     if (!currentArticle) return;
     if (currentArticle.status === "generating") {
-      await db.update(articles).set({ status: "idea", updatedAt: new Date() }).where(eq(articles.id, articleId));
+      await db
+        .update(articles)
+        .set({ status: "idea", updatedAt: new Date() })
+        .where(eq(articles.id, articleId));
     }
     if (generationId) {
       try {
@@ -523,7 +581,11 @@ export async function handleGenerationError(
           .set({
             status: "failed",
             error: error.message,
-            errorDetails: { timestamp: new Date().toISOString(), articleId, originalStatus: currentArticle.status },
+            errorDetails: {
+              timestamp: new Date().toISOString(),
+              articleId,
+              originalStatus: currentArticle.status,
+            },
             updatedAt: new Date(),
           })
           .where(eq(articleGeneration.id, generationId));
@@ -536,7 +598,9 @@ export async function handleGenerationError(
   }
 }
 
-export async function generateArticle(context: GenerationContext): Promise<void> {
+export async function generateArticle(
+  context: GenerationContext,
+): Promise<void> {
   const { articleId, userId, article, keywords } = context;
   let generationRecord: typeof articleGeneration.$inferSelect | null = null;
 
@@ -544,15 +608,22 @@ export async function generateArticle(context: GenerationContext): Promise<void>
     logger.info("generation:start", { articleId, title: article.title });
 
     generationRecord = await createOrResetArticleGeneration(articleId, userId);
-    await db.update(articles).set({ status: "generating", updatedAt: new Date() }).where(eq(articles.id, articleId));
+    await db
+      .update(articles)
+      .set({ status: "generating", updatedAt: new Date() })
+      .where(eq(articles.id, articleId));
     await db
       .update(articleGeneration)
       .set({ startedAt: new Date(), updatedAt: new Date() })
       .where(eq(articleGeneration.id, generationRecord.id));
 
     // Related articles
-    const existingRelated = Array.isArray(generationRecord.relatedArticles) ? generationRecord.relatedArticles : [];
-    const shouldUpdateRelatedArticles = (context.relatedArticles?.length ?? 0) > 0 && existingRelated.length === 0;
+    const existingRelated = Array.isArray(generationRecord.relatedArticles)
+      ? generationRecord.relatedArticles
+      : [];
+    const shouldUpdateRelatedArticles =
+      (context.relatedArticles?.length ?? 0) > 0 &&
+      existingRelated.length === 0;
     if (shouldUpdateRelatedArticles) {
       await db
         .update(articleGeneration)
@@ -565,12 +636,11 @@ export async function generateArticle(context: GenerationContext): Promise<void>
       article.title,
       keywords,
       generationRecord.id,
-      userId,
       article.projectId,
-      article.notes ?? undefined,
+      article.notes!,
     );
 
-    // Phase 2: Image selection (optional)
+    // Phase 2: Image selection
     const { coverImageUrl, coverImageAlt } = await selectCoverImage(
       articleId,
       generationRecord.id,
@@ -580,7 +650,113 @@ export async function generateArticle(context: GenerationContext): Promise<void>
       article.projectId,
     );
 
-    // Phase 3: Write
+    // Phase 3: Write - AI-First Approach
+    // Get project article structure for outline generation
+    const [projectData] = await db
+      .select({
+        articleStructure: projects.articleStructure,
+        toneOfVoice: projects.toneOfVoice,
+        maxWords: projects.maxWords,
+      })
+      .from(projects)
+      .where(eq(projects.id, article.projectId))
+      .limit(1);
+
+    // Generate AI-driven outline using the simplified approach
+    const outlineResult = await generateStructuredOutline({
+      title: article.title,
+      keywords,
+      researchData: researchData.researchData,
+      projectArticleStructure: projectData?.articleStructure ?? "",
+      userNotes: article.notes ?? undefined,
+      maxWords: 1800,
+      sources: researchData.sources ?? [],
+    });
+
+    // Store outline in artifacts for debugging and transparency
+    await mergeArtifacts(generationRecord.id, {
+      outline: {
+        summary: outlineResult.summary,
+        markdown: outlineResult.outlineMarkdown,
+        approach: "ai-first-structured-generation",
+        generatedAt: new Date().toISOString(),
+      },
+    });
+
+    // Persist AI-decided link plan and screenshot plan for transparency
+    try {
+      await mergeArtifacts(generationRecord.id, {
+        linkPlan: outlineResult.recommendedLinks ?? [],
+        screenshotPlan: outlineResult.screenshotPlan ?? [],
+      });
+    } catch (e) {
+      logger.warn("outline:plan_persist_error", e);
+    }
+
+    logger.debug("outline-generation:completed", {
+      outlineLength: outlineResult.outlineMarkdown.length,
+      summaryLength: outlineResult.summary.length,
+    });
+
+    // Prefer AI-selected links if provided by outline
+    const chosenSources =
+      outlineResult.recommendedLinks &&
+      outlineResult.recommendedLinks.length > 0
+        ? outlineResult.recommendedLinks.map((l) => ({
+            url: l.url,
+            title: l.title,
+          }))
+        : (researchData.sources ?? []);
+
+    // Capture screenshots BEFORE writing so writer can embed them inline
+    let screenshotsForWriter: Array<{
+      url: string;
+      alt?: string;
+      sectionHeading?: string;
+      placement?: "start" | "middle" | "end";
+    }> = [];
+    try {
+      const planRequests = (outlineResult.screenshotPlan ?? []).map((p) => ({
+        url: p.url,
+        title: p.title,
+        sectionHeading: p.sectionHeading,
+        placement: p.placement,
+      }));
+      const useRequests =
+        planRequests.length > 0 ? planRequests.slice(0, 3) : [];
+
+      if (useRequests.length > 0) {
+        const result = await captureSpecificScreenshots({
+          articleId,
+          generationId: generationRecord.id,
+          projectId: article.projectId,
+          screenshotRequests: useRequests,
+        });
+
+        await mergeArtifacts(generationRecord.id, {
+          screenshots: result.screenshots,
+        });
+
+        // Build writer screenshots list with placement data
+        screenshotsForWriter = useRequests
+          .map((req) => {
+            const s = result.screenshots[req.url];
+            return s?.imageUrl && s?.status === 200
+              ? {
+                  url: s.imageUrl,
+                  alt: req.title ?? s.alt,
+                  sectionHeading: req.sectionHeading,
+                  placement: req.placement,
+                }
+              : undefined;
+          })
+          .filter((v): v is NonNullable<typeof v> => v !== undefined);
+      }
+    } catch (e) {
+      logger.warn("screenshots:prewrite_capture_failed", e);
+      screenshotsForWriter = [];
+    }
+
     const writeData = await writeArticle(
       researchData,
       article.title,
@@ -592,6 +768,9 @@ export async function generateArticle(context: GenerationContext): Promise<void>
       context.relatedArticles,
       researchData.videos,
       article.notes ?? undefined,
+      outlineResult.outlineMarkdown,
+      chosenSources,
+      screenshotsForWriter,
     );
 
     // Phase 4: Quality Control
@@ -602,75 +781,89 @@ export async function generateArticle(context: GenerationContext): Promise<void>
       article.projectId,
     );
 
-    // Phase 5: Validation + initial SEO audit in parallel
-    await updateGenerationProgress(generationRecord.id, "validating", 80, { currentPhase: "seo-audit" });
-    const [validationData] = await Promise.all([
-      validateArticle(writeData.content ?? "", generationRecord.id),
-      runSeoAudit({
-        generationId: generationRecord.id,
-        articleId,
-        content: writeData.content ?? "",
-        targetKeywords: keywords,
-        updateArticleScore: false,
-      }),
-    ]);
+    // Phase 5: Validation
+    await updateGenerationProgress(generationRecord.id, "validating", 80, {
+      currentPhase: "validation",
+    });
 
-    // Phase 6: Update content if needed (factual/QC)
-    const finalContent = await updateArticleIfNeeded(
+    const validationData = await validateArticle(
       writeData.content ?? "",
-      validationData.rawValidationText ?? "",
-      qualityControlData.issues,
+      generationRecord.id,
     );
 
-    // Phase 7: SEO remediation loop with re-audit
-    let contentForSeo = finalContent;
-    let passedGates = false;
-    let lastSeoScore = 0;
-    for (let pass = 1; pass <= SEO_MAX_REMEDIATION_PASSES; pass++) {
-      const report = await runSeoAudit({
-        generationId: generationRecord.id,
-        articleId,
-        content: contentForSeo,
-        targetKeywords: keywords,
-        updateArticleScore: false,
-      });
-      lastSeoScore = report.score;
-      const gate = passesQualityGates(report);
-      if (gate.passed) {
-        passedGates = true;
-        break;
-      }
+    // Phase 6: Update content if needed (factual/QC issues only)
+    // Combine validation and quality control issues for content update
+    let combinedIssues = "";
 
+    // Add validation issues
+    const hasValidationIssues =
+      validationData.rawValidationText &&
+      !validationData.rawValidationText.includes(
+        "No factual issues identified",
+      ) &&
+      !validationData.rawValidationText
+        .toLowerCase()
+        .includes("validation skipped");
+    if (hasValidationIssues) {
+      combinedIssues += `## Validation Issues\n\n${validationData.rawValidationText}\n\n`;
+    }
+
+    // Add quality control issues
+    const hasQualityControlIssues =
+      qualityControlData.issues !== null &&
+      qualityControlData.issues !== undefined;
+    if (hasQualityControlIssues) {
+      combinedIssues += `## Quality Control Issues\n\n${qualityControlData.issues}\n\n`;
+    }
+
+    // Update content if there are any issues
+    let finalContent = writeData.content ?? "";
+    if (combinedIssues.trim().length > 0) {
+      logger.debug("update:start", {
+        hasValidationIssues,
+        hasQualityControlIssues,
+        combinedIssuesLength: combinedIssues.length,
+      });
+
+      const updateResult = await performGenericUpdate({
+        article: finalContent,
+        validationText: combinedIssues,
+        settings: {
+          toneOfVoice: projectData?.toneOfVoice ?? undefined,
+          articleStructure: projectData?.articleStructure ?? undefined,
+          maxWords: projectData?.maxWords ?? undefined,
+        },
+      });
+      finalContent = updateResult.updatedContent ?? finalContent;
+    } else {
+      logger.debug("update:skip", { reason: "no issues" });
+    }
+
+    // Phase 7: Single SEO audit → optional one remediation → final audit
+    let contentForSeo = finalContent;
+    const initialReport = await runSeoAudit({
+      generationId: generationRecord.id,
+      articleId,
+      content: contentForSeo,
+      targetKeywords: keywords,
+      updateArticleScore: false,
+    });
+
+    if (!passesQualityGates(initialReport).passed) {
       const remediation = await performSeoRemediation({
         articleMarkdown: contentForSeo,
-        seoReport: report,
-        validationReportJson: validationData ? JSON.stringify(validationData) : undefined,
+        seoReport: initialReport,
+        validationReportJson: validationData
+          ? JSON.stringify(validationData)
+          : undefined,
         targetKeywords: keywords,
       });
-      contentForSeo = remediation.updatedMarkdown || contentForSeo;
+      contentForSeo = remediation.updatedMarkdown ?? contentForSeo;
 
       await updateGenerationProgress(generationRecord.id, "updating", 96, {
         currentPhase: "seo-remediation",
         draftContent: contentForSeo,
       });
-    }
-
-    if (!passedGates) {
-      // Persist the latest SEO score but continue generation.
-      await runSeoAudit({
-        generationId: generationRecord.id,
-        articleId,
-        content: contentForSeo,
-        targetKeywords: keywords,
-        updateArticleScore: true,
-      });
-      logger.warn("generation:seo_gates_not_met", {
-        articleId,
-        generationId: generationRecord.id,
-        lastSeoScore,
-        passesAttempted: SEO_MAX_REMEDIATION_PASSES,
-      });
-      // Do not throw; continue to finalize the article so the user can edit later.
     }
 
     // Final audit and score persistence
@@ -682,6 +875,46 @@ export async function generateArticle(context: GenerationContext): Promise<void>
       updateArticleScore: true,
     });
 
+    // Evaluate checklist-based gates
+    let publishReady = true;
+    try {
+      const [latest] = await db
+        .select({ checklist: articleGeneration.checklist })
+        .from(articleGeneration)
+        .where(eq(articleGeneration.id, generationRecord.id))
+        .limit(1);
+      const checklist = latest?.checklist as SeoChecklist | undefined;
+      if (checklist) {
+        const gate = passesChecklist(checklist, {
+          allowNoImages: false,
+          requireFaq: true,
+          maxBrokenExternalLinks: 0,
+        });
+        publishReady = gate.passed;
+        if (!gate.passed)
+          logger.warn("gates:checklist_failed", { failures: gate.failures });
+      }
+    } catch (e) {
+      logger.warn("gates:checklist_eval_error", e);
+      publishReady = false;
+    }
+
+    // JSON-LD generation and persistence (artifacts + column)
+    try {
+      const schema = await generateJsonLd({ article, markdown: contentForSeo });
+      await db
+        .update(articleGeneration)
+        .set({
+          schemaJson: schema.raw,
+          updatedAt: new Date(),
+          lastUpdated: new Date(),
+        })
+        .where(eq(articleGeneration.id, generationRecord.id));
+      await mergeArtifacts(generationRecord.id, { jsonLd: schema });
+    } catch (e) {
+      logger.warn("schema:generate_failed", e);
+    }
+
     // Finalize
     await finalizeArticle(
       articleId,
@@ -691,6 +924,7 @@ export async function generateArticle(context: GenerationContext): Promise<void>
       coverImageAlt,
       generationRecord.id,
       userId,
+      publishReady,
       researchData.videos,
     );
 

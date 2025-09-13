@@ -137,7 +137,7 @@ export function useWorkflowArticles() {
       articles.filter(
         (a) =>
           a.status === "idea" ||
-          (a.status === "to_generate" && !a.generationScheduledAt),
+          (a.status === "scheduled" && !a.generationScheduledAt),
       ),
     [articles],
   );
@@ -147,7 +147,7 @@ export function useWorkflowArticles() {
       articles.filter(
         (a) =>
           a.status === "generating" ||
-          (a.status === "to_generate" && Boolean(a.generationScheduledAt)) ||
+          (a.status === "scheduled" && Boolean(a.generationScheduledAt)) ||
           Boolean(a.generationError),
       ),
     [articles],

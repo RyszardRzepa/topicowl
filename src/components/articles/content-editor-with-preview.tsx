@@ -206,7 +206,7 @@ export function ContentEditorWithPreview({
   return (
     <Card className="relative pb-20">
       <CardContent className="overflow-visible p-0">
-        <div className="mdx-editor">
+        <div className="mdx-editor w-full max-w-full [&_img]:w-full [&_img]:h-auto [&_img]:object-contain [&_figure]:max-w-full [&_figure]:w-full [&_figure]:overflow-visible">
           {editorError && (
             <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3">
               <p className="text-sm text-yellow-800">
@@ -234,7 +234,7 @@ export function ContentEditorWithPreview({
                 markdown={currentContent}
                 onChange={handleEditorChange}
                 placeholder={placeholder}
-                contentEditableClassName="prose prose-lg max-w-none"
+                contentEditableClassName="prose prose-lg max-w-none break-words [&_img]:w-full [&_img]:h-auto [&_img]:object-contain [&_figure]:max-w-full [&_figure]:w-full [&_figure]:overflow-visible"
               />
             </EditorErrorBoundary>
           )}

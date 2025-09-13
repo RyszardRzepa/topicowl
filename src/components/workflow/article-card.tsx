@@ -198,14 +198,14 @@ export function ArticleCard({
   // Determine what actions are available based on mode and status
   const canEdit =
     mode === "planning" &&
-    (article.status === "idea" || article.status === "to_generate");
+    (article.status === "idea" || article.status === "scheduled");
   const canDelete =
     (mode === "planning" && article.status === "idea") ||
     (mode === "publishing" && article.status === "wait_for_publish");
   const canGenerate =
     mode === "planning" &&
     (article.status === "idea" ||
-      article.status === "to_generate" ||
+      article.status === "scheduled" ||
       (article.status === "generating" && article.generationError));
   const canRetry =
     mode === "planning" &&
@@ -213,11 +213,11 @@ export function ArticleCard({
     article.generationError;
   const canReschedule =
     mode === "generations" &&
-    article.status === "to_generate" &&
+    article.status === "scheduled" &&
     article.generationScheduledAt;
   const canRemoveSchedule =
     mode === "generations" &&
-    article.status === "to_generate" &&
+    article.status === "scheduled" &&
     article.generationScheduledAt;
   const canPublish =
     mode === "publishing" && article.status === "wait_for_publish";

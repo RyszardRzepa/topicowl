@@ -1,0 +1,1 @@
+ALTER TABLE "topicowl"."projects" DROP COLUMN "structure_template";

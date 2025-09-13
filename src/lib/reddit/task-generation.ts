@@ -260,7 +260,7 @@ Return only the ${actionType} text, nothing else. Try to make the ${actionType} 
       : "You write engaging Reddit posts that start valuable discussions and provide genuine insights without being promotional.";
 
     const { object: replyObj } = await generateObject({
-      model: google(MODELS.GEMINI_2_5_PRO),
+      model: google(MODELS.GEMINI_2_5_FLASH),
       schema: ReplyDraftSchema,
       system: systemPrompt,
       prompt: replyPrompt,

@@ -9,7 +9,6 @@ import {
   varchar,
   serial,
   index,
-  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
@@ -130,12 +129,10 @@ export const userCredits = contentbotSchema.table("user_credits", {
     .notNull(),
 });
 
-// Article status enum for kan
+// Article status enum - simplified workflow
 export const articleStatusEnum = contentbotSchema.enum("article_status", [
   "idea",
-  "scheduled",
-  "queued",
-  "to_generate",
+  "scheduled", // replaces "queued" and "to_generate" 
   "generating",
   "wait_for_publish",
   "published",
@@ -186,6 +183,7 @@ export const articles = contentbotSchema.table(
 
     // User-provided notes for AI guidance
     notes: text("notes"),
+    structureOverride: jsonb("structure_override"),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -268,6 +266,7 @@ export const articleGeneration = contentbotSchema.table(
     lastUpdated: timestamp("last_updated", { withTimezone: true }),
 
     outline: jsonb("outline"),
+    artifacts: jsonb("artifacts").default({}).notNull(),
 
     // Phase timestamps
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
@@ -280,6 +279,7 @@ export const articleGeneration = contentbotSchema.table(
     validationReport: jsonb("validation_report").default({}),
     qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
     seoReport: jsonb("seo_report").default({}).notNull(),
+    checklist: jsonb("checklist"),
     writePrompt: text("write_prompt"), // Store the AI prompt used for writing
 
     // Agent-specific fields for meta optimization
@@ -314,7 +314,7 @@ export const articleGeneration = contentbotSchema.table(
     error: text("error"),
     errorDetails: jsonb("error_details"),
 
-    introParagraph: text("intro_paragraph"),
+    // introParagraph removed - use articles.introParagraph as single source of truth
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -332,44 +332,8 @@ export const articleGeneration = contentbotSchema.table(
   }),
 );
 
-// Article Settings table for global configuration
-export const articleSettings = contentbotSchema.table(
-  "article_settings",
-  {
-    id: serial("id").primaryKey(),
-    projectId: integer("project_id")
-      .references(() => projects.id)
-      .notNull(),
-    toneOfVoice: text("tone_of_voice"),
-    articleStructure: text("article_structure"),
-    maxWords: integer("max_words").default(800),
-
-    // Competitor domain exclusion
-    excludedDomains: jsonb("excluded_domains")
-      .default([])
-      .notNull()
-      .$type<string[]>(),
-
-    // Sitemap functionality
-    sitemapUrl: text("sitemap_url"), // User's website sitemap URL (e.g., https://example.com/sitemap.xml)
-
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    // Index on project_id for efficient querying of project's article settings
-    projectIdIdx: index("article_settings_project_id_idx").on(table.projectId),
-    // Unique constraint to ensure only one settings record per project
-    projectIdUnique: unique("article_settings_project_id_unique").on(
-      table.projectId,
-    ),
-  }),
-);
+// Article Settings table removed - settings are now stored directly in projects table
+// This eliminates duplication and provides a single source of truth for project settings
 
 // Reddit posts table for scheduling Reddit posts
 export const redditPosts = contentbotSchema.table(

@@ -8,6 +8,7 @@ import {
   countWords,
   estimateReadingEase,
 } from "@/lib/utils/markdown";
+import type { SeoChecklist, StructureTemplate } from "@/types";
 
 export type IssueSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
@@ -43,7 +44,6 @@ export interface SeoReport {
   score: number; // 0-100
   issues: SeoIssue[];
   metrics: SeoMetrics;
-  rubricVersion: string; // bump if scoring changes
 }
 
 export interface SeoAuditParams {
@@ -191,7 +191,6 @@ export async function runSeoAudit({
     score,
     issues,
     metrics,
-    rubricVersion: "v1.0.0",
   };
 
   // Persist to DB: set currentPhase to seo-audit and save report
@@ -204,6 +203,246 @@ export async function runSeoAudit({
       lastUpdated: new Date(),
     })
     .where(eq(articleGeneration.id, generationId));
+
+  // Compute and persist checklist snapshot for gates/UX
+  try {
+    const h1Text = extractHeadings(content).find((h) => h.level === 1)?.text?.toLowerCase() ?? "";
+    const h1HasPrimary = (targetKeywords ?? []).some((k) => h1Text.includes((k || "").toLowerCase()));
+
+    // Derive broken external link count from artifacts.screenshots statuses when available
+    const [gen] = await db
+      .select({ artifacts: articleGeneration.artifacts, schemaJson: articleGeneration.schemaJson, outline: articleGeneration.outline })
+      .from(articleGeneration)
+      .where(eq(articleGeneration.id, generationId))
+      .limit(1);
+    // Resolve outline template if present
+    let outlineTemplate: StructureTemplate | null = null;
+    try {
+      const raw = gen?.outline
+      if (
+        raw &&
+        typeof raw === "object" &&
+        raw !== null &&
+        "sections" in (raw as Record<string, unknown>) &&
+        Array.isArray((raw as { sections?: unknown }).sections)
+      ) {
+        outlineTemplate = raw as StructureTemplate;
+      }
+    } catch {
+      outlineTemplate = null;
+    }
+
+    // Template-derived expectations
+    const requiresTldr = !!outlineTemplate?.sections.some((s) => s.type === "tldr" && (s.enabled ?? true));
+    const requiresFaq = !!outlineTemplate?.sections.some((s) => s.type === "faq" && (s.enabled ?? true));
+    const tldrSection = outlineTemplate?.sections.find((s) => s.type === "tldr");
+    const faqSection = outlineTemplate?.sections.find((s) => s.type === "faq");
+    const minWordsFromTemplate = (() => {
+      if (!outlineTemplate) return undefined as number | undefined;
+      const mins = outlineTemplate.sections
+        .filter((s) => s.type === "section" && typeof s.minWords === "number")
+        .map((s) => s.minWords)
+        .filter((minWords): minWords is number => minWords !== undefined);
+      if (mins.length === 0) return undefined;
+      return Math.min(...mins);
+    })();
+    const expectedH2Min = (() => {
+      if (!outlineTemplate) return 3;
+      const base = outlineTemplate.sections.filter((s) => s.type === "section" && (s.enabled ?? true)).length;
+      return base + (requiresTldr ? 1 : 0) + (requiresFaq ? 1 : 0);
+    })();
+
+    // Presence checks depend on template: if not required, treat as satisfied
+    const hasTldr = requiresTldr ? /\n##\s*TL;DR\s*\n/i.test(content) : true;
+    const hasFaq = requiresFaq ? /\n##\s*FAQ\s*\n/i.test(content) : true;
+    let brokenExternalLinks = 0;
+    try {
+      const artifacts = gen?.artifacts as Record<string, unknown> | undefined;
+      const shots = artifacts?.screenshots as Record<string, { status?: number } | undefined> | undefined;
+      if (shots && typeof shots === "object") {
+        for (const k of Object.keys(shots)) {
+          const st = shots[k]?.status ?? 200;
+          if (typeof st === "number" && st >= 400) brokenExternalLinks += 1;
+        }
+      }
+    } catch {
+      brokenExternalLinks = 0;
+    }
+
+    // Meta info from articles
+    const [art] = await db
+      .select({ slug: articles.slug, metaDescription: articles.metaDescription })
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .limit(1);
+
+    // JSON-LD presence from schema_json
+    let hasBlogPosting = false;
+    let hasFaqPage = false;
+    try {
+      const raw = gen?.schemaJson ?? null;
+      if (raw) {
+        const parsed = JSON.parse(String(raw)) as unknown;
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        hasBlogPosting = arr.some((obj: unknown) => obj && typeof obj === 'object' && obj !== null && (obj as Record<string, unknown>)["@type"] === "BlogPosting");
+        hasFaqPage = arr.some((obj: unknown) => obj && typeof obj === 'object' && obj !== null && (obj as Record<string, unknown>)["@type"] === "FAQPage");
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    // Section-level checks
+    const tldrCountOk = (() => {
+      if (!requiresTldr) return true;
+      const lines = content.split(/\r?\n/);
+      const idx = lines.findIndex((l) => /^\s*##\s*TL;DR\s*$/i.test(l));
+      if (idx === -1) return false;
+      let count = 0;
+      for (let i = idx + 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (l && /^\s*##\s+/.test(l)) break; // next H2
+        if (l && /^\s*[-*]\s+/.test(l)) count += 1;
+      }
+      const min = tldrSection?.minItems ?? 3;
+      const max = tldrSection?.maxItems ?? 6;
+      return count >= min && count <= max;
+    })();
+
+    const sectionMinWordsOk = (() => {
+      // Gather H2 blocks excluding TL;DR and FAQ
+      const lines = content.split(/\r?\n/);
+      const h2Idxs: { index: number; text: string }[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line && /^\s*##\s+/.test(line)) {
+          const text = line.replace(/^\s*##\s+/, "").trim();
+          if (!/^TL;DR$/i.test(text) && !/^FAQ$/i.test(text) && text.length > 0) {
+            h2Idxs.push({ index: i, text });
+          }
+        }
+      }
+      h2Idxs.push({ index: lines.length, text: "__END__" });
+      const minWords = (minWordsFromTemplate ?? 120); // conservative lower bound fallback
+      for (let i = 0; i < h2Idxs.length - 1; i++) {
+        const h2Idx = h2Idxs[i];
+        const nextH2Idx = h2Idxs[i + 1];
+        if (h2Idx && nextH2Idx) {
+          const start = h2Idx.index + 1;
+          const end = nextH2Idx.index;
+          const block = lines.slice(start, end).join("\n");
+          const words = countWords(block);
+          if (words > 0 && words < minWords) return false;
+        }
+      }
+      return true;
+    })();
+
+    const faqItemsCountOk = (() => {
+      if (!requiresFaq) return true;
+      const lines = content.split(/\r?\n/);
+      const idx = lines.findIndex((l) => /^\s*##\s*FAQ\s*$/i.test(l));
+      if (idx === -1) return false;
+      let count = 0;
+      for (let i = idx + 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (l && /^\s*##\s+/.test(l)) break; // next H2
+        if (l && /^\s*####\s+/.test(l)) count += 1;
+      }
+      const min = faqSection?.minItems ?? 2;
+      const max = faqSection?.maxItems ?? 5;
+      return count >= min && count <= max;
+    })();
+
+    // Image spread check: ensure image lines aren't consecutive
+    const imgLineIdxs = (() => {
+      const lns = content.split(/\r?\n/);
+      const out: number[] = [];
+      for (let i = 0; i < lns.length; i++) {
+        const line = lns[i];
+        if (line && /^\s*!\[[^\]]*\]\([^\)]+\)/.test(line)) out.push(i);
+      }
+      return out;
+    })();
+
+    const spreadOut = (() => {
+      if (imgLineIdxs.length <= 1) return true;
+      for (let i = 1; i < imgLineIdxs.length; i++) {
+        const current = imgLineIdxs[i];
+        const previous = imgLineIdxs[i - 1];
+        if (current !== undefined && previous !== undefined && current - previous <= 1) {
+          return false; // no back-to-back
+        }
+      }
+      return true;
+    })();
+
+    const totalLinks = metrics.links.total ?? (metrics.links.external + metrics.links.internal);
+    const requireImagesWhenLinks = totalLinks > 0 ? metrics.images.total > 0 : true;
+
+    const checklist: SeoChecklist = {
+      structure: {
+        singleH1: metrics.headings.hasSingleH1,
+        h2CountOk: outlineTemplate ? metrics.headings.h2Count >= expectedH2Min : metrics.headings.h2Count >= 3 && metrics.headings.h2Count <= 6,
+        hasTldr,
+        hasFaq,
+        tldrCountOk,
+        sectionMinWordsOk,
+        faqItemsCountOk,
+      },
+      links: {
+        internalMin: metrics.links.internal >= 2,
+        externalMin: metrics.links.external >= 3,
+        brokenExternalLinks,
+      },
+      citations: {
+        citedSourcesMin: /\n##\s*Sources\s*\n/.test(content) || /\[S\d+\]/.test(content),
+      },
+      quotes: {
+        hasExpertQuote: />\s*[^\n]+/.test(content),
+      },
+      stats: {
+        hasTwoDataPoints: (() => {
+          const matches = content.match(/\b\d{2,}\s?(%|percent|\$|€|USD)|\b\d{4,}\b/gi) ?? [];
+          return matches.length >= 2;
+        })(),
+      },
+      images: {
+        allHaveAlt: metrics.images.total === metrics.images.withAlt,
+        requiredWhenLinks: requireImagesWhenLinks,
+        maxThree: metrics.images.total <= 3,
+        spreadOut,
+      },
+      keywords: { h1HasPrimary },
+      meta: {
+        metaDescriptionOk: !!(art?.metaDescription && art.metaDescription.length > 0 && art.metaDescription.length <= 160),
+        slugPresent: !!(art?.slug && art.slug.length > 0),
+      },
+      jsonLd: { blogPosting: hasBlogPosting, faqPage: hasFaqPage },
+    };
+
+    // Persist checklist
+    // 1) Update column
+    await db
+      .update(articleGeneration)
+      .set({ checklist: checklist, updatedAt: new Date(), lastUpdated: new Date() })
+      .where(eq(articleGeneration.id, generationId));
+
+    // 2) Merge into artifacts
+    try {
+      const [cur] = await db
+        .select({ artifacts: articleGeneration.artifacts })
+        .from(articleGeneration)
+        .where(eq(articleGeneration.id, generationId))
+        .limit(1);
+      const merged = { ...(cur?.artifacts ?? {}), checklist } as Record<string, unknown>;
+      await db
+        .update(articleGeneration)
+        .set({ artifacts: merged, updatedAt: new Date(), lastUpdated: new Date() })
+        .where(eq(articleGeneration.id, generationId));
+    } catch {}
+  } catch {
+    // checklist best-effort; continue
+  }
 
   if (updateArticleScore) {
     await db

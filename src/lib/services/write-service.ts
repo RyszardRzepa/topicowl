@@ -3,10 +3,9 @@
  * Extracted from the write API route to allow direct function calls
  */
 
-import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
-import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
+import { getModel } from "@/lib/ai-models";
 import { db } from "@/server/db";
 import { projects, users, articleGeneration } from "@/server/db/schema";
 import type { ResearchResponse } from "@/lib/services/research-service";
@@ -14,8 +13,9 @@ import { blogPostSchema } from "@/types";
 import { eq } from "drizzle-orm";
 import { getUserExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
+import write from "@/prompts/write";
+import { logger } from "../utils/logger";
 
-// Re-export types from the API route
 interface WriteRequest {
   researchData: ResearchResponse;
   title: string;
@@ -27,11 +27,18 @@ interface WriteRequest {
     title: string;
     url: string;
   }>;
+  screenshots?: Array<{
+    url: string;
+    alt?: string;
+    sectionHeading?: string;
+    placement?: "start" | "middle" | "end";
+  }>;
   sources?: Array<{
     url: string;
     title?: string;
   }>;
   notes?: string;
+  outlineMarkdown?: string; // AI-generated markdown outline
   userId: string;
   projectId: number;
   relatedArticles?: string[];
@@ -69,12 +76,7 @@ export interface WriteResponse {
 export async function performWriteLogic(
   request: WriteRequest,
 ): Promise<WriteResponse> {
-  console.log("[WRITE_SERVICE] Starting write process", {
-    title: request.title,
-    keywordsCount: request.keywords.length,
-    hasResearchData: !!request.researchData,
-    hasVideos: !!request.videos && request.videos.length > 0,
-  });
+  logger.info("[WRITE_SERVICE] Starting write process");
 
   if (
     !request.researchData ||
@@ -87,33 +89,24 @@ export async function performWriteLogic(
 
   // Retrieve user's excluded domains
   let excludedDomains: string[] = [];
-  try {
+  console.log(
+    `[WRITE_SERVICE] Retrieving excluded domains for user: ${request.userId}`,
+  );
+
+  // Verify user exists in database using Clerk user ID
+  const [userRecord] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, request.userId))
+    .limit(1);
+
+  if (userRecord) {
+    excludedDomains = await getUserExcludedDomains(userRecord.id);
     console.log(
-      `[WRITE_SERVICE] Retrieving excluded domains for user: ${request.userId}`,
+      `[WRITE_SERVICE] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
     );
-
-    // Verify user exists in database using Clerk user ID
-    const [userRecord] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.id, request.userId))
-      .limit(1);
-
-    if (userRecord) {
-      excludedDomains = await getUserExcludedDomains(userRecord.id);
-      console.log(
-        `[WRITE_SERVICE] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
-      );
-    } else {
-      console.log(`[WRITE_SERVICE] User not found for ID: ${request.userId}`);
-    }
-  } catch (error) {
-    console.error(
-      `[WRITE_SERVICE] Error retrieving excluded domains for user ${request.userId}:`,
-      error,
-    );
-    // Return empty array on error to avoid blocking article generation
-    excludedDomains = [];
+  } else {
+    console.log(`[WRITE_SERVICE] User not found for ID: ${request.userId}`);
   }
 
   // Filter sources to remove excluded domains
@@ -172,178 +165,108 @@ export async function performWriteLogic(
   }
 
   // Fetch project settings
-  let settingsData;
-  try {
-    const [projectSettings] = await db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, request.projectId))
-      .limit(1);
+  const [projectSettings] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, request.projectId))
+    .limit(1);
 
-    settingsData = projectSettings
-      ? {
-          toneOfVoice: projectSettings.toneOfVoice ?? "",
-          articleStructure: projectSettings.articleStructure ?? "",
-          maxWords: projectSettings.maxWords ?? 1800,
-          notes: request.notes ?? "",
-          includeVideo: projectSettings.includeVideo ?? true,
-          includeTables: projectSettings.includeTables ?? true,
-          languageCode: (projectSettings as { language?: string }).language ?? "en",
-        }
-      : {
-          toneOfVoice: "",
-          articleStructure: "",
-          maxWords: 1800,
-          notes: request.notes ?? "",
-          includeVideo: true,
-          includeTables: true,
-          languageCode: "en",
-        };
-    console.log("[WRITE_SERVICE] Project settings loaded", {
-      settingsFound: !!projectSettings,
-      includeVideo: settingsData.includeVideo,
-      includeTables: settingsData.includeTables,
-    });
-  } catch (error) {
-    // If there's an error loading project settings, use defaults
-    console.log(
-      "[WRITE_SERVICE] Using default project settings due to database error",
-      error,
-    );
-    settingsData = {
-      toneOfVoice: "",
-      articleStructure: "",
-      maxWords: 1800,
-      notes: request.notes ?? "",
-      includeVideo: true,
-      includeTables: true,
-    };
-  } // Check if videos are available for enhanced generation
-  const hasVideos = request.videos && request.videos.length > 0;
+  const settingsData = {
+    toneOfVoice: projectSettings?.toneOfVoice ?? "",
+    articleStructure: projectSettings?.articleStructure ?? "",
+    maxWords: projectSettings?.maxWords ?? 1800,
+    notes: request.notes ?? "",
+    includeVideo: projectSettings?.includeVideo ?? true,
+    includeTables: projectSettings?.includeTables ?? true,
+    languageCode: (projectSettings as { language?: string })?.language ?? "en",
+  };
 
-  let articleObject;
-  // Create excluded domains prompt instruction
-  const excludedDomainsInstruction =
-    excludedDomains && excludedDomains.length > 0
-      ? `\n\nIMPORTANT: Do not include any links to the following excluded domains in your response: ${excludedDomains.join(", ")}. If any of these domains appear in your source material, do not reference them or include links to them in the generated content.`
-      : "";
+  const outlineText = request.outlineMarkdown;
 
-  // Build the complete prompt
-  const writePrompt =
-    prompts.writing(
-      {
-        title: request.title,
-        researchData: request.researchData.researchData,
-        videos: request.videos,
-        sources: filteredSources ?? [],
-        notes: request.notes,
-      },
-      settingsData,
-      request.relatedArticles ?? [],
-      excludedDomains,
-    ) + excludedDomainsInstruction;
+  // Build the complete prompt for storage (system + user)
+  const systemPrompt = write.system();
+  const userPrompt = write.user(
+    {
+      title: request.title,
+      researchData: request.researchData.researchData,
+      videos: request.videos,
+      screenshots: request.screenshots,
+      sources: filteredSources,
+      notes: request.notes,
+    },
+    settingsData,
+    request.relatedArticles,
+    excludedDomains,
+    outlineText,
+  );
 
-  // Save the write prompt to the database if generationId is provided
+  // Save the complete prompt if generationId is provided
   if (request.generationId) {
-    try {
-      await db
-        .update(articleGeneration)
-        .set({
-          writePrompt: writePrompt,
-          updatedAt: new Date(),
-        })
-        .where(eq(articleGeneration.id, request.generationId));
-
-      console.log("[WRITE_SERVICE] Write prompt saved to database", {
-        generationId: request.generationId,
-        promptLength: writePrompt.length,
-      });
-    } catch (error) {
-      console.error("[WRITE_SERVICE] Failed to save write prompt to database", {
-        generationId: request.generationId,
-        error: error instanceof Error ? error.message : error,
-      });
-      // Continue with generation even if prompt saving fails
-    }
+    await db
+      .update(articleGeneration)
+      .set({
+        writePrompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(articleGeneration.id, request.generationId));
   }
 
-  try {
-    const result = await generateObject({
-      model: anthropic(MODELS.CLAUDE_SONET_4),
-      schema: blogPostSchema,
-      prompt: writePrompt,
-      maxRetries: 2,
-      maxOutputTokens: 10000,
-    });
-    articleObject = result.object;
-  } catch (aiError) {
-    console.error("[WRITE_SERVICE] AI content generation failed", {
-      error:
-        aiError instanceof Error
-          ? {
-              name: aiError.name,
-              message: aiError.message,
-              stack: aiError.stack?.slice(0, 500),
-            }
-          : aiError,
-      model: MODELS.CLAUDE_SONET_4,
-      hasVideos,
-      schemaUsed: "blogPostSchema",
-      requiredFields: Object.keys(blogPostSchema.shape),
-    });
-    throw aiError;
-  }
-
-  // Log video usage for analytics
-  if (hasVideos) {
-    const videoCount =
-      "videos" in articleObject
-        ? ((articleObject as { videos?: Array<unknown> }).videos?.length ?? 0)
-        : 0;
-    console.log(
-      `[WRITE_SERVICE] Article generated with ${videoCount} videos embedded`,
-    );
-  }
-
-  // Validate the AI response has required fields
-  if (!articleObject.content || !articleObject.title || !articleObject.slug) {
-    console.error("[WRITE_SERVICE] AI generated invalid article object", {
-      hasContent: !!articleObject.content,
-      hasTitle: !!articleObject.title,
-      hasSlug: !!articleObject.slug,
-      articleObject: JSON.stringify(articleObject).slice(0, 500) + "...",
-    });
-    throw new Error(
-      "AI generated article is missing required fields (content, title, or slug)",
-    );
-  }
+  const result = await generateObject({
+    model: await getModel(
+      "anthropic",
+      MODELS.CLAUDE_SONNET_4,
+      "write-service",
+    ),
+    schema: blogPostSchema,
+    messages: [
+      {
+        role: "system",
+        content: write.system(),
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+      {
+        role: "user",
+        content: write.user(
+          {
+            title: request.title,
+            researchData: request.researchData.researchData,
+            videos: request.videos,
+            screenshots: request.screenshots,
+            sources: filteredSources,
+            notes: request.notes,
+          },
+          settingsData,
+          request.relatedArticles,
+          excludedDomains,
+          outlineText,
+        ),
+      },
+    ],
+    maxRetries: 2,
+    maxOutputTokens: 10000,
+  });
+  const articleObject = result.object;
 
   // Get related articles - use pre-generated ones if provided, otherwise generate them
   let finalRelatedArticles: string[] = request.relatedArticles ?? [];
 
   if (finalRelatedArticles.length === 0) {
-    try {
-      finalRelatedArticles = await getRelatedArticles(
-        request.projectId,
-        request.title,
-        request.keywords,
-        3,
-      );
-      console.log(
-        "[WRITE_SERVICE] Generated related articles (project-scoped)",
-        {
-          projectId: request.projectId,
-          count: finalRelatedArticles.length,
-          articles: finalRelatedArticles,
-        },
-      );
-    } catch (error) {
-      console.error(
-        "[WRITE_SERVICE] Error generating related articles:",
-        error,
-      );
-      // Continue with empty array if related articles generation fails
-    }
+    finalRelatedArticles = await getRelatedArticles(
+      request.projectId,
+      request.title,
+      request.keywords,
+      3,
+    );
+    console.log(
+      "[WRITE_SERVICE] Generated related articles (project-scoped)",
+      {
+        projectId: request.projectId,
+        count: finalRelatedArticles.length,
+        articles: finalRelatedArticles,
+      },
+    );
   } else {
     console.log("[WRITE_SERVICE] Using pre-generated related articles", {
       count: finalRelatedArticles.length,
@@ -358,12 +281,7 @@ export async function performWriteLogic(
     ...(request.coverImage && { coverImage: request.coverImage }),
   } as WriteResponse;
 
-  console.log("[WRITE_SERVICE] Article write completed successfully", {
-    finalContentLength: responseObject.content.length,
-    hasMetaDescription: !!responseObject.metaDescription,
-    tagsCount: responseObject.tags?.length ?? 0,
-    relatedPostsCount: responseObject.relatedPosts?.length ?? 0,
-  });
+  console.log("[WRITE_SERVICE] Article write completed successfully");
 
   return responseObject;
 }

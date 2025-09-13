@@ -8,7 +8,7 @@ import { generateText } from "ai";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { db } from "@/server/db";
-import { articleGeneration, articleSettings, users } from "@/server/db/schema";
+import { articleGeneration, users, projects } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 // Re-export types from the API route
@@ -44,21 +44,26 @@ async function getUserSettings(userId: string, projectId: number) {
       return {};
     }
 
-    // Fetch article settings for the project
-    const [settings] = await db
-      .select()
-      .from(articleSettings)
-      .where(eq(articleSettings.projectId, projectId))
+    // Fetch project-level settings (canonical source)
+    const [project] = await db
+      .select({
+        toneOfVoice: projects.toneOfVoice,
+        articleStructure: projects.articleStructure,
+        maxWords: projects.maxWords,
+        userId: projects.userId,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId))
       .limit(1);
 
-    if (!settings) {
+    if (!project || project.userId !== userRecord.id) {
       return {};
     }
 
     return {
-      toneOfVoice: settings.toneOfVoice ?? undefined,
-      articleStructure: settings.articleStructure ?? undefined,
-      maxWords: settings.maxWords ?? undefined,
+      toneOfVoice: project.toneOfVoice ?? undefined,
+      articleStructure: project.articleStructure ?? undefined,
+      maxWords: project.maxWords ?? undefined,
     };
   } catch (error) {
     console.error(
@@ -129,11 +134,7 @@ async function saveQualityControlReport(
 export async function performQualityControlLogic(
   request: QualityControlRequest,
 ): Promise<QualityControlResponse> {
-  console.log("[QUALITY_CONTROL_SERVICE] Starting quality control", {
-    contentLength: request.articleContent.length,
-    hasOriginalPrompt: !!request.originalPrompt,
-    generationId: request.generationId,
-  });
+  console.log("[QUALITY_CONTROL_SERVICE] Starting quality control");
 
   const { articleContent, originalPrompt, generationId, userId } = request;
 

@@ -64,7 +64,7 @@ export function PlanningHub({
     (a) => a.status === "idea" && !a.generationScheduledAt,
   );
   const readyArticles = articles.filter(
-    (a) => a.status === "to_generate" && !a.generationScheduledAt,
+    (a) => a.status === "scheduled" && !a.generationScheduledAt,
   );
   const generatingArticles = articles.filter((a) => a.status === "generating");
 

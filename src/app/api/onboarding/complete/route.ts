@@ -5,6 +5,7 @@ import { users, projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { Project } from "@/types";
+import { prompts } from "@/prompts";
 
 const projectDataSchema = z.object({
   name: z.string().min(1),
@@ -109,7 +110,10 @@ export async function POST(request: Request): Promise<Response> {
           targetAudience: projectData.targetAudience,
           keywords: projectData.keywords,
           toneOfVoice: projectData.toneOfVoice,
-          articleStructure: projectData.articleStructure,
+          articleStructure:
+            projectData.articleStructure && projectData.articleStructure.trim().length > 0
+              ? projectData.articleStructure
+              : prompts.articleStructure(),
           maxWords: projectData.maxWords,
           includeVideo: projectData.includeVideo,
           includeTables: projectData.includeTables,
@@ -147,7 +151,10 @@ export async function POST(request: Request): Promise<Response> {
           targetAudience: projectData.targetAudience,
           keywords: projectData.keywords,
           toneOfVoice: projectData.toneOfVoice,
-          articleStructure: projectData.articleStructure,
+          articleStructure:
+            projectData.articleStructure && projectData.articleStructure.trim().length > 0
+              ? projectData.articleStructure
+              : prompts.articleStructure(),
           maxWords: projectData.maxWords,
           includeVideo: projectData.includeVideo,
           includeTables: projectData.includeTables,

@@ -626,6 +626,36 @@ export function ArticleSettingsForm({
                 >
                   Article Structure
                 </label>
+                <div className="mb-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={saving || isLoading}
+                    onClick={() =>
+                      handleInputChange("articleStructure", prompts.articleStructure())
+                    }
+                  >
+                    Use Template 1 (Default)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={saving || isLoading}
+                    onClick={() =>
+                      handleInputChange(
+                        "articleStructure",
+                        (prompts as { articleStructureTemplate2?: () => string })
+                          .articleStructureTemplate2
+                          ? (prompts as { articleStructureTemplate2: () => string }).articleStructureTemplate2()
+                          : prompts.articleStructure()
+                      )
+                    }
+                  >
+                    Use Template 2
+                  </Button>
+                </div>
                 <Textarea
                   id="articleStructure"
                   rows={6}

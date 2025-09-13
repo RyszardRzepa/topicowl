@@ -5,9 +5,9 @@
 
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
-import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { blogPostSchema } from "@/types";
+import update from "@/prompts/update";
 
 // Re-export types from the API route
 interface ValidationIssue {
@@ -52,33 +52,8 @@ export async function performUpdateLogic(
     maxWords?: number;
   },
 ): Promise<UpdateResponse> {
-  console.log("[UPDATE_SERVICE] Starting update", {
-    contentLength: article.length,
-    validationTextLength: validationText.length,
-  });
-
-  if (!article || !validationText) {
-    throw new Error("Article and validationText are required");
-  }
-
-  const model = anthropic(MODELS.CLAUDE_SONET_4);
-
-  const { object: articleObject } = await generateObject({
-    model,
-    schema: blogPostSchema,
-    prompt: prompts.update(article, validationText, settings),
-    maxOutputTokens: 20000,
-  });
-
-  const response: UpdateResponse = {
-    updatedContent: articleObject.content,
-  };
-
-  console.log("[UPDATE_SERVICE] Update completed", {
-    updatedContentLength: response.updatedContent.length,
-  });
-
-  return response;
+  // Single update path
+  return performGenericUpdate({ article, validationText, settings });
 }
 
 /**
@@ -93,37 +68,8 @@ export async function performQualityControlUpdate(
     maxWords?: number;
   },
 ): Promise<UpdateResponse> {
-  console.log("[UPDATE_SERVICE] Starting quality control update", {
-    contentLength: article.length,
-    issuesLength: qualityControlIssues.length,
-  });
-
-  if (!article || !qualityControlIssues) {
-    throw new Error("Article and qualityControlIssues are required");
-  }
-
-  const model = anthropic(MODELS.CLAUDE_SONET_4);
-
-  const { object: articleObject } = await generateObject({
-    model,
-    schema: blogPostSchema,
-    prompt: prompts.updateWithQualityControl(
-      article,
-      qualityControlIssues,
-      settings,
-    ),
-    maxOutputTokens: 20000,
-  });
-
-  const response: UpdateResponse = {
-    updatedContent: articleObject.content,
-  };
-
-  console.log("[UPDATE_SERVICE] Quality control update completed", {
-    updatedContentLength: response.updatedContent.length,
-  });
-
-  return response;
+  // Single update path using QC issues as the driver
+  return performGenericUpdate({ article, qualityControlIssues, settings });
 }
 
 /**
@@ -154,49 +100,39 @@ export async function performGenericUpdate(
     );
   }
 
-  let response: UpdateResponse;
+  const model = anthropic(MODELS.CLAUDE_SONNET_4);
 
-  // Handle quality control issues with specialized logic
-  if (request.qualityControlIssues) {
-    response = await performQualityControlUpdate(
-      request.article,
-      request.qualityControlIssues,
-      request.settings,
-    );
+  let correctionsOrValidationText: Correction[] | string;
+  if (request.validationText) {
+    correctionsOrValidationText = request.validationText;
+  } else if (request.qualityControlIssues) {
+    correctionsOrValidationText = request.qualityControlIssues;
   } else {
-    // Handle other types of updates (existing logic)
-    const model = anthropic(MODELS.CLAUDE_SONET_4);
-
-    let correctionsOrValidationText: Correction[] | string;
-
-    if (request.validationText) {
-      correctionsOrValidationText = request.validationText;
-    } else {
-      // Convert validationIssues to corrections format if provided
-      correctionsOrValidationText =
-        request.corrections ??
-        request.validationIssues?.map((issue) => ({
-          fact: issue.fact,
-          issue: issue.issue,
-          correction: issue.correction,
-        })) ??
-        [];
-    }
-
-    const { object: articleObject } = await generateObject({
-      model,
-      schema: blogPostSchema,
-      prompt: prompts.update(
-        request.article,
-        correctionsOrValidationText,
-        request.settings,
-      ),
-    });
-
-    response = {
-      updatedContent: articleObject.content,
-    };
+    correctionsOrValidationText =
+      request.corrections ??
+      (request.validationIssues
+        ? request.validationIssues.map((issue) => ({
+            fact: issue.fact,
+            issue: issue.issue,
+            correction: issue.correction,
+          }))
+        : []);
   }
+
+  const { object: articleObject } = await generateObject({
+    model,
+    schema: blogPostSchema,
+    prompt: update(
+      request.article,
+      correctionsOrValidationText,
+      request.settings,
+    ),
+    maxOutputTokens: 20000,
+  });
+
+  const response: UpdateResponse = {
+    updatedContent: articleObject.content,
+  };
 
   console.log("[UPDATE_SERVICE] Generic update completed", {
     updatedContentLength: response.updatedContent.length,

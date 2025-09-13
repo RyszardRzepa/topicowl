@@ -214,20 +214,6 @@ export async function GET(req: NextRequest) {
         color: "#6366F1", // indigo
       },
       {
-        id: "queued",
-        title: "Generation Queue",
-        status: "queued",
-        articles: [],
-        color: "#F97316", // orange
-      },
-      {
-        id: "to_generate",
-        title: "To Generate",
-        status: "to_generate",
-        articles: [],
-        color: "#F59E0B", // yellow
-      },
-      {
         id: "generating",
         title: "Generating",
         status: "generating",
