@@ -6,7 +6,8 @@ function extractFaq(markdown: string): Array<{ q: string; a: string }> {
   if (idx === -1) return [];
   const end = (() => {
     for (let i = idx + 1; i < lines.length; i++) {
-      if (/^\s*##\s+/.test(lines[i])) return i;
+      const line = lines[i];
+      if (line && /^\s*##\s+/.test(line)) return i;
     }
     return lines.length;
   })();
@@ -16,7 +17,7 @@ function extractFaq(markdown: string): Array<{ q: string; a: string }> {
   let currentA: string[] = [];
   for (const l of block) {
     const qm = /^\s*####\s+(.+)$/.exec(l);
-    if (qm) {
+    if (qm?.[1]) {
       if (currentQ) qas.push({ q: currentQ, a: currentA.join("\n").trim() });
       currentQ = qm[1].trim();
       currentA = [];
@@ -41,8 +42,8 @@ export async function generateJsonLd({
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: article.title,
-    description: article.metaDescription || article.description || "",
-    datePublished: article.publishedAt || new Date().toISOString(),
+    description: article.metaDescription ?? article.description ?? "",
+    datePublished: article.publishedAt ?? new Date().toISOString(),
     wordCount: markdown.split(/\s+/).length,
   };
 

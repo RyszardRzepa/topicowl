@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Run generation in background (Vercel waitUntil)
-    waitUntil(generateArticle(context, lockedOutline));
+    waitUntil(generateArticle(context));
 
     return NextResponse.json({
       success: true,

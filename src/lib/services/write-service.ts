@@ -4,18 +4,18 @@
  */
 
 import { generateObject } from "ai";
-import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { getModel } from "@/lib/ai-models";
 import { db } from "@/server/db";
 import { projects, users, articleGeneration } from "@/server/db/schema";
 import type { ResearchResponse } from "@/lib/services/research-service";
-import { blogPostSchema, type StructureTemplate } from "@/types";
+import { blogPostSchema } from "@/types";
 import { eq } from "drizzle-orm";
 import { getUserExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
+import write from "@/prompts/write";
+import { logger } from "../utils/logger";
 
-// Re-export types from the API route
 interface WriteRequest {
   researchData: ResearchResponse;
   title: string;
@@ -27,12 +27,18 @@ interface WriteRequest {
     title: string;
     url: string;
   }>;
+  screenshots?: Array<{
+    url: string;
+    alt?: string;
+    sectionHeading?: string;
+    placement?: "start" | "middle" | "end";
+  }>;
   sources?: Array<{
     url: string;
     title?: string;
   }>;
   notes?: string;
-  outline?: StructureTemplate,
+  outlineMarkdown?: string; // AI-generated markdown outline
   userId: string;
   projectId: number;
   relatedArticles?: string[];
@@ -70,12 +76,7 @@ export interface WriteResponse {
 export async function performWriteLogic(
   request: WriteRequest,
 ): Promise<WriteResponse> {
-  console.log("[WRITE_SERVICE] Starting write process", {
-    title: request.title,
-    keywordsCount: request.keywords.length,
-    hasResearchData: !!request.researchData,
-    hasVideos: !!request.videos && request.videos.length > 0,
-  });
+  logger.info("[WRITE_SERVICE] Starting write process");
 
   if (
     !request.researchData ||
@@ -88,33 +89,24 @@ export async function performWriteLogic(
 
   // Retrieve user's excluded domains
   let excludedDomains: string[] = [];
-  try {
+  console.log(
+    `[WRITE_SERVICE] Retrieving excluded domains for user: ${request.userId}`,
+  );
+
+  // Verify user exists in database using Clerk user ID
+  const [userRecord] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, request.userId))
+    .limit(1);
+
+  if (userRecord) {
+    excludedDomains = await getUserExcludedDomains(userRecord.id);
     console.log(
-      `[WRITE_SERVICE] Retrieving excluded domains for user: ${request.userId}`,
+      `[WRITE_SERVICE] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
     );
-
-    // Verify user exists in database using Clerk user ID
-    const [userRecord] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.id, request.userId))
-      .limit(1);
-
-    if (userRecord) {
-      excludedDomains = await getUserExcludedDomains(userRecord.id);
-      console.log(
-        `[WRITE_SERVICE] Found ${excludedDomains.length} excluded domains for user ${userRecord.id}`,
-      );
-    } else {
-      console.log(`[WRITE_SERVICE] User not found for ID: ${request.userId}`);
-    }
-  } catch (error) {
-    console.error(
-      `[WRITE_SERVICE] Error retrieving excluded domains for user ${request.userId}:`,
-      error,
-    );
-    // Return empty array on error to avoid blocking article generation
-    excludedDomains = [];
+  } else {
+    console.log(`[WRITE_SERVICE] User not found for ID: ${request.userId}`);
   }
 
   // Filter sources to remove excluded domains
@@ -173,241 +165,108 @@ export async function performWriteLogic(
   }
 
   // Fetch project settings
-  let settingsData;
-  try {
-    const [projectSettings] = await db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, request.projectId))
-      .limit(1);
+  const [projectSettings] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, request.projectId))
+    .limit(1);
 
-    settingsData = projectSettings
-      ? {
-          toneOfVoice: projectSettings.toneOfVoice ?? "",
-          articleStructure: projectSettings.articleStructure ?? "",
-          maxWords: projectSettings.maxWords ?? 1800,
-          notes: request.notes ?? "",
-          includeVideo: projectSettings.includeVideo ?? true,
-          includeTables: projectSettings.includeTables ?? true,
-          languageCode: (projectSettings as { language?: string }).language ?? "en",
-        }
-      : {
-          toneOfVoice: "",
-          articleStructure: "",
-          maxWords: 1800,
-          notes: request.notes ?? "",
-          includeVideo: true,
-          includeTables: true,
-          languageCode: "en",
-        };
-    console.log("[WRITE_SERVICE] Project settings loaded", {
-      settingsFound: !!projectSettings,
-      includeVideo: settingsData.includeVideo,
-      includeTables: settingsData.includeTables,
-    });
-  } catch (error) {
-    // If there's an error loading project settings, use defaults
-    console.log(
-      "[WRITE_SERVICE] Using default project settings due to database error",
-      error,
-    );
-    settingsData = {
-      toneOfVoice: "",
-      articleStructure: "",
-      maxWords: 1800,
-      notes: request.notes ?? "",
-      includeVideo: true,
-      includeTables: true,
-    };
-  } // Check if videos are available for enhanced generation
-  const hasVideos = request.videos && request.videos.length > 0;
+  const settingsData = {
+    toneOfVoice: projectSettings?.toneOfVoice ?? "",
+    articleStructure: projectSettings?.articleStructure ?? "",
+    maxWords: projectSettings?.maxWords ?? 1800,
+    notes: request.notes ?? "",
+    includeVideo: projectSettings?.includeVideo ?? true,
+    includeTables: projectSettings?.includeTables ?? true,
+    languageCode: (projectSettings as { language?: string })?.language ?? "en",
+  };
 
-  let articleObject;
-  // Create excluded domains prompt instruction
-  const excludedDomainsInstruction =
-    excludedDomains && excludedDomains.length > 0
-      ? `\n\nIMPORTANT: Do not include any links to the following excluded domains in your response: ${excludedDomains.join(", ")}. If any of these domains appear in your source material, do not reference them or include links to them in the generated content.`
-      : "";
+  const outlineText = request.outlineMarkdown;
 
-  // Build the complete prompt - prioritize project articleStructure over request outline
-  const outlineText = (() => {
-    // 1. First priority: Project's articleStructure setting
-    if (settingsData.articleStructure && settingsData.articleStructure.trim().length > 0) {
-      return settingsData.articleStructure.trim();
-    }
-    
-    // 2. Fallback to request.outline if no project structure
-    const ol = request.outline as unknown;
-    if (!ol) return undefined;
-    if (typeof ol === "string") return ol;
-    // Narrow an outline object that contains a sections array
-    interface OutlineSection {
-      type: string;
-      id?: string;
-      label?: string;
-      minItems?: number;
-      maxItems?: number;
-      minWords?: number;
-      enabled?: boolean;
-    }
-    interface OutlineWithSections { sections: OutlineSection[] }
-    if (
-      typeof ol === "object" &&
-      ol !== null &&
-      "sections" in (ol as Record<string, unknown>) &&
-      Array.isArray((ol as { sections?: unknown }).sections)
-    ) {
-      const sections = (ol as OutlineWithSections).sections;
-      const parts: string[] = [];
-      for (const s of sections) {
-        const label = s.label ?? s.id;
-        switch (s.type) {
-          case "title":
-            parts.push("H1 title");
-            break;
-          case "intro":
-            parts.push("Intro paragraph (immediately after H1)");
-            break;
-          case "tldr":
-            parts.push(`TL;DR (${s.minItems ?? 3}-${s.maxItems ?? 5} bullets)`);
-            break;
-          case "section":
-            parts.push(`Section: ${label}${s.minWords ? ` (≥${s.minWords} words)` : ""}`);
-            break;
-          case "video":
-            if (s.enabled !== false) parts.push("Video (optional)");
-            break;
-          case "table":
-            if (s.enabled !== false) parts.push("Table (optional)");
-            break;
-          case "faq":
-            parts.push(`FAQ (${s.minItems ?? 2}-${s.maxItems ?? 5} Q/A)`);
-            break;
-          default:
-            parts.push(label ?? "");
-        }
-      }
-      return parts.map((p) => `- ${p}`).join("\n");
-    }
-    return undefined;
-  })();
+  // Build the complete prompt for storage (system + user)
+  const systemPrompt = write.system();
+  const userPrompt = write.user(
+    {
+      title: request.title,
+      researchData: request.researchData.researchData,
+      videos: request.videos,
+      screenshots: request.screenshots,
+      sources: filteredSources,
+      notes: request.notes,
+    },
+    settingsData,
+    request.relatedArticles,
+    excludedDomains,
+    outlineText,
+  );
 
-  const writePrompt =
-    prompts.writing(
-      {
-        title: request.title,
-        researchData: request.researchData.researchData,
-        videos: request.videos,
-        sources: filteredSources ?? [],
-        notes: request.notes,
-      },
-      settingsData,
-      request.relatedArticles ?? [],
-      excludedDomains,
-      outlineText,
-    ) + excludedDomainsInstruction;
-
-  // Save the write prompt to the database if generationId is provided
+  // Save the complete prompt if generationId is provided
   if (request.generationId) {
-    try {
-      await db
-        .update(articleGeneration)
-        .set({
-          writePrompt: writePrompt,
-          updatedAt: new Date(),
-        })
-        .where(eq(articleGeneration.id, request.generationId));
-
-      console.log("[WRITE_SERVICE] Write prompt saved to database", {
-        generationId: request.generationId,
-        promptLength: writePrompt.length,
-      });
-    } catch (error) {
-      console.error("[WRITE_SERVICE] Failed to save write prompt to database", {
-        generationId: request.generationId,
-        error: error instanceof Error ? error.message : error,
-      });
-      // Continue with generation even if prompt saving fails
-    }
+    await db
+      .update(articleGeneration)
+      .set({
+        writePrompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(articleGeneration.id, request.generationId));
   }
 
-  try {
-    const result = await generateObject({
-      model: await getModel('anthropic', MODELS.CLAUDE_SONNET_4, "write-service"),
-      schema: blogPostSchema,
-      prompt: writePrompt,
-      maxRetries: 2,
-      maxOutputTokens: 10000,
-    });
-    articleObject = result.object;
-  } catch (aiError) {
-    console.error("[WRITE_SERVICE] AI content generation failed", {
-      error:
-        aiError instanceof Error
-          ? {
-              name: aiError.name,
-              message: aiError.message,
-              stack: aiError.stack?.slice(0, 500),
-            }
-          : aiError,
-      model: MODELS.CLAUDE_SONNET_4,
-      hasVideos,
-      schemaUsed: "blogPostSchema",
-      requiredFields: Object.keys(blogPostSchema.shape),
-    });
-    throw aiError;
-  }
-
-  // Log video usage for analytics
-  if (hasVideos) {
-    const videoCount =
-      "videos" in articleObject
-        ? ((articleObject as { videos?: Array<unknown> }).videos?.length ?? 0)
-        : 0;
-    console.log(
-      `[WRITE_SERVICE] Article generated with ${videoCount} videos embedded`,
-    );
-  }
-
-  // Validate the AI response has required fields
-  if (!articleObject.content || !articleObject.title || !articleObject.slug) {
-    console.error("[WRITE_SERVICE] AI generated invalid article object", {
-      hasContent: !!articleObject.content,
-      hasTitle: !!articleObject.title,
-      hasSlug: !!articleObject.slug,
-      articleObject: JSON.stringify(articleObject).slice(0, 500) + "...",
-    });
-    throw new Error(
-      "AI generated article is missing required fields (content, title, or slug)",
-    );
-  }
+  const result = await generateObject({
+    model: await getModel(
+      "anthropic",
+      MODELS.CLAUDE_SONNET_4,
+      "write-service",
+    ),
+    schema: blogPostSchema,
+    messages: [
+      {
+        role: "system",
+        content: write.system(),
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+      {
+        role: "user",
+        content: write.user(
+          {
+            title: request.title,
+            researchData: request.researchData.researchData,
+            videos: request.videos,
+            screenshots: request.screenshots,
+            sources: filteredSources,
+            notes: request.notes,
+          },
+          settingsData,
+          request.relatedArticles,
+          excludedDomains,
+          outlineText,
+        ),
+      },
+    ],
+    maxRetries: 2,
+    maxOutputTokens: 10000,
+  });
+  const articleObject = result.object;
 
   // Get related articles - use pre-generated ones if provided, otherwise generate them
   let finalRelatedArticles: string[] = request.relatedArticles ?? [];
 
   if (finalRelatedArticles.length === 0) {
-    try {
-      finalRelatedArticles = await getRelatedArticles(
-        request.projectId,
-        request.title,
-        request.keywords,
-        3,
-      );
-      console.log(
-        "[WRITE_SERVICE] Generated related articles (project-scoped)",
-        {
-          projectId: request.projectId,
-          count: finalRelatedArticles.length,
-          articles: finalRelatedArticles,
-        },
-      );
-    } catch (error) {
-      console.error(
-        "[WRITE_SERVICE] Error generating related articles:",
-        error,
-      );
-      // Continue with empty array if related articles generation fails
-    }
+    finalRelatedArticles = await getRelatedArticles(
+      request.projectId,
+      request.title,
+      request.keywords,
+      3,
+    );
+    console.log(
+      "[WRITE_SERVICE] Generated related articles (project-scoped)",
+      {
+        projectId: request.projectId,
+        count: finalRelatedArticles.length,
+        articles: finalRelatedArticles,
+      },
+    );
   } else {
     console.log("[WRITE_SERVICE] Using pre-generated related articles", {
       count: finalRelatedArticles.length,
@@ -422,104 +281,7 @@ export async function performWriteLogic(
     ...(request.coverImage && { coverImage: request.coverImage }),
   } as WriteResponse;
 
-  console.log("[WRITE_SERVICE] Article write completed successfully", {
-    finalContentLength: responseObject.content.length,
-    hasMetaDescription: !!responseObject.metaDescription,
-    tagsCount: responseObject.tags?.length ?? 0,
-    relatedPostsCount: responseObject.relatedPosts?.length ?? 0,
-  });
+  console.log("[WRITE_SERVICE] Article write completed successfully");
 
   return responseObject;
-}
-
-export async function regenerateSection(request: {
-  articleMarkdown: string;
-  sectionHeading: string; // exact H2 heading text to replace
-  researchData: ResearchResponse;
-  title: string;
-  keywords: string[];
-  notes?: string;
-  userId: string;
-  projectId: number;
-  generationId?: number;
-}): Promise<{ updatedContent: string; updatedSectionHeading: string }>
-{
-  const { generateText } = await import("ai");
-  if (!request.articleMarkdown || !request.sectionHeading) {
-    throw new Error("Both articleMarkdown and sectionHeading are required");
-  }
-
-  // Locate the section boundaries (H2 blocks)
-  const lines = request.articleMarkdown.split(/\r?\n/);
-  let start = -1;
-  let end = lines.length;
-  for (let i = 0; i < lines.length; i++) {
-    const lineI = lines[i];
-    if (lineI && /^##\s+/.test(lineI)) {
-      const heading = lineI.replace(/^##\s+/, "").trim();
-      if (start === -1 && heading.toLowerCase() === request.sectionHeading.trim().toLowerCase()) {
-        start = i;
-        // find end at next H2 or EOF
-        for (let j = i + 1; j < lines.length; j++) {
-          const lineJ = lines[j];
-            if (lineJ && /^##\s+/.test(lineJ)) { end = j; break; }
-        }
-        break;
-      }
-    }
-  }
-  if (start === -1) {
-    throw new Error(`Section heading not found: ${request.sectionHeading}`);
-  }
-
-  const originalSection = lines.slice(start, end).join("\n");
-  const prompt = `
-You will rewrite ONLY the following Markdown section of an article, preserving the H2 heading but improving clarity, examples, and SEO within constraints. Do not touch any other parts of the article.
-
-<section_heading>${request.sectionHeading}</section_heading>
-
-<original_section>
-${originalSection}
-</original_section>
-
-<research>
-${request.researchData.researchData}
-</research>
-
-<rules>
-- Return ONLY the updated section block, starting with the same '## ${request.sectionHeading}' line.
-- Keep links grounded in research; do not introduce new external domains beyond those present in the article context.
-- Keep length comparable; improve readability and add specific, grounded examples if available.
-- Do not modify other sections, title, TL;DR, or FAQ.
-</rules>
-`;
-
-  const { text: updatedSection } = await generateText({
-    model: await getModel('anthropic', MODELS.CLAUDE_SONNET_4, "write-service"),
-    prompt,
-    maxRetries: 2,
-    maxOutputTokens: 2000,
-  });
-
-  if (!updatedSection?.trim().startsWith(`## ${request.sectionHeading}`)) {
-    throw new Error("Model did not return a section starting with the target heading");
-  }
-
-  const next = [
-    ...lines.slice(0, start),
-    ...updatedSection.split(/\r?\n/),
-    ...lines.slice(end),
-  ].join("\n");
-
-  // Optionally persist the prompt for debugging
-  if (request.generationId) {
-    try {
-      await db
-        .update(articleGeneration)
-        .set({ updatedAt: new Date() })
-        .where(eq(articleGeneration.id, request.generationId));
-    } catch {}
-  }
-
-  return { updatedContent: next, updatedSectionHeading: request.sectionHeading };
 }

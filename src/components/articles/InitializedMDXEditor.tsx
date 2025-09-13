@@ -11,6 +11,7 @@ import {
   linkDialogPlugin,
   tablePlugin,
   codeBlockPlugin,
+  imagePlugin,
   toolbarPlugin,
   directivesPlugin,
   type DirectiveDescriptor,
@@ -156,6 +157,8 @@ export default function InitializedMDXEditor({
           },
         }),
         linkDialogPlugin(),
+        // Enable native image rendering so images don't break parsing
+        imagePlugin(),
         tablePlugin(),
         codeBlockPlugin({ defaultCodeBlockLanguage: "txt" }),
         directivesPlugin({

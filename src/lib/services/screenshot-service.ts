@@ -1,275 +1,311 @@
-import Cloudflare from "cloudflare";
-import { extractLinks } from "@/lib/utils/markdown";
 import { put } from "@vercel/blob";
 import crypto from "node:crypto";
 import { env } from "@/env";
-import { db } from "@/server/db";
-import { projects } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { logger } from "@/lib/utils/logger";
+
+interface ScreenshotRequest {
+  url: string;
+  title?: string;
+  sectionHeading?: string;
+  placement?: "start" | "middle" | "end";
+}
 
 interface ScreenshotParams {
   articleId: number;
   generationId: number;
-  markdown: string;
   projectId: number;
+  screenshotRequests: ScreenshotRequest[];
 }
 
 interface ScreenshotResult {
-  updatedMarkdown: string;
-  screenshots: Record<
-    string,
-    { imageUrl: string; alt: string; status: number }
-  >;
+  screenshots: Record<string, { imageUrl: string; alt: string; status: number }>;
+  usageStats: {
+    requestsAttempted: number;
+    requestsSuccessful: number;
+    requestsFailed: number;
+    estimatedUsageMinutes: number;
+  };
 }
 
-export async function captureAndAttachScreenshots(
+// Rate limiting for Cloudflare Browser Rendering API
+const CLOUDFLARE_LIMITS = {
+  MAX_REQUESTS_PER_MINUTE: 6,
+  MAX_CONCURRENT_BROWSERS: 3,
+  MAX_DAILY_USAGE_MINUTES: 10,
+  BROWSER_TIMEOUT_SECONDS: 60,
+  ESTIMATED_SECONDS_PER_REQUEST: 15, // Conservative estimate
+} as const;
+
+// Simple in-memory rate limiting (in production, use Redis or database)
+let requestsThisMinute = 0;
+let minuteWindowStart = Date.now();
+
+// Simple per-process global throttle to keep <= 6 RPM
+let nextAllowedAtMs = 0;
+async function waitForGlobalRateLimitSlot(): Promise<void> {
+  const perRequestInterval = Math.ceil(
+    60000 / CLOUDFLARE_LIMITS.MAX_REQUESTS_PER_MINUTE,
+  ); // ~10s for 6 RPM
+  const now = Date.now();
+  const delayMs = Math.max(0, nextAllowedAtMs - now);
+  if (delayMs > 0) {
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  nextAllowedAtMs = Date.now() + perRequestInterval;
+}
+
+/**
+ * Simplified screenshot service that takes specific URLs and captures them
+ * Decision-making about which URLs to capture is handled upstream
+ */
+export async function captureSpecificScreenshots(
   params: ScreenshotParams,
 ): Promise<ScreenshotResult> {
-  const { markdown, articleId, projectId } = params;
+  const { screenshotRequests, articleId, projectId, generationId } = params;
 
-  // Validate Cloudflare credentials before proceeding
+  logger.debug("[SCREENSHOT_SERVICE] Starting targeted screenshot capture", {
+    requestsCount: screenshotRequests.length,
+    articleId,
+    projectId,
+    generationId
+  });
+
+  // Validate environment
   if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
-    console.warn("screenshots:config_missing", {
+    logger.warn("[SCREENSHOT_SERVICE] Cloudflare credentials missing", {
       hasToken: !!env.CF_API_TOKEN,
       hasAccountId: !!env.CF_ACCOUNT_ID,
       articleId,
       projectId
     });
-    return { updatedMarkdown: markdown, screenshots: {} };
+    return { 
+      screenshots: {}, 
+      usageStats: { requestsAttempted: 0, requestsSuccessful: 0, requestsFailed: 0, estimatedUsageMinutes: 0 }
+    };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-  const client = new Cloudflare({
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    apiToken: env.CF_API_TOKEN,
-  });
-
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const accountId = env.CF_ACCOUNT_ID;
-
-  // Base URL for resolving internal links (if any)
-  let baseOrigin: string | undefined;
-  try {
-    const [proj] = await db
-      .select({ websiteUrl: projects.websiteUrl })
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .limit(1);
-    if (proj?.websiteUrl) {
-      const u = new URL(proj.websiteUrl);
-      baseOrigin = `${u.protocol}//${u.host}`;
-    }
-  } catch {}
-
-  const linksRaw = extractLinks(markdown);
-  // Normalize URLs: for internal links, resolve against project base; skip unsupported schemes
-  const links = linksRaw
-    .map((l) => {
-      try {
-        if (!l.internal) {
-          // Already absolute or protocol-relative
-          const url = new URL(l.url.startsWith("//") ? `https:${l.url}` : l.url);
-          if (url.protocol === "http:" || url.protocol === "https:") return { ...l, absUrl: url.toString() };
-          return null;
-        }
-        // Internal: need base
-        if (!baseOrigin) return null;
-        const url = new URL(l.url.startsWith("/") ? l.url : `/${l.url}`, baseOrigin);
-        if (url.protocol === "http:" || url.protocol === "https:") return { ...l, absUrl: url.toString() };
-        return null;
-      } catch {
-        return null;
-      }
-    })
-    .filter((link): link is ReturnType<typeof extractLinks>[number] & { absUrl: string } => link !== null);
-  const screenshots: Record<
-    string,
-    { imageUrl: string; alt: string; status: number }
-  > = {};
-  let updated = markdown;
-
-  // Choose up to 3 links spread across the article by line position
-  const withLine = links.map((l) => {
-    if (typeof l.line === "number") return l;
-    // Try to approximate line by searching for ")]" + url in the text
-    const idx = updated.indexOf(l.url);
-    if (idx >= 0) {
-      const upto = updated.slice(0, idx);
-      const approxLine = (upto.match(/\n/g) ?? []).length + 1;
-      return { ...l, line: approxLine };
-    }
-    return { ...l, line: Number.MAX_SAFE_INTEGER };
-  });
-
-  withLine.sort((a, b) => (a.line! - b.line!));
-
-  let candidates: typeof withLine = withLine;
-  if (withLine.length > 3) {
-    const n = withLine.length;
-    const picks = Array.from(new Set([0, Math.floor(n / 2), n - 1]));
-    if (picks.length < 3 && n >= 3) {
-      // Alternative spread
-      const alt = [0, Math.floor(n / 3), Math.floor((2 * n) / 3), n - 1];
-      for (const i of alt) if (!picks.includes(i) && picks.length < 3) picks.push(i);
-    }
-    candidates = picks.map((i) => withLine[i]).filter((item): item is typeof withLine[number] => item !== undefined);
+  if (screenshotRequests.length === 0) {
+    logger.warn("[SCREENSHOT_SERVICE] No screenshot requests provided", {
+      articleId,
+      projectId
+    });
+    return { 
+      screenshots: {}, 
+      usageStats: { requestsAttempted: 0, requestsSuccessful: 0, requestsFailed: 0, estimatedUsageMinutes: 0 }
+    };
   }
 
-  let lastInsertedLine = -10;
-  for (const link of candidates) {
-    console.log("screenshots:attempting", { url: link.absUrl, articleId, projectId });
-    
+  // Check rate limits before proceeding
+  const rateLimitCheck = checkRateLimits(screenshotRequests.length);
+  if (!rateLimitCheck.allowed) {
+    logger.warn("[SCREENSHOT_SERVICE] Rate limit exceeded", {
+      reason: rateLimitCheck.reason,
+      requestsRemaining: rateLimitCheck.requestsRemaining,
+      articleId
+    });
+    return { 
+      screenshots: {}, 
+      usageStats: { requestsAttempted: screenshotRequests.length, requestsSuccessful: 0, requestsFailed: screenshotRequests.length, estimatedUsageMinutes: 0 }
+    };
+  }
+
+  const screenshots: Record<string, { imageUrl: string; alt: string; status: number }> = {};
+  let successfulRequests = 0;
+  let failedRequests = 0;
+
+  // Process each screenshot request
+  for (const request of screenshotRequests.slice(0, 3)) { // Limit to 3 max
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      const res = await client.browserRendering.screenshot.create({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        account_id: accountId,
-        url: link.absUrl,
-        screenshotOptions: { omitBackground: true },
+      logger.debug("[SCREENSHOT_SERVICE] Capturing screenshot", {
+        url: request.url,
+        articleId
       });
 
-      console.log("screenshots:api_response", { 
-        url: link.absUrl, 
-        hasResult: !!res,
-        responseType: typeof res,
-        articleId,
-        projectId
-      });
-
-      // According to Cloudflare documentation, the screenshot response should contain the binary data
-      // The response might be a direct binary response or a JSON with base64 data
-      const screenshot = res as unknown as ArrayBuffer | { result?: { screenshot?: string } } | string;
+      const result = await captureScreenshot(request, articleId, projectId);
+      screenshots[request.url] = result;
       
-      let buffer: Buffer | null = null;
-      let status = 200;
-
-      if (screenshot instanceof ArrayBuffer) {
-        // Direct binary response
-        buffer = Buffer.from(screenshot);
-      } else if (typeof screenshot === "string") {
-        // Base64 string response
-        if (screenshot.startsWith("data:")) {
-          const base64 = screenshot.substring(screenshot.indexOf(",") + 1);
-          buffer = Buffer.from(base64, "base64");
-        } else if (/^[A-Za-z0-9+/=]+$/.test(screenshot)) {
-          // Heuristic: looks like base64
-          try {
-            buffer = Buffer.from(screenshot, "base64");
-          } catch {
-            buffer = null;
-          }
-        }
-      } else if (typeof screenshot === "object" && screenshot !== null) {
-        // JSON response with nested result
-        const resultData = screenshot as { result?: { screenshot?: string }; status?: number };
-        const raw = resultData.result?.screenshot;
-        status = resultData.status ?? 200;
-        
-        if (raw) {
-          if (raw.startsWith("data:")) {
-            const base64 = raw.substring(raw.indexOf(",") + 1);
-            buffer = Buffer.from(base64, "base64");
-          } else if (/^[A-Za-z0-9+/=]+$/.test(raw)) {
-            // Heuristic: looks like base64
-            try {
-              buffer = Buffer.from(raw, "base64");
-            } catch {
-              buffer = null;
-            }
-          }
-        }
-      }
-
-      if (!buffer) {
-        console.warn("screenshots:no_buffer", { url: link.url, responseType: typeof screenshot, articleId });
-        screenshots[link.url] = {
-          imageUrl: "",
-          alt: link.text ?? "screenshot",
-          status: 500,
-        };
-        continue;
-      }
-
-      // Upload to Vercel Blob (public access)
-      const hash = crypto
-        .createHash("sha256")
-        .update(link.url)
-        .digest("hex")
-        .slice(0, 16);
-      const key = `article_screenshots/${projectId}/${articleId}/${hash}.png`;
-      
-      let blob: { url: string };
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-        blob = await put(key, buffer, {
-          access: "public",
-          contentType: "image/png",
+      if (result.status === 200) {
+        successfulRequests++;
+        logger.debug("[SCREENSHOT_SERVICE] Screenshot captured successfully", {
+          url: request.url,
+          imageUrl: result.imageUrl,
+          articleId
         });
-        console.log("screenshots:upload_success", { url: link.url, blobUrl: blob.url, articleId });
-      } catch (uploadError) {
-        console.error("screenshots:upload_failed", { url: link.url, error: uploadError, articleId });
-        screenshots[link.url] = {
-          imageUrl: "",
-          alt: link.text ?? "screenshot", 
-          status: 500,
-        };
-        continue;
+      } else {
+        failedRequests++;
       }
 
-      const imageUrl = blob.url;
-      screenshots[link.url] = {
-        imageUrl,
-        alt: link.text ?? "screenshot",
-        status,
-      };
+      // Update rate limiting counter
+      updateRateLimit();
 
-      // Insert image markdown below the paragraph containing the link when possible
-      if (typeof link.line === "number" && link.line > 0) {
-        const lns = updated.split(/\r?\n/);
-        const idx = Math.min(link.line, lns.length) - 1;
-        const screenshotData = screenshots[link.url];
-        const alt = screenshotData?.alt ?? "screenshot";
-        const imgMd = `![${alt}](${imageUrl})`;
-
-        // Find end of the paragraph block starting at or after the link line
-        let insertAt = idx + 1;
-        while (insertAt < lns.length && (lns[insertAt]?.trim().length ?? 0) > 0) insertAt++;
-
-        // Ensure images are not back-to-back: if too close to previous image, push down a bit
-        if (insertAt <= lastInsertedLine + 2) {
-          let k = insertAt;
-          while (k < lns.length && (lns[k]?.trim().length ?? 0) > 0) k++;
-          insertAt = Math.min(k + 1, lns.length);
-        }
-
-        // Insert a blank line then image
-        lns.splice(insertAt, 0, "", imgMd, "");
-        updated = lns.join("\n");
-        lastInsertedLine = insertAt + 1; // image line index
-        console.log("screenshots:markdown_inserted", { url: link.url, insertLine: insertAt, articleId });
+      // Small delay between requests to avoid hitting rate limits
+      if (screenshotRequests.length > 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
       }
-    } catch (screenshotError) {
-      console.error("screenshots:failed_individual", { 
-        url: link.url, 
-        error: screenshotError, 
-        articleId, 
-        projectId 
+
+    } catch (error) {
+      failedRequests++;
+      logger.error("[SCREENSHOT_SERVICE] Screenshot capture failed", {
+        url: request.url,
+        error: error instanceof Error ? error.message : "Unknown error",
+        articleId
       });
-      screenshots[link.url] = {
+      
+      screenshots[request.url] = {
         imageUrl: "",
-        alt: link.text ?? "screenshot",
-        status: 500,
+        alt: request.title ?? "screenshot",
+        status: 500
       };
     }
   }
 
-  console.log("screenshots:completed", { 
-    totalCandidates: candidates.length,
-    successfulScreenshots: Object.values(screenshots).filter(s => s.status === 200).length,
-    failedScreenshots: Object.values(screenshots).filter(s => s.status !== 200).length,
-    articleId,
-    projectId
+  const estimatedUsageMinutes = (screenshotRequests.length * CLOUDFLARE_LIMITS.ESTIMATED_SECONDS_PER_REQUEST) / 60;
+
+  logger.debug("[SCREENSHOT_SERVICE] Screenshot capture completed", {
+    requestsAttempted: screenshotRequests.length,
+    requestsSuccessful: successfulRequests,
+    requestsFailed: failedRequests,
+    estimatedUsageMinutes,
+    articleId
   });
 
-  return { updatedMarkdown: updated, screenshots };
+  return {
+    screenshots,
+    usageStats: {
+      requestsAttempted: screenshotRequests.length,
+      requestsSuccessful: successfulRequests,
+      requestsFailed: failedRequests,
+      estimatedUsageMinutes
+    }
+  };
 }
+
+/**
+ * Captures a single screenshot and uploads to Vercel Blob
+ */
+async function captureScreenshot(
+  request: ScreenshotRequest,
+  articleId: number,
+  projectId: number
+): Promise<{ imageUrl: string; alt: string; status: number }> {
+  // Respect global throttle (<= 6 requests/min per process)
+  await waitForGlobalRateLimitSlot();
+
+  // Single retry on 429 with backoff
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/browser-rendering/screenshot`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.CF_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: request.url,
+          screenshotOptions: {
+            fullPage: false,
+            omitBackground: true,
+          },
+          viewport: {
+            width: 1280,
+            height: 720,
+          },
+          gotoOptions: {
+            waitUntil: "networkidle0",
+            timeout: 45000,
+          },
+        }),
+      },
+    );
+
+    if (response.status === 429 && attempt < 1) {
+      const retryAfterHeader = response.headers.get("retry-after");
+      const retryMs = Number.isNaN(parseInt(retryAfterHeader ?? "", 10))
+        ? 10000
+        : parseInt(retryAfterHeader ?? "0", 10) * 1000;
+      await new Promise((r) => setTimeout(r, Math.max(retryMs, 10000)));
+      // Also update throttle window after a 429 to space subsequent calls
+      await waitForGlobalRateLimitSlot();
+      continue;
+    }
+    break;
+  }
+
+  if (!response?.ok) {
+    const status = response?.status ?? 0;
+    const statusText = response?.statusText ?? "Unknown";
+    throw new Error(`Screenshot API failed: ${status} ${statusText}`);
+  }
+
+  // Upload to Vercel Blob
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const hash = crypto
+    .createHash("sha256")
+    .update(request.url)
+    .digest("hex")
+    .slice(0, 16);
+  const key = `article_screenshots/${projectId}/${articleId}/${hash}.png`;
+  
+  const blob = await put(key, buffer, {
+    access: "public",
+    contentType: "image/png",
+  });
+
+  return {
+    imageUrl: blob.url,
+    alt: request.title ?? "screenshot",
+    status: response.status
+  };
+}
+
+/**
+ * Checks if we can make the requested number of screenshot calls
+ */
+function checkRateLimits(requestCount: number): { 
+  allowed: boolean; 
+  reason?: string; 
+  requestsRemaining: number;
+} {
+  const now = Date.now();
+  
+  // Reset minute window if needed
+  if (now - minuteWindowStart > 60000) {
+    requestsThisMinute = 0;
+    minuteWindowStart = now;
+  }
+
+  // Check requests per minute limit
+  if (requestsThisMinute + requestCount > CLOUDFLARE_LIMITS.MAX_REQUESTS_PER_MINUTE) {
+    return {
+      allowed: false,
+      reason: "Requests per minute limit exceeded",
+      requestsRemaining: CLOUDFLARE_LIMITS.MAX_REQUESTS_PER_MINUTE - requestsThisMinute
+    };
+  }
+
+  // Check daily usage estimate (rough approximation)
+  const estimatedUsageMinutes = (requestCount * CLOUDFLARE_LIMITS.ESTIMATED_SECONDS_PER_REQUEST) / 60;
+  if (estimatedUsageMinutes > CLOUDFLARE_LIMITS.MAX_DAILY_USAGE_MINUTES) {
+    return {
+      allowed: false,
+      reason: "Daily usage limit would be exceeded",
+      requestsRemaining: 0
+    };
+  }
+
+  return {
+    allowed: true,
+    requestsRemaining: CLOUDFLARE_LIMITS.MAX_REQUESTS_PER_MINUTE - requestsThisMinute
+  };
+}
+
+/**
+ * Updates rate limiting counters
+ */
+function updateRateLimit(): void {
+  requestsThisMinute++;
+}
+
+// Legacy injection function removed — images are embedded by the writer model only

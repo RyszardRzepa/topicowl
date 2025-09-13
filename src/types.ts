@@ -444,3 +444,196 @@ export interface DashboardState {
   loading: boolean;
   error: string | null;
 }
+
+// Multi-Agent Article Generation Types
+
+export interface WordTarget {
+  min: number;
+  max: number;
+  target?: number;
+}
+
+export interface ContentRule {
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface ValidationCriteria {
+  description: string;
+  type: 'content' | 'format' | 'compliance';
+}
+
+export interface EnhancedSectionSpec {
+  id: string;
+  type: SectionType;
+  label: string;
+  required: boolean;
+  wordTarget: WordTarget;
+  contentRules: ContentRule[];
+  validationCriteria: ValidationCriteria[];
+  talkingPoints: string[];
+  researchCitations: string[];
+  keywordTargets: string[];
+  examples?: string[];
+  assignedScreenshots?: Array<{ url: string; title?: string; reason: string; placement: 'start' | 'middle' | 'end' }>; // Section-specific screenshots
+}
+
+// Enhanced multi-agent system interfaces
+export interface DetailedOutline {
+  title: string;
+  totalWordTarget: number;
+  sections: EnhancedSectionSpec[];
+  keywords: string[];
+  researchSummary: string;
+  contentStrategy: string;
+  sources?: Array<{ url: string; title?: string }>; // Add sources for linking
+  priorityScreenshots?: Array<{ url: string; title?: string; reason: string }>; // Strategic screenshots
+}
+
+export interface NarrativeContext {
+  storyArc: {
+    currentPosition: number; // Which section we're on (1-based)
+    totalSections: number;
+    phase: 'introduction' | 'development' | 'climax' | 'conclusion';
+  };
+  introducedConcepts: string[]; // Concepts already covered
+  keyThemes: string[]; // Main themes to maintain
+  narrativeThread: string; // The connecting story/argument
+  pendingTransitions: {
+    fromPreviousSection: string;
+    toNextSection?: string;
+  };
+  contentCoverage: {
+    topicsCovered: string[];
+    statisticsUsed: string[];
+    examplesGiven: string[];
+  };
+}
+
+export interface ArticleContext {
+  title: string;
+  keywords: string[];
+  toneOfVoice?: string;
+  targetAudience?: string;
+  existingSections: SectionResult[];
+  projectSettings?: {
+    toneOfVoice?: string;
+    articleStructure?: string;
+    maxWords?: number;
+    languageCode?: string;
+  };
+}
+
+export interface SectionResult {
+  sectionId: string;
+  heading: string;
+  content: string;
+  wordCount: number;
+  qualityScore: number;
+  citationsUsed: string[];
+  keywordsUsed: string[];
+  wasRewritten: boolean;
+  rewriteAttempts: number;
+  complianceIssues: string[];
+  metadata: {
+    generatedAt: string;
+    processingTimeMs: number;
+    modelUsed: string;
+  };
+}
+
+export interface CritiqueResult {
+  approved: boolean;
+  overallScore: number;
+  feedback: {
+    contentCompleteness: {
+      score: number;
+      issues: string[];
+      suggestions: string[];
+    };
+    structuralCompliance: {
+      score: number;
+      issues: string[];
+      suggestions: string[];
+    };
+    qualityStandards: {
+      score: number;
+      issues: string[];
+      suggestions: string[];
+    };
+  };
+  actionableSteps: string[];
+  criticalIssues: string[];
+  approvable: boolean;
+}
+
+export interface QualityRubric {
+  contentCompleteness: {
+    weight: number;
+    criteria: {
+      keyPointsCovered: number;
+      statisticsCited: number;
+      depthAppropriate: number;
+    };
+  };
+  structuralCompliance: {
+    weight: number;
+    criteria: {
+      wordCountMet: number;
+      headingFormatted: number;
+      logicalFlow: number;
+    };
+  };
+  qualityStandards: {
+    weight: number;
+    criteria: {
+      toneConsistent: number;
+      examplesConcrete: number;
+      languageClear: number;
+      engagementLevel: number;
+    };
+  };
+}
+
+export interface ComplianceResult {
+  compliant: boolean;
+  score: number;
+  violations: TemplateViolation[];
+  passedChecks: string[];
+  recommendations: string[];
+}
+
+export interface TemplateViolation {
+  sectionId: string;
+  violationType: 'missing' | 'incomplete' | 'format' | 'word_count';
+  severity: 'critical' | 'major' | 'minor';
+  description: string;
+  suggestion: string;
+  expectedValue?: string | number;
+  actualValue?: string | number;
+}
+
+export interface QualityMetrics {
+  sectionsGenerated: number;
+  sectionsRewritten: number;
+  complianceScore: number;
+  avgSectionQuality: number;
+  totalProcessingTimeMs: number;
+  modelTokensUsed: number;
+  criticalIssuesFound: number;
+  userSatisfactionPrediction: number;
+}
+
+export interface AssemblyResult {
+  content: string;
+  transitionsAdded: number;
+  formattingFixesApplied: number;
+  finalWordCount: number;
+  sectionsAssembled: number;
+  qualityChecks: {
+    markdownValidation: boolean;
+    headingHierarchy: boolean;
+    linkIntegrity: boolean;
+    imageFormatting: boolean;
+  };
+}

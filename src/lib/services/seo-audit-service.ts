@@ -44,7 +44,6 @@ export interface SeoReport {
   score: number; // 0-100
   issues: SeoIssue[];
   metrics: SeoMetrics;
-  rubricVersion: string; // bump if scoring changes
 }
 
 export interface SeoAuditParams {
@@ -192,7 +191,6 @@ export async function runSeoAudit({
     score,
     issues,
     metrics,
-    rubricVersion: "v1.0.0",
   };
 
   // Persist to DB: set currentPhase to seo-audit and save report
@@ -220,7 +218,7 @@ export async function runSeoAudit({
     // Resolve outline template if present
     let outlineTemplate: StructureTemplate | null = null;
     try {
-      const raw = gen?.outline as unknown;
+      const raw = gen?.outline
       if (
         raw &&
         typeof raw === "object" &&
@@ -243,7 +241,8 @@ export async function runSeoAudit({
       if (!outlineTemplate) return undefined as number | undefined;
       const mins = outlineTemplate.sections
         .filter((s) => s.type === "section" && typeof s.minWords === "number")
-        .map((s) => s.minWords as number);
+        .map((s) => s.minWords)
+        .filter((minWords): minWords is number => minWords !== undefined);
       if (mins.length === 0) return undefined;
       return Math.min(...mins);
     })();

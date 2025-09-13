@@ -106,13 +106,13 @@ export function passesChecklist(
   if (requireFaq && !checklist.structure.hasFaq) failures.push({ code: "STRUCTURE_FAQ_MISSING", reason: "FAQ section missing" });
 
   // Section-level validators
-  if (typeof (checklist).structure?.tldrCountOk === "boolean" && !(checklist as any).structure.tldrCountOk) {
+  if (typeof (checklist).structure?.tldrCountOk === "boolean" && !(checklist).structure.tldrCountOk) {
     failures.push({ code: "TLDR_COUNT_INVALID", reason: "TL;DR must contain 3–6 items" });
   }
-  if (typeof (checklist).structure?.sectionMinWordsOk === "boolean" && !(checklist as any).structure.sectionMinWordsOk) {
+  if (typeof (checklist).structure?.sectionMinWordsOk === "boolean" && !(checklist).structure.sectionMinWordsOk) {
     failures.push({ code: "SECTION_MIN_WORDS", reason: "One or more sections below minimum words" });
   }
-  if (typeof (checklist).structure?.faqItemsCountOk === "boolean" && !(checklist as any).structure.faqItemsCountOk) {
+  if (typeof (checklist).structure?.faqItemsCountOk === "boolean" && !(checklist).structure.faqItemsCountOk) {
     failures.push({ code: "FAQ_ITEMS_COUNT", reason: "FAQ must contain 2–5 questions" });
   }
 

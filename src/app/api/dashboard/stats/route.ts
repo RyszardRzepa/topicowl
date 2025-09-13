@@ -180,8 +180,6 @@ export async function GET(request: NextRequest) {
               inArray(articles.status, [
                 "idea",
                 "scheduled",
-                "queued",
-                "to_generate",
                 "generating",
                 "wait_for_publish",
               ]),
@@ -284,8 +282,6 @@ export async function GET(request: NextRequest) {
           case "scheduled":
             workflowCounts.planning += count;
             break;
-          case "queued":
-          case "to_generate":
           case "generating":
             workflowCounts.generating += count;
             break;

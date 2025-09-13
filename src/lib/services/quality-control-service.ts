@@ -134,11 +134,7 @@ async function saveQualityControlReport(
 export async function performQualityControlLogic(
   request: QualityControlRequest,
 ): Promise<QualityControlResponse> {
-  console.log("[QUALITY_CONTROL_SERVICE] Starting quality control", {
-    contentLength: request.articleContent.length,
-    hasOriginalPrompt: !!request.originalPrompt,
-    generationId: request.generationId,
-  });
+  console.log("[QUALITY_CONTROL_SERVICE] Starting quality control");
 
   const { articleContent, originalPrompt, generationId, userId } = request;
 

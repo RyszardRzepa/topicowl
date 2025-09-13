@@ -14,7 +14,7 @@ import {
   Target,
   Shield,
 } from "lucide-react";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ArticleStatus } from "@/types";
@@ -94,7 +94,7 @@ export function StatusIndicator({
           badgeVariant: "orange" as const,
           description: "Ready to generate",
         };
-      case "to_generate":
+      case "scheduled":
         return {
           icon: isScheduled ? Calendar : Clock,
           label: isScheduled ? "Scheduled" : "Ready",

@@ -98,11 +98,10 @@ const updateArticleSchema = z.object({
     .enum([
       "idea",
       "scheduled",
-      "queued",
-      "to_generate",
       "generating",
       "wait_for_publish",
       "published",
+      "failed",
       "deleted",
     ])
     .optional(),

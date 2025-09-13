@@ -39,6 +39,8 @@ export const env = createEnv({
     CF_ACCOUNT_ID: z.string(),
     CF_API_TOKEN: z.string(),
 
+    BLOB_READ_WRITE_TOKEN: z.string(),
+
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -95,6 +97,8 @@ export const env = createEnv({
 
     STRIPE_PRIVATE_KEY: process.env.STRIPE_PRIVATE_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    BLOB_READ_WRITE_TOKEN: process.env.STRIPE_WEBHOOK_SECRET,
+
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

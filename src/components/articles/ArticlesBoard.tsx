@@ -113,6 +113,7 @@ export function ArticlesBoard() {
   >(new Map());
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<QueueItem | null>(null);
+  const [editArticle, setEditArticle] = useState<Article | null>(null);
   const [editForm, setEditForm] = useState<{
     title: string;
     keywords: string;
@@ -129,7 +130,11 @@ export function ArticlesBoard() {
   }, []);
 
   const setOperationLoading = useCallback(
-    (itemId: number, operation: "generate" | "edit" | "delete", loading: boolean) => {
+    (
+      itemId: number,
+      operation: "generate" | "edit" | "delete",
+      loading: boolean,
+    ) => {
       setLoadingOperations((prev) => {
         const newMap = new Map(prev);
         const existing = newMap.get(itemId) ?? new Set();
@@ -189,7 +194,7 @@ export function ArticlesBoard() {
   const generatingArticles = useMemo(() => {
     return articles.filter(
       (a) =>
-        a.status === STATUSES.GENERATING && 
+        a.status === STATUSES.GENERATING &&
         (!projectId || a.projectId === projectId),
     );
   }, [articles, projectId]);
@@ -205,60 +210,75 @@ export function ArticlesBoard() {
   // Generate comprehensive board events using the status management system
   const allBoardEvents = useMemo<ArticleEvent[]>(() => {
     const events: ArticleEvent[] = [];
-    
-    // Get set of article IDs that are currently in the queue to avoid duplicates
-    const queuedArticleIds = new Set(queueItems.map(q => q.articleId));
-    
+
+    // Create a map of queue items by article ID for easy lookup
+    const queueItemsByArticleId = new Map(
+      queueItems.map((q) => [q.articleId, q]),
+    );
+
     // Process all visible articles
     for (const article of allBoardArticles) {
       const articleId = parseInt(article.id);
-      
-      // Skip articles that are currently in the queue - they'll be handled as queued items
-      if (queuedArticleIds.has(articleId) && 
-          (article.status === STATUSES.IDEA || 
-           article.status === STATUSES.SCHEDULED || 
-           article.status === STATUSES.QUEUED || 
-           article.status === STATUSES.TO_GENERATE)) {
+      const queueItem = queueItemsByArticleId.get(articleId);
+
+      // Skip articles that are currently in the queue AND have idea/scheduled status
+      // They'll be handled as queued items instead
+      if (
+        queueItem &&
+        (article.status === STATUSES.IDEA ||
+          article.status === STATUSES.SCHEDULED)
+      ) {
         continue;
       }
-      
-      const eventConfig = getBoardEventConfig(article.status, !!article.publishScheduledAt);
-      
+
+      const eventConfig = getBoardEventConfig(
+        article.status,
+        !!article.publishScheduledAt,
+      );
+
       // Determine the display date based on article status and scheduling
       let displayDate: string | null = null;
-      
+
       switch (article.status) {
         case STATUSES.GENERATING:
-          // Show on originally scheduled date, fallback to generation start date or today
-          displayDate = article.publishScheduledAt ?? article.generationStartedAt ?? new Date().toISOString();
+          // For generating articles, prefer the original queue scheduled date if available
+          displayDate =
+            queueItem?.scheduledForDate ??
+            article.publishScheduledAt ??
+            article.generationStartedAt ??
+            null;
           break;
-          
+
         case STATUSES.WAIT_FOR_PUBLISH:
-          if (article.publishScheduledAt) {
-            // Show on scheduled publish date
-            displayDate = article.publishScheduledAt;
-          } else {
-            // Show on generation completion date
-            displayDate = article.generationCompletedAt ?? new Date().toISOString();
-          }
+          // Show on scheduled publish date, fallback to generation completion date
+          displayDate =
+            article.publishScheduledAt ?? article.generationCompletedAt ?? null;
           break;
-          
+
         case STATUSES.PUBLISHED:
-          // Show on actual publish date
-          displayDate = article.publishedAt ?? article.generationCompletedAt ?? new Date().toISOString();
+          // Show on actual publish date, fallback to generation completion date
+          displayDate =
+            article.publishedAt ?? article.generationCompletedAt ?? null;
           break;
-          
+
         case STATUSES.FAILED:
-          // Show on originally scheduled date, fallback to generation dates or today
-          displayDate = article.publishScheduledAt ?? article.generationCompletedAt ?? article.generationStartedAt ?? new Date().toISOString();
+          // For failed articles, try to show on originally scheduled date
+          displayDate =
+            queueItem?.scheduledForDate ??
+            article.publishScheduledAt ??
+            article.generationCompletedAt ??
+            article.generationStartedAt ??
+            null;
           break;
-          
+
         default:
-          // For ideas, scheduled, queued, etc. - use generation scheduled date or today
-          displayDate = article.generationScheduledAt ?? new Date().toISOString();
+          // For other statuses, use publish scheduled date or generation scheduled date
+          displayDate =
+            article.publishScheduledAt ?? article.generationScheduledAt ?? null;
           break;
       }
-      
+
+      // Only show articles with a valid display date that falls within the current week
       if (displayDate && isWithinWeek(displayDate, weekDays[0]!)) {
         events.push({
           id: article.id,
@@ -269,7 +289,7 @@ export function ArticlesBoard() {
         });
       }
     }
-    
+
     return events;
   }, [allBoardArticles, weekDays, queueItems]);
 
@@ -283,7 +303,7 @@ export function ArticlesBoard() {
 
   // Removed unused publishScheduledEvents and readyToPublishEvents
   // Now using getBoardEventConfig for comprehensive board event generation
-  
+
   // Poll generation progress for generating articles
   useEffect(() => {
     if (generatingArticles.length === 0) return;
@@ -465,6 +485,32 @@ export function ArticlesBoard() {
     }
   };
 
+  const handleGenerateArticle = async (article: Article) => {
+    try {
+      setOperationLoading(parseInt(article.id), "generate", true);
+      const res = await fetch(`/api/articles/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId: article.id }),
+      });
+      if (!res.ok) throw new Error("Failed to start generation");
+      actions.setArticles((prev) =>
+        prev.map((x) =>
+          x.id === article.id
+            ? { ...x, status: "generating", generationProgress: 0 }
+            : x,
+        ),
+      );
+      toast.success("Generation started");
+      await Promise.all([refetchArticles(), fetchQueue()]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to start generation");
+    } finally {
+      setOperationLoading(parseInt(article.id), "generate", false);
+    }
+  };
+
   const handleDeleteArticle = async (item: QueueItem) => {
     try {
       setOperationLoading(item.id, "delete", true);
@@ -482,6 +528,23 @@ export function ArticlesBoard() {
     }
   };
 
+  const handleDeleteArticleDirectly = async (article: Article) => {
+    try {
+      setOperationLoading(parseInt(article.id), "delete", true);
+      const res = await fetch(`/api/articles/${article.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete article");
+      toast.success("Article deleted");
+      await Promise.all([refetchArticles(), fetchQueue()]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to delete article");
+    } finally {
+      setOperationLoading(parseInt(article.id), "delete", false);
+    }
+  };
+
   const openEditModal = (item: QueueItem) => {
     const article = articleById.get(item.articleId);
     setEditTarget(item);
@@ -494,12 +557,31 @@ export function ArticlesBoard() {
     setIsEditOpen(true);
   };
 
+  const openEditModalForArticle = (article: Article) => {
+    setEditTarget(null); // Clear queue item target
+    setEditArticle(article); // Set article target
+    setEditForm({
+      title: article.title,
+      keywords: (article.keywords ?? []).join(", "),
+      notes: article.notes ?? "",
+      scheduledAt: new Date(article.publishScheduledAt ?? article.generationScheduledAt ?? new Date()),
+    });
+    setIsEditOpen(true);
+  };
+
   const handleEditSave = async () => {
-    if (!editTarget) return;
-    const article = articleById.get(editTarget.articleId);
+    if (!editTarget && !editArticle) return;
+    
+    const article = editTarget 
+      ? articleById.get(editTarget.articleId)
+      : editArticle;
+    
     if (!article) return;
+    
     try {
       setIsUpdating(true);
+      
+      // Update article fields
       const updates: Partial<Article> = {};
       if (editForm.title.trim() !== article.title)
         updates.title = editForm.title.trim();
@@ -513,7 +595,72 @@ export function ArticlesBoard() {
         updates.keywords = newKeywords;
       if ((editForm.notes ?? "") !== (article.notes ?? ""))
         updates.notes = editForm.notes || undefined;
-      if (Object.keys(updates).length > 0) {
+      
+      // Update scheduling
+      const newDt = editForm.scheduledAt;
+      if (!newDt) throw new Error("Invalid schedule date");
+      if (newDt.getTime() < Date.now())
+        throw new Error("Cannot schedule in the past");
+      const newIso = newDt.toISOString();
+      
+      // If editing via queue item, handle queue rescheduling
+      if (editTarget) {
+        const currentIso = new Date(editTarget.scheduledForDate).toISOString();
+        
+        // Update article fields if needed
+        if (Object.keys(updates).length > 0) {
+          const res = await fetch(`/api/articles/${article.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          });
+          if (!res.ok) throw new Error("Failed to update article");
+        }
+        
+        // Handle queue rescheduling if date changed
+        if (newIso !== currentIso) {
+          const del = await fetch(
+            `/api/articles/generation-queue?queueItemId=${editTarget.id}`,
+            { method: "DELETE" },
+          );
+          if (!del.ok) throw new Error("Failed to remove from queue");
+          const add = await fetch("/api/articles/generation-queue", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              articleId: editTarget.articleId,
+              scheduledForDate: newIso,
+            }),
+          });
+          if (!add.ok) {
+            await fetch("/api/articles/generation-queue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                articleId: editTarget.articleId,
+                scheduledForDate: currentIso,
+              }),
+            }).catch(() => {
+              // Ignore restore errors
+            });
+            throw new Error("Failed to reschedule");
+          }
+          try {
+            const upd = await fetch(`/api/articles/${editTarget.articleId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ publishScheduledAt: newIso }),
+            });
+            if (!upd.ok) throw new Error("Failed to update publish schedule");
+          } catch (err) {
+            console.error(err);
+            toast.error("Saved, but failed to set publish time");
+          }
+        }
+      } else {
+        // Editing article directly - update both article and schedule
+        updates.publishScheduledAt = newIso;
+        
         const res = await fetch(`/api/articles/${article.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -522,55 +669,10 @@ export function ArticlesBoard() {
         if (!res.ok) throw new Error("Failed to update article");
       }
 
-      const currentIso = new Date(editTarget.scheduledForDate).toISOString();
-      const newDt = editForm.scheduledAt;
-      if (!newDt) throw new Error("Invalid schedule date");
-      if (newDt.getTime() < Date.now())
-        throw new Error("Cannot schedule in the past");
-      const newIso = newDt.toISOString();
-      if (newIso !== currentIso) {
-        const del = await fetch(
-          `/api/articles/generation-queue?queueItemId=${editTarget.id}`,
-          { method: "DELETE" },
-        );
-        if (!del.ok) throw new Error("Failed to remove from queue");
-        const add = await fetch("/api/articles/generation-queue", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            articleId: editTarget.articleId,
-            scheduledForDate: newIso,
-          }),
-        });
-        if (!add.ok) {
-          await fetch("/api/articles/generation-queue", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              articleId: editTarget.articleId,
-              scheduledForDate: currentIso,
-            }),
-          }).catch(() => {
-            // Ignore restore errors
-          });
-          throw new Error("Failed to reschedule");
-        }
-        try {
-          const upd = await fetch(`/api/articles/${editTarget.articleId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ publishScheduledAt: newIso }),
-          });
-          if (!upd.ok) throw new Error("Failed to update publish schedule");
-        } catch (err) {
-          console.error(err);
-          toast.error("Saved, but failed to set publish time");
-        }
-      }
-
       toast.success("Saved changes");
       setIsEditOpen(false);
       setEditTarget(null);
+      setEditArticle(null);
       await Promise.all([refetchArticles(), fetchQueue()]);
     } catch (e) {
       console.error(e);
@@ -709,7 +811,7 @@ export function ArticlesBoard() {
                 const dayEvents = allBoardEvents.filter((e) =>
                   isSameDay(new Date(e.dateIso), day),
                 );
-                
+
                 // Also include queued items (they have a different data structure)
                 const queuedForDay = scheduledItems.filter((s) =>
                   isSameDay(new Date(s.scheduledForDate), day),
@@ -717,10 +819,26 @@ export function ArticlesBoard() {
 
                 // Combine all events with proper typing
                 type BoardEvent =
-                  | { kind: "queued"; key: string; dateIso: string; item: QueueItem; title: string; overdue: boolean }
-                  | { kind: "article"; key: string; dateIso: string; article: Article; title: string; config: BoardEventConfig };
+                  | {
+                      kind: "queued";
+                      key: string;
+                      dateIso: string;
+                      item: QueueItem;
+                      title: string;
+                      overdue: boolean;
+                    }
+                  | {
+                      kind: "article";
+                      key: string;
+                      dateIso: string;
+                      article: Article;
+                      title: string;
+                      config: BoardEventConfig;
+                    };
 
-                const allEventsForDay: Array<BoardEvent & { priority: number; articleId: string }> = [
+                const allEventsForDay: Array<
+                  BoardEvent & { priority: number; articleId: string }
+                > = [
                   // Queue items (ideas, scheduled items not yet in generation)
                   ...queuedForDay.map((q) => ({
                     kind: "queued" as const,
@@ -746,22 +864,32 @@ export function ArticlesBoard() {
                 ];
 
                 // Remove duplicates by keeping the highest priority event for each article
-                const bestByArticle = new Map<string, BoardEvent & { priority: number }>();
+                const bestByArticle = new Map<
+                  string,
+                  BoardEvent & { priority: number }
+                >();
                 for (const ev of allEventsForDay) {
                   const current = bestByArticle.get(ev.articleId);
                   if (!current || ev.priority < current.priority) {
                     bestByArticle.set(ev.articleId, ev);
                   }
                 }
-                
+
                 const events = Array.from(bestByArticle.values())
                   .map((e) => e as BoardEvent)
-                  .sort((a, b) => new Date(a.dateIso).getTime() - new Date(b.dateIso).getTime());
+                  .sort(
+                    (a, b) =>
+                      new Date(a.dateIso).getTime() -
+                      new Date(b.dateIso).getTime(),
+                  );
 
                 return (
-                  <div key={day.toISOString()} className="flex min-h-0 flex-col overflow-hidden rounded-md border">
+                  <div
+                    key={day.toISOString()}
+                    className="flex min-h-0 flex-col overflow-hidden rounded-md border"
+                  >
                     {/* Day header */}
-                    <div className="border-border bg-card flex items-center justify-between gap-2 border-b p-2 rounded-t-md">
+                    <div className="border-border bg-card flex items-center justify-between gap-2 rounded-t-md border-b p-2">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground text-xs uppercase">
                           {format(day, "EEE")}
@@ -778,21 +906,34 @@ export function ArticlesBoard() {
                         </span>
                       </div>
                       {!isPastDay(day) && (
-                        <Button size="icon" variant="ghost" onClick={() => openCreateForDay(day)} aria-label="Add idea">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openCreateForDay(day)}
+                          aria-label="Add idea"
+                        >
                           <Plus className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
 
                     {/* Events list */}
-                    <div className={cn("flex-1 space-y-2 p-2", (isUpdating || loadingOperations.size > 0) && "pointer-events-none opacity-75")}>
+                    <div
+                      className={cn(
+                        "flex-1 space-y-2 p-2",
+                        (isUpdating || loadingOperations.size > 0) &&
+                          "pointer-events-none opacity-75",
+                      )}
+                    >
                       {events.length === 0 ? (
-                        <div className="text-muted-foreground text-xs">No items</div>
+                        <div className="text-muted-foreground text-xs">
+                          No items
+                        </div>
                       ) : null}
 
                       {events.map((ev) => {
                         const time = format(new Date(ev.dateIso), "HH:mm");
-                        
+
                         if (ev.kind === "queued") {
                           const item = ev.item;
                           return (
@@ -810,133 +951,244 @@ export function ArticlesBoard() {
                                     <div className="text-xs leading-tight font-medium break-words whitespace-normal">
                                       {time} — {ev.title}
                                     </div>
-                                    <div className="text-[10px] opacity-90">Idea</div>
+                                    <div className="text-[10px] opacity-90">
+                                      Idea
+                                    </div>
                                   </div>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
+                                <PopoverContent
+                                  className="w-[360px] rounded-xl p-3"
+                                  align="start"
+                                  sideOffset={8}
+                                  onOpenAutoFocus={(e) => e.preventDefault()}
+                                >
                                   <div className="flex items-start justify-between">
                                     <div className="min-w-0 pr-3">
                                       {(() => {
-                                        const a = articleById.get(item.articleId);
-                                        const href = a?.slug ? `/articles/${a.slug}` : `/dashboard/articles/${a?.id ?? item.articleId}`;
+                                        const a = articleById.get(
+                                          item.articleId,
+                                        );
+                                        const href = a?.slug
+                                          ? `/articles/${a.slug}`
+                                          : `/dashboard/articles/${a?.id ?? item.articleId}`;
                                         return (
-                                          <a href={href} className="text-base font-semibold leading-tight break-words underline-offset-2 hover:underline">{ev.title}</a>
+                                          <a
+                                            href={href}
+                                            className="text-base leading-tight font-semibold break-words underline-offset-2 hover:underline"
+                                          >
+                                            {ev.title}
+                                          </a>
                                         );
                                       })()}
                                       <div className="text-muted-foreground mt-1 text-sm">
-                                        {format(new Date(item.scheduledForDate), "EEEE, MMMM d • h:mma")} {ev.overdue && <span className="text-destructive ml-2 font-medium">Overdue</span>}
+                                        {format(
+                                          new Date(item.scheduledForDate),
+                                          "EEEE, MMMM d • h:mma",
+                                        )}{" "}
+                                        {ev.overdue && (
+                                          <span className="text-destructive ml-2 font-medium">
+                                            Overdue
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              openEditModal(item);
-                                            }}
-                                            disabled={isOperationLoading(item.id, "edit")}
-                                            aria-label="Edit"
-                                          >
-                                            {isOperationLoading(item.id, "edit") ? (
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <Edit3 className="h-4 w-4" />
-                                            )}
-                                          </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">Edit</TooltipContent>
-                                      </Tooltip>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              void handleGenerateNow(item);
-                                            }}
-                                            disabled={isOperationLoading(item.id, "generate")}
-                                            aria-label="Generate now"
-                                          >
-                                            {isOperationLoading(item.id, "generate") ? (
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <Play className="h-4 w-4" />
-                                            )}
-                                          </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">Generate now</TooltipContent>
-                                      </Tooltip>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              void handleDeleteArticle(item);
-                                            }}
-                                            disabled={isOperationLoading(item.id, "delete")}
-                                            aria-label="Delete article"
-                                          >
-                                            {isOperationLoading(item.id, "delete") ? (
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <Trash2 className="h-4 w-4" />
-                                            )}
-                                          </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">Delete article</TooltipContent>
-                                      </Tooltip>
-                                    </div>
+                                    {(() => {
+                                      const article = articleById.get(
+                                        item.articleId,
+                                      );
+                                      const scheduledDate = new Date(
+                                        item.scheduledForDate,
+                                      );
+                                      const isInPast =
+                                        scheduledDate.getTime() < Date.now();
+                                      const shouldShowActions =
+                                        article &&
+                                        // Show for idea phase that are not in the past
+                                        ((!isInPast &&
+                                          (article.status === STATUSES.IDEA ||
+                                            article.status ===
+                                              STATUSES.SCHEDULED)) ||
+                                          // Show for failed articles regardless of time
+                                          article.status === STATUSES.FAILED);
+
+                                      if (!shouldShowActions) return null;
+
+                                      return (
+                                        <div className="flex items-center gap-1">
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  openEditModal(item);
+                                                }}
+                                                disabled={isOperationLoading(
+                                                  item.id,
+                                                  "edit",
+                                                )}
+                                                aria-label="Edit"
+                                              >
+                                                {isOperationLoading(
+                                                  item.id,
+                                                  "edit",
+                                                ) ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Edit3 className="h-4 w-4" />
+                                                )}
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Edit
+                                            </TooltipContent>
+                                          </Tooltip>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  void handleGenerateNow(item);
+                                                }}
+                                                disabled={isOperationLoading(
+                                                  item.id,
+                                                  "generate",
+                                                )}
+                                                aria-label="Generate now"
+                                              >
+                                                {isOperationLoading(
+                                                  item.id,
+                                                  "generate",
+                                                ) ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Play className="h-4 w-4" />
+                                                )}
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Generate now
+                                            </TooltipContent>
+                                          </Tooltip>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  void handleDeleteArticle(
+                                                    item,
+                                                  );
+                                                }}
+                                                disabled={isOperationLoading(
+                                                  item.id,
+                                                  "delete",
+                                                )}
+                                                aria-label="Delete article"
+                                              >
+                                                {isOperationLoading(
+                                                  item.id,
+                                                  "delete",
+                                                ) ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Trash2 className="h-4 w-4" />
+                                                )}
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Delete article
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </PopoverContent>
                               </Popover>
                             </div>
                           );
                         }
-                        
+
                         if (ev.kind === "article") {
                           const article = ev.article;
                           const config = ev.config;
-                          const href = article.slug ? `/articles/${article.slug}` : `/dashboard/articles/${article.id}`;
-                          
+                          const href = article.slug
+                            ? `/articles/${article.slug}`
+                            : `/dashboard/articles/${article.id}`;
+
                           // Special handling for generating articles
                           if (article.status === STATUSES.GENERATING) {
-                            const progress = Math.max(0, Math.min(100, article.generationProgress ?? 0));
+                            const progress = Math.max(
+                              0,
+                              Math.min(100, article.generationProgress ?? 0),
+                            );
                             return (
-                              <div key={ev.key} className={cn("cursor-pointer rounded-md border p-2 select-none", "bg-card text-foreground border-white/30")}>
+                              <div
+                                key={ev.key}
+                                className={cn(
+                                  "cursor-pointer rounded-md border p-2 select-none",
+                                  "bg-card text-foreground border-white/30",
+                                )}
+                              >
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <div className="min-w-0">
-                                      <div className="text-xs font-medium leading-tight whitespace-normal break-words">{time} — {ev.title}</div>
-                                      <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
-                                        <span className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
+                                      <div className="text-xs leading-tight font-medium break-words whitespace-normal">
+                                        {time} — {ev.title}
+                                      </div>
+                                      <div className="text-muted-foreground mt-1 flex items-center gap-1 text-[10px]">
+                                        <span className="bg-secondary inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium">
                                           <Zap className="h-3 w-3" />
-                                          {article.generationPhase ? article.generationPhase.charAt(0).toUpperCase() + article.generationPhase.slice(1) : "Processing"}
+                                          {article.generationPhase
+                                            ? article.generationPhase
+                                                .charAt(0)
+                                                .toUpperCase() +
+                                              article.generationPhase.slice(1)
+                                            : "Processing"}
                                         </span>
                                       </div>
                                       <div className="mt-1">
-                                        <div className="h-[6px] rounded bg-muted">
-                                          <div className="h-[6px] rounded bg-chart-3" style={{ width: `${progress}%` }} />
+                                        <div className="bg-muted h-[6px] rounded">
+                                          <div
+                                            className="bg-chart-3 h-[6px] rounded"
+                                            style={{ width: `${progress}%` }}
+                                          />
                                         </div>
-                                        <div className="mt-1 text-[10px] text-muted-foreground">{progress}% complete</div>
+                                        <div className="text-muted-foreground mt-1 text-[10px]">
+                                          {progress}% complete
+                                        </div>
                                       </div>
                                     </div>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
+                                  <PopoverContent
+                                    className="w-[360px] rounded-xl p-3"
+                                    align="start"
+                                    sideOffset={8}
+                                    onOpenAutoFocus={(e) => e.preventDefault()}
+                                  >
                                     <div className="min-w-0 pr-3">
-                                      <div className="text-base font-semibold leading-tight break-words">{ev.title}</div>
+                                      <div className="text-base leading-tight font-semibold break-words">
+                                        {ev.title}
+                                      </div>
                                       <div className="text-muted-foreground mt-1 flex items-center gap-2 text-sm">
-                                        <span className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-xs font-medium">
+                                        <span className="bg-secondary inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium">
                                           <Zap className="h-3 w-3" />
-                                          {article.generationPhase ? article.generationPhase.charAt(0).toUpperCase() + article.generationPhase.slice(1) : "Processing"}
+                                          {article.generationPhase
+                                            ? article.generationPhase
+                                                .charAt(0)
+                                                .toUpperCase() +
+                                              article.generationPhase.slice(1)
+                                            : "Processing"}
                                         </span>
                                         <span>Creating content</span>
                                       </div>
                                       <div className="mt-2">
                                         <Progress value={progress} />
-                                        <div className="text-muted-foreground mt-1 text-xs">{progress}% complete</div>
+                                        <div className="text-muted-foreground mt-1 text-xs">
+                                          {progress}% complete
+                                        </div>
                                       </div>
                                     </div>
                                   </PopoverContent>
@@ -944,65 +1196,358 @@ export function ArticlesBoard() {
                               </div>
                             );
                           }
-                          
+
                           // Special handling for failed articles
                           if (article.status === STATUSES.FAILED) {
                             return (
-                              <div key={ev.key} className={cn("cursor-pointer rounded-md border p-2 text-white select-none", config.bgColor, "border-red-300")}>
+                              <div
+                                key={ev.key}
+                                className={cn(
+                                  "cursor-pointer rounded-md border p-2 text-white select-none",
+                                  config.bgColor,
+                                  "border-red-300",
+                                )}
+                              >
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <div className="min-w-0">
-                                      <div className="text-xs leading-tight font-medium break-words whitespace-normal flex items-center gap-1">
+                                      <div className="flex items-center gap-1 text-xs leading-tight font-medium break-words whitespace-normal">
                                         <AlertTriangle className="h-3 w-3 flex-shrink-0" />
                                         {time} — {ev.title}
                                       </div>
-                                      <div className="text-[10px] opacity-90">{config.label}</div>
+                                      <div className="text-[10px] opacity-90">
+                                        {config.label}
+                                      </div>
                                     </div>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
-                                    <div className="min-w-0 pr-3">
-                                      <div className="flex items-center gap-2">
-                                        <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                                        <a href={href} className="text-base font-semibold leading-tight break-words underline-offset-2 hover:underline">{ev.title}</a>
-                                      </div>
-                                      <div className="text-muted-foreground mt-1 text-sm">
-                                        {format(new Date(ev.dateIso), "EEEE, MMMM d • h:mma")} — {config.label.toLowerCase()}
-                                      </div>
-                                      {article.generationError && (
-                                        <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
-                                          {article.generationError}
+                                  <PopoverContent
+                                    className="w-[360px] rounded-xl p-3"
+                                    align="start"
+                                    sideOffset={8}
+                                    onOpenAutoFocus={(e) => e.preventDefault()}
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="min-w-0 pr-3">
+                                        <div className="flex items-center gap-2">
+                                          <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-500" />
+                                          <a
+                                            href={href}
+                                            className="text-base leading-tight font-semibold break-words underline-offset-2 hover:underline"
+                                          >
+                                            {ev.title}
+                                          </a>
                                         </div>
-                                      )}
+                                        <div className="text-muted-foreground mt-1 text-sm">
+                                          {format(
+                                            new Date(ev.dateIso),
+                                            "EEEE, MMMM d • h:mma",
+                                          )}{" "}
+                                          — {config.label.toLowerCase()}
+                                        </div>
+                                        {article.generationError && (
+                                          <div className="mt-2 rounded bg-red-50 p-2 text-sm text-red-600">
+                                            {article.generationError}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {(() => {
+                                        // Find the corresponding queue item
+                                        const queueItem = queueItems.find(
+                                          (q) =>
+                                            q.articleId ===
+                                            parseInt(article.id),
+                                        );
+                                        if (!queueItem) {
+                                          // No queue item - use direct article handlers
+                                          return (
+                                            <div className="flex items-center gap-1">
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <button
+                                                    className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      void handleGenerateArticle(article);
+                                                    }}
+                                                    disabled={isOperationLoading(
+                                                      parseInt(article.id),
+                                                      "generate",
+                                                    )}
+                                                    aria-label="Retry generation"
+                                                  >
+                                                    {isOperationLoading(
+                                                      parseInt(article.id),
+                                                      "generate",
+                                                    ) ? (
+                                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                      <Play className="h-4 w-4" />
+                                                    )}
+                                                  </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top">
+                                                  Retry generation
+                                                </TooltipContent>
+                                              </Tooltip>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <button
+                                                    className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      void handleDeleteArticleDirectly(article);
+                                                    }}
+                                                    disabled={isOperationLoading(
+                                                      parseInt(article.id),
+                                                      "delete",
+                                                    )}
+                                                    aria-label="Delete article"
+                                                  >
+                                                    {isOperationLoading(
+                                                      parseInt(article.id),
+                                                      "delete",
+                                                    ) ? (
+                                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                      <Trash2 className="h-4 w-4" />
+                                                    )}
+                                                  </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top">
+                                                  Delete article
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </div>
+                                          );
+                                        }
+
+                                        // If there's an actual queue item, use the regular action buttons
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <button
+                                                  className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openEditModal(queueItem);
+                                                  }}
+                                                  disabled={isOperationLoading(
+                                                    queueItem.id,
+                                                    "edit",
+                                                  )}
+                                                  aria-label="Edit"
+                                                >
+                                                  {isOperationLoading(
+                                                    queueItem.id,
+                                                    "edit",
+                                                  ) ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                    <Edit3 className="h-4 w-4" />
+                                                  )}
+                                                </button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top">
+                                                Edit
+                                              </TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <button
+                                                  className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    void handleGenerateNow(
+                                                      queueItem,
+                                                    );
+                                                  }}
+                                                  disabled={isOperationLoading(
+                                                    queueItem.id,
+                                                    "generate",
+                                                  )}
+                                                  aria-label="Retry generation"
+                                                >
+                                                  {isOperationLoading(
+                                                    queueItem.id,
+                                                    "generate",
+                                                  ) ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                    <Play className="h-4 w-4" />
+                                                  )}
+                                                </button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top">
+                                                Retry generation
+                                              </TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <button
+                                                  className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    void handleDeleteArticle(
+                                                      queueItem,
+                                                    );
+                                                  }}
+                                                  disabled={isOperationLoading(
+                                                    queueItem.id,
+                                                    "delete",
+                                                  )}
+                                                  aria-label="Delete article"
+                                                >
+                                                  {isOperationLoading(
+                                                    queueItem.id,
+                                                    "delete",
+                                                  ) ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                    <Trash2 className="h-4 w-4" />
+                                                  )}
+                                                </button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top">
+                                                Delete article
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   </PopoverContent>
                                 </Popover>
                               </div>
                             );
                           }
-                          
+
                           // Default rendering for all other statuses
                           return (
-                            <div key={ev.key} className={cn("cursor-pointer rounded-md border p-2 text-white select-none", config.bgColor, "border-white/30")}>
+                            <div
+                              key={ev.key}
+                              className={cn(
+                                "cursor-pointer rounded-md border p-2 text-white select-none",
+                                config.bgColor,
+                                "border-white/30",
+                              )}
+                            >
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <div className="min-w-0">
-                                    <div className="text-xs leading-tight font-medium break-words whitespace-normal">{time} — {ev.title}</div>
-                                    <div className="text-[10px] opacity-90">{config.label}</div>
+                                    <div className="text-xs leading-tight font-medium break-words whitespace-normal">
+                                      {time} — {ev.title}
+                                    </div>
+                                    <div className="text-[10px] opacity-90">
+                                      {config.label}
+                                    </div>
                                   </div>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[360px] rounded-xl p-3" align="start" sideOffset={8} onOpenAutoFocus={(e) => e.preventDefault()}>
-                                  <div className="min-w-0 pr-3">
-                                    <a href={href} className="text-base font-semibold leading-tight break-words underline-offset-2 hover:underline">{ev.title}</a>
-                                    <div className="text-muted-foreground mt-1 text-sm">
-                                      {format(new Date(ev.dateIso), "EEEE, MMMM d • h:mma")} — {config.label.toLowerCase()}
+                                <PopoverContent
+                                  className="w-[360px] rounded-xl p-3"
+                                  align="start"
+                                  sideOffset={8}
+                                  onOpenAutoFocus={(e) => e.preventDefault()}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="min-w-0 pr-3">
+                                      <a
+                                        href={href}
+                                        className="text-base leading-tight font-semibold break-words underline-offset-2 hover:underline"
+                                      >
+                                        {ev.title}
+                                      </a>
+                                      <div className="text-muted-foreground mt-1 text-sm">
+                                        {format(
+                                          new Date(ev.dateIso),
+                                          "EEEE, MMMM d • h:mma",
+                                        )}{" "}
+                                        — {config.label.toLowerCase()}
+                                      </div>
                                     </div>
+                                    {(() => {
+                                      const scheduledDate = new Date(ev.dateIso);
+                                      const isInPast = scheduledDate.getTime() < Date.now();
+                                      const shouldShowActions = (
+                                        // Show for idea and scheduled statuses that are not in the past
+                                        !isInPast && (article.status === STATUSES.IDEA || 
+                                                      article.status === STATUSES.SCHEDULED)
+                                      );
+                                      
+                                      if (!shouldShowActions) return null;
+                                      
+                                      return (
+                                        <div className="flex items-center gap-1">
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  openEditModalForArticle(article);
+                                                }}
+                                                disabled={isOperationLoading(parseInt(article.id), "edit")}
+                                                aria-label="Edit"
+                                              >
+                                                {isOperationLoading(parseInt(article.id), "edit") ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Edit3 className="h-4 w-4" />
+                                                )}
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">Edit</TooltipContent>
+                                          </Tooltip>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  void handleGenerateArticle(article);
+                                                }}
+                                                disabled={isOperationLoading(parseInt(article.id), "generate")}
+                                                aria-label="Generate now"
+                                              >
+                                                {isOperationLoading(parseInt(article.id), "generate") ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Play className="h-4 w-4" />
+                                                )}
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">Generate now</TooltipContent>
+                                          </Tooltip>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  void handleDeleteArticleDirectly(article);
+                                                }}
+                                                disabled={isOperationLoading(parseInt(article.id), "delete")}
+                                                aria-label="Delete article"
+                                              >
+                                                {isOperationLoading(parseInt(article.id), "delete") ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Trash2 className="h-4 w-4" />
+                                                )}
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">Delete article</TooltipContent>
+                                          </Tooltip>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </PopoverContent>
                               </Popover>
                             </div>
                           );
                         }
-                        
+
                         // Fallback for unknown event types
                         return null;
                       })}
@@ -1067,10 +1612,25 @@ export function ArticlesBoard() {
                   Scheduled Time
                 </label>
                 <DateTimePicker
-                  value={creatingAt ? new Date(new Date(creatingAt.date).setHours(creatingAt.hour, creatingAt.minute, 0, 0)) : undefined}
+                  value={
+                    creatingAt
+                      ? new Date(
+                          new Date(creatingAt.date).setHours(
+                            creatingAt.hour,
+                            creatingAt.minute,
+                            0,
+                            0,
+                          ),
+                        )
+                      : undefined
+                  }
                   onChange={(d) => {
                     if (!d) return;
-                    setCreatingAt({ date: d, hour: d.getHours(), minute: d.getMinutes() });
+                    setCreatingAt({
+                      date: d,
+                      hour: d.getHours(),
+                      minute: d.getMinutes(),
+                    });
                   }}
                   minDate={new Date(Date.now() + 60000)}
                 />

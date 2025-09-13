@@ -238,11 +238,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update article status to queued
+    // Update article status to scheduled (replaces "queued")
     const [updatedArticle] = await db
       .update(articles)
       .set({
-        status: "queued",
+        status: "scheduled",
         updatedAt: new Date(),
       })
       .where(eq(articles.id, articleId))

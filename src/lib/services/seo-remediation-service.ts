@@ -1,8 +1,8 @@
 import { generateText } from "ai";
 import { MODELS } from "@/constants";
-import { prompts } from "@/prompts";
 import type { SeoReport } from "@/lib/services/seo-audit-service";
 import { getModel } from "../ai-models";
+import seoAuditFix from "@/prompts/seoAuditFix";
 
 export interface SeoRemediationParams {
   articleMarkdown: string;
@@ -34,7 +34,7 @@ export async function performSeoRemediation(
       ? JSON.stringify(params.validationReportJson)
       : undefined;
 
-  const prompt = prompts.seoAuditFix(params.articleMarkdown, {
+  const prompt = seoAuditFix(params.articleMarkdown, {
     seoReportJson,
     validationReportJson,
     targetKeywords: params.targetKeywords,
@@ -43,7 +43,7 @@ export async function performSeoRemediation(
     maxWords: params.maxWords,
   });
 
-  const model = await getModel('google',MODELS.GEMINI_2_5_FLASH, "seo-remedation-service")
+  const model = await getModel('google',MODELS.CLAUDE_SONNET_4, "seo-remedation-service")
   const { text } = await generateText({ model, prompt });
 
   return { updatedMarkdown: text };

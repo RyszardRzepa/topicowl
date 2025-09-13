@@ -129,12 +129,10 @@ export const userCredits = contentbotSchema.table("user_credits", {
     .notNull(),
 });
 
-// Article status enum for kan
+// Article status enum - simplified workflow
 export const articleStatusEnum = contentbotSchema.enum("article_status", [
   "idea",
-  "scheduled",
-  "queued",
-  "to_generate",
+  "scheduled", // replaces "queued" and "to_generate" 
   "generating",
   "wait_for_publish",
   "published",

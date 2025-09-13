@@ -17,7 +17,6 @@ const JINA_CONFIG = {
   maxRetries: 3,
   baseDelay: 2000, // 2 seconds
   maxDelay: 30000, // 30 seconds
-  apiTimeout: 8000, // API-level timeout in seconds (sent in x-timeout header)
 } as const;
 
 // Re-export types from the API route
@@ -41,15 +40,28 @@ export interface ResearchResponse {
   }>;
 }
 
+// Comprehensive research response that includes all provider data
+export interface ComprehensiveResearchResponse {
+  unified: ResearchResponse;
+  gemini: ResearchResponse | null;
+  jina: ResearchResponse | null;
+  metadata: {
+    timestamp: string;
+    geminiSuccess: boolean;
+    jinaSuccess: boolean;
+    mergedResults: boolean;
+  };
+}
+
 // Jina API types
-interface JinaMessage {
+interface JinaRequestMessage {
   role: "assistant" | "user";
   content: string;
 }
 
 interface JinaRequest {
   model: string;
-  messages: JinaMessage[];
+  messages: JinaRequestMessage[];
   stream: boolean;
   reasoning_effort: "low" | "medium" | "high";
   team_size: number;
@@ -69,17 +81,18 @@ interface JinaAnnotation {
   url_citation: JinaUrlCitation;
 }
 
-interface JinaDelta {
+interface JinaMessage {
+  role: "assistant";
   content: string;
   type: "text";
-  annotations: JinaAnnotation[];
+  annotations?: JinaAnnotation[];
 }
 
 interface JinaChoice {
   index: number;
-  delta: JinaDelta;
+  message: JinaMessage;
   logprobs: null;
-  finish_reason: "stop";
+  finish_reason: "stop" | null;
 }
 
 interface JinaUsage {
@@ -205,7 +218,8 @@ async function resolveAndValidateSources(
             method: "HEAD",
             redirect: "manual",
             headers: {
-              "User-Agent": "ContentBot Research/1.0",
+              "User-Agent":
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             },
             signal: AbortSignal.timeout(5000),
           });
@@ -220,7 +234,8 @@ async function resolveAndValidateSources(
             const getResponse = await fetch(source.url, {
               redirect: "manual",
               headers: {
-                "User-Agent": "ContentBot Research/1.0",
+                "User-Agent":
+                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
               },
               signal: AbortSignal.timeout(5000),
             });
@@ -228,7 +243,9 @@ async function resolveAndValidateSources(
             const getLocation = getResponse.headers.get("location");
             if (getLocation) {
               resolvedUrl = getLocation;
-              logger.debug(`[RESEARCH_API] Resolved via GET to: ${resolvedUrl}`);
+              logger.debug(
+                `[RESEARCH_API] Resolved via GET to: ${resolvedUrl}`,
+              );
             }
           }
 
@@ -270,12 +287,28 @@ async function resolveAndValidateSources(
           const validationResponse = await fetch(resolvedUrl, {
             method: "HEAD",
             headers: {
-              "User-Agent": "ContentBot Research/1.0",
+              "User-Agent":
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.5",
+              "Accept-Encoding": "gzip, deflate, br",
+              DNT: "1",
+              Connection: "keep-alive",
+              "Upgrade-Insecure-Requests": "1",
             },
-            signal: AbortSignal.timeout(5000),
+            signal: AbortSignal.timeout(10000),
           });
 
-          isValid = validationResponse.ok || validationResponse.status === 405;
+          // Consider some error codes as "acceptable" - the content might still be valuable
+          // 403 = Forbidden (often anti-bot protection, but content may exist)
+          // 405 = Method Not Allowed (HEAD not supported, but GET might work)
+          // 429 = Too Many Requests (rate limited, but valid source)
+          isValid =
+            validationResponse.ok ||
+            validationResponse.status === 405 ||
+            validationResponse.status === 403 ||
+            validationResponse.status === 429;
 
           if (!isValid) {
             logger.warn(
@@ -287,11 +320,23 @@ async function resolveAndValidateSources(
             );
           }
         } catch (error) {
-          logger.error(
-            `[RESEARCH_API] Failed to validate source: ${resolvedUrl}`,
-            error,
-          );
-          isValid = false;
+          // For timeout errors, consider the source potentially valid
+          // Many sites are slow to respond but still contain good content
+          if (
+            error instanceof Error &&
+            (error.name === "TimeoutError" || error.name === "AbortError")
+          ) {
+            logger.warn(
+              `[RESEARCH_API] Source validation timed out (considering valid): ${resolvedUrl}`,
+            );
+            isValid = true; // Assume valid for timeout cases
+          } else {
+            logger.error(
+              `[RESEARCH_API] Failed to validate source: ${resolvedUrl}`,
+              error,
+            );
+            isValid = false;
+          }
         }
       } else {
         isValid = false;
@@ -446,7 +491,10 @@ async function validateYouTubeVideo(
       `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(canonicalUrl)}`,
       {
         method: "GET",
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; ContentBot/1.0)" },
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
         signal: AbortSignal.timeout(6000),
       },
     );
@@ -494,7 +542,11 @@ async function searchAndValidateYouTubeVideos(
     const maxAttempts = 3;
     let attempt = 1;
     let youtubeSearchResult = await generateText({
-      model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
+      model: await getModel(
+        "google",
+        MODELS.GEMINI_2_5_FLASH,
+        "research-service",
+      ),
       providerOptions: {
         google: {
           thinkingConfig: {
@@ -518,7 +570,11 @@ async function searchAndValidateYouTubeVideos(
         `[YOUTUBE_SEARCH] No sources returned, retrying attempt ${attempt}/${maxAttempts}`,
       );
       youtubeSearchResult = await generateText({
-        model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
+        model: await getModel(
+          "google",
+          MODELS.GEMINI_2_5_FLASH,
+          "research-service",
+        ),
         providerOptions: {
           google: {
             thinkingConfig: {
@@ -578,7 +634,8 @@ async function searchAndValidateYouTubeVideos(
               method: "HEAD",
               redirect: "manual",
               headers: {
-                "User-Agent": "ContentBot Research/1.0",
+                "User-Agent":
+                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
               },
               signal: AbortSignal.timeout(5000),
             });
@@ -592,7 +649,8 @@ async function searchAndValidateYouTubeVideos(
               const getResponse = await fetch(url, {
                 redirect: "manual",
                 headers: {
-                  "User-Agent": "ContentBot Research/1.0",
+                  "User-Agent":
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 },
                 signal: AbortSignal.timeout(5000),
               });
@@ -709,7 +767,11 @@ async function searchAndValidateYouTubeVideos(
       .join("\n");
 
     const selectionResult = await generateObject({
-      model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
+      model: await getModel(
+        "google",
+        MODELS.GEMINI_2_5_FLASH,
+        "research-service",
+      ),
       schema: videoSelectionSchema,
       prompt: `From the following validated and accessible YouTube URLs, select the ONE best video that is most relevant to the article topic "${title}".
           YouTube URLs found (all verified as accessible):
@@ -759,22 +821,26 @@ async function callJinaResearchAPI(
   notes?: string,
   excludedDomains?: string[],
 ): Promise<JinaResponse> {
-  
   // Create the context for Jina research
-  const siteContext = notes ?? "General content platform focusing on quality research and insights";
+  const siteContext =
+    notes ??
+    "General content platform focusing on quality research and insights";
   const targetKeywords = keywords.join(", ");
-  const excludedDomainsStr = excludedDomains?.length ? excludedDomains.join(", ") : "";
+  const excludedDomainsStr = excludedDomains?.length
+    ? excludedDomains.join(", ")
+    : "";
   const market = "Global English-speaking audience";
 
   const jinaRequest: JinaRequest = {
-    model: MODELS.JINA_DEEPSEARCH_V1,
+    model: "jina-deepsearch-v1",
     messages: [
       {
         role: "assistant",
-        content: "You are \"Topic Hunter,\" a source-driven research agent. Use ONLY the URLs returned by DeepSearch. Never invent links. Cite in-text as [S1], [S2]… and list raw URLs under a final Sources section."
+        content:
+          'You are "Topic Hunter," a source-driven research agent. Use ONLY the URLs returned by DeepSearch. Never invent links. Cite in-text as [S1], [S2]… and list raw URLs under a final Sources section.',
       },
       {
-        role: "user", 
+        role: "user",
         content: `Research this article topic for TopicOwl content platform.
 
 Topic: ${title}
@@ -804,15 +870,14 @@ Rules:
 At the end, print:
 Sources:
 S1: <URL>
-S2: <URL>
-…`
-      }
+S2: <URL>`,
+      },
     ],
     stream: false,
     reasoning_effort: "medium",
     team_size: 2,
     max_returned_urls: 40,
-    no_direct_answer: true
+    no_direct_answer: true,
   };
 
   // Retry configuration for handling transient errors like 524
@@ -820,76 +885,108 @@ S2: <URL>
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      logger.debug(`[JINA_RESEARCH] Attempt ${attempt}/${maxRetries} for topic: ${title}`);
+      logger.debug(
+        `[JINA_RESEARCH] Attempt ${attempt}/${maxRetries} for topic: ${title}`,
+      );
 
+      // Log start time for long-running request tracking
+      const startTime = Date.now();
+      logger.info(
+        `[JINA_RESEARCH] Starting research request (this may take several minutes)...`,
+      );
 
-      const response = await fetch("https://deepsearch.jina.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${env.JINA_API_KEY}`,
+      const response = await fetch(
+        "https://deepsearch.jina.ai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.JINA_API_KEY}`,
+          },
+          body: JSON.stringify(jinaRequest),
         },
-        body: JSON.stringify(jinaRequest),
-      });
+      );
+
+      const duration = Date.now() - startTime;
+      logger.debug(
+        `[JINA_RESEARCH] Request completed in ${Math.round(duration / 1000)}s`,
+      );
 
       if (response.ok) {
-        logger.debug(`[JINA_RESEARCH] Successfully completed on attempt ${attempt}`);
+        logger.debug(
+          `[JINA_RESEARCH] Successfully completed on attempt ${attempt}`,
+        );
         return response.json() as Promise<JinaResponse>;
       }
 
       // Handle specific error statuses
-      const isRetryableError = response.status === 524 || // Gateway timeout
-                               response.status === 502 || // Bad gateway
-                               response.status === 503 || // Service unavailable
-                               response.status === 429;   // Too many requests
+      const isRetryableError =
+        response.status === 524 || // Gateway timeout
+        response.status === 502 || // Bad gateway
+        response.status === 503 || // Service unavailable
+        response.status === 429; // Too many requests
 
       if (!isRetryableError || attempt === maxRetries) {
-        throw new Error(`Jina API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Jina API error: ${response.status} ${response.statusText}`,
+        );
       }
 
       // Log retryable error and wait before next attempt
-      logger.warn(`[JINA_RESEARCH] Retryable error ${response.status} on attempt ${attempt}, retrying...`);
-
+      logger.warn(
+        `[JINA_RESEARCH] Retryable error ${response.status} on attempt ${attempt}, retrying...`,
+      );
     } catch (error) {
       if (attempt === maxRetries) {
         // Categorize error for better handling
         if (error instanceof Error) {
-          if (error.name === 'AbortError') {
-            throw new Error('Jina API request timeout');
+          if (error.name === "AbortError" || error.name === "TimeoutError") {
+            throw new Error(
+              "Jina API request timeout - the service is taking longer than expected",
+            );
           }
-          if (error.message.includes('524')) {
-            throw new Error(`Jina API gateway timeout (524) - service overloaded`);
+          if (error.message.includes("524")) {
+            throw new Error(
+              `Jina API gateway timeout (524) - service overloaded`,
+            );
           }
         }
         throw error;
       }
 
-      logger.warn(`[JINA_RESEARCH] Error on attempt ${attempt}:`, error instanceof Error ? error.message : 'Unknown error');
+      logger.warn(
+        `[JINA_RESEARCH] Error on attempt ${attempt}:`,
+        error instanceof Error ? error.message : "Unknown error",
+      );
     }
 
     // Exponential backoff with jitter
     if (attempt < maxRetries) {
       const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
       const jitteredDelay = delay + Math.random() * 1000; // Add up to 1s jitter
-      logger.debug(`[JINA_RESEARCH] Waiting ${Math.round(jitteredDelay)}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, jitteredDelay));
+      logger.debug(
+        `[JINA_RESEARCH] Waiting ${Math.round(jitteredDelay)}ms before retry...`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
     }
   }
 
   throw new Error("Jina API: Maximum retries exceeded");
 }
 
-function extractSourcesFromJinaResponse(jinaResponse: JinaResponse): Array<{ url: string; title?: string }> {
+function extractSourcesFromJinaResponse(
+  jinaResponse: JinaResponse,
+): Array<{ url: string; title?: string }> {
   const sources: Array<{ url: string; title?: string }> = [];
   const seenUrls = new Set<string>();
 
-  // Extract sources from annotations in the response
+  // Extract sources ONLY from annotations in the response (primary data)
   for (const choice of jinaResponse.choices) {
-    for (const annotation of choice.delta.annotations ?? []) {
+    for (const annotation of choice.message?.annotations ?? []) {
       if (annotation.type === "url_citation" && annotation.url_citation) {
         const url = annotation.url_citation.url;
         const title = annotation.url_citation.title;
-        
+
         if (!seenUrls.has(url)) {
           seenUrls.add(url);
           sources.push({ url, title });
@@ -898,25 +995,9 @@ function extractSourcesFromJinaResponse(jinaResponse: JinaResponse): Array<{ url
     }
   }
 
-  // Also extract from visitedURLs and readURLs as fallback
-  for (const url of jinaResponse.readURLs ?? []) {
-    if (!seenUrls.has(url)) {
-      seenUrls.add(url);
-      sources.push({ url });
-    }
-  }
-
-  // Extract additional sources from visitedURLs if we don't have enough
-  if (sources.length < 5) {
-    for (const url of jinaResponse.visitedURLs ?? []) {
-      if (!seenUrls.has(url) && sources.length < 15) {
-        seenUrls.add(url);
-        sources.push({ url });
-      }
-    }
-  }
-
-  logger.debug(`[JINA_RESEARCH] Extracted ${sources.length} sources from Jina response`);
+  logger.debug(
+    `[JINA_RESEARCH] Extracted ${sources.length} sources from Jina annotations only`,
+  );
   return sources;
 }
 
@@ -925,188 +1006,79 @@ async function performJinaResearch(
   keywords: string[],
   notes?: string,
   excludedDomains?: string[],
-): Promise<{ researchData: string; sources: Array<{ url: string; title?: string }> }> {
+): Promise<{
+  researchData: string;
+  sources: Array<{ url: string; title?: string }>;
+}> {
   try {
     logger.debug("[JINA_RESEARCH] Starting Jina research for:", title);
-    
-    const jinaResponse = await callJinaResearchAPI(title, keywords, notes, excludedDomains);
-    
-    // Extract content from response
+
+    const jinaResponse = await callJinaResearchAPI(
+      title,
+      keywords,
+      notes,
+      excludedDomains,
+    );
+
+    // Extract content from response - handle missing message or content safely
     const researchData = jinaResponse.choices
-      .map(choice => choice.delta.content)
+      .map((choice) => choice.message?.content ?? "")
+      .filter((content) => content.length > 0)
       .join("\n")
       .trim();
 
     // Extract sources
     const sources = extractSourcesFromJinaResponse(jinaResponse);
 
-    logger.debug(`[JINA_RESEARCH] Completed research with ${researchData.length} chars and ${sources.length} sources`);
-    
+    logger.debug(
+      `[JINA_RESEARCH] Completed research with ${researchData.length} chars and ${sources.length} sources`,
+    );
+
     return {
       researchData,
-      sources
+      sources,
     };
   } catch (error) {
     logger.error("[JINA_RESEARCH] Error during Jina research:", error);
-    
-    // Categorize the error for better user understanding
-    let errorMessage = "Jina research failed";
-    if (error instanceof Error) {
-      if (error.message.includes('timeout')) {
-        errorMessage = "Jina research timed out - the service may be experiencing high load";
-      } else if (error.message.includes('524')) {
-        errorMessage = "Jina research gateway timeout - the service is temporarily overloaded";
-      } else if (error.message.includes('502') || error.message.includes('503')) {
-        errorMessage = "Jina research service temporarily unavailable";
-      } else if (error.message.includes('429')) {
-        errorMessage = "Jina research rate limit exceeded";
-      } else if (error.message.includes('401') || error.message.includes('403')) {
-        errorMessage = "Jina API authentication failed";
-      }
-    }
-    
-    // Create a descriptive error that includes troubleshooting info
-    const enhancedError = new Error(`${errorMessage}. Using Gemini research only. Original error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    enhancedError.name = 'JinaResearchError';
-    
-    throw enhancedError;
+
+    throw error;
   }
 }
 
 function mergeResearchResults(
-  geminiResult: { researchData: string; sources: Array<{ url: string; title?: string }> },
-  jinaResult: { researchData: string; sources: Array<{ url: string; title?: string }> }
+  geminiResult: {
+    researchData: string;
+    sources: Array<{ url: string; title?: string }>;
+  },
+  jinaResult: {
+    researchData: string;
+    sources: Array<{ url: string; title?: string }>;
+  },
 ): { researchData: string; sources: Array<{ url: string; title?: string }> } {
   logger.debug("[RESEARCH_MERGE] Merging Gemini and Jina research results");
 
-  // Parse and extract structured sections from both responses
-  const jinaData = jinaResult.researchData;
-  const geminiData = geminiResult.researchData;
+  // Simply combine the full responses without parsing sections
+  const unifiedBrief = `# Research Brief
 
-  // Try to extract key sections from Jina response (which has a more structured format)
-  const extractSection = (text: string, sectionName: string): string => {
-    const regex = new RegExp(`(?:^|\\n)\\d*\\)\\s*${sectionName}[^\\n]*\\n([\\s\\S]*?)(?=\\n\\d*\\)|\\nSources:|$)`, 'i');
-    const match = text.match(regex);
-    return match?.[1]?.trim() ?? '';
-  };
+## Primary Research Analysis (Jina)
+${jinaResult.researchData}
 
-  const extractExecutiveInsight = (text: string): string => {
-    const patterns = [
-      /(?:^|\n)1\)\s*Executive insight[^:]*:?\s*([^\n]*(?:\n(?!\d\))[^\n]*)*)/i,
-      /(?:^|\n)Executive insight[^:]*:?\s*([^\n]*(?:\n(?!\d\))[^\n]*)*)/i,
-      /(?:^|\n)(?:##?\s*)?Executive[^:]*:?\s*([^\n]*(?:\n(?!##?)[^\n]*)*)/i
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match?.[1]?.trim()) {
-        return match[1].trim();
-      }
-    }
-    return '';
-  };
-
-  // Extract sections from Jina response
-  const executiveInsight = extractExecutiveInsight(jinaData) || extractExecutiveInsight(geminiData);
-  const serpIntent = extractSection(jinaData, 'SERP intent map') || extractSection(jinaData, 'Intent map');
-  const keyFindings = extractSection(jinaData, 'Key findings') || extractSection(jinaData, 'Findings');
-  const dataStats = extractSection(jinaData, 'Data & stats') || extractSection(jinaData, 'Statistics');
-  const contentGaps = extractSection(jinaData, 'Content gaps') || extractSection(jinaData, 'Opportunities');
-  const outline = extractSection(jinaData, 'Draft outline') || extractSection(jinaData, 'Outline');
-  const faqs = extractSection(jinaData, 'FAQs') || extractSection(jinaData, 'FAQ');
-  const internalLinks = extractSection(jinaData, 'Internal links') || extractSection(jinaData, 'Links');
-  const riskChecks = extractSection(jinaData, 'Risk checks') || extractSection(jinaData, 'Risks');
-
-  // Create unified research brief
-  let unifiedBrief = "# Unified Research Brief\n\n";
-
-  // Executive Summary (prioritize Jina's structured insight, supplement with Gemini)
-  if (executiveInsight) {
-    unifiedBrief += `## Executive Summary\n${executiveInsight}\n\n`;
-  } else {
-    // Fallback: use first few sentences from Gemini as executive summary
-    const geminiSentences = geminiData.split(/[.!?]+/).slice(0, 3).join('. ').trim();
-    if (geminiSentences) {
-      unifiedBrief += `## Executive Summary\n${geminiSentences}.\n\n`;
-    }
-  }
-
-  // SERP Intent Analysis
-  if (serpIntent) {
-    unifiedBrief += `## Search Intent Analysis\n${serpIntent}\n\n`;
-  }
-
-  // Key Research Findings (merge both sources)
-  const combinedFindings = [];
-  if (keyFindings) combinedFindings.push(`### Structured Research Findings\n${keyFindings}`);
-  
-  // Extract key points from Gemini response as additional findings
-  const geminiPoints = geminiData
-    .split('\n')
-    .filter(line => line.trim().length > 50 && !line.startsWith('#'))
-    .slice(0, 5)
-    .map(line => line.trim())
-    .filter(line => line.length > 0);
-    
-  if (geminiPoints.length > 0) {
-    combinedFindings.push(`### Additional Research Insights\n${geminiPoints.map(point => `• ${point}`).join('\n')}`);
-  }
-
-  if (combinedFindings.length > 0) {
-    unifiedBrief += `## Key Findings\n${combinedFindings.join('\n\n')}\n\n`;
-  }
-
-  // Data and Statistics
-  if (dataStats) {
-    unifiedBrief += `## Data & Statistics\n${dataStats}\n\n`;
-  }
-
-  // Content Strategy
-  const strategySection = [];
-  if (contentGaps) strategySection.push(`### Content Opportunities\n${contentGaps}`);
-  if (internalLinks) strategySection.push(`### Internal Linking Strategy\n${internalLinks}`);
-  
-  if (strategySection.length > 0) {
-    unifiedBrief += `## Content Strategy\n${strategySection.join('\n\n')}\n\n`;
-  }
-
-  // Article Structure
-  if (outline) {
-    unifiedBrief += `## Recommended Article Structure\n${outline}\n\n`;
-  }
-
-  // FAQ Section
-  if (faqs) {
-    unifiedBrief += `## Frequently Asked Questions\n${faqs}\n\n`;
-  }
-
-  // Risk Assessment
-  if (riskChecks) {
-    unifiedBrief += `## Content Risk Assessment\n${riskChecks}\n\n`;
-  }
-
-  // If structured sections couldn't be extracted, fall back to original approach
-  if (unifiedBrief.trim() === "# Unified Research Brief") {
-    logger.debug("[RESEARCH_MERGE] Structured parsing failed, using fallback concatenation");
-    unifiedBrief = `# Research Brief
-
-## Primary Research Analysis
-${jinaData}
-
-## Supplementary Research Insights  
-${geminiData}`;
-  }
+## Supplementary Research Insights (Gemini)
+${geminiResult.researchData}`;
 
   // Merge and deduplicate sources with intelligent prioritization
-  const sourceMap = new Map<string, { url: string; title?: string; source: 'jina' | 'gemini' }>();
-  
+  const sourceMap = new Map<
+    string,
+    { url: string; title?: string; source: "jina" | "gemini" }
+  >();
+
   // Add Jina sources first (prioritized)
-  jinaResult.sources.forEach(source => {
-    sourceMap.set(source.url, { ...source, source: 'jina' });
+  jinaResult.sources.forEach((source) => {
+    sourceMap.set(source.url, { ...source, source: "jina" });
   });
-  
+
   // Add Gemini sources, but keep Jina titles if they exist
-  geminiResult.sources.forEach(source => {
+  geminiResult.sources.forEach((source) => {
     const existing = sourceMap.get(source.url);
     if (existing) {
       // Keep Jina title if it exists, otherwise use Gemini title
@@ -1114,199 +1086,29 @@ ${geminiData}`;
         sourceMap.set(source.url, { ...existing, title: source.title });
       }
     } else {
-      sourceMap.set(source.url, { ...source, source: 'gemini' });
+      sourceMap.set(source.url, { ...source, source: "gemini" });
     }
   });
 
-  const uniqueSources = Array.from(sourceMap.values()).map(({ url, title }) => ({ url, title }));
-
-  logger.debug(`[RESEARCH_MERGE] Unified research brief created with ${uniqueSources.length} unique sources`);
-  logger.debug(`[RESEARCH_MERGE] Brief sections: ${unifiedBrief.split('##').length - 1} sections`);
+  const uniqueSources = Array.from(sourceMap.values()).map(
+    ({ url, title }) => ({ url, title }),
+  );
 
   return {
     researchData: unifiedBrief,
-    sources: uniqueSources
+    sources: uniqueSources,
   };
 }
 
-/**
- * Core research function that can be called directly without HTTP
- * Extracted from /api/articles/research/route.ts
- * Now runs both Gemini and Jina research in parallel and merges results
- */
-export async function performResearchDirect(
-  request: ResearchRequest,
-): Promise<ResearchResponse> {
-  const { title, keywords, notes, excludedDomains } = request;
-
-  // Validate required fields
-  if (!title) {
-    throw new Error("Title is required");
-  }
-
-  if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
-    throw new Error("At least one keyword is required");
-  }
-
-  // Use provided excluded domains or empty array
-  const domainsToExclude = excludedDomains ?? [];
-
-  logger.debug(
-    `[RESEARCH_SERVICE] Starting parallel research (Gemini + Jina) for "${title}" with ${keywords.length} keywords`,
-  );
-  if (domainsToExclude.length > 0) {
-    logger.debug(
-      `[RESEARCH_SERVICE] Excluding ${domainsToExclude.length} domains: ${domainsToExclude.join(", ")}`,
-    );
-  }
-
-  try {
-    // Run Gemini and Jina research in parallel
-    const [geminiResult, jinaResult] = await Promise.allSettled([
-      performGeminiResearch(title, keywords, notes, domainsToExclude),
-      performJinaResearch(title, keywords, notes, domainsToExclude),
-    ]);
-
-    let finalResearchData: string;
-    let finalSources: Array<{ url: string; title?: string }> = [];
-
-    // Handle results based on what succeeded
-    if (geminiResult.status === "fulfilled" && jinaResult.status === "fulfilled") {
-      logger.debug("[RESEARCH_SERVICE] Both Gemini and Jina research successful, merging results");
-      const merged = mergeResearchResults(geminiResult.value, jinaResult.value);
-      finalResearchData = merged.researchData;
-      finalSources = merged.sources;
-    } else if (geminiResult.status === "fulfilled") {
-      logger.warn("[RESEARCH_SERVICE] Jina research failed, using Gemini results only");
-      if (jinaResult.status === "rejected") {
-        const error: unknown = jinaResult.reason;
-        if (error instanceof Error && error.name === 'JinaResearchError') {
-          logger.error("[RESEARCH_SERVICE] Jina error:", error.message);
-        } else {
-          logger.error("[RESEARCH_SERVICE] Jina error:", error instanceof Error ? error.message : 'Unknown error');
-        }
-      }
-      finalResearchData = geminiResult.value.researchData;
-      finalSources = geminiResult.value.sources;
-    } else if (jinaResult.status === "fulfilled") {
-      logger.warn("[RESEARCH_SERVICE] Gemini research failed, using Jina results only");
-      if (geminiResult.status === "rejected") {
-        logger.error("[RESEARCH_SERVICE] Gemini error:", geminiResult.reason);
-      }
-      finalResearchData = jinaResult.value.researchData;
-      finalSources = jinaResult.value.sources;
-    } else {
-      logger.error("[RESEARCH_SERVICE] Both research methods failed");
-      if (geminiResult.status === "rejected") {
-        logger.error("[RESEARCH_SERVICE] Gemini error:", geminiResult.reason);
-      }
-      if (jinaResult.status === "rejected") {
-        logger.error("[RESEARCH_SERVICE] Jina error:", jinaResult.reason);
-      }
-      throw new Error("Both Gemini and Jina research failed");
-    }
-
-    // Resolve Google redirect URLs and validate source availability
-    const processedSources = await resolveAndValidateSources(
-      finalSources.map(source => ({
-        sourceType: "web",
-        url: source.url,
-        title: source.title
-      }))
-    );
-
-    // Separate valid and invalid sources
-    const validSources = processedSources.filter((source) => source.isValid);
-    const invalidSources = processedSources.filter((source) => !source.isValid);
-
-    if (invalidSources.length > 0) {
-      logger.warn(
-        `[RESEARCH_SERVICE] Found ${invalidSources.length} invalid sources:`,
-        invalidSources.map((s) => ({
-          url: s.url.substring(0, 50) + "...",
-          title: s.title,
-        })),
-      );
-    }
-
-    // Only use valid sources - if no valid sources, return empty array rather than invalid ones
-    const finalResolvedSources = validSources.map(({ url, title }) => ({
-      url,
-      title,
-    }));
-
-    logger.debug(
-      `[RESEARCH_SERVICE] Resolved and validated sources: ${validSources.length} valid, ${invalidSources.length} invalid`,
-    );
-
-    // Filter sources to remove excluded domains
-    const filteredSources =
-      domainsToExclude.length === 0
-        ? finalResolvedSources
-        : finalResolvedSources.filter((source) => {
-            try {
-              const url = new URL(source.url);
-              const domain = url.hostname;
-              const isExcluded = domainsToExclude.some((excludedDomain) =>
-                domain.toLowerCase().includes(excludedDomain.toLowerCase()),
-              );
-
-              if (isExcluded) {
-                logger.debug(
-                  `[RESEARCH_SERVICE] Filtered out source: ${source.url} (domain: ${domain})`,
-                );
-              }
-
-              return !isExcluded;
-            } catch (error) {
-              // If URL parsing fails, keep the source (don't filter invalid URLs)
-              logger.warn(
-                `[RESEARCH_SERVICE] Could not parse URL for filtering: ${source.url}`,
-                error,
-              );
-              return true;
-            }
-          });
-
-    // Filter research text to remove vertex AI URLs and excluded domains
-    const filteredText = filterTextContent(finalResearchData, domainsToExclude);
-
-    // Search for YouTube videos specifically for the article title
-    const selectedVideo = await searchAndValidateYouTubeVideos(title);
-
-    logger.debug(
-      "[RESEARCH_SERVICE] Sources processed:",
-      `${finalResolvedSources.length} total, ${filteredSources.length} after filtering, video search: ${selectedVideo ? "found" : "none"}`,
-    );
-
-    const result: ResearchResponse = {
-      researchData: filteredText,
-      sources: filteredSources,
-      videos: selectedVideo ? [selectedVideo] : [],
-    };
-
-    logger.debug(`[RESEARCH_SERVICE] Research completed successfully`, {
-      researchDataLength: result.researchData.length,
-      sourcesCount: result.sources.length,
-      videosCount: result.videos?.length ?? 0,
-    });
-
-    return result;
-  } catch (error) {
-    logger.error(`[RESEARCH_SERVICE] Research failed:`, error);
-    throw new Error(
-      `Research failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
-}
-
-// Legacy Gemini-only research function (now used as part of parallel research)
 async function performGeminiResearch(
   title: string,
   keywords: string[],
   notes?: string,
   domainsToExclude: string[] = [],
-): Promise<{ researchData: string; sources: Array<{ url: string; title?: string }> }> {
+): Promise<{
+  researchData: string;
+  sources: Array<{ url: string; title?: string }>;
+}> {
   logger.debug(`[GEMINI_RESEARCH] Starting Gemini research for "${title}"`);
 
   // Retry logic for when sources are empty or not returned
@@ -1323,7 +1125,11 @@ async function performGeminiResearch(
     logger.debug(`[GEMINI_RESEARCH] Attempt ${attempt}/${maxAttempts}`);
 
     const result = await generateText({
-      model: await getModel('google',MODELS.GEMINI_2_5_FLASH, "research-service"),
+      model: await getModel(
+        "google",
+        MODELS.GEMINI_2_5_FLASH,
+        "research-service",
+      ),
       providerOptions: {
         google: {
           thinkingConfig: {
@@ -1405,6 +1211,199 @@ async function performGeminiResearch(
 
   return {
     researchData: text,
-    sources: sources.map(s => ({ url: s.url, title: s.title }))
+    sources: sources.map((s) => ({ url: s.url, title: s.title })),
   };
 }
+
+
+/**
+ * Core research function that can be called directly without HTTP
+ * Extracted from /api/articles/research/route.ts
+ * Now runs both Gemini and Jina research in parallel and merges results
+ * Returns comprehensive data including individual provider responses
+ */
+export async function performResearchDirect(
+  request: ResearchRequest,
+): Promise<ComprehensiveResearchResponse> {
+  const { title, keywords, notes, excludedDomains } = request;
+
+  // Validate required fields
+  if (!title) {
+    throw new Error("Title is required");
+  }
+
+  if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
+    throw new Error("At least one keyword is required");
+  }
+
+  // Use provided excluded domains or empty array
+  const domainsToExclude = excludedDomains ?? [];
+
+  logger.debug(
+    `[RESEARCH_SERVICE] Starting parallel research (Gemini + Jina) for "${title}" with ${keywords.length} keywords`,
+  );
+
+  try {
+    // Run Gemini and Jina research in parallel
+    const [geminiResult, jinaResult] = await Promise.allSettled([
+      performGeminiResearch(title, keywords, notes, domainsToExclude),
+      performJinaResearch(title, keywords, notes, domainsToExclude),
+    ]);
+
+    // Store individual results
+    let geminiData: ResearchResponse | null = null;
+    let jinaData: ResearchResponse | null = null;
+    let finalResearchData: string;
+    let finalSources: Array<{ url: string; title?: string }> = [];
+
+    // Extract Gemini results
+    if (geminiResult.status === "fulfilled") {
+      geminiData = {
+        researchData: geminiResult.value.researchData,
+        sources: geminiResult.value.sources,
+        videos: [], // Gemini doesn't return videos
+      };
+    }
+
+    // Extract Jina results
+    if (jinaResult.status === "fulfilled") {
+      jinaData = {
+        researchData: jinaResult.value.researchData,
+        sources: jinaResult.value.sources,
+        videos: [], // Jina doesn't return videos
+      };
+    }
+
+    // Handle results based on what succeeded
+    const geminiSuccess = geminiResult.status === "fulfilled";
+    const jinaSuccess = jinaResult.status === "fulfilled";
+
+    if (geminiSuccess && jinaSuccess) {
+      logger.debug(
+        "[RESEARCH_SERVICE] Both Gemini and Jina research successful, merging results",
+      );
+      const merged = mergeResearchResults(geminiResult.value, jinaResult.value);
+      finalResearchData = merged.researchData;
+      finalSources = merged.sources;
+    } else if (geminiSuccess) {
+      logger.warn(
+        "[RESEARCH_SERVICE] Jina research failed, using Gemini results only",
+      );
+      finalResearchData = geminiResult.value.researchData;
+      finalSources = geminiResult.value.sources;
+    } else if (jinaSuccess) {
+      logger.warn(
+        "[RESEARCH_SERVICE] Gemini research failed, using Jina results only",
+      );
+      finalResearchData = jinaResult.value.researchData;
+      finalSources = jinaResult.value.sources;
+    } else {
+      logger.error("[RESEARCH_SERVICE] Both research methods failed");
+      throw new Error("Both Gemini and Jina research failed");
+    }
+
+    // Resolve Google redirect URLs and validate source availability
+    const processedSources = await resolveAndValidateSources(
+      finalSources.map((source) => ({
+        sourceType: "web",
+        url: source.url,
+        title: source.title,
+      })),
+    );
+
+    // Separate valid and invalid sources
+    const validSources = processedSources.filter((source) => source.isValid);
+    const invalidSources = processedSources.filter((source) => !source.isValid);
+
+    if (invalidSources.length > 0) {
+      logger.warn(
+        `[RESEARCH_SERVICE] Found ${invalidSources.length} invalid sources:`,
+        invalidSources.map((s) => ({
+          url: s.url.substring(0, 50) + "...",
+          title: s.title,
+        })),
+      );
+    }
+
+    // Only use valid sources - if no valid sources, return empty array rather than invalid ones
+    const finalResolvedSources = validSources.map(({ url, title }) => ({
+      url,
+      title,
+    }));
+
+    logger.debug(
+      `[RESEARCH_SERVICE] Resolved and validated sources: ${validSources.length} valid, ${invalidSources.length} invalid`,
+    );
+
+    // Filter sources to remove excluded domains
+    const filteredSources =
+      domainsToExclude.length === 0
+        ? finalResolvedSources
+        : finalResolvedSources.filter((source) => {
+            try {
+              const url = new URL(source.url);
+              const domain = url.hostname;
+              const isExcluded = domainsToExclude.some((excludedDomain) =>
+                domain.toLowerCase().includes(excludedDomain.toLowerCase()),
+              );
+
+              if (isExcluded) {
+                logger.debug(
+                  `[RESEARCH_SERVICE] Filtered out source: ${source.url} (domain: ${domain})`,
+                );
+              }
+
+              return !isExcluded;
+            } catch (error) {
+              // If URL parsing fails, keep the source (don't filter invalid URLs)
+              logger.warn(
+                `[RESEARCH_SERVICE] Could not parse URL for filtering: ${source.url}`,
+                error,
+              );
+              return true;
+            }
+          });
+
+    // Filter research text to remove vertex AI URLs and excluded domains
+    const filteredText = filterTextContent(finalResearchData, domainsToExclude);
+
+    // Search for YouTube videos specifically for the article title
+    const selectedVideo = await searchAndValidateYouTubeVideos(title);
+
+    logger.debug(
+      "[RESEARCH_SERVICE] Sources processed:",
+      `${finalResolvedSources.length} total, ${filteredSources.length} after filtering, video search: ${selectedVideo ? "found" : "none"}`,
+    );
+
+    const unifiedResult: ResearchResponse = {
+      researchData: filteredText,
+      sources: filteredSources,
+      videos: selectedVideo ? [selectedVideo] : [],
+    };
+
+    // Create comprehensive response with all provider data
+    const comprehensiveResult: ComprehensiveResearchResponse = {
+      unified: unifiedResult,
+      gemini: geminiData,
+      jina: jinaData,
+      metadata: {
+        timestamp: new Date().toISOString(),
+        geminiSuccess: geminiResult.status === "fulfilled",
+        jinaSuccess: jinaResult.status === "fulfilled",
+        mergedResults:
+          geminiResult.status === "fulfilled" &&
+          jinaResult.status === "fulfilled",
+      },
+    };
+
+    logger.debug(`[RESEARCH_SERVICE] Research completed successfully`);
+
+    return comprehensiveResult;
+  } catch (error) {
+    logger.error(`[RESEARCH_SERVICE] Research failed:`, error);
+    throw new Error(
+      `Research failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}
+

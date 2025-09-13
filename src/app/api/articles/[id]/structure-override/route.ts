@@ -7,7 +7,7 @@ import type { ApiResponse, StructureTemplate } from "@/types";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { userId } = await auth();
   if (!userId) {
@@ -17,7 +17,8 @@ export async function GET(
     );
   }
 
-  const articleId = parseInt(params.id, 10);
+  const resolvedParams = await params;
+  const articleId = parseInt(resolvedParams.id, 10);
   const result = await db
     .select({ structureOverride: articles.structureOverride, projectId: articles.projectId, userId: projects.userId })
     .from(articles)
@@ -37,7 +38,7 @@ export async function GET(
   );
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json(
@@ -46,7 +47,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     );
   }
 
-  const articleId = parseInt(params.id, 10);
+  const resolvedParams = await params;
+  const articleId = parseInt(resolvedParams.id, 10);
   const override = (await req.json()) as StructureTemplate;
 
   const ownership = await db

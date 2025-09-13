@@ -87,7 +87,7 @@ export async function POST(
     const existingArticle = result.articles;
 
     // Check if article is scheduled for generation
-    if (existingArticle.status !== "to_generate") {
+    if (existingArticle.status !== "scheduled") {
       return NextResponse.json(
         {
           success: false,

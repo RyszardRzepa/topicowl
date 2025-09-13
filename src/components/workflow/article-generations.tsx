@@ -172,7 +172,7 @@ export function ArticleGenerations({
   );
   const scheduledArticles = articles.filter(
     (article) =>
-      article.status === "to_generate" && article.generationScheduledAt,
+      article.status === "scheduled" && article.generationScheduledAt,
   );
   const completedArticles = articles.filter(
     (article) =>

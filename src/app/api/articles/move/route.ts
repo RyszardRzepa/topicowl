@@ -17,14 +17,12 @@ export interface MoveArticleRequest {
 
 // Kanban flow logic - inline implementation
 const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
-  idea: ["to_generate", "scheduled"],
-  scheduled: ["queued", "idea"],
-  queued: ["generating", "scheduled", "idea"],
-  to_generate: ["generating"], // Only through generate button, not drag
+  idea: ["scheduled"],
+  scheduled: ["generating", "idea"],
   generating: ["wait_for_publish"], // Automatically moved by system after generation
   wait_for_publish: ["published"],
   published: [], // Cannot be moved
-  failed: ["idea", "to_generate"], // Failed articles can be reset to idea or to_generate
+  failed: ["idea", "scheduled"], // Failed articles can be reset to idea or scheduled
   deleted: [], // Deleted articles cannot be moved
 };
 
@@ -82,8 +80,6 @@ const moveArticleSchema = z.object({
   newStatus: z.enum([
     "idea",
     "scheduled",
-    "queued",
-    "to_generate",
     "generating",
     "wait_for_publish",
     "published",

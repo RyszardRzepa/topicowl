@@ -12,8 +12,6 @@ export const ARTICLE_STATUSES = articleStatusEnum.enumValues;
 export const STATUSES = {
   IDEA: "idea" as const,
   SCHEDULED: "scheduled" as const,
-  QUEUED: "queued" as const, 
-  TO_GENERATE: "to_generate" as const,
   GENERATING: "generating" as const,
   WAIT_FOR_PUBLISH: "wait_for_publish" as const,
   PUBLISHED: "published" as const,
@@ -49,8 +47,6 @@ export function getDisplayStatus(dbStatus: ArticleStatus): DisplayStatus {
   switch (dbStatus) {
     case STATUSES.IDEA:
     case STATUSES.SCHEDULED:
-    case STATUSES.QUEUED:
-    case STATUSES.TO_GENERATE:
     case STATUSES.GENERATING:
     case STATUSES.FAILED:
       return DISPLAY_STATUSES.IDEA;
@@ -99,9 +95,7 @@ export function isFailed(dbStatus: ArticleStatus): boolean {
 export function isIdea(dbStatus: ArticleStatus): boolean {
   const ideaStatuses = [
     STATUSES.IDEA,
-    STATUSES.SCHEDULED, 
-    STATUSES.QUEUED,
-    STATUSES.TO_GENERATE,
+    STATUSES.SCHEDULED,
   ] as const;
   return (ideaStatuses as readonly string[]).includes(dbStatus);
 }
@@ -123,8 +117,6 @@ export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boole
   switch (dbStatus) {
     case STATUSES.IDEA:
     case STATUSES.SCHEDULED:
-    case STATUSES.TO_GENERATE:
-    case STATUSES.QUEUED:
     case STATUSES.FAILED:
       return {
         kind: "queued",
