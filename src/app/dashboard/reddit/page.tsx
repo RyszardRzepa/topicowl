@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { useCurrentProjectId } from "@/contexts/project-context";
 import { TaskCalendar } from "@/components/reddit/TaskCalendar";
 import { TaskExecutor } from "@/components/reddit/TaskExecutor";
-import { GenerateTasksButton } from "@/components/reddit/GenerateTasksButton";
 import type { RedditTask, WeeklyTasksResponse } from "@/types";
 
 export default function RedditPage() {
@@ -333,7 +332,6 @@ export default function RedditPage() {
 
     // Find the task to move
     let taskToMove: RedditTask | null = null;
-    let sourceDay: string | null = null;
 
     // First, find and remove the task from its current location
     for (const dayKey of Object.keys(updatedWeekData.tasks)) {
@@ -346,7 +344,6 @@ export default function RedditPage() {
           const removed = updatedDayTasks.splice(taskIndex, 1);
           taskToMove = removed[0] ?? null;
           updatedWeekData.tasks[dayKey] = updatedDayTasks;
-          sourceDay = dayKey;
           break; // Stop after finding the first (and only) occurrence
         }
       }
@@ -375,6 +372,52 @@ export default function RedditPage() {
 
   const handleRefresh = () => {
     void fetchWeekData(currentWeekStart, false);
+  };
+
+  const handleTasksGenerated = (newTasks: RedditTask[]) => {
+    if (!weekData || newTasks.length === 0) {
+      // Fall back to refresh if no week data or no tasks
+      void fetchWeekData(currentWeekStart, false);
+      return;
+    }
+
+    // Optimistically add the new tasks to the current week data
+    const updatedWeekData = { ...weekData };
+    updatedWeekData.tasks = { ...weekData.tasks };
+
+    // Group new tasks by date and add them to the existing week data
+    const newTasksByDay = newTasks.reduce((acc, task) => {
+      const dayKey = format(new Date(task.scheduledDate), "yyyy-MM-dd");
+      acc[dayKey] ??= [];
+      acc[dayKey]?.push(task);
+      return acc;
+    }, {} as Record<string, RedditTask[]>);
+
+    // Merge new tasks with existing ones
+    for (const [dayKey, dayTasks] of Object.entries(newTasksByDay)) {
+      updatedWeekData.tasks[dayKey] = [
+        ...(updatedWeekData.tasks[dayKey] ?? []),
+        ...dayTasks,
+      ];
+    }
+
+    // Update statistics
+    const totalNewTasks = newTasks.length;
+    const newPendingTasks = newTasks.filter(task => task.status === 'pending').length;
+    
+    updatedWeekData.statistics = {
+      ...updatedWeekData.statistics,
+      totalTasks: updatedWeekData.statistics.totalTasks + totalNewTasks,
+      pendingTasks: updatedWeekData.statistics.pendingTasks + newPendingTasks,
+    };
+    
+    // Recalculate completion rate
+    const newTotal = updatedWeekData.statistics.totalTasks;
+    updatedWeekData.statistics.completionRate = newTotal > 0 
+      ? Math.round((updatedWeekData.statistics.completedTasks / newTotal) * 100) 
+      : 0;
+
+    setWeekData(updatedWeekData);
   };
 
   const handleWeekChange = (weekStartDate: Date) => {
@@ -486,6 +529,7 @@ export default function RedditPage() {
               onTaskComplete={handleTaskComplete}
               loading={weekLoading}
               projectId={currentProjectId}
+              onTasksGenerated={handleTasksGenerated}
             />
           </div>
         )

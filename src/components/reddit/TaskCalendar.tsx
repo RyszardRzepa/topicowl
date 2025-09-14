@@ -41,7 +41,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { RedditTask, WeeklyTasksResponse } from "@/types";
@@ -80,6 +79,7 @@ interface GoogleCalendarProps {
     redditUrl?: string,
     karmaEarned?: number,
   ) => Promise<void>;
+  onTasksGenerated?: (newTasks: RedditTask[]) => void;
   projectId: number;
 }
 
@@ -305,6 +305,7 @@ export function TaskCalendar({
   onTaskUpdate,
   onTaskOptimisticUpdate,
   onTaskComplete,
+  onTasksGenerated,
   projectId,
 }: GoogleCalendarProps) {
   const router = useRouter();
@@ -737,7 +738,7 @@ export function TaskCalendar({
             <GenerateTasksButton
               projectId={projectId}
               weekStartDate={getCurrentWeekStart()}
-              onTasksGenerated={() => onRefresh?.()}
+              onTasksGenerated={onTasksGenerated ?? (() => onRefresh?.())}
               disabled={loading}
             />
             <Button

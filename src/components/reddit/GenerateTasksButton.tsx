@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek } from "date-fns";
+import type { RedditTask } from "@/types";
 
 // Helper function to format date for API without timezone issues
 const formatDateForAPI = (date: Date): string => {
@@ -19,6 +20,7 @@ interface GenerateTasksResponse {
     comments: number;
     posts: number;
   };
+  tasks: RedditTask[];
 }
 
 interface GenerateTasksError {
@@ -28,7 +30,7 @@ interface GenerateTasksError {
 interface GenerateTasksButtonProps {
   projectId: number;
   weekStartDate?: Date;
-  onTasksGenerated: () => void;
+  onTasksGenerated: (tasks: RedditTask[]) => void;
   disabled?: boolean;
 }
 
@@ -79,8 +81,8 @@ export function GenerateTasksButton({
         }
       );
 
-      // Refresh the calendar
-      onTasksGenerated();
+      // Pass the generated tasks to the parent component for immediate UI update
+      onTasksGenerated(data.tasks ?? []);
     } catch (error) {
       console.error("Error generating tasks:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to generate tasks";
