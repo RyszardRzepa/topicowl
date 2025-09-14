@@ -2,9 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SignUpButton } from "@clerk/nextjs";
+import { SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { ArrowRight, Check } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function HomePage() {
   return (
@@ -22,11 +23,20 @@ export default function HomePage() {
             />
           </div>
           <div className="flex items-center gap-6">
-            <SignUpButton>
-              <Button variant="default" size="sm">
-                Get started
-              </Button>
-            </SignUpButton>
+            <SignedOut>
+              <SignUpButton>
+                <Button variant="default" size="sm">
+                  Get started
+                </Button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <Link href="/dashboard">
+                <Button variant="default" size="sm">
+                  Dashboard
+                </Button>
+              </Link>
+            </SignedIn>
           </div>
         </div>
       </nav>
