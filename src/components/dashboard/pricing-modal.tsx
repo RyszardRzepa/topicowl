@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import PlansGrid from "@/components/pricing/plans-grid";
+import { CREDIT_COSTS } from "@/lib/utils/credit-costs";
 
 interface PricingModalProps {
   open: boolean;
@@ -27,7 +28,7 @@ const PricingModal = ({ open, onOpenChange }: PricingModalProps) => {
               Get Credits
             </DialogTitle>
             <DialogDescription className="text-muted-foreground mx-auto max-w-xl text-center text-sm md:text-base">
-              Pay only for what you use.
+              Pay only for what you use. {CREDIT_COSTS.ARTICLE_GENERATION} credits = 1 article. {CREDIT_COSTS.ARTICLE_IDEAS} credits = 1 idea or Reddit task.
             </DialogDescription>
           </DialogHeader>
           <PlansGrid variant="modal" showFeatures={true} className="mt-2" />

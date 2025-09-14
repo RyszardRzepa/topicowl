@@ -1,6 +1,7 @@
 "use client";
 
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import { useProject } from "@/contexts/project-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,10 +17,10 @@ import {
   ArrowRight,
   ListChecks,
 } from "lucide-react";
-import Link from "next/link";
 
 function DashboardContent() {
   const { data, loading, error, isRedditConnected } = useDashboardStats();
+  const { currentProject } = useProject();
 
   // Helper to safely get metric values with fallbacks
   const getMetric = (path: string, defaultValue = 0): number => {
@@ -181,11 +182,18 @@ function DashboardContent() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">Reddit</h2>
             {!isRedditConnected && (
-              <Link href="/settings/integrations">
-                <Button variant="outline" size="sm" className="gap-1">
-                  <Link2 className="h-4 w-4" /> Connect
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-1"
+                onClick={() => {
+                  if (currentProject) {
+                    window.location.href = `/api/reddit/auth?projectId=${currentProject.id}`;
+                  }
+                }}
+              >
+                <Link2 className="h-4 w-4" /> Connect
+              </Button>
             )}
           </div>
           {isRedditConnected ? (
@@ -263,11 +271,17 @@ function DashboardContent() {
                       </p>
                     </div>
                   </div>
-                  <Link href="/settings/integrations" className="shrink-0">
-                    <Button size="sm" className="gap-1">
-                      Connect <ArrowRight className="h-3 w-3" />
-                    </Button>
-                  </Link>
+                  <Button 
+                    size="sm" 
+                    className="gap-1 shrink-0"
+                    onClick={() => {
+                      if (currentProject) {
+                        window.location.href = `/api/reddit/auth?projectId=${currentProject.id}`;
+                      }
+                    }}
+                  >
+                    Connect <ArrowRight className="h-3 w-3" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>

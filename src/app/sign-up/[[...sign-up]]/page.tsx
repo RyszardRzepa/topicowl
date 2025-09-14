@@ -12,7 +12,10 @@ export default function SignUpPage() {
             Get started with Contentbot
           </p>
         </div>
-        <SignUp />
+        <SignUp 
+          forceRedirectUrl="/onboarding"
+          fallbackRedirectUrl="/onboarding"
+        />
       </div>
     </div>
   );

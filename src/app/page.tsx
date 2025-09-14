@@ -24,7 +24,11 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-6">
             <SignedOut>
-              <SignUpButton>
+              <SignUpButton 
+                mode="modal"
+                forceRedirectUrl="/onboarding"
+                fallbackRedirectUrl="/onboarding"
+              >
                 <Button variant="default" size="sm">
                   Get started
                 </Button>
@@ -87,7 +91,11 @@ export default function HomePage() {
 
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start">
-            <SignUpButton>
+            <SignUpButton
+              mode="modal"
+              forceRedirectUrl="/onboarding"
+              fallbackRedirectUrl="/onboarding"
+            >
               <Button
                 variant="default"
                 size="lg"

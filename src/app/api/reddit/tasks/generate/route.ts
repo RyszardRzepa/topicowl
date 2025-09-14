@@ -20,6 +20,12 @@ import {
   discoverUserSubreddits,
 } from "@/lib/reddit/utils";
 import { refreshRedditToken } from "@/lib/reddit/api";
+import { getUserCredits, deductCredits } from "@/lib/utils/credits";
+import { 
+  getCreditCost,
+  hasEnoughCreditsForOperation, 
+  getInsufficientCreditsMessage 
+} from "@/lib/utils/credit-costs";
 
 export const maxDuration = 800;
 
@@ -43,6 +49,26 @@ export async function POST(request: NextRequest) {
     if (!userRecord) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    // Check if user has credits before proceeding
+    console.log("[REDDIT_TASKS_GENERATE_API] Checking user credits...");
+    const currentCredits = await getUserCredits(userRecord.id);
+
+    if (!hasEnoughCreditsForOperation(currentCredits, "REDDIT_TASKS")) {
+      return NextResponse.json(
+        {
+          error: getInsufficientCreditsMessage("REDDIT_TASKS"),
+          credits: currentCredits,
+        },
+        { status: 402 }, // Payment Required
+      );
+    }
+
+    console.log(
+      "[REDDIT_TASKS_GENERATE_API] User has",
+      currentCredits,
+      "credits, proceeding with generation",
+    );
 
     const body = (await request.json()) as unknown;
     const validatedData = GenerateTasksSchema.parse(body);
@@ -215,6 +241,28 @@ export async function POST(request: NextRequest) {
       .insert(redditTasks)
       .values(orchestrationResult.tasks)
       .returning();
+
+    // Deduct credits for successful generation
+    const creditsToDeduct = getCreditCost("REDDIT_TASKS");
+    console.log(`[REDDIT_TASKS_GENERATE_API] Deducting ${creditsToDeduct} credits for successful generation...`);
+    const deductionSuccess = await deductCredits(userRecord.id, creditsToDeduct);
+
+    if (!deductionSuccess) {
+      console.warn(
+        "[REDDIT_TASKS_GENERATE_API] Failed to deduct credits, but tasks were generated",
+      );
+      // We could choose to return an error here, but tasks were already generated
+      // For better UX, we'll return the tasks but log the warning
+    }
+
+    const remainingCredits = deductionSuccess
+      ? currentCredits - creditsToDeduct
+      : currentCredits;
+    console.log(
+      "[REDDIT_TASKS_GENERATE_API] User now has",
+      remainingCredits,
+      "credits remaining",
+    );
 
     // Update last generated date (optional; guard in case column doesn't exist)
     try {

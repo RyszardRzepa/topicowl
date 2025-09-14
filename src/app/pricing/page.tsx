@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 export const metadata = {
   title: "Pricing | ContentBot",
   description:
-    "Simple credit-based pricing for articles, ideas and reddit posts.",
+    "Simple credit-based pricing for articles, ideas and reddit tasks.",
 };
 
 export default function PricingPage() {
@@ -15,8 +15,8 @@ export default function PricingPage() {
           Get Credits
         </h1>
         <p className="text-muted-foreground mx-auto max-w-xl text-sm md:text-base">
-          Pay only for what you use. 10 credits = 1 article. 1 credit = 1 idea
-          or Reddit post.
+          Pay only for what you use. 10 credits = 1 article. 5 credits = 1 idea
+          or Reddit task.
         </p>
       </div>
       <PlansGrid variant="page" showFeatures className="w-full" />

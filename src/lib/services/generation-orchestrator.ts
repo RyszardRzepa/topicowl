@@ -10,7 +10,8 @@ import type { VideoEmbed } from "@/types";
 
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
-import { hasCredits, deductCredit } from "@/lib/utils/credits";
+import { hasEnoughCredits, deductCredits } from "@/lib/utils/credits";
+import { getCreditCost } from "@/lib/utils/credit-costs";
 import { logger } from "@/lib/utils/logger";
 
 import { performResearchDirect } from "@/lib/services/research-service";
@@ -109,8 +110,9 @@ export async function validateAndSetupGeneration(
 
   if (!userRecord) throw new Error("User not found");
 
-  const userHasCredits = await hasCredits(userRecord.id);
-  if (!userHasCredits) throw new Error("Insufficient credits");
+  const requiredCredits = getCreditCost("ARTICLE_GENERATION");
+  const userHasEnoughCredits = await hasEnoughCredits(userRecord.id, requiredCredits);
+  if (!userHasEnoughCredits) throw new Error(`Insufficient credits for article generation (requires ${requiredCredits} credits)`);
 
   if (!articleId || isNaN(parseInt(articleId)))
     throw new Error("Invalid article ID");
@@ -496,9 +498,10 @@ async function finalizeArticle(
     .set(generationUpdate)
     .where(eq(articleGeneration.id, generationId));
 
-  const creditDeducted = await deductCredit(userId);
+  const creditsToDeduct = getCreditCost("ARTICLE_GENERATION");
+  const creditDeducted = await deductCredits(userId, creditsToDeduct);
   if (!creditDeducted)
-    logger.warn("credits:deduct_failed", { userId, articleId });
+    logger.warn("credits:deduct_failed", { userId, articleId, amount: creditsToDeduct });
 }
 
 // Ensure exactly one intro paragraph exists between H1 and TL;DR (or first H2 if TL;DR missing)

@@ -9,7 +9,12 @@ import { generateText, generateObject } from "ai";
 import { z } from "zod";
 import { MODELS } from "@/constants";
 import { prompts } from "@/prompts";
-import { getUserCredits, deductCredit } from "@/lib/utils/credits";
+import { getUserCredits, deductCredits } from "@/lib/utils/credits";
+import { 
+  getCreditCost,
+  hasEnoughCreditsForOperation, 
+  getInsufficientCreditsMessage 
+} from "@/lib/utils/credit-costs";
 
 // Set maximum duration for AI operations to prevent timeouts
 export const maxDuration = 800;
@@ -91,11 +96,10 @@ export async function POST(req: NextRequest) {
     console.log("[GENERATE_IDEAS_API] Checking user credits...");
     const currentCredits = await getUserCredits(userRecord.id);
 
-    if (currentCredits <= 0) {
+    if (!hasEnoughCreditsForOperation(currentCredits, "ARTICLE_IDEAS")) {
       return NextResponse.json(
         {
-          error:
-            "Insufficient credits. You need at least 1 credit to generate article ideas.",
+          error: getInsufficientCreditsMessage("ARTICLE_IDEAS"),
           credits: currentCredits,
         },
         { status: 402 }, // Payment Required
@@ -216,22 +220,23 @@ Return a JSON object with an "ideas" array containing the article ideas.`,
       "ideas",
     );
 
-    // Deduct 1 credit for successful generation
+    // Deduct credits for successful generation
+    const creditsToDeduct = getCreditCost("ARTICLE_IDEAS");
     console.log(
-      "[GENERATE_IDEAS_API] Deducting 1 credit for successful generation...",
+      `[GENERATE_IDEAS_API] Deducting ${creditsToDeduct} credits for successful generation...`,
     );
-    const deductionSuccess = await deductCredit(userRecord.id);
+    const deductionSuccess = await deductCredits(userRecord.id, creditsToDeduct);
 
     if (!deductionSuccess) {
       console.warn(
-        "[GENERATE_IDEAS_API] Failed to deduct credit, but ideas were generated",
+        "[GENERATE_IDEAS_API] Failed to deduct credits, but ideas were generated",
       );
       // We could choose to return an error here, but ideas were already generated
       // For better UX, we'll return the ideas but log the warning
     }
 
     const remainingCredits = deductionSuccess
-      ? currentCredits - 1
+      ? currentCredits - creditsToDeduct
       : currentCredits;
     console.log(
       "[GENERATE_IDEAS_API] User now has",

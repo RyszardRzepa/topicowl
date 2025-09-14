@@ -31,7 +31,11 @@ export function ConditionalHeader() {
                 Sign In
               </button>
             </SignInButton>
-            <SignUpButton mode="modal">
+            <SignUpButton 
+              mode="modal"
+              forceRedirectUrl="/onboarding"
+              fallbackRedirectUrl="/onboarding"
+            >
               <button className="rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800">
                 Sign Up
               </button>

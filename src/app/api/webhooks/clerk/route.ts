@@ -260,7 +260,7 @@ export async function POST(request: NextRequest): Promise<Response> {
               // Create credits record for new user
               await db.insert(userCredits).values({
                 userId: createdUser.id,
-                amount: 3,
+                amount: 30,
               });
 
               logWebhookEvent("info", "User and credits created successfully", {
@@ -268,7 +268,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                 email: userData.email
                   ? `${userData.email.split("@")[0]}@***`
                   : null,
-                creditsAllocated: 3,
+                creditsAllocated: 30,
               });
             } else {
               // Update existing user record
@@ -282,11 +282,11 @@ export async function POST(request: NextRequest): Promise<Response> {
                 })
                 .where(eq(users.id, userData.id));
 
-              // Reset credits to 3 for existing user
+              // Reset credits to 30 for existing user
               await db
                 .update(userCredits)
                 .set({
-                  amount: 3,
+                  amount: 30,
                   updatedAt: new Date(),
                 })
                 .where(eq(userCredits.userId, userData.id));
@@ -296,7 +296,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                 email: userData.email
                   ? `${userData.email.split("@")[0]}@***`
                   : null,
-                creditsAllocated: 3,
+                creditsAllocated: 30,
               });
             }
           } catch (dbError) {

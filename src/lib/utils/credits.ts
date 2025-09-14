@@ -58,6 +58,14 @@ export async function hasCredits(userId: string): Promise<boolean> {
 }
 
 /**
+ * Check if a user has enough credits for a specific amount
+ */
+export async function hasEnoughCredits(userId: string, requiredAmount: number): Promise<boolean> {
+  const credits = await getUserCredits(userId);
+  return credits >= requiredAmount;
+}
+
+/**
  * Atomically deduct 1 credit from a user's account
  * Returns true if successful, false if insufficient credits or error
  */
@@ -82,6 +90,35 @@ export async function deductCredit(userId: string): Promise<boolean> {
     return updatedRecord.newAmount >= 0; // Should always be true if guard worked
   } catch (error) {
     console.error("Failed to deduct credit", { userId, error });
+    return false;
+  }
+}
+
+/**
+ * Atomically deduct a specific amount of credits from a user's account
+ * Returns true if successful, false if insufficient credits or error
+ */
+export async function deductCredits(userId: string, amount: number): Promise<boolean> {
+  try {
+    // Only decrement when current amount >= requested amount to avoid negative balances.
+    // Using a single UPDATE with a guard ensures atomicity at the DB level.
+    const result = await db
+      .update(userCredits)
+      .set({
+        amount: sql`amount - ${amount}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(userCredits.userId, userId), sql`${userCredits.amount} >= ${amount}`))
+      .returning({ newAmount: userCredits.amount });
+
+    const updatedRecord = result[0];
+    if (!updatedRecord) {
+      // No row matched (either no record or insufficient credits)
+      return false;
+    }
+    return updatedRecord.newAmount >= 0; // Should always be true if guard worked
+  } catch (error) {
+    console.error("Failed to deduct credits", { userId, amount, error });
     return false;
   }
 }

@@ -86,15 +86,8 @@ export function RedditSettings({ showCard = true }: RedditSettingsProps) {
     setMessage(null);
 
     try {
-      const response = await fetch(
-        `/api/social/auth/reddit?projectId=${currentProject.id}`,
-      );
-      if (response.ok) {
-        // The API will redirect to Reddit OAuth
-        window.location.href = response.url;
-      } else {
-        throw new Error("Failed to initiate Reddit connection");
-      }
+      // Direct redirect to Reddit auth with project ID
+      window.location.href = `/api/reddit/auth?projectId=${currentProject.id}`;
     } catch (error) {
       console.error("Failed to connect to Reddit:", error);
       setMessage({

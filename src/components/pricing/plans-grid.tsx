@@ -154,15 +154,15 @@ export default function PlansGrid({
                       </span>
                     </li>
                     <li className="flex items-center justify-between">
-                      <span>Reddit posts (5 credits)</span>
+                      <span>Reddit tasks (5 credits)</span>
                       <span className="text-foreground font-medium">
                         {Math.floor(plan.credits / 5)}
                       </span>
                     </li>
                     <li className="flex items-center justify-between">
-                      <span>Article ideas (1 credit)</span>
+                      <span>Article ideas (5 credits)</span>
                       <span className="text-foreground font-medium">
-                        {plan.credits}
+                        {Math.floor(plan.credits / 5)}
                       </span>
                     </li>
                   </ul>

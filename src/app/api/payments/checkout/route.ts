@@ -6,6 +6,7 @@ import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { PRICING_PLANS, API_BASE_URL } from "@/constants";
+import { CREDIT_COSTS } from "@/lib/utils/credit-costs";
 import { env } from "@/env";
 import Stripe from "stripe";
 import { logServerError } from "@/lib/posthog-server";
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
             currency: "usd",
             product_data: {
               name: `${plan.name} Plan - ${plan.credits} Credits`,
-              description: `${plan.description} • ${Math.floor(plan.credits / 10)} article generations • ${Math.floor(plan.credits / 5)} Reddit posts • ${plan.credits} article ideas • Credits never expire`,
+              description: `${plan.description} • ${Math.floor(plan.credits / CREDIT_COSTS.ARTICLE_GENERATION)} article generations • ${Math.floor(plan.credits / CREDIT_COSTS.REDDIT_TASKS)} Reddit tasks • ${Math.floor(plan.credits / CREDIT_COSTS.ARTICLE_IDEAS)} article ideas • Credits never expire`,
               images: [], // Optional: Add product images if needed
             },
             unit_amount: plan.priceInCents, // Server-side price validation

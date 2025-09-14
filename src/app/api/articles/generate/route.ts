@@ -9,6 +9,11 @@ import {
   generateArticle,
   claimArticleForGeneration,
 } from "@/lib/services/generation-orchestrator";
+import { getUserCredits } from "@/lib/utils/credits";
+import { 
+  hasEnoughCreditsForOperation, 
+  getInsufficientCreditsMessage 
+} from "@/lib/utils/credit-costs";
 
 export const maxDuration = 800;
 
@@ -29,7 +34,28 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as ArticleGenerationRequest;
-    const { articleId, forceRegenerate, lockedOutline } = body;
+    const { articleId, forceRegenerate } = body;
+
+    // Check if user has credits before proceeding
+    console.log("[ARTICLE_GENERATE_API] Checking user credits...");
+    const currentCredits = await getUserCredits(userId);
+
+    if (!hasEnoughCreditsForOperation(currentCredits, "ARTICLE_GENERATION")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: getInsufficientCreditsMessage("ARTICLE_GENERATION"),
+          credits: currentCredits,
+        } as ApiResponse,
+        { status: 402 }, // Payment Required
+      );
+    }
+
+    console.log(
+      "[ARTICLE_GENERATE_API] User has",
+      currentCredits,
+      "credits, proceeding with generation",
+    );
 
     const context = await validateAndSetupGeneration(
       userId,
@@ -51,6 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Run generation in background (Vercel waitUntil)
+    // Note: Credit deduction will happen inside generateArticle after successful completion
     waitUntil(generateArticle(context));
 
     return NextResponse.json({
