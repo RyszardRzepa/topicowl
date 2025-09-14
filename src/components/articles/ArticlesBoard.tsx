@@ -61,6 +61,15 @@ type QueueItem = {
   errorMessage?: string;
 };
 
+interface ArticleIdea {
+  title: string;
+  description: string;
+  keywords: string[];
+  targetAudience?: string;
+  contentAngle: string;
+  estimatedDifficulty: "beginner" | "intermediate" | "advanced";
+}
+
 function getWeekDays(baseDate: Date) {
   const start = startOfWeek(baseDate, { weekStartsOn: 1 });
   return Array.from(
@@ -120,6 +129,7 @@ export function ArticlesBoard() {
     notes: string;
     scheduledAt: Date | null;
   }>({ title: "", keywords: "", notes: "", scheduledAt: null });
+  const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
 
   const isPastDay = useCallback((d: Date) => {
     const day = new Date(d);
@@ -375,6 +385,129 @@ export function ArticlesBoard() {
   useEffect(() => {
     void fetchQueue();
   }, [fetchQueue]);
+
+  const handleGenerateIdeas = async () => {
+    if (!projectId) return;
+    
+    try {
+      setIsGeneratingIdeas(true);
+      
+      // Call the generate-ideas API
+      const generateRes = await fetch("/api/articles/generate-ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!generateRes.ok) {
+        const errorData = (await generateRes.json()) as { error?: string };
+        throw new Error(errorData.error ?? "Failed to generate ideas");
+      }
+
+      const generateData = (await generateRes.json()) as {
+        success: boolean;
+        ideas: ArticleIdea[];
+        error?: string;
+      };
+
+      if (!generateData.success) {
+        throw new Error(generateData.error ?? "Failed to generate ideas");
+      }
+
+      const ideas = generateData.ideas;
+      if (ideas.length === 0) {
+        toast.error("No ideas were generated");
+        return;
+      }
+
+      // Create articles from the ideas
+      const createdArticles: Array<{ id: number; title: string }> = [];
+      for (const idea of ideas) {
+        try {
+          const createRes = await fetch("/api/articles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: idea.title,
+              keywords: idea.keywords,
+              notes: idea.description,
+              projectId,
+            }),
+          });
+
+          if (createRes.ok) {
+            const created = (await createRes.json()) as { id: number; title: string };
+            createdArticles.push(created);
+          }
+        } catch (error) {
+          console.error(`Failed to create article for idea: ${idea.title}`, error);
+        }
+      }
+
+      if (createdArticles.length === 0) {
+        toast.error("Failed to create articles from generated ideas");
+        return;
+      }
+
+      // Schedule the created articles over the next few days, starting tomorrow
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(now.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0); // 9 AM tomorrow
+      
+      for (let i = 0; i < createdArticles.length; i++) {
+        const article = createdArticles[i];
+        if (!article) continue;
+
+        try {
+          // Schedule each article i days after tomorrow (tomorrow, day after, etc.)
+          const scheduledDate = new Date(tomorrow);
+          scheduledDate.setDate(tomorrow.getDate() + i);
+          
+          // Ensure we're always in the future
+          if (scheduledDate.getTime() <= now.getTime()) {
+            console.warn('Generated past date, adjusting to tomorrow');
+            scheduledDate.setDate(now.getDate() + i + 2);
+          }
+          
+          const scheduledIso = scheduledDate.toISOString();
+          console.log(`Scheduling article "${article.title}" for ${scheduledDate.toLocaleDateString()}`);
+
+          // Add to generation queue
+          const queueRes = await fetch("/api/articles/generation-queue", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              articleId: article.id,
+              scheduledForDate: scheduledIso,
+            }),
+          });
+
+          if (queueRes.ok) {
+            // Update article with publish schedule
+            await fetch(`/api/articles/${article.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ publishScheduledAt: scheduledIso }),
+            });
+          }
+        } catch (error) {
+          console.error(`Failed to schedule article: ${article.title}`, error);
+        }
+      }
+
+      toast.success(`Generated ${ideas.length} article ideas and scheduled them for the coming days`);
+      
+      // Refresh the data
+      await Promise.all([refetchArticles(), fetchQueue()]);
+      
+    } catch (error) {
+      console.error("Failed to generate ideas:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate ideas");
+    } finally {
+      setIsGeneratingIdeas(false);
+    }
+  };
 
   const navigateWeek = (direction: "prev" | "next") => {
     setCurrentDate((prev) =>
@@ -736,6 +869,25 @@ export function ArticlesBoard() {
                 <span className="text-muted-foreground">Published</span>
               </div>
             </div>
+
+            {/* Generate Ideas */}
+            <Button
+              size="sm"
+              onClick={handleGenerateIdeas}
+              disabled={isGeneratingIdeas}
+            >
+              {isGeneratingIdeas ? (
+                <>
+                  <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">✨</span>
+                  Generate Ideas
+                </>
+              )}
+            </Button>
 
             {/* Settings */}
             <Button asChild variant="ghost" size="icon" aria-label="Settings">

@@ -10,6 +10,8 @@ New types: write common types in `src/types.ts` and colocated types in the API r
 Don't create scripts files for testing.
 Always use ?? instead of ||.
 
+Don't create test or debug files.
+
 Make sure that we don't create new util functions, we should inline code where it is used.
 
 # AI Coding Agent Instructions
