@@ -13,6 +13,8 @@ import type { SchedulePublishingResponse } from "@/app/api/articles/schedule-pub
 
 export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
   let correctedStatus = dbArticle.status;
+  
+  // Auto-correct status for completed generation
   if (
     dbArticle.generationStatus === "completed" &&
     dbArticle.generationProgress === 100 &&
@@ -21,6 +23,17 @@ export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
     correctedStatus = "wait_for_publish";
     console.log(
       `Auto-correcting article ${dbArticle.id} status from ${dbArticle.status} to wait_for_publish`,
+    );
+  }
+  
+  // Auto-correct status for failed generation
+  if (
+    (dbArticle.generationStatus === "failed" || dbArticle.generationStatus === "research_failed") &&
+    (dbArticle.status === "scheduled" || dbArticle.status === "generating")
+  ) {
+    correctedStatus = "failed";
+    console.log(
+      `Auto-correcting article ${dbArticle.id} status from ${dbArticle.status} to failed (generation status: ${dbArticle.generationStatus})`,
     );
   }
 

@@ -4,7 +4,6 @@ import { db } from "@/server/db";
 import {
   projects,
   articles,
-  generationQueue,
   articleGeneration,
   webhookDeliveries,
 } from "@/server/db/schema";
@@ -246,10 +245,7 @@ export async function DELETE(
         .delete(articleGeneration)
         .where(eq(articleGeneration.projectId, projectId));
 
-      // Delete generation queue entries
-      await db
-        .delete(generationQueue)
-        .where(eq(generationQueue.projectId, projectId));
+      // Note: No generation queue to clean up since we removed that table
 
       // Delete articles
       await db.delete(articles).where(eq(articles.projectId, projectId));

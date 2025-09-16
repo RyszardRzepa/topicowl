@@ -76,8 +76,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Run generation in background (Vercel waitUntil)
-    // Note: Credit deduction will happen inside generateArticle after successful completion
     waitUntil(generateArticle(context));
 
     return NextResponse.json({

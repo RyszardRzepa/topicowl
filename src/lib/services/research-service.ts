@@ -1,25 +1,210 @@
 /**
- * Research service for article generation
- * Extracted from the research API route to allow direct function calls
+ * Research service for article generation using Parallel AI
+ * Updated to use Parallel API with webhook support instead of Gemini and Jina
  */
 
-import { google } from "@ai-sdk/google";
-import { generateText, generateObject } from "ai";
-import { prompts } from "@/prompts";
-import { MODELS } from "@/constants";
-import { z } from "zod";
-import { getModel } from "../ai-models";
 import { env } from "@/env";
 import { logger } from "../utils/logger";
 
-// Jina API configuration - adjust these values based on your needs
-const JINA_CONFIG = {
-  maxRetries: 3,
-  baseDelay: 2000, // 2 seconds
-  maxDelay: 30000, // 30 seconds
+/**
+ * Get the webhook URL based on environment
+ */
+function getWebhookUrl(): string {
+  const isDevelopment = env.NODE_ENV === "development";
+  
+  if (isDevelopment) {
+    return "https://tunnel.roomsdecor.com/api/webhooks/parallel";
+  } else {
+    // Production - use Vercel URL or custom domain
+    const vercelUrl = process.env.VERCEL_URL;
+    if (vercelUrl) {
+      return `https://${vercelUrl}/api/webhooks/parallel`;
+    }
+    // Fallback to your production domain (replace with actual domain)
+    return "https://topicowl.com/api/webhooks/parallel";
+  }
+}
+
+/**
+ * Parallel API JSON Schema for Research Tasks
+ * Flat structure with max 15 properties as required by Parallel API
+ */
+const PARALLEL_RESEARCH_SCHEMA = {
+  type: "object",
+  properties: {
+    executive_summary: {
+      type: "string",
+      description: "2-3 sentence summary of key findings and what the article should claim"
+    },
+    primary_intent: {
+      type: "string", 
+      description: "Primary search intent behind the topic (informational, commercial, navigational)"
+    },
+    secondary_intents: {
+      type: "string",
+      description: "Comma-separated list of secondary search intents and who currently ranks for them"
+    },
+    key_insights: {
+      type: "string",
+      description: "5-8 bullet points of key findings with source citations as [S1], [S2] format"
+    },
+    statistics_data: {
+      type: "string", 
+      description: "3-6 data points and statistics with exact figures and source citations"
+    },
+    content_gaps: {
+      type: "string",
+      description: "3-5 content opportunities and gaps identified with source references where relevant"
+    },
+    article_outline: {
+      type: "string",
+      description: "Draft H2/H3 outline structure with max 12 items for the article"
+    },
+    frequently_asked_questions: {
+      type: "string",
+      description: "4-6 Q&A pairs, each with source citations [S1], [S2] format"
+    },
+    internal_linking_suggestions: {
+      type: "string", 
+      description: "3-5 internal link suggestions with suggested anchor text and target pages"
+    },
+    risk_assessment: {
+      type: "string",
+      description: "Potential ambiguities, dated information, or conflicts identified with source references"
+    },
+    source_urls: {
+      type: "string",
+      description: "Newline-separated list of source URLs found during research, format: S1: <URL>"
+    },
+    youtube_video_title: {
+      type: "string",
+      description: "Title of the most relevant YouTube video found, or empty string if none"
+    },
+    youtube_video_url: {
+      type: "string", 
+      description: "URL of the most relevant YouTube video found, or empty string if none"
+    },
+    youtube_selection_reason: {
+      type: "string",
+      description: "Brief explanation of why the YouTube video was selected, or empty string if none"
+    },
+    research_timestamp: {
+      type: "string",
+      description: "ISO timestamp when the research was conducted"
+    }
+  },
+  required: [
+    "executive_summary",
+    "primary_intent", 
+    "key_insights",
+    "statistics_data",
+    "content_gaps",
+    "article_outline",
+    "frequently_asked_questions",
+    "source_urls",
+    "research_timestamp"
+  ],
+  additionalProperties: false
 } as const;
 
-// Re-export types from the API route
+type ParallelResearchResponse = {
+  executive_summary: string;
+  primary_intent: string;
+  secondary_intents: string;
+  key_insights: string;
+  statistics_data: string;
+  content_gaps: string;
+  article_outline: string;
+  frequently_asked_questions: string;
+  internal_linking_suggestions: string;
+  risk_assessment: string;
+  source_urls: string;
+  youtube_video_title: string;
+  youtube_video_url: string;
+  youtube_selection_reason: string;
+  research_timestamp: string;
+};
+
+// Export type for use in webhook handler
+export type { ParallelResearchResponse };
+
+/**
+ * Converts Parallel API response to our existing ResearchResponse format
+ */
+export function convertParallelResponseToResearchResponse(
+  parallelResponse: ParallelResearchResponse
+): {
+  researchData: string;
+  sources: Array<{ url: string; title?: string }>;
+  videos: Array<{ title: string; url: string; reason: string }>;
+} {
+  // Parse sources from the source_urls string
+  const sources: Array<{ url: string; title?: string }> = [];
+  const sourceLines = parallelResponse.source_urls.split('\n').filter(line => line.trim());
+  
+  const sourceRegex = /^S\d+:\s*(.+)$/;
+  for (const line of sourceLines) {
+    const match = sourceRegex.exec(line);
+    if (match) {
+      const url = match[1]?.trim();
+      if (url) {
+        sources.push({ url, title: undefined });
+      }
+    }
+  }
+
+  // Parse videos if available
+  const videos: Array<{ title: string; url: string; reason: string }> = [];
+  if (parallelResponse.youtube_video_url && parallelResponse.youtube_video_title) {
+    videos.push({
+      title: parallelResponse.youtube_video_title,
+      url: parallelResponse.youtube_video_url,
+      reason: parallelResponse.youtube_selection_reason || "Selected as most relevant video for the topic"
+    });
+  }
+
+  // Construct comprehensive research data
+  const researchData = `# Research Brief
+
+## Executive Summary
+${parallelResponse.executive_summary}
+
+## Search Intent Analysis
+**Primary Intent:** ${parallelResponse.primary_intent}
+${parallelResponse.secondary_intents ? `**Secondary Intents:** ${parallelResponse.secondary_intents}` : ''}
+
+## Key Findings
+${parallelResponse.key_insights}
+
+## Statistics & Data
+${parallelResponse.statistics_data}
+
+## Content Opportunities
+${parallelResponse.content_gaps}
+
+## Recommended Article Structure
+${parallelResponse.article_outline}
+
+## Frequently Asked Questions
+${parallelResponse.frequently_asked_questions}
+
+${parallelResponse.internal_linking_suggestions ? `## Internal Linking Opportunities
+${parallelResponse.internal_linking_suggestions}` : ''}
+
+${parallelResponse.risk_assessment ? `## Risk Assessment
+${parallelResponse.risk_assessment}` : ''}
+
+---
+*Research conducted: ${parallelResponse.research_timestamp}*`;
+
+  return {
+    researchData,
+    sources,
+    videos
+  };
+}
+
+// Re-export types for backward compatibility
 export interface ResearchRequest {
   title: string;
   keywords: string[];
@@ -40,1191 +225,141 @@ export interface ResearchResponse {
   }>;
 }
 
-// Comprehensive research response that includes all provider data
-export interface ComprehensiveResearchResponse {
-  unified: ResearchResponse;
-  gemini: ResearchResponse | null;
-  jina: ResearchResponse | null;
-  metadata: {
-    timestamp: string;
-    geminiSuccess: boolean;
-    jinaSuccess: boolean;
-    mergedResults: boolean;
-  };
+// New response structure for Parallel API
+export interface ParallelResearchTaskResponse {
+  run_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  is_active: boolean;
+  created_at: string;
+  modified_at: string;
 }
 
-// Jina API types
-interface JinaRequestMessage {
-  role: "assistant" | "user";
-  content: string;
-}
-
-interface JinaRequest {
-  model: string;
-  messages: JinaRequestMessage[];
-  stream: boolean;
-  reasoning_effort: "low" | "medium" | "high";
-  team_size: number;
-  max_returned_urls: number;
-  no_direct_answer: boolean;
-}
-
-interface JinaUrlCitation {
-  title: string;
-  exactQuote: string;
-  url: string;
-  dateTime: string;
-}
-
-interface JinaAnnotation {
-  type: "url_citation";
-  url_citation: JinaUrlCitation;
-}
-
-interface JinaMessage {
-  role: "assistant";
-  content: string;
-  type: "text";
-  annotations?: JinaAnnotation[];
-}
-
-interface JinaChoice {
-  index: number;
-  message: JinaMessage;
-  logprobs: null;
-  finish_reason: "stop" | null;
-}
-
-interface JinaUsage {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
-}
-
-interface JinaResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  system_fingerprint: string;
-  choices: JinaChoice[];
-  usage: JinaUsage;
-  visitedURLs: string[];
-  readURLs: string[];
-  numURLs: number;
-}
-
-// Grounding metadata types for Gemini
-interface GroundingChunk {
-  web?: {
-    uri: string;
-    title?: string;
-  };
-}
-
-interface GroundingSupport {
-  groundingChunkIndices?: number[];
-}
-
-interface GroundingMetadata {
-  groundingChunks?: GroundingChunk[];
-  groundingSupports?: GroundingSupport[];
-}
-
-// Helper function to extract sources from grounding metadata
-function extractSourcesFromGroundingMetadata(
-  chunks: GroundingChunk[],
-  supports: GroundingSupport[],
-): Array<{ sourceType: string; url: string; title?: string }> {
-  if (chunks.length === 0 || supports.length === 0) {
-    return [];
-  }
-
-  const idx = new Set<number>();
-  for (const s of supports) {
-    (s.groundingChunkIndices ?? []).forEach((i: number) => idx.add(i));
-  }
-
-  return [...idx]
-    .map((i) => chunks[i]?.web)
-    .filter(Boolean)
-    .map((w) => ({
-      sourceType: "web",
-      url: w!.uri,
-      title: w!.title,
-    }));
-}
-
-// Helper function to extract sources from text
-function extractSourcesFromText(
-  text: string,
-): Array<{ sourceType: string; url: string; title?: string }> {
-  // Look for Google Vertex AI search redirect URLs in the text
-  const vertexUrlRegex =
-    /https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s<>"{}|\\^`[\]]+/g;
-  const vertexUrls = text.match(vertexUrlRegex);
-
-  if (vertexUrls) {
-    const uniqueVertexUrls = [...new Set(vertexUrls)];
-    logger.debug(
-      `[RESEARCH_LOGIC] Extracted ${uniqueVertexUrls.length} Vertex AI redirect URLs from text`,
-    );
-    return uniqueVertexUrls.map((url) => ({
-      sourceType: "web",
-      url,
-      title: undefined,
-    }));
-  }
-
-  // Fallback: extract any URLs from the text
-  const urlMatches = text.match(/https?:\/\/[^\s<>"{}|\\^`[\]]+/g);
-  if (urlMatches) {
-    const uniqueUrls = [...new Set(urlMatches)];
-    logger.debug(
-      `[RESEARCH_LOGIC] Extracted ${uniqueUrls.length} URLs as fallback sources`,
-    );
-    return uniqueUrls.map((url) => ({
-      sourceType: "web",
-      url,
-      title: undefined,
-    }));
-  }
-
-  return [];
-}
-
-// Helper function to resolve and validate sources
-async function resolveAndValidateSources(
-  sources: Array<{ sourceType: string; url: string; title?: string }>,
-): Promise<Array<{ url: string; title?: string; isValid: boolean }>> {
-  const resolvedSources = await Promise.allSettled(
-    sources.map(async (source) => {
-      let resolvedUrl = source.url;
-      let resolvedTitle = source.title;
-      let isValid = false;
-
-      // Check if it's a Google redirect URL and resolve it
-      if (
-        source.url.includes(
-          "vertexaisearch.cloud.google.com/grounding-api-redirect/",
-        )
-      ) {
-        try {
-          logger.debug(
-            `[RESEARCH_API] Resolving Vertex AI redirect: ${source.url.substring(0, 80)}...`,
-          );
-
-          const response = await fetch(source.url, {
-            method: "HEAD",
-            redirect: "manual",
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            },
-            signal: AbortSignal.timeout(5000),
-          });
-
-          // Check for redirect location
-          const location = response.headers.get("location");
-          if (location) {
-            resolvedUrl = location;
-            logger.debug(`[RESEARCH_API] Resolved to: ${resolvedUrl}`);
-          } else {
-            // If no redirect header, try GET request
-            const getResponse = await fetch(source.url, {
-              redirect: "manual",
-              headers: {
-                "User-Agent":
-                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              },
-              signal: AbortSignal.timeout(5000),
-            });
-
-            const getLocation = getResponse.headers.get("location");
-            if (getLocation) {
-              resolvedUrl = getLocation;
-              logger.debug(
-                `[RESEARCH_API] Resolved via GET to: ${resolvedUrl}`,
-              );
-            }
-          }
-
-          // Extract domain from resolved URL as title
-          if (resolvedUrl !== source.url) {
-            try {
-              const urlObj = new URL(resolvedUrl);
-              resolvedTitle = urlObj.hostname.replace(/^www\./, "");
-              logger.debug(
-                `[RESEARCH_API] Set title to domain: ${resolvedTitle}`,
-              );
-            } catch (error) {
-              logger.warn(
-                `[RESEARCH_API] Could not extract domain from ${resolvedUrl}:`,
-                error,
-              );
-              resolvedTitle = "Unknown Source";
-            }
-          }
-        } catch (error) {
-          logger.error(
-            `[RESEARCH_API] Failed to resolve redirect URL: ${source.url.substring(0, 80)}...`,
-            error,
-          );
-          return {
-            url: source.url,
-            title: "Invalid Source",
-            isValid: false,
-          };
-        }
-      }
-
-      // Validate the final URL
-      if (
-        resolvedUrl !== source.url ||
-        !source.url.includes("vertexaisearch.cloud.google.com")
-      ) {
-        try {
-          const validationResponse = await fetch(resolvedUrl, {
-            method: "HEAD",
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              Accept:
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-              "Accept-Language": "en-US,en;q=0.5",
-              "Accept-Encoding": "gzip, deflate, br",
-              DNT: "1",
-              Connection: "keep-alive",
-              "Upgrade-Insecure-Requests": "1",
-            },
-            signal: AbortSignal.timeout(10000),
-          });
-
-          // Consider some error codes as "acceptable" - the content might still be valuable
-          // 403 = Forbidden (often anti-bot protection, but content may exist)
-          // 405 = Method Not Allowed (HEAD not supported, but GET might work)
-          // 429 = Too Many Requests (rate limited, but valid source)
-          isValid =
-            validationResponse.ok ||
-            validationResponse.status === 405 ||
-            validationResponse.status === 403 ||
-            validationResponse.status === 429;
-
-          if (!isValid) {
-            logger.warn(
-              `[RESEARCH_API] Source returned status ${validationResponse.status}: ${resolvedUrl}`,
-            );
-          } else {
-            logger.debug(
-              `[RESEARCH_API] Validated source: ${resolvedUrl} (${validationResponse.status})`,
-            );
-          }
-        } catch (error) {
-          // For timeout errors, consider the source potentially valid
-          // Many sites are slow to respond but still contain good content
-          if (
-            error instanceof Error &&
-            (error.name === "TimeoutError" || error.name === "AbortError")
-          ) {
-            logger.warn(
-              `[RESEARCH_API] Source validation timed out (considering valid): ${resolvedUrl}`,
-            );
-            isValid = true; // Assume valid for timeout cases
-          } else {
-            logger.error(
-              `[RESEARCH_API] Failed to validate source: ${resolvedUrl}`,
-              error,
-            );
-            isValid = false;
-          }
-        }
-      } else {
-        isValid = false;
-      }
-
-      return {
-        url: resolvedUrl,
-        title: resolvedTitle,
-        isValid,
-      };
-    }),
-  );
-
-  return resolvedSources
-    .filter((result) => result.status === "fulfilled")
-    .map(
-      (result) =>
-        (
-          result as PromiseFulfilledResult<{
-            url: string;
-            title?: string;
-            isValid: boolean;
-          }>
-        ).value,
-    );
-}
-
-// Helper function to filter text content
-function filterTextContent(text: string, excludedDomains: string[]): string {
-  let filteredText = text;
-
-  // Always remove vertexaisearch.cloud.google.com URLs from text
-  const vertexUrlRegex =
-    /https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s<>"{}|\\^`[\]]+/g;
-  const vertexMatches = filteredText.match(vertexUrlRegex);
-
-  if (vertexMatches) {
-    vertexMatches.forEach((url) => {
-      filteredText = filteredText.replace(url, "");
-      logger.debug(
-        `[TEXT_FILTER] Removed Vertex AI URL from text: ${url.substring(0, 80)}...`,
-      );
-    });
-    logger.debug(
-      `[TEXT_FILTER] Removed ${vertexMatches.length} Vertex AI redirect URLs from text`,
-    );
-  }
-
-  // Filter out URLs from excluded domains
-  if (excludedDomains.length > 0) {
-    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
-    const matches = filteredText.match(urlRegex);
-
-    if (matches) {
-      let filteredCount = 0;
-
-      matches.forEach((url) => {
-        try {
-          const urlObj = new URL(url);
-          const domain = urlObj.hostname;
-
-          if (
-            excludedDomains.some((excludedDomain) =>
-              domain.toLowerCase().includes(excludedDomain.toLowerCase()),
-            )
-          ) {
-            filteredText = filteredText.replace(url, "");
-            filteredCount++;
-            logger.debug(
-              `[DOMAIN_FILTER] Removed URL from text: ${url} (domain: ${domain})`,
-            );
-          }
-        } catch (error) {
-          logger.warn(
-            `[DOMAIN_FILTER] Could not parse URL in text: ${url}`,
-            error,
-          );
-        }
-      });
-
-      if (filteredCount > 0) {
-        logger.debug(
-          `[DOMAIN_FILTER] Filtered out ${filteredCount} URLs from text content`,
-        );
-      }
-    }
-  }
-
-  // Clean up any double spaces or line breaks left by URL removal
-  return filteredText.replace(/\s+/g, " ").trim();
-}
-
-// Helper function to extract YouTube video ID from URL
-function extractYouTubeVideoId(url: string): string | null {
-  try {
-    const urlObj = new URL(url);
-    const host = urlObj.hostname.replace(/^www\./, "");
-    const path = urlObj.pathname;
-
-    let videoId: string | null = null;
-
-    if (host.includes("youtube.com")) {
-      if (path === "/watch") {
-        videoId = urlObj.searchParams.get("v");
-      } else if (path.startsWith("/embed/")) {
-        videoId =
-          path.split("/embed/")[1]?.split("/")[0]?.split("?")[0] ?? null;
-      } else if (path.startsWith("/shorts/")) {
-        videoId =
-          path.split("/shorts/")[1]?.split("/")[0]?.split("?")[0] ?? null;
-      } else if (path.startsWith("/live/")) {
-        // live URLs sometimes look like /live/VIDEOID?feature=share
-        videoId = path.split("/live/")[1]?.split("/")[0]?.split("?")[0] ?? null;
-      }
-    } else if (host.includes("youtu.be")) {
-      videoId = path.slice(1).split("/")[0]?.split("?")[0] ?? null;
-    }
-
-    if (!videoId) {
-      return null;
-    }
-
-    // YouTube video IDs are 11 chars base64url-like
-    const idPattern = /^[A-Za-z0-9_-]{11}$/;
-    if (!idPattern.test(videoId)) {
-      return null;
-    }
-    return videoId;
-  } catch (error) {
-    logger.error(
-      `[YOUTUBE_VALIDATION] Failed to parse YouTube URL: ${url}`,
-      error,
-    );
-    return null;
-  }
-}
-
-// Helper function to validate YouTube video exists and is accessible
-async function validateYouTubeVideo(
-  url: string,
-): Promise<{ isValid: boolean; title?: string; error?: string }> {
-  try {
-    const videoId = extractYouTubeVideoId(url);
-    if (!videoId) {
-      return { isValid: false, error: "Invalid YouTube URL format" };
-    }
-    const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    logger.debug(
-      `[YOUTUBE_VALIDATION] (oEmbed only) Validating video ID: ${videoId}`,
-    );
-    const resp = await fetch(
-      `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(canonicalUrl)}`,
-      {
-        method: "GET",
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
-        signal: AbortSignal.timeout(6000),
-      },
-    );
-    if (resp.ok) {
-      const data = (await resp.json()) as { title?: string };
-      return { isValid: true, title: data.title?.trim() ?? "YouTube Video" };
-    }
-    if (resp.status === 400) {
-      return { isValid: false, error: "Invalid video ID (400)" };
-    }
-    if (resp.status === 404) {
-      return { isValid: false, error: "Video not found (404)" };
-    }
-    if (resp.status === 401 || resp.status === 403) {
-      return {
-        isValid: false,
-        error: `Video access restricted (${resp.status})`,
-      };
-    }
-    return { isValid: false, error: `oEmbed HTTP ${resp.status}` };
-  } catch (error) {
-    logger.error(
-      `[YOUTUBE_VALIDATION] Error validating YouTube video via oEmbed: ${url}`,
-      error,
-    );
-    if (error instanceof Error) {
-      if (error.name === "AbortError") {
-        return { isValid: false, error: "Validation timeout" };
-      }
-      if (error.message.toLowerCase().includes("fetch")) {
-        return { isValid: false, error: "Network error during validation" };
-      }
-    }
-    return { isValid: false, error: "Unknown validation error" };
-  }
-}
-
-// Helper function to search and validate YouTube videos
-async function searchAndValidateYouTubeVideos(
-  title: string,
-): Promise<{ title: string; url: string; reason: string } | null> {
-  try {
-    logger.info("[YOUTUBE_SEARCH] Starting YouTube video search for:", title);
-    // Retry generateText ONLY if no sources are returned (max 3 attempts)
-    const maxAttempts = 3;
-    let attempt = 1;
-    let youtubeSearchResult = await generateText({
-      model: await getModel(
-        "google",
-        MODELS.GEMINI_2_5_FLASH,
-        "research-service",
-      ),
-      providerOptions: {
-        google: {
-          thinkingConfig: {
-            thinkingBudget: 0,
-          },
-        },
-      },
-      tools: {
-        googleSearch: google.tools.googleSearch({}),
-      },
-      system:
-        "Search the web for YouTube links. Return only valid YouTube links.",
-      prompt: `Search the web for youtube links about topic: ${title}. Return only valid youtube links.`,
-    });
-    while (
-      (youtubeSearchResult.sources ?? []).length === 0 &&
-      attempt < maxAttempts
-    ) {
-      attempt++;
-      logger.debug(
-        `[YOUTUBE_SEARCH] No sources returned, retrying attempt ${attempt}/${maxAttempts}`,
-      );
-      youtubeSearchResult = await generateText({
-        model: await getModel(
-          "google",
-          MODELS.GEMINI_2_5_FLASH,
-          "research-service",
-        ),
-        providerOptions: {
-          google: {
-            thinkingConfig: {
-              thinkingBudget: 0,
-            },
-          },
-        },
-        tools: {
-          googleSearch: google.tools.googleSearch({}),
-        },
-        system:
-          "Search the web for YouTube links. Return only valid YouTube links.",
-        prompt: `Search the web for youtube links about topic: ${title}. Return only valid youtube links.`,
-      });
-    }
-    const youtubeSearchSources = (youtubeSearchResult.sources ?? []) as Array<{
-      sourceType: string;
-      url: string;
-      title?: string;
-    }>;
-
-    if (youtubeSearchSources.length === 0) {
-      logger.debug(
-        `[YOUTUBE_SEARCH] No sources returned after ${attempt} attempt(s); returning null (no fallback extraction)`,
-      );
-      return null;
-    }
-
-    logger.debug(
-      `[YOUTUBE_SEARCH] Received ${youtubeSearchSources.length} sources after ${attempt} attempt(s)`,
-    );
-
-    const uniqueUrls = [
-      ...new Set(youtubeSearchSources.map((s) => s.url).filter(Boolean)),
-    ];
-    logger.debug(
-      `[YOUTUBE_SEARCH] Found ${uniqueUrls.length} unique URLs to resolve`,
-    );
-
-    // Resolve URLs and filter for YouTube videos
-    const resolvedYoutubeUrls = await Promise.allSettled(
-      uniqueUrls.map(async (url) => {
-        let resolvedUrl = url;
-
-        // Check if it's a Google redirect URL and resolve it
-        if (
-          url.includes(
-            "vertexaisearch.cloud.google.com/grounding-api-redirect/",
-          )
-        ) {
-          try {
-            logger.debug(
-              `[YOUTUBE_SEARCH] Resolving redirect: ${url.substring(0, 80)}...`,
-            );
-
-            const response = await fetch(url, {
-              method: "HEAD",
-              redirect: "manual",
-              headers: {
-                "User-Agent":
-                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              },
-              signal: AbortSignal.timeout(5000),
-            });
-
-            const location = response.headers.get("location");
-            if (location) {
-              resolvedUrl = location;
-              logger.debug(`[YOUTUBE_SEARCH] Resolved to: ${resolvedUrl}`);
-            } else {
-              // Try GET request
-              const getResponse = await fetch(url, {
-                redirect: "manual",
-                headers: {
-                  "User-Agent":
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                },
-                signal: AbortSignal.timeout(5000),
-              });
-
-              const getLocation = getResponse.headers.get("location");
-              if (getLocation) {
-                resolvedUrl = getLocation;
-                logger.debug(
-                  `[YOUTUBE_SEARCH] Resolved via GET to: ${resolvedUrl}`,
-                );
-              }
-            }
-          } catch (error) {
-            logger.error(
-              `[YOUTUBE_SEARCH] Failed to resolve redirect: ${url.substring(0, 80)}...`,
-              error,
-            );
-            return null;
-          }
-        }
-
-        // Check if the resolved URL is a YouTube URL
-        const isYouTube =
-          resolvedUrl.includes("youtube.com") ||
-          resolvedUrl.includes("youtu.be");
-        return isYouTube ? resolvedUrl : null;
-      }),
-    );
-
-    const youtubeUrls = resolvedYoutubeUrls
-      .filter(
-        (result) => result.status === "fulfilled" && result.value !== null,
-      )
-      .map((result) => (result as PromiseFulfilledResult<string | null>).value!)
-      .filter(Boolean);
-
-    const uniqueYoutubeUrls = [...new Set(youtubeUrls)];
-    logger.debug(
-      `[YOUTUBE_SEARCH] Found ${uniqueYoutubeUrls.length} unique YouTube URLs after resolution`,
-    );
-
-    if (uniqueYoutubeUrls.length === 0) {
-      logger.debug("[YOUTUBE_SEARCH] No YouTube URLs found after resolution");
-      return null;
-    }
-
-    // Enhanced YouTube URL validation
-    logger.debug(
-      `[YOUTUBE_SEARCH] Validating ${uniqueYoutubeUrls.length} YouTube URLs with enhanced validation`,
-    );
-
-    const validatedYoutubeUrls = await Promise.allSettled(
-      uniqueYoutubeUrls.map(async (url) => {
-        const validation = await validateYouTubeVideo(url);
-
-        if (validation.isValid) {
-          logger.debug(`[YOUTUBE_SEARCH] ✅ Validated YouTube URL: ${url}`, {
-            title: validation.title,
-          });
-          return { url, title: validation.title };
-        } else {
-          logger.warn(
-            `[YOUTUBE_SEARCH] ❌ Invalid YouTube URL: ${url} - ${validation.error}`,
-          );
-          return null;
-        }
-      }),
-    );
-
-    const validYoutubeUrls = validatedYoutubeUrls
-      .filter(
-        (result) => result.status === "fulfilled" && result.value !== null,
-      )
-      .map(
-        (result) =>
-          (
-            result as PromiseFulfilledResult<{
-              url: string;
-              title?: string;
-            } | null>
-          ).value!,
-      )
-      .filter(Boolean);
-
-    logger.debug(
-      `[YOUTUBE_SEARCH] ${validYoutubeUrls.length} valid YouTube URLs after enhanced validation`,
-    );
-
-    if (validYoutubeUrls.length === 0) {
-      logger.debug(
-        "[YOUTUBE_SEARCH] No valid YouTube URLs found after enhanced validation",
-      );
-      return null;
-    }
-
-    // Use AI to select the best YouTube video from validated URLs
-    const videoSelectionSchema = z.object({
-      selectedVideo: z.object({
-        title: z.string().describe("The title of the selected YouTube video"),
-        url: z.string().describe("The URL of the selected YouTube video"),
-        reason: z
-          .string()
-          .describe(
-            "Brief explanation of why this video was selected as the best match for the article topic",
-          ),
-      }),
-    });
-
-    const urlsForSelection = validYoutubeUrls
-      .map(
-        (item, index) =>
-          `${index + 1}. ${item.url}${item.title ? ` (Title: ${item.title})` : ""}`,
-      )
-      .join("\n");
-
-    const selectionResult = await generateObject({
-      model: await getModel(
-        "google",
-        MODELS.GEMINI_2_5_FLASH,
-        "research-service",
-      ),
-      schema: videoSelectionSchema,
-      prompt: `From the following validated and accessible YouTube URLs, select the ONE best video that is most relevant to the article topic "${title}".
-          YouTube URLs found (all verified as accessible):
-          ${urlsForSelection}
-
-          Original search context:
-          ${youtubeSearchResult.text}
-
-          Select the most relevant video and provide a title, URL, and brief reason for your selection. The URL must be exactly one of the URLs listed above.`,
-      maxOutputTokens: 20000,
-    });
-
-    // Verify the selected URL is in our validated list
-    const selectedUrl = selectionResult.object.selectedVideo.url;
-    const isValidSelection = validYoutubeUrls.some(
-      (item) => item.url === selectedUrl,
-    );
-
-    if (!isValidSelection) {
-      logger.warn(
-        `[YOUTUBE_SEARCH] AI selected invalid URL: ${selectedUrl}, using first valid URL instead`,
-      );
-      const fallbackVideo = {
-        title: validYoutubeUrls[0]!.title ?? "YouTube Video",
-        url: validYoutubeUrls[0]!.url,
-        reason: "Selected as the first available valid video for the topic",
-      };
-      logger.debug("[YOUTUBE_SEARCH] Using fallback video:", fallbackVideo);
-      return fallbackVideo;
-    }
-
-    logger.debug(
-      "[YOUTUBE_SEARCH] Selected video:",
-      selectionResult.object.selectedVideo,
-    );
-    return selectionResult.object.selectedVideo;
-  } catch (error) {
-    logger.error("[YOUTUBE_SEARCH] Error during YouTube search:", error);
-    return null;
-  }
-}
-
-// Jina Research API functions with improved error handling and timeout management
-async function callJinaResearchAPI(
-  title: string,
-  keywords: string[],
-  notes?: string,
-  excludedDomains?: string[],
-): Promise<JinaResponse> {
-  // Create the context for Jina research
-  const siteContext =
-    notes ??
-    "General content platform focusing on quality research and insights";
-  const targetKeywords = keywords.join(", ");
-  const excludedDomainsStr = excludedDomains?.length
-    ? excludedDomains.join(", ")
-    : "";
-  const market = "Global English-speaking audience";
-
-  const jinaRequest: JinaRequest = {
-    model: "jina-deepsearch-v1",
-    messages: [
-      {
-        role: "assistant",
-        content:
-          'You are "Topic Hunter," a source-driven research agent. Use ONLY the URLs returned by DeepSearch. Never invent links. Cite in-text as [S1], [S2]… and list raw URLs under a final Sources section.',
-      },
-      {
-        role: "user",
-        content: `Research this article topic for TopicOwl content platform.
-
-Topic: ${title}
-Primary query: ${title}
-Target keywords (comma-separated): ${targetKeywords}
-Context (short, 1–2 lines): ${siteContext}
-Geography: ${market}
-Excluded domains (optional): ${excludedDomainsStr}
-
-Output a concise research brief with:
-1) Executive insight (2–3 sentences, what the article should claim)
-2) SERP intent map (primary/secondary intents + who ranks)
-3) Key findings (5–8 bullet points with [S#])
-4) Data & stats to cite (3–6 items with [S#] and exact figures)
-5) Content gaps/opportunities (3–5 bullets with [S#] where relevant)
-6) Draft outline (H2/H3 only, max 12 items)
-7) FAQs (4–6 Q&A, each grounded with [S#])
-8) Internal links suggestions (3–5 slugs/anchors; if unknown, write TODO)
-9) Risk checks (ambiguities/dated info/conflicts with [S#])
-
-Rules:
-- Use only DeepSearch URLs. Never modify or guess URLs.
-- Every claim that isn't common knowledge gets a citation [S#].
-- If something is ungrounded, mark UNGROUNDED and keep it minimal.
-- Keep it tight and actionable.
-
-At the end, print:
-Sources:
-S1: <URL>
-S2: <URL>`,
-      },
-    ],
-    stream: false,
-    reasoning_effort: "medium",
-    team_size: 2,
-    max_returned_urls: 40,
-    no_direct_answer: true,
-  };
-
-  // Retry configuration for handling transient errors like 524
-  const { maxRetries, baseDelay, maxDelay } = JINA_CONFIG;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      logger.debug(
-        `[JINA_RESEARCH] Attempt ${attempt}/${maxRetries} for topic: ${title}`,
-      );
-
-      // Log start time for long-running request tracking
-      const startTime = Date.now();
-      logger.info(
-        `[JINA_RESEARCH] Starting research request (this may take several minutes)...`,
-      );
-
-      const response = await fetch(
-        "https://deepsearch.jina.ai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${env.JINA_API_KEY}`,
-          },
-          body: JSON.stringify(jinaRequest),
-        },
-      );
-
-      const duration = Date.now() - startTime;
-      logger.debug(
-        `[JINA_RESEARCH] Request completed in ${Math.round(duration / 1000)}s`,
-      );
-
-      if (response.ok) {
-        logger.debug(
-          `[JINA_RESEARCH] Successfully completed on attempt ${attempt}`,
-        );
-        return response.json() as Promise<JinaResponse>;
-      }
-
-      // Handle specific error statuses
-      const isRetryableError =
-        response.status === 524 || // Gateway timeout
-        response.status === 502 || // Bad gateway
-        response.status === 503 || // Service unavailable
-        response.status === 429; // Too many requests
-
-      if (!isRetryableError || attempt === maxRetries) {
-        throw new Error(
-          `Jina API error: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      // Log retryable error and wait before next attempt
-      logger.warn(
-        `[JINA_RESEARCH] Retryable error ${response.status} on attempt ${attempt}, retrying...`,
-      );
-    } catch (error) {
-      if (attempt === maxRetries) {
-        // Categorize error for better handling
-        if (error instanceof Error) {
-          if (error.name === "AbortError" || error.name === "TimeoutError") {
-            throw new Error(
-              "Jina API request timeout - the service is taking longer than expected",
-            );
-          }
-          if (error.message.includes("524")) {
-            throw new Error(
-              `Jina API gateway timeout (524) - service overloaded`,
-            );
-          }
-        }
-        throw error;
-      }
-
-      logger.warn(
-        `[JINA_RESEARCH] Error on attempt ${attempt}:`,
-        error instanceof Error ? error.message : "Unknown error",
-      );
-    }
-
-    // Exponential backoff with jitter
-    if (attempt < maxRetries) {
-      const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
-      const jitteredDelay = delay + Math.random() * 1000; // Add up to 1s jitter
-      logger.debug(
-        `[JINA_RESEARCH] Waiting ${Math.round(jitteredDelay)}ms before retry...`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
-    }
-  }
-
-  throw new Error("Jina API: Maximum retries exceeded");
-}
-
-function extractSourcesFromJinaResponse(
-  jinaResponse: JinaResponse,
-): Array<{ url: string; title?: string }> {
-  const sources: Array<{ url: string; title?: string }> = [];
-  const seenUrls = new Set<string>();
-
-  // Extract sources ONLY from annotations in the response (primary data)
-  for (const choice of jinaResponse.choices) {
-    for (const annotation of choice.message?.annotations ?? []) {
-      if (annotation.type === "url_citation" && annotation.url_citation) {
-        const url = annotation.url_citation.url;
-        const title = annotation.url_citation.title;
-
-        if (!seenUrls.has(url)) {
-          seenUrls.add(url);
-          sources.push({ url, title });
-        }
-      }
-    }
-  }
-
-  logger.debug(
-    `[JINA_RESEARCH] Extracted ${sources.length} sources from Jina annotations only`,
-  );
-  return sources;
-}
-
-async function performJinaResearch(
-  title: string,
-  keywords: string[],
-  notes?: string,
-  excludedDomains?: string[],
-): Promise<{
-  researchData: string;
-  sources: Array<{ url: string; title?: string }>;
-}> {
-  try {
-    logger.debug("[JINA_RESEARCH] Starting Jina research for:", title);
-
-    const jinaResponse = await callJinaResearchAPI(
-      title,
-      keywords,
-      notes,
-      excludedDomains,
-    );
-
-    // Extract content from response - handle missing message or content safely
-    const researchData = jinaResponse.choices
-      .map((choice) => choice.message?.content ?? "")
-      .filter((content) => content.length > 0)
-      .join("\n")
-      .trim();
-
-    // Extract sources
-    const sources = extractSourcesFromJinaResponse(jinaResponse);
-
-    logger.debug(
-      `[JINA_RESEARCH] Completed research with ${researchData.length} chars and ${sources.length} sources`,
-    );
-
-    return {
-      researchData,
-      sources,
-    };
-  } catch (error) {
-    logger.error("[JINA_RESEARCH] Error during Jina research:", error);
-
-    throw error;
-  }
-}
-
-function mergeResearchResults(
-  geminiResult: {
-    researchData: string;
-    sources: Array<{ url: string; title?: string }>;
-  },
-  jinaResult: {
-    researchData: string;
-    sources: Array<{ url: string; title?: string }>;
-  },
-): { researchData: string; sources: Array<{ url: string; title?: string }> } {
-  logger.debug("[RESEARCH_MERGE] Merging Gemini and Jina research results");
-
-  // Simply combine the full responses without parsing sections
-  const unifiedBrief = `# Research Brief
-
-## Primary Research Analysis (Jina)
-${jinaResult.researchData}
-
-## Supplementary Research Insights (Gemini)
-${geminiResult.researchData}`;
-
-  // Merge and deduplicate sources with intelligent prioritization
-  const sourceMap = new Map<
-    string,
-    { url: string; title?: string; source: "jina" | "gemini" }
-  >();
-
-  // Add Jina sources first (prioritized)
-  jinaResult.sources.forEach((source) => {
-    sourceMap.set(source.url, { ...source, source: "jina" });
-  });
-
-  // Add Gemini sources, but keep Jina titles if they exist
-  geminiResult.sources.forEach((source) => {
-    const existing = sourceMap.get(source.url);
-    if (existing) {
-      // Keep Jina title if it exists, otherwise use Gemini title
-      if (!existing.title && source.title) {
-        sourceMap.set(source.url, { ...existing, title: source.title });
-      }
-    } else {
-      sourceMap.set(source.url, { ...source, source: "gemini" });
-    }
-  });
-
-  const uniqueSources = Array.from(sourceMap.values()).map(
-    ({ url, title }) => ({ url, title }),
-  );
-
-  return {
-    researchData: unifiedBrief,
-    sources: uniqueSources,
-  };
-}
-
-async function performGeminiResearch(
-  title: string,
-  keywords: string[],
-  notes?: string,
-  domainsToExclude: string[] = [],
-): Promise<{
-  researchData: string;
-  sources: Array<{ url: string; title?: string }>;
-}> {
-  logger.debug(`[GEMINI_RESEARCH] Starting Gemini research for "${title}"`);
-
-  // Retry logic for when sources are empty or not returned
-  let text: string;
-  let sources: Array<{
-    sourceType: string;
-    url: string;
-    title?: string;
-  }> = [];
-  let attempt = 1;
-  const maxAttempts = 1;
-
-  do {
-    logger.debug(`[GEMINI_RESEARCH] Attempt ${attempt}/${maxAttempts}`);
-
-    const result = await generateText({
-      model: await getModel(
-        "google",
-        MODELS.GEMINI_2_5_FLASH,
-        "research-service",
-      ),
-      providerOptions: {
-        google: {
-          thinkingConfig: {
-            thinkingBudget: 0,
-          },
-        },
-      },
-      tools: {
-        google_search: google.tools.googleSearch({}),
-      },
-      system: `Ensure the intent is current and based on real-time latest top results. Today is ${new Date().toISOString()}`,
-      prompt: prompts.research(title, keywords, notes, domainsToExclude),
-    });
-
-    text = result.text;
-
-    // Get sources from result.sources or fallback to grounding metadata
-    let resultSources = (result.sources ?? []) as Array<{
-      sourceType: string;
-      url: string;
-      title?: string;
-    }>;
-
-    // Fallback to grounding metadata or text extraction when sources is empty
-    if (resultSources.length === 0) {
-      logger.debug(
-        "[GEMINI_RESEARCH] Sources empty, checking grounding metadata and text",
-      );
-
-      const meta = result.providerMetadata?.google?.groundingMetadata as
-        | GroundingMetadata
-        | undefined;
-      const chunks = meta?.groundingChunks ?? [];
-      const supports = meta?.groundingSupports ?? [];
-
-      // First try grounding metadata
-      const derivedSources = extractSourcesFromGroundingMetadata(
-        chunks,
-        supports,
-      );
-      if (derivedSources.length > 0) {
-        logger.debug(
-          `[GEMINI_RESEARCH] Derived ${derivedSources.length} sources from grounding metadata`,
-        );
-        resultSources = derivedSources;
-      } else {
-        // If still no sources, try to extract from text
-        logger.debug(
-          "[GEMINI_RESEARCH] Attempting to extract sources from response text",
-        );
-        resultSources = extractSourcesFromText(text);
-      }
-    }
-
-    sources = resultSources;
-
-    logger.debug(
-      `[GEMINI_RESEARCH] Attempt ${attempt} - sources count:`,
-      sources.length,
-    );
-
-    // Break if we have sources or reached max attempts
-    if (sources.length > 0 || attempt >= maxAttempts) {
-      break;
-    }
-
-    attempt++;
-  } while (attempt <= maxAttempts);
-
-  // Throw error if no sources found after all attempts
-  if (sources.length === 0) {
-    logger.error("[GEMINI_RESEARCH] No sources found after all attempts");
-    throw new Error(
-      "Failed to find any sources for research after multiple attempts",
-    );
-  }
-
-  logger.debug("[GEMINI_RESEARCH] Final sources:", sources.length);
-
-  return {
-    researchData: text,
-    sources: sources.map((s) => ({ url: s.url, title: s.title })),
-  };
-}
-
+// Configuration for Parallel API
+const PARALLEL_CONFIG = {
+  baseUrl: "https://api.parallel.ai/v1",
+  processor: "ultra", // Use ultra processor for research tasks
+} as const;
 
 /**
- * Core research function that can be called directly without HTTP
- * Extracted from /api/articles/research/route.ts
- * Now runs both Gemini and Jina research in parallel and merges results
- * Returns comprehensive data including individual provider responses
+ * Creates a research task prompt for Parallel AI
+ */
+function createResearchPrompt(
+  title: string,
+  keywords: string[],
+  notes?: string,
+  excludedDomains?: string[]
+): string {
+  const excludedDomainsText = excludedDomains?.length 
+    ? `\n\nEXCLUDED DOMAINS: Completely avoid information from these domains: ${excludedDomains.join(", ")}`
+    : "";
+
+  const notesText = notes 
+    ? `\n\nADDITIONAL CONTEXT: ${notes}`
+    : "";
+
+  return `You are an expert content researcher analyzing the topic: "${title}"
+
+TARGET KEYWORDS: ${keywords.join(", ")}${notesText}${excludedDomainsText}
+
+Research this topic comprehensively and provide a structured analysis. Focus on:
+
+1. EXECUTIVE SUMMARY: 2-3 sentences on key findings and main claims the article should make
+2. SEARCH INTENT: Primary intent (informational/commercial/navigational) and secondary intents
+3. KEY INSIGHTS: 5-8 bullet points with specific findings, include source citations as [S1], [S2]
+4. STATISTICS: 3-6 concrete data points with exact figures and citations
+5. CONTENT GAPS: 3-5 opportunities where competitors aren't covering topics well
+6. ARTICLE OUTLINE: H2/H3 structure (max 12 items) for comprehensive coverage
+7. FAQ SECTION: 4-6 common questions with answers, each citing sources
+8. INTERNAL LINKS: 3-5 suggestions for related content to link to
+9. RISK ASSESSMENT: Any outdated info, conflicts, or ambiguities found
+10. SOURCES: All URLs found during research in format "S1: <URL>"
+11. YOUTUBE VIDEO: Find the most relevant YouTube video with title, URL, and selection reason
+
+Use only authoritative sources and recent information. Cite everything with [S1], [S2] format. Be thorough but concise.`;
+}
+
+/**
+ * Calls Parallel API to create a research task with webhook notification
+ */
+export async function createParallelResearchTask(
+  title: string,
+  keywords: string[],
+  notes?: string,
+  excludedDomains?: string[]
+): Promise<ParallelResearchTaskResponse> {
+  const prompt = createResearchPrompt(title, keywords, notes, excludedDomains);
+  const webhookUrl = getWebhookUrl();
+  
+  const requestBody = {
+    task_spec: {
+      output_schema: {
+        type: "json",
+        json_schema: PARALLEL_RESEARCH_SCHEMA
+      }
+    },
+    input: prompt,
+    processor: PARALLEL_CONFIG.processor,
+    metadata: {
+      article_title: title,
+      keywords: keywords.join(","),
+      timestamp: new Date().toISOString()
+    },
+    webhook: {
+      url: webhookUrl,
+      event_types: ["task_run.status"]
+    }
+  };
+
+  logger.debug("[PARALLEL_RESEARCH] Creating research task", {
+    title,
+    keywordCount: keywords.length,
+    webhookUrl
+  });
+
+  try {
+    const response = await fetch(`${PARALLEL_CONFIG.baseUrl}/tasks/runs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": env.PARALLEL_API_KEY as string,
+        "parallel-beta": "webhook-2025-08-12"
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Parallel API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const result = await response.json() as ParallelResearchTaskResponse;
+    
+    logger.info("[PARALLEL_RESEARCH] Task created successfully", {
+      run_id: result.run_id,
+      status: result.status
+    });
+
+    return result;
+  } catch (error) {
+    logger.error("[PARALLEL_RESEARCH] Failed to create task", error);
+    throw new Error(
+      `Failed to create research task: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+}
+
+// Polling logic removed - webhook handles completion
+
+/**
+ * Simplified research function - just triggers Parallel API and returns run_id
+ * Webhook handles completion and status updates
  */
 export async function performResearchDirect(
-  request: ResearchRequest,
-): Promise<ComprehensiveResearchResponse> {
+  request: ResearchRequest
+): Promise<{
+  run_id: string;
+  status: string;
+}> {
   const { title, keywords, notes, excludedDomains } = request;
 
   // Validate required fields
@@ -1236,174 +371,25 @@ export async function performResearchDirect(
     throw new Error("At least one keyword is required");
   }
 
-  // Use provided excluded domains or empty array
-  const domainsToExclude = excludedDomains ?? [];
+  logger.info("[RESEARCH_SERVICE] Starting Parallel AI research", {
+    title,
+    keywordCount: keywords.length
+  });
 
-  logger.debug(
-    `[RESEARCH_SERVICE] Starting parallel research (Gemini + Jina) for "${title}" with ${keywords.length} keywords`,
+  // Create the research task with webhook
+  const taskResult = await createParallelResearchTask(
+    title, 
+    keywords, 
+    notes, 
+    excludedDomains
   );
 
-  try {
-    // Run Gemini and Jina research in parallel
-    const [geminiResult, jinaResult] = await Promise.allSettled([
-      performGeminiResearch(title, keywords, notes, domainsToExclude),
-      performJinaResearch(title, keywords, notes, domainsToExclude),
-    ]);
+  logger.info("[RESEARCH_SERVICE] Task created with webhook", {
+    run_id: taskResult.run_id
+  });
 
-    // Store individual results
-    let geminiData: ResearchResponse | null = null;
-    let jinaData: ResearchResponse | null = null;
-    let finalResearchData: string;
-    let finalSources: Array<{ url: string; title?: string }> = [];
-
-    // Extract Gemini results
-    if (geminiResult.status === "fulfilled") {
-      geminiData = {
-        researchData: geminiResult.value.researchData,
-        sources: geminiResult.value.sources,
-        videos: [], // Gemini doesn't return videos
-      };
-    }
-
-    // Extract Jina results
-    if (jinaResult.status === "fulfilled") {
-      jinaData = {
-        researchData: jinaResult.value.researchData,
-        sources: jinaResult.value.sources,
-        videos: [], // Jina doesn't return videos
-      };
-    }
-
-    // Handle results based on what succeeded
-    const geminiSuccess = geminiResult.status === "fulfilled";
-    const jinaSuccess = jinaResult.status === "fulfilled";
-
-    if (geminiSuccess && jinaSuccess) {
-      logger.debug(
-        "[RESEARCH_SERVICE] Both Gemini and Jina research successful, merging results",
-      );
-      const merged = mergeResearchResults(geminiResult.value, jinaResult.value);
-      finalResearchData = merged.researchData;
-      finalSources = merged.sources;
-    } else if (geminiSuccess) {
-      logger.warn(
-        "[RESEARCH_SERVICE] Jina research failed, using Gemini results only",
-      );
-      finalResearchData = geminiResult.value.researchData;
-      finalSources = geminiResult.value.sources;
-    } else if (jinaSuccess) {
-      logger.warn(
-        "[RESEARCH_SERVICE] Gemini research failed, using Jina results only",
-      );
-      finalResearchData = jinaResult.value.researchData;
-      finalSources = jinaResult.value.sources;
-    } else {
-      logger.error("[RESEARCH_SERVICE] Both research methods failed");
-      throw new Error("Both Gemini and Jina research failed");
-    }
-
-    // Resolve Google redirect URLs and validate source availability
-    const processedSources = await resolveAndValidateSources(
-      finalSources.map((source) => ({
-        sourceType: "web",
-        url: source.url,
-        title: source.title,
-      })),
-    );
-
-    // Separate valid and invalid sources
-    const validSources = processedSources.filter((source) => source.isValid);
-    const invalidSources = processedSources.filter((source) => !source.isValid);
-
-    if (invalidSources.length > 0) {
-      logger.warn(
-        `[RESEARCH_SERVICE] Found ${invalidSources.length} invalid sources:`,
-        invalidSources.map((s) => ({
-          url: s.url.substring(0, 50) + "...",
-          title: s.title,
-        })),
-      );
-    }
-
-    // Only use valid sources - if no valid sources, return empty array rather than invalid ones
-    const finalResolvedSources = validSources.map(({ url, title }) => ({
-      url,
-      title,
-    }));
-
-    logger.debug(
-      `[RESEARCH_SERVICE] Resolved and validated sources: ${validSources.length} valid, ${invalidSources.length} invalid`,
-    );
-
-    // Filter sources to remove excluded domains
-    const filteredSources =
-      domainsToExclude.length === 0
-        ? finalResolvedSources
-        : finalResolvedSources.filter((source) => {
-            try {
-              const url = new URL(source.url);
-              const domain = url.hostname;
-              const isExcluded = domainsToExclude.some((excludedDomain) =>
-                domain.toLowerCase().includes(excludedDomain.toLowerCase()),
-              );
-
-              if (isExcluded) {
-                logger.debug(
-                  `[RESEARCH_SERVICE] Filtered out source: ${source.url} (domain: ${domain})`,
-                );
-              }
-
-              return !isExcluded;
-            } catch (error) {
-              // If URL parsing fails, keep the source (don't filter invalid URLs)
-              logger.warn(
-                `[RESEARCH_SERVICE] Could not parse URL for filtering: ${source.url}`,
-                error,
-              );
-              return true;
-            }
-          });
-
-    // Filter research text to remove vertex AI URLs and excluded domains
-    const filteredText = filterTextContent(finalResearchData, domainsToExclude);
-
-    // Search for YouTube videos specifically for the article title
-    const selectedVideo = await searchAndValidateYouTubeVideos(title);
-
-    logger.debug(
-      "[RESEARCH_SERVICE] Sources processed:",
-      `${finalResolvedSources.length} total, ${filteredSources.length} after filtering, video search: ${selectedVideo ? "found" : "none"}`,
-    );
-
-    const unifiedResult: ResearchResponse = {
-      researchData: filteredText,
-      sources: filteredSources,
-      videos: selectedVideo ? [selectedVideo] : [],
-    };
-
-    // Create comprehensive response with all provider data
-    const comprehensiveResult: ComprehensiveResearchResponse = {
-      unified: unifiedResult,
-      gemini: geminiData,
-      jina: jinaData,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        geminiSuccess: geminiResult.status === "fulfilled",
-        jinaSuccess: jinaResult.status === "fulfilled",
-        mergedResults:
-          geminiResult.status === "fulfilled" &&
-          jinaResult.status === "fulfilled",
-      },
-    };
-
-    logger.debug(`[RESEARCH_SERVICE] Research completed successfully`);
-
-    return comprehensiveResult;
-  } catch (error) {
-    logger.error(`[RESEARCH_SERVICE] Research failed:`, error);
-    throw new Error(
-      `Research failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
+  return {
+    run_id: taskResult.run_id,
+    status: taskResult.status
+  };
 }
-

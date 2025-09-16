@@ -3,11 +3,10 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import {
   articles,
-  users,
   articleGeneration,
   projects,
-  generationQueue,
   webhookDeliveries,
+  users,
 } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
@@ -99,10 +98,16 @@ const updateArticleSchema = z.object({
       "idea",
       "scheduled",
       "generating",
+      "research",
+      "outline", 
+      "writing",
+      "image",
+      "quality-control",
+      "validating",
+      "updating",
       "wait_for_publish",
       "published",
       "failed",
-      "deleted",
     ])
     .optional(),
   publishedAt: z.string().datetime().optional(), // When article was published
@@ -213,16 +218,7 @@ export async function GET(
       .orderBy(desc(articleGeneration.createdAt))
       .limit(1);
 
-    // Verify article ownership and that it's not deleted
-    if (articleData.status === "deleted") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Article not found",
-        },
-        { status: 404 },
-      );
-    }
+    // Note: We don't use soft deletes anymore - article exists if we got here
 
     // Generate SEO analysis from existing data
     const seoAnalysis: SEOAnalysis | undefined = articleData.seoScore
@@ -489,16 +485,7 @@ export async function PUT(
       );
     }
 
-    // Prevent updating deleted articles
-    if (existingArticle[0]!.status === "deleted") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Cannot update deleted article",
-        },
-        { status: 410 },
-      );
-    }
+    // Note: We don't use soft deletes anymore
 
     // Update the article with only the allowed fields
     const updateData = {
@@ -656,7 +643,7 @@ export async function DELETE(
     }
 
     // Hard delete: remove dependent records first to satisfy FKs, then remove the article
-    await db.delete(generationQueue).where(eq(generationQueue.articleId, articleId));
+    // Note: no generation_queue to clean up anymore
     await db
       .delete(articleGeneration)
       .where(eq(articleGeneration.articleId, articleId));
