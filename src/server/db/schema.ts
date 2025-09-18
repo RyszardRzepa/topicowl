@@ -12,6 +12,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
+import type { ArticleGenerationArtifacts } from "@/types";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -22,32 +23,36 @@ import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 
 export const topicowlSchema = pgSchema("topicowl");
 
-// Unified article status enum - simplified and essential only
+// Article-level kanban statuses
 export const articleStatusEnum = topicowlSchema.enum("article_status", [
-  // Lifecycle states
-  "idea",           // Initial creation, user planning
-  "scheduled",      // Queued for generation
-  "generating",     // Currently being generated
-  
-  // Generation phases (detailed progress tracking)
-  "research",       // Researching content
-  "outline",        // Creating article outline  
-  "writing",        // Writing the content
-  "image",          // Selecting cover image
-  "quality-control", // Quality review
-  "validating",     // SEO and compliance validation  
-  "updating",       // Final updates and improvements
-  
-  // Completion states
-  "wait_for_publish", // Generation complete, waiting for scheduled publish
-  "published",        // Live and published
-  
-  // Error states
-  "failed",           // Generation failed
+  "idea",
+  "scheduled",
+  "generating",
+  "wait_for_publish",
+  "published",
+  "failed",
 ]);
 
-// TypeScript type for use in API routes and services  
+// Per-run generation statuses (phases + terminal states)
+export const articleGenerationStatusEnum = topicowlSchema.enum(
+  "article_generation_status",
+  [
+    "scheduled",
+    "research",
+    "image",
+    "writing",
+    "quality-control",
+    "validating",
+    "updating",
+    "completed",
+    "failed",
+  ],
+);
+
+// TypeScript types for use in API routes and services  
 export type ArticleStatus = (typeof articleStatusEnum.enumValues)[number];
+export type ArticleGenerationStatus =
+  (typeof articleGenerationStatusEnum.enumValues)[number];
 
 export const users = topicowlSchema.table("users", {
   id: text("id").primaryKey(),
@@ -187,13 +192,8 @@ export const articles = topicowlSchema.table(
     metaDescription: varchar("meta_description", { length: 255 }),
     introParagraph: text("intro_paragraph"),
     metaKeywords: jsonb("meta_keywords").default([]).notNull(),
-    draft: text("draft"),
-    content: text("content"), // Final published content
+    content: text("content"), // Current working article content
     videos: jsonb("videos").default([]).notNull(), // YouTube video embeds
-    factCheckReport: jsonb("fact_check_report").default({}).notNull(),
-    seoScore: integer("seo_score"),
-    internalLinks: jsonb("internal_links").default([]).notNull(),
-    sources: jsonb("sources").default([]).notNull(),
 
     // Image fields
     coverImageUrl: text("cover_image_url"),
@@ -220,8 +220,8 @@ export const articles = topicowlSchema.table(
 // Generation queue table removed - scheduling fields moved to articles table directly
 
 // Article Generation tracking table for separation of concerns
-export const articleGeneration = topicowlSchema.table(
-  "article_generation",
+export const articleGenerations = topicowlSchema.table(
+  "article_generations",
   {
     id: serial("id").primaryKey(),
     articleId: integer("article_id")
@@ -234,65 +234,20 @@ export const articleGeneration = topicowlSchema.table(
       .references(() => projects.id)
       .notNull(),
 
-    // Generation process tracking
     taskId: varchar("task_id"),
-    status: articleStatusEnum("status").default("scheduled").notNull(),
-    progress: integer("progress").default(0).notNull(), // 0-100 percentage
+    status: articleGenerationStatusEnum("status").default("scheduled").notNull(),
+    progress: integer("progress").default(0).notNull(),
+    artifacts: jsonb("artifacts")
+      .$type<ArticleGenerationArtifacts>()
+      .default({})
+      .notNull(),
 
-    // Agent progress tracking
-    currentPhase: text("current_phase"), // initializing, research, writing, seo-audit, validation, updating, image-selection, schema-generation, finalizing, completed
-    lastUpdated: timestamp("last_updated", { withTimezone: true }),
-
-    outline: jsonb("outline"),
-    artifacts: jsonb("artifacts").default({}).notNull(),
-
-    // Phase timestamps
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
 
-    // Phase results
-    researchData: jsonb("research_data").default({}).notNull(),
-    draftContent: text("draft_content"),
-    validationReport: jsonb("validation_report").default({}),
-    qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
-    seoReport: jsonb("seo_report").default({}).notNull(),
-    checklist: jsonb("checklist"),
-    writePrompt: text("write_prompt"), // Store the AI prompt used for writing
-
-    // Agent-specific fields for meta optimization
-    metaVariants: jsonb("meta_variants"), // Array of title/description variants with CTR scores
-    externalLinksUsed: text("external_links_used").array(), // Array of external links used in content
-    headingsOutline: jsonb("headings_outline"), // Structured heading outline with keywords
-
-    // Agent validation and quality control
-    linkIssues: jsonb("link_issues"), // Link validation issues and fixes
-    schemaJson: text("schema_json"), // Generated JSON-LD schema markup
-
-    // Agent image selection
-    // Removed duplicate image fields (migration 0055)
-
-    // Related articles
-    relatedArticles: jsonb("related_articles")
-      .default([])
-      .notNull()
-      .$type<string[]>(),
-
-    // Image selection tracking
-    selectedImageId: text("selected_image_id"),
-    imageAttribution: jsonb("image_attribution").$type<{
-      photographer: string;
-      unsplashUrl: string;
-      downloadUrl: string;
-    }>(),
-    imageQuery: text("image_query"),
-    imageKeywords: jsonb("image_keywords").default([]).notNull(),
-
-    // Error handling
     error: text("error"),
     errorDetails: jsonb("error_details"),
-
-    // introParagraph removed - use articles.introParagraph as single source of truth
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -303,8 +258,7 @@ export const articleGeneration = topicowlSchema.table(
       .$onUpdate(() => new Date()),
   },
   (table) => ({
-    // Index on project_id for efficient querying of project's article generation
-    projectIdIdx: index("article_generation_project_id_idx").on(
+    projectIdIdx: index("article_generations_project_id_idx").on(
       table.projectId,
     ),
   }),
@@ -351,6 +305,35 @@ export const redditPosts = topicowlSchema.table(
   (table) => ({
     // Index on project_id for efficient querying of project's Reddit posts
     projectIdIdx: index("reddit_posts_project_id_idx").on(table.projectId),
+  }),
+);
+
+export const socialPosts = topicowlSchema.table(
+  "social_posts",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    provider: text("provider").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: articleStatusEnum("status").default("scheduled").notNull(),
+    publishScheduledAt: timestamp("publish_scheduled_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    projectIdIdx: index("social_posts_project_id_idx").on(table.projectId),
   }),
 );
 

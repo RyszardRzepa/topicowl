@@ -4,10 +4,11 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import {
   articles,
-  articleGeneration,
+  articleGenerations,
   users,
   projects,
   type ArticleStatus,
+  type ArticleGenerationStatus,
 } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
@@ -15,15 +16,13 @@ import type { ApiResponse } from "@/types";
 // Types colocated with this API route
 export interface GenerationStatus {
   articleId: string;
-  status: ArticleStatus;
+  status: ArticleGenerationStatus;
+  articleStatus: ArticleStatus;
   progress: number;
   startedAt: string;
   completedAt?: string;
-  currentPhase?: string;
   error?: string;
   seoScore?: number;
-  seoReport?: unknown;
-  checklist?: unknown;
 }
 
 export async function GET(
@@ -35,8 +34,8 @@ export async function GET(
     const { userId } = await auth();
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" } as ApiResponse,
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: "Unauthorized" },
         { status: 401 },
       );
     }
@@ -49,8 +48,8 @@ export async function GET(
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json(
-        { success: false, error: "User not found" } as ApiResponse,
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: "User not found" },
         { status: 404 },
       );
     }
@@ -58,8 +57,8 @@ export async function GET(
     const { id } = await params;
 
     if (!id && isNaN(parseInt(id))) {
-      return NextResponse.json(
-        { success: false, error: "Invalid article ID" } as ApiResponse,
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: "Invalid article ID" },
         { status: 400 },
       );
     }
@@ -71,6 +70,7 @@ export async function GET(
       .select({
         id: articles.id,
         projectId: articles.projectId,
+        status: articles.status,
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
@@ -80,11 +80,11 @@ export async function GET(
       .limit(1);
 
     if (!article) {
-      return NextResponse.json(
+      return NextResponse.json<ApiResponse>(
         {
           success: false,
           error: "Article not found or access denied",
-        } as ApiResponse,
+        },
         { status: 404 },
       );
     }
@@ -92,54 +92,50 @@ export async function GET(
     // Get the latest generation record for this article
     const [latestGeneration] = await db
       .select()
-      .from(articleGeneration)
-      .where(eq(articleGeneration.articleId, articleId))
-      .orderBy(desc(articleGeneration.createdAt))
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, articleId))
+      .orderBy(desc(articleGenerations.createdAt))
       .limit(1);
 
     // If no generation record exists, return not found
     if (!latestGeneration) {
-      return NextResponse.json(
+      return NextResponse.json<ApiResponse>(
         {
           success: false,
           error: "No generation found for this article",
-        } as ApiResponse,
+        },
         { status: 404 },
       );
     }
 
     // Simple response with raw data - let UI handle the presentation logic
+    const artifacts = latestGeneration.artifacts;
+    const validationArtifact = artifacts.validation;
+
     const statusResponse: GenerationStatus = {
       articleId: id,
       status: latestGeneration.status,
+      articleStatus: article.status,
       progress: latestGeneration.progress,
       startedAt:
         latestGeneration.startedAt?.toISOString() ??
         latestGeneration.createdAt.toISOString(),
       completedAt: latestGeneration.completedAt?.toISOString(),
-      currentPhase: latestGeneration.currentPhase ?? undefined,
       error: latestGeneration.error ?? undefined,
-      seoScore: typeof latestGeneration.seoReport === 'object' && 
-                latestGeneration.seoReport && 
-                'score' in latestGeneration.seoReport &&
-                typeof latestGeneration.seoReport.score === 'number' 
-                ? latestGeneration.seoReport.score 
-                : undefined,
-      seoReport: latestGeneration.seoReport,
-      checklist: latestGeneration.checklist,
+      seoScore: validationArtifact?.seoScore ?? undefined,
     };
 
-    return NextResponse.json({
+    return NextResponse.json<ApiResponse>({
       success: true,
       ...statusResponse,
     });
   } catch (error) {
     console.error("Get generation status error:", error);
-    return NextResponse.json(
+    return NextResponse.json<ApiResponse>(
       {
         success: false,
         error: "Failed to get generation status",
-      } as ApiResponse,
+      },
       { status: 500 },
     );
   }

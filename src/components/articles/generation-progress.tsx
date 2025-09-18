@@ -12,6 +12,45 @@ import { AlertCircle, CheckCircle, Clock, Loader2 } from "lucide-react";
 import { SEO_MIN_SCORE } from "@/constants";
 import type { GenerationStatus } from "@/app/api/articles/[id]/generation-status/route";
 
+type DisplayStatus =
+  | GenerationStatus["status"]
+  | GenerationStatus["articleStatus"]
+  | "completed";
+
+const IN_PROGRESS_STATUSES: GenerationStatus["status"][] = [
+  "research",
+  "image",
+  "writing",
+  "quality-control",
+  "validating",
+  "updating",
+];
+
+function resolveDisplayStatus(status: GenerationStatus): DisplayStatus {
+  const generationStatus = status.status;
+  const articleStatus = status.articleStatus;
+
+  if (generationStatus === "failed") return "failed";
+
+  if (IN_PROGRESS_STATUSES.includes(generationStatus)) {
+    return generationStatus;
+  }
+
+  if (generationStatus === "completed") {
+    if (articleStatus === "published") return "published";
+    if (articleStatus === "wait_for_publish") return "wait_for_publish";
+    return "completed";
+  }
+
+  if (generationStatus === "scheduled") {
+    if (articleStatus === "generating") return "generating";
+    if (articleStatus === "scheduled") return "scheduled";
+    return "idea";
+  }
+
+  return articleStatus ?? generationStatus;
+}
+
 interface GenerationProgressProps {
   status: GenerationStatus;
   className?: string;
@@ -21,14 +60,15 @@ export function GenerationProgress({
   status,
   className,
 }: GenerationProgressProps) {
+  const displayStatus = resolveDisplayStatus(status);
+
   const getStatusIcon = () => {
-    switch (status.status) {
+    switch (displayStatus) {
       case "idea":
       case "scheduled":
         return <Clock className="h-5 w-5 text-gray-500" />;
-      case "generating":
       case "research":
-      case "outline":
+      case "generating":
       case "writing":
       case "image":
       case "quality-control":
@@ -36,6 +76,7 @@ export function GenerationProgress({
       case "updating":
         return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
       case "wait_for_publish":
+      case "completed":
       case "published":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case "failed":
@@ -46,13 +87,12 @@ export function GenerationProgress({
   };
 
   const getStatusColor = () => {
-    switch (status.status) {
+    switch (displayStatus) {
       case "idea":
       case "scheduled":
         return "text-gray-600";
-      case "generating":
       case "research":
-      case "outline":
+      case "generating":
       case "writing":
       case "image":
       case "quality-control":
@@ -60,6 +100,7 @@ export function GenerationProgress({
       case "updating":
         return "text-blue-600";
       case "wait_for_publish":
+      case "completed":
       case "published":
         return "text-green-600";
       case "failed":
@@ -70,7 +111,7 @@ export function GenerationProgress({
   };
 
   const getStatusText = () => {
-    switch (status.status) {
+    switch (displayStatus) {
       case "idea":
         return "Idea";
       case "scheduled":
@@ -79,8 +120,6 @@ export function GenerationProgress({
         return "Generating";
       case "research":
         return "Researching";
-      case "outline":
-        return "Creating Outline";
       case "writing":
         return "Writing";
       case "image":
@@ -92,6 +131,8 @@ export function GenerationProgress({
       case "updating":
         return "Updating";
       case "wait_for_publish":
+        return "Ready to Publish";
+      case "completed":
         return "Ready to Publish";
       case "published":
         return "Published";
@@ -132,16 +173,6 @@ export function GenerationProgress({
           </div>
           <Progress value={status.progress} className="w-full" />
         </div>
-
-        {/* Current Step */}
-        {status.currentPhase && (
-          <div>
-            <h4 className="mb-1 text-sm font-medium text-gray-900">
-              Current Phase
-            </h4>
-            <p className="text-sm text-gray-600">{status.currentPhase}</p>
-          </div>
-        )}
 
         {/* Error Message */}
         {status.error && (

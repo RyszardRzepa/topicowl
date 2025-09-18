@@ -88,8 +88,25 @@ function isWithinWeek(dateIso: string, weekStart: Date) {
 // Type for generation status API response
 interface GenerationStatusResponse {
   progress?: number;
-  phase?: Article["generationPhase"];
   status?: string;
+}
+
+function deriveGenerationPhase(status?: string): Article["generationPhase"] {
+  switch (status) {
+    case "research":
+      return "research";
+    case "writing":
+      return "writing";
+    case "quality-control":
+      return "quality-control";
+    case "validating":
+      return "validation";
+    case "updating":
+    case "image":
+      return "optimization";
+    default:
+      return undefined;
+  }
 }
 
 export function ArticlesBoard() {
@@ -336,7 +353,7 @@ export function ArticlesBoard() {
             if (!r) continue;
             const { id, data } = r;
             const progress = Math.max(0, Math.min(100, data?.progress ?? 0));
-            const phase = data?.phase;
+            const phase = deriveGenerationPhase(data?.status);
             const status = data?.status;
             if (status === "completed" || status === "failed") {
               needsRefresh = true;

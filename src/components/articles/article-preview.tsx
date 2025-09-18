@@ -26,8 +26,8 @@ interface ArticlePreviewData {
   estimatedReadTime: number | null;
   metaDescription: string | null;
   outline: unknown;
-  draft: string | null;
   optimizedContent: string | null;
+  content: string | null;
   factCheckReport: unknown;
   seoScore: number | null;
   internalLinks: unknown;
@@ -128,15 +128,15 @@ export function ArticlePreview({ article }: ArticlePreviewProps) {
                 {article.optimizedContent}
               </div>
             </div>
-          ) : article.draft ? (
+          ) : article.content ? (
             <div className="prose max-w-none">
               <div className="mb-4">
                 <span className="inline-block rounded-md bg-yellow-100 px-2 py-1 text-xs text-yellow-800">
-                  Draft
+                  Content
                 </span>
               </div>
               <div className="whitespace-pre-wrap text-gray-700">
-                {article.draft}
+                {article.content}
               </div>
             </div>
           ) : (

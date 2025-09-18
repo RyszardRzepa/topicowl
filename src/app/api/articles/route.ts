@@ -2,10 +2,15 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { articles, users, projects } from "@/server/db/schema";
-import { max, eq, and, ne } from "drizzle-orm";
+import { articles, users, projects, articleGenerations } from "@/server/db/schema";
+import { max, eq, and, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { logServerError } from "@/lib/posthog-server";
+import type {
+  ArticleGenerationArtifacts,
+  ValidationArtifact,
+  WriteArtifact,
+} from "@/types";
 
 export const maxDuration = 800;
 
@@ -159,14 +164,32 @@ export async function GET(req: NextRequest) {
 
       // Get articles for specific project
       userArticles = await db
-        .select()
+        .select({
+          id: articles.id,
+          title: articles.title,
+          description: articles.description,
+          status: articles.status,
+          projectId: articles.projectId,
+          userId: articles.userId,
+          keywords: articles.keywords,
+          targetAudience: articles.targetAudience,
+          publishScheduledAt: articles.publishScheduledAt,
+          publishedAt: articles.publishedAt,
+          estimatedReadTime: articles.estimatedReadTime,
+          kanbanPosition: articles.kanbanPosition,
+          slug: articles.slug,
+          metaDescription: articles.metaDescription,
+          metaKeywords: articles.metaKeywords,
+          content: articles.content,
+          videos: articles.videos,
+          coverImageUrl: articles.coverImageUrl,
+          coverImageAlt: articles.coverImageAlt,
+          notes: articles.notes,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+        })
         .from(articles)
-        .where(
-          and(
-            eq(articles.projectId, projectId),
-            ne(articles.status, "deleted"),
-          ),
-        )
+        .where(eq(articles.projectId, projectId))
         .orderBy(articles.kanbanPosition, articles.createdAt);
     } else {
       // Get all articles for user's projects
@@ -187,13 +210,8 @@ export async function GET(req: NextRequest) {
           slug: articles.slug,
           metaDescription: articles.metaDescription,
           metaKeywords: articles.metaKeywords,
-          draft: articles.draft,
           content: articles.content,
           videos: articles.videos,
-          factCheckReport: articles.factCheckReport,
-          seoScore: articles.seoScore,
-          internalLinks: articles.internalLinks,
-          sources: articles.sources,
           coverImageUrl: articles.coverImageUrl,
           coverImageAlt: articles.coverImageAlt,
           notes: articles.notes,
@@ -202,16 +220,68 @@ export async function GET(req: NextRequest) {
         })
         .from(articles)
         .innerJoin(projects, eq(articles.projectId, projects.id))
-        .where(
-          and(
-            eq(projects.userId, userRecord.id),
-            ne(articles.status, "deleted"),
-          ),
-        )
+        .where(eq(projects.userId, userRecord.id))
         .orderBy(articles.kanbanPosition, articles.createdAt);
     }
 
-    return NextResponse.json(userArticles);
+    const articleIds = userArticles.map((article: { id: number }) => article.id);
+
+    const generationMap = new Map<number, ArticleGenerationArtifacts>();
+    if (articleIds.length > 0) {
+      const generationRows = await db
+        .select({
+          articleId: articleGenerations.articleId,
+          artifacts: articleGenerations.artifacts,
+          createdAt: articleGenerations.createdAt,
+        })
+        .from(articleGenerations)
+        .where(inArray(articleGenerations.articleId, articleIds))
+        .orderBy(desc(articleGenerations.createdAt));
+
+      for (const row of generationRows) {
+        if (!generationMap.has(row.articleId)) {
+          generationMap.set(row.articleId, row.artifacts);
+        }
+      }
+    }
+
+    const enrichedArticles = userArticles.map((article: Record<string, unknown>) => {
+      const generationArtifacts = generationMap.get(article.id as number);
+      const writeArtifact: WriteArtifact | undefined = generationArtifacts?.write;
+      const validationArtifact: ValidationArtifact | undefined =
+        generationArtifacts?.validation;
+      const qualityControl = generationArtifacts?.qualityControl;
+
+      const factCheckReport =
+        writeArtifact?.factCheckReport ??
+        qualityControl?.report ??
+        null;
+
+      const internalLinksCandidate = writeArtifact?.internalLinks;
+      const internalLinks =
+        Array.isArray(internalLinksCandidate) &&
+        internalLinksCandidate.every((link): link is string => typeof link === "string")
+          ? internalLinksCandidate
+          : [];
+
+      const seoScore = validationArtifact?.seoScore ?? null;
+
+      const sources = generationArtifacts?.research?.sources
+        ? generationArtifacts.research.sources.map((source) =>
+            source.title ? `${source.title} — ${source.url}` : source.url,
+          )
+        : [];
+
+      return {
+        ...article,
+        factCheckReport,
+        internalLinks,
+        seoScore,
+        sources,
+      };
+    });
+
+    return NextResponse.json(enrichedArticles);
   } catch (error) {
     await logServerError(error, { operation: "get_articles" });
     return NextResponse.json(

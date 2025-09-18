@@ -10,26 +10,14 @@ export const ARTICLE_STATUSES = articleStatusEnum.enumValues;
 
 // For convenience, export individual status constants derived from schema
 // This ensures type safety and single source of truth with the database schema
-export const STATUSES = Object.fromEntries(
-  articleStatusEnum.enumValues.map(status => [
-    status.toUpperCase().replace(/_/g, '_'), // Convert to SCREAMING_SNAKE_CASE
-    status
-  ])
-) as {
-  readonly IDEA: "idea";
-  readonly SCHEDULED: "scheduled";  
-  readonly GENERATING: "generating";
-  readonly RESEARCH: "research";
-  readonly OUTLINE: "outline";
-  readonly WRITING: "writing";
-  readonly IMAGE: "image";
-  readonly QUALITY_CONTROL: "quality-control";
-  readonly VALIDATING: "validating";
-  readonly UPDATING: "updating";
-  readonly WAIT_FOR_PUBLISH: "wait_for_publish";
-  readonly PUBLISHED: "published";
-  readonly FAILED: "failed";
-};
+export const STATUSES = {
+  IDEA: "idea",
+  SCHEDULED: "scheduled",
+  GENERATING: "generating",
+  WAIT_FOR_PUBLISH: "wait_for_publish",
+  PUBLISHED: "published",
+  FAILED: "failed",
+} as const satisfies Record<string, ArticleStatus>;
 
 // User-facing display statuses - what users see
 export const DISPLAY_STATUSES = {

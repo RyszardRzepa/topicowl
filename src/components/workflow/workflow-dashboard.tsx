@@ -17,6 +17,32 @@ interface WorkflowDashboardProps {
   className?: string;
 }
 
+const phaseFromStatus = (
+  status: string | undefined,
+):
+  | "research"
+  | "writing"
+  | "quality-control"
+  | "validation"
+  | "optimization"
+  | undefined => {
+  switch (status) {
+    case "research":
+      return "research";
+    case "writing":
+      return "writing";
+    case "quality-control":
+      return "quality-control";
+    case "validating":
+      return "validation";
+    case "updating":
+    case "image":
+      return "optimization";
+    default:
+      return undefined;
+  }
+};
+
 export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,7 +106,12 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
       articleId: string,
       statusData: {
         progress?: number;
-        phase?: "research" | "writing" | "validation" | "optimization";
+        phase?:
+          | "research"
+          | "writing"
+          | "quality-control"
+          | "validation"
+          | "optimization";
         error?: string;
       },
     ) => {
@@ -155,12 +186,7 @@ export function WorkflowDashboard({ className }: WorkflowDashboardProps) {
     onStatusUpdate: (statusData) =>
       handleGenerationStatusUpdate(firstGeneratingArticle?.id ?? "", {
         progress: statusData.progress,
-        phase: statusData.phase as
-          | "research"
-          | "writing"
-          | "validation"
-          | "optimization"
-          | undefined,
+        phase: phaseFromStatus(statusData.status as string),
         error: statusData.error,
       }),
     onComplete: () =>

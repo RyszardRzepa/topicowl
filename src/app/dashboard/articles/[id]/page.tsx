@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { db } from "@/server/db";
-import { articles, articleGeneration } from "@/server/db/schema";
+import { articles, articleGenerations } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { ArticlePreviewClient } from "@/components/articles/article-preview-client";
 import { BackButton } from "@/components/ui/back-button";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
+import type { ValidationArtifact, WriteArtifact } from "@/types";
 
 // Page props interface for the dynamic route
 interface ArticlePreviewPageProps {
@@ -35,13 +36,32 @@ export default async function ArticlePreviewPage({
       notFound();
     }
 
-    // Also fetch the latest generation data to get the full draft content
+    // Also fetch the latest generation data to get the latest content
     const [generationData] = await db
       .select()
-      .from(articleGeneration)
-      .where(eq(articleGeneration.articleId, articleId))
-      .orderBy(desc(articleGeneration.createdAt))
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, articleId))
+      .orderBy(desc(articleGenerations.createdAt))
       .limit(1);
+
+    const artifacts = generationData?.artifacts;
+    const writeArtifact: WriteArtifact | undefined = artifacts?.write;
+    const qcArtifact = artifacts?.qualityControl;
+    const validationArtifact: ValidationArtifact | undefined =
+      artifacts?.validation;
+    const researchArtifact = artifacts?.research;
+    const workingContent = writeArtifact?.content ?? articleData.content;
+    const factCheckReport =
+      writeArtifact?.factCheckReport ??
+      qcArtifact?.report ??
+      null;
+    const internalLinksCandidate = writeArtifact?.internalLinks;
+    const internalLinks = Array.isArray(internalLinksCandidate)
+      ? internalLinksCandidate.filter(
+          (link): link is string => typeof link === "string",
+        )
+      : [];
+    const derivedSeoScore = validationArtifact?.seoScore ?? null;
 
     // Transform the database data to match the expected format
     article = {
@@ -50,9 +70,11 @@ export default async function ArticlePreviewPage({
       projectId: articleData.projectId,
       title: articleData.title,
       description: articleData.description,
-      keywords: Array.isArray(articleData.keywords)
-        ? (articleData.keywords as string[])
-        : [],
+      keywords:
+        Array.isArray(articleData.keywords) &&
+        articleData.keywords.every((keyword) => typeof keyword === "string")
+          ? articleData.keywords
+          : [],
       targetAudience: articleData.targetAudience,
       status: articleData.status,
       scheduledAt: articleData.publishScheduledAt, // Map for compatibility
@@ -64,13 +86,16 @@ export default async function ArticlePreviewPage({
       slug: articleData.slug,
       metaDescription: articleData.metaDescription,
       metaKeywords: articleData.metaKeywords,
-      draft: generationData?.draftContent ?? articleData.draft, // Use generation draft content if available
-      content: articleData.content, // Final published content
+      content: workingContent ?? articleData.content,
       videos: articleData.videos, // YouTube video embeds
-      factCheckReport: articleData.factCheckReport,
-      seoScore: articleData.seoScore,
-      internalLinks: articleData.internalLinks,
-      sources: articleData.sources,
+      factCheckReport,
+      seoScore: derivedSeoScore,
+      internalLinks,
+      sources: researchArtifact?.sources
+        ? researchArtifact.sources.map((source) =>
+            source.title ? `${source.title} — ${source.url}` : source.url,
+          )
+        : [],
       coverImageUrl: articleData.coverImageUrl,
       coverImageAlt: articleData.coverImageAlt,
       coverImageDescription: null, // Not in schema, set to null
@@ -82,19 +107,18 @@ export default async function ArticlePreviewPage({
       targetKeywords: Array.isArray(articleData.keywords)
         ? (articleData.keywords as string[])
         : [],
-      researchSources: Array.isArray(articleData.sources)
-        ? (articleData.sources as string[])
+      researchSources: researchArtifact?.sources
+        ? researchArtifact.sources.map((source) =>
+            source.title ? `${source.title} — ${source.url}` : source.url,
+          )
         : [],
-      wordCount: articleData.content
-        ? articleData.content.split(/\s+/).length
-        : (generationData?.draftContent ?? articleData.draft)
-          ? (generationData?.draftContent ?? articleData.draft)!.split(/\s+/)
-              .length
-          : 0,
+      wordCount: workingContent
+        ? workingContent.split(/\s+/).filter((word) => word.length > 0).length
+        : 0,
       // Optional extended fields
-      seoAnalysis: articleData.seoScore
+      seoAnalysis: derivedSeoScore
         ? {
-            score: articleData.seoScore,
+            score: derivedSeoScore,
             recommendations: [],
             keywordDensity: {},
             readabilityScore: 0,

@@ -5,6 +5,7 @@
 
 import { env } from "@/env";
 import { logger } from "../utils/logger";
+import { z } from "zod";
 
 /**
  * Get the webhook URL based on environment
@@ -234,6 +235,16 @@ export interface ParallelResearchTaskResponse {
   modified_at: string;
 }
 
+const parallelResearchTaskResponseSchema = z
+  .object({
+    run_id: z.string(),
+    status: z.enum(["queued", "running", "completed", "failed"]),
+    is_active: z.boolean(),
+    created_at: z.string(),
+    modified_at: z.string(),
+  })
+  .passthrough();
+
 // Configuration for Parallel API
 const PARALLEL_CONFIG = {
   baseUrl: "https://api.parallel.ai/v1",
@@ -321,7 +332,7 @@ export async function createParallelResearchTask(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": env.PARALLEL_API_KEY as string,
+        "x-api-key": env.PARALLEL_API_KEY,
         "parallel-beta": "webhook-2025-08-12"
       },
       body: JSON.stringify(requestBody),
@@ -332,8 +343,11 @@ export async function createParallelResearchTask(
       throw new Error(`Parallel API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    const result = await response.json() as ParallelResearchTaskResponse;
-    
+    const parsedResult = parallelResearchTaskResponseSchema.parse(
+      await response.json(),
+    );
+    const result: ParallelResearchTaskResponse = parsedResult;
+
     logger.info("[PARALLEL_RESEARCH] Task created successfully", {
       run_id: result.run_id,
       status: result.status

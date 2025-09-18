@@ -9,7 +9,7 @@ import {
   redditTasks,
   userCredits,
 } from "@/server/db/schema";
-import { eq, and, gte, lte, ne, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import type { ClerkPrivateMetadata } from "@/types";
 
 // Dashboard stats response types
@@ -157,7 +157,6 @@ export async function GET(request: NextRequest) {
             and(
               eq(articles.projectId, projectId),
               gte(articles.createdAt, startOfMonth),
-              ne(articles.status, "deleted"),
             ),
           ),
         // Total published all time
@@ -222,7 +221,6 @@ export async function GET(request: NextRequest) {
           .where(
             and(
               eq(articles.projectId, projectId),
-              ne(articles.status, "deleted"),
             ),
           )
           .groupBy(articles.status),
@@ -241,7 +239,6 @@ export async function GET(request: NextRequest) {
           .where(
             and(
               eq(articles.projectId, projectId),
-              ne(articles.status, "deleted"),
             ),
           )
           .orderBy(desc(articles.updatedAt))

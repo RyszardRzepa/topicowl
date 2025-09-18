@@ -127,14 +127,7 @@ export async function fetcher<T = unknown>(
 
 // Content access utility for consistent field usage across the application
 export function getArticleContent(article: {
-  status?: string;
   content?: string | null;
-  draft?: string | null;
 }): string {
-  // During editing: use draft
-  if (article.status !== "published") {
-    return article.draft ?? "";
-  }
-  // After publishing: use content (fallback to draft)
-  return article.content ?? article.draft ?? "";
+  return article.content ?? "";
 }

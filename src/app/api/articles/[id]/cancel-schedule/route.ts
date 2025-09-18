@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import {
   articles,
-  articleGeneration,
+  articleGenerations,
   projects,
   users,
 } from "@/server/db/schema";
@@ -108,11 +108,11 @@ export async function POST(
 
     // Delete generation record to avoid DB conflicts
     await db
-      .delete(articleGeneration)
+      .delete(articleGenerations)
       .where(
         and(
-          eq(articleGeneration.articleId, articleId),
-          eq(articleGeneration.userId, userRecord.id),
+          eq(articleGenerations.articleId, articleId),
+          eq(articleGenerations.userId, userRecord.id),
         ),
       );
 

@@ -8,10 +8,8 @@ import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/server/db";
-import {
-  articleGeneration,
-  type ArticleGenerationStatus,
-} from "@/server/db/schema";
+import { articleGenerations } from "@/server/db/schema";
+import type { ArticleGenerationStatus } from "@/types";
 import { env } from "@/env";
 import { logger } from "@/lib/utils/logger";
 import { convertParallelResponseToResearchResponse, type ParallelResearchResponse } from "@/lib/services/research-service";
@@ -89,15 +87,15 @@ function verifyWebhookSignature(
 async function findArticleGenerationByRunId(runId: string) {
   const results = await db
     .select({
-      id: articleGeneration.id,
-      articleId: articleGeneration.articleId,
-      projectId: articleGeneration.projectId,
-      status: articleGeneration.status,
-      artifacts: articleGeneration.artifacts,
+      id: articleGenerations.id,
+      articleId: articleGenerations.articleId,
+      projectId: articleGenerations.projectId,
+      status: articleGenerations.status,
+      artifacts: articleGenerations.artifacts,
     })
-    .from(articleGeneration)
+    .from(articleGenerations)
     .where(
-      sql`artifacts->>'research_run_id' = ${runId} AND status = 'researching'`,
+      sql`artifacts->>'research_run_id' = ${runId}`,
     );
 
   return results.length > 0 ? results[0] : null;
@@ -114,7 +112,7 @@ async function fetchTaskResult(runId: string): Promise<{
   const response = await fetch(`https://api.parallel.ai/v1/tasks/runs/${runId}/result`, {
     method: "GET",
     headers: {
-      "x-api-key": env.PARALLEL_API_KEY as string
+      "x-api-key": env.PARALLEL_API_KEY,
     },
   });
 
@@ -122,7 +120,7 @@ async function fetchTaskResult(runId: string): Promise<{
     throw new Error(`Failed to fetch task result: ${response.status} ${response.statusText}`);
   }
 
-  const result = await response.json() as {
+  const result = (await response.json()) as {
     output: {
       content: ParallelResearchResponse;
     };
@@ -144,9 +142,9 @@ async function updateArticleGenerationWithResearch(
 ) {
   // Get current artifacts and merge with new research data
   const [currentRecord] = await db
-    .select({ artifacts: articleGeneration.artifacts })
-    .from(articleGeneration)
-    .where(eq(articleGeneration.id, generationId));
+    .select({ artifacts: articleGenerations.artifacts })
+    .from(articleGenerations)
+    .where(eq(articleGenerations.id, generationId));
 
   const currentArtifacts = (currentRecord?.artifacts as Record<string, unknown>) ?? {};
   const updatedArtifacts = {
@@ -158,13 +156,13 @@ async function updateArticleGenerationWithResearch(
 
   // Update the article_generation record with research results
   await db
-    .update(articleGeneration)
+    .update(articleGenerations)
     .set({
       artifacts: updatedArtifacts,
-      status: "outline" as ArticleGenerationStatus,
+      status: "image" as ArticleGenerationStatus,
       updatedAt: new Date(),
     })
-    .where(eq(articleGeneration.id, generationId));
+    .where(eq(articleGenerations.id, generationId));
 
   logger.info("[PARALLEL_WEBHOOK] Updated article generation with research results", {
     generationId,
@@ -192,13 +190,15 @@ export async function POST(request: NextRequest) {
     const body = await request.text();
     
     // Verify webhook signature
-    if (!verifyWebhookSignature(
-      webhookId,
-      webhookTimestamp,
-      body,
-      webhookSignature,
-      env.PARALLEL_WEBHOOK_SECRET as string
-    )) {
+    if (
+      !verifyWebhookSignature(
+        webhookId,
+        webhookTimestamp,
+        body,
+        webhookSignature,
+        env.PARALLEL_WEBHOOK_SECRET,
+      )
+    ) {
       logger.error("[PARALLEL_WEBHOOK] Invalid webhook signature");
       return NextResponse.json(
         { error: "Invalid webhook signature" },
@@ -268,9 +268,9 @@ export async function POST(request: NextRequest) {
 
         // Update article generation with error status
         const [currentRecord] = await db
-          .select({ artifacts: articleGeneration.artifacts })
-          .from(articleGeneration)
-          .where(eq(articleGeneration.id, generationRecord.id));
+          .select({ artifacts: articleGenerations.artifacts })
+          .from(articleGenerations)
+          .where(eq(articleGenerations.id, generationRecord.id));
 
         const currentArtifacts = (currentRecord?.artifacts as Record<string, unknown>) ?? {};
         const updatedArtifacts = {
@@ -282,13 +282,13 @@ export async function POST(request: NextRequest) {
         };
 
         await db
-          .update(articleGeneration)
+          .update(articleGenerations)
           .set({
             artifacts: updatedArtifacts,
-            status: "research_failed" as ArticleGenerationStatus,
+            status: "failed" as ArticleGenerationStatus,
             updatedAt: new Date(),
           })
-          .where(eq(articleGeneration.id, generationRecord.id));
+          .where(eq(articleGenerations.id, generationRecord.id));
       }
     } else if (status === "failed") {
       logger.error("[PARALLEL_WEBHOOK] Research task failed", {
@@ -299,9 +299,9 @@ export async function POST(request: NextRequest) {
 
       // Update article generation with failure status
       const [currentRecord] = await db
-        .select({ artifacts: articleGeneration.artifacts })
-        .from(articleGeneration)
-        .where(eq(articleGeneration.id, generationRecord.id));
+        .select({ artifacts: articleGenerations.artifacts })
+        .from(articleGenerations)
+        .where(eq(articleGenerations.id, generationRecord.id));
 
       const currentArtifacts = (currentRecord?.artifacts as Record<string, unknown>) ?? {};
       const updatedArtifacts = {
@@ -314,13 +314,13 @@ export async function POST(request: NextRequest) {
       };
 
       await db
-        .update(articleGeneration)
+        .update(articleGenerations)
         .set({
           artifacts: updatedArtifacts,
-          status: "research_failed" as ArticleGenerationStatus,
+          status: "failed" as ArticleGenerationStatus,
           updatedAt: new Date(),
         })
-        .where(eq(articleGeneration.id, generationRecord.id));
+        .where(eq(articleGenerations.id, generationRecord.id));
     }
 
     return NextResponse.json({ received: true });

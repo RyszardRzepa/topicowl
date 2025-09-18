@@ -3,7 +3,10 @@
 
 import { z } from "zod";
 import type { projects } from "@/server/db/schema";
-import type { articleStatusEnum } from "@/server/db/schema";
+import type {
+  articleStatusEnum,
+  articleGenerationStatusEnum,
+} from "@/server/db/schema";
 
 // OpenGraph metadata schema
 export const ogMetadataSchema = z.object({
@@ -72,6 +75,64 @@ export const videoEmbedSchema = z.object({
 });
 
 export type VideoEmbed = z.infer<typeof videoEmbedSchema>;
+
+export interface ResearchArtifact {
+  researchData?: string;
+  sources?: Array<{ url: string; title?: string }>;
+  videos?: Array<{ title: string; url: string; reason?: string }>;
+  internalLinks?: string[];
+}
+
+export interface ValidationArtifact {
+  isValid?: boolean;
+  issues?: Array<{ fact: string; issue: string; correction: string }>;
+  rawValidationText?: string;
+  seoScore?: number;
+}
+
+export interface WriteArtifact {
+  prompt?: string;
+  content?: string;
+  relatedPosts?: string[];
+  tags?: string[];
+  slug?: string;
+  metaDescription?: string;
+  introParagraph?: string;
+  factCheckReport?: string;
+  internalLinks?: string[];
+}
+
+export interface CoverImageArtifact {
+  imageId?: string;
+  imageUrl?: string;
+  altText?: string;
+  attribution?: {
+    photographer?: string;
+    sourceUrl?: string;
+    downloadUrl?: string;
+    [key: string]: string | undefined;
+  };
+  query?: string;
+  keywords?: string[];
+}
+
+export interface GenerationArtifactErrors {
+  research_error?: { error: string; timestamp: string; details?: string };
+  write_error?: { error: string; timestamp: string; details?: string };
+  validation_error?: { error: string; timestamp: string; details?: string };
+  [key: string]: unknown;
+}
+
+export interface ArticleGenerationArtifacts extends GenerationArtifactErrors {
+  research_run_id?: string;
+  research?: ResearchArtifact;
+  validation?: ValidationArtifact;
+  write?: WriteArtifact;
+  coverImage?: CoverImageArtifact;
+  qualityControl?: { report?: string; completedAt?: string };
+  errors?: GenerationArtifactErrors;
+  [key: string]: unknown;
+}
 
 export type SectionType =
   | "title"
@@ -184,6 +245,8 @@ export const enhancedBlogPostSchema = blogPostSchema.extend({
 
 // Article status type - imported from database schema
 export type ArticleStatus = (typeof articleStatusEnum.enumValues)[number];
+export type ArticleGenerationStatus =
+  (typeof articleGenerationStatusEnum.enumValues)[number];
 
 // Workflow phases for new UI
 export type WorkflowPhase = "planning" | "generations" | "publishing";
@@ -218,7 +281,12 @@ export interface Article {
 
   // Enhanced fields for new workflow
   generationProgress?: number; // 0-100 percentage
-  generationPhase?: "research" | "writing" | "validation" | "optimization";
+  generationPhase?:
+    | "research"
+    | "writing"
+    | "quality-control"
+    | "validation"
+    | "optimization";
   generationError?: string;
   estimatedReadTime?: number; // in minutes
   views?: number;

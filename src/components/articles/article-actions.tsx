@@ -107,7 +107,7 @@ export function ArticleActions({
 
   const canSchedule =
     article.status === "wait_for_publish" ||
-    (article.draft && article.status !== "generating");
+    (article.content && article.status !== "generating");
 
   return (
     <>

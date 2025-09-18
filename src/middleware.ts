@@ -12,6 +12,7 @@ const isPublicApiRoute = createRouteMatcher([
   "/api/webhooks/clerk",
   "/api/external(.*)",
   "/api/tools/seo-cluster-map/analyze",
+  "/api/topics-finder",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

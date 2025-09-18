@@ -7,7 +7,7 @@ import { generateObject } from "ai";
 import { MODELS } from "@/constants";
 import { getModel } from "@/lib/ai-models";
 import { db } from "@/server/db";
-import { projects, users, articleGeneration } from "@/server/db/schema";
+import { projects, users, articleGenerations } from "@/server/db/schema";
 import type { ResearchResponse } from "@/lib/services/research-service";
 import { blogPostSchema } from "@/types";
 import { eq } from "drizzle-orm";
@@ -202,13 +202,26 @@ export async function performWriteLogic(
 
   // Save the complete prompt if generationId is provided
   if (request.generationId) {
+    const [existingArtifacts] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, request.generationId))
+      .limit(1);
+
+    const artifacts = existingArtifacts?.artifacts;
     await db
-      .update(articleGeneration)
+      .update(articleGenerations)
       .set({
-        writePrompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+        artifacts: {
+          ...(artifacts ?? {}),
+          write: {
+            ...(artifacts?.write ?? {}),
+            prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+          },
+        },
         updatedAt: new Date(),
       })
-      .where(eq(articleGeneration.id, request.generationId));
+      .where(eq(articleGenerations.id, request.generationId));
   }
 
   const result = await generateObject({

@@ -4,13 +4,19 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import {
   articles,
-  articleGeneration,
+  articleGenerations,
   projects,
   webhookDeliveries,
   users,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import type { ApiResponse } from "@/types";
+import type {
+  ApiResponse,
+  ArticleStatus,
+  ArticleGenerationArtifacts,
+  ValidationArtifact,
+  WriteArtifact,
+} from "@/types";
 import crypto from "crypto";
 
 // Type for article data - updated to include failed status
@@ -22,16 +28,7 @@ type ArticleData = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status:
-    | "idea"
-    | "scheduled"
-    | "queued"
-    | "to_generate"
-    | "generating"
-    | "wait_for_publish"
-    | "published"
-    | "failed"
-    | "deleted";
+  status: ArticleStatus;
   publishScheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
@@ -39,17 +36,16 @@ type ArticleData = {
   slug: string | null;
   metaDescription: string | null;
   metaKeywords: unknown;
-  draft: string | null;
   content: string | null; // Final published content
   videos: unknown; // YouTube video embeds
-  factCheckReport: unknown;
-  seoScore: number | null;
-  internalLinks: unknown;
-  sources: unknown;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
   createdAt: Date;
   updatedAt: Date;
+  factCheckReport?: string | null;
+  internalLinks?: string[];
+  sources?: string[];
+  seoScore?: number | null;
 };
 
 // Webhook delivery function with proper tracking
@@ -75,23 +71,30 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
       return; // No webhook configured, skip
     }
 
-    // Get related articles from articleGeneration table
-    let relatedArticles: string[] = [];
-    try {
-      const [generationRecord] = await db
-        .select({ relatedArticles: articleGeneration.relatedArticles })
-        .from(articleGeneration)
-        .where(eq(articleGeneration.articleId, article.id))
-        .orderBy(desc(articleGeneration.createdAt))
-        .limit(1);
+    const [generationRecord] = await db
+      .select({
+        artifacts: articleGenerations.artifacts,
+      })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, article.id))
+      .orderBy(desc(articleGenerations.createdAt))
+      .limit(1);
 
-      relatedArticles = Array.isArray(generationRecord?.relatedArticles)
-        ? generationRecord.relatedArticles
-        : [];
-    } catch (error) {
-      console.error("Error fetching related articles for webhook:", error);
-      // Continue without related articles
-    }
+    const artifacts: ArticleGenerationArtifacts | undefined =
+      generationRecord?.artifacts;
+    const writeArtifact: WriteArtifact | undefined = artifacts?.write;
+    const validationArtifact: ValidationArtifact | undefined = artifacts?.validation;
+    const qualityControl = artifacts?.qualityControl;
+    const relatedArticles = writeArtifact?.relatedPosts ?? [];
+    const researchSources = artifacts?.research?.sources
+      ? artifacts.research.sources.map((source) =>
+          source.title ? `${source.title} — ${source.url}` : source.url,
+        )
+      : [];
+    const internalLinks = writeArtifact?.internalLinks ?? [];
+    const seoScore = validationArtifact?.seoScore ?? null;
+    const factCheckReport = writeArtifact?.factCheckReport ?? qualityControl?.report ?? null;
+    const finalContent = writeArtifact?.content ?? article.content ?? "";
 
     // Prepare webhook payload
     const payload = {
@@ -99,19 +102,18 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
       title: article.title,
       slug: article.slug,
       description: article.description ?? article.metaDescription,
-      content: article.content ?? article.draft ?? "",
+      content: finalContent,
       keywords: Array.isArray(article.keywords) ? article.keywords : [],
       targetAudience: article.targetAudience,
       metaDescription: article.metaDescription,
       estimatedReadTime: article.estimatedReadTime,
-      seoScore: article.seoScore,
+      seoScore,
       coverImageUrl: article.coverImageUrl,
       coverImageAlt: article.coverImageAlt,
       publishedAt: article.publishedAt?.toISOString(),
-      sources: Array.isArray(article.sources) ? article.sources : [],
-      internalLinks: Array.isArray(article.internalLinks)
-        ? article.internalLinks
-        : [],
+      sources: researchSources,
+      internalLinks,
+      factCheckReport,
       relatedArticles: relatedArticles,
       createdAt: article.createdAt.toISOString(),
       updatedAt: article.updatedAt.toISOString(),
@@ -307,46 +309,49 @@ export async function POST(req: NextRequest) {
     }
 
     // Get the article and verify ownership
-    const articlesToPublish = await db
-      .select()
+    const [article] = await db
+      .select({
+        id: articles.id,
+        content: articles.content,
+        publishedAt: articles.publishedAt,
+        projectId: articles.projectId,
+        title: articles.title,
+      })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
       .where(
         and(
           eq(articles.id, articleId),
-          eq(projects.userId, userRecord.id), // Ensure user owns the project
+          eq(projects.userId, userRecord.id),
         ),
       )
       .limit(1);
 
-    if (articlesToPublish.length === 0) {
+    if (!article) {
       return NextResponse.json(
         { error: "Article not found or access denied" },
         { status: 404 },
       );
     }
 
-    // Extract just the article data
-    const article = articlesToPublish[0]!.articles;
+    const [generationRecord] = await db
+      .select({
+        artifacts: articleGenerations.artifacts,
+      })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, article.id))
+      .orderBy(desc(articleGenerations.createdAt))
+      .limit(1);
 
-    // Only update status if not already published
-    if (article.status === "published") {
-      return NextResponse.json({
-        success: true,
-        data: {
-          publishedCount: 0,
-          publishedArticles: [],
-        },
-        message: "Article is already published",
-      } as ApiResponse);
-    }
+    const artifacts: ArticleGenerationArtifacts | undefined =
+      generationRecord?.artifacts;
+    const writeArtifact: WriteArtifact | undefined = artifacts?.write;
+    const finalContent = writeArtifact?.content ?? article.content ?? "";
 
-    // Update article to published status
     const [updatedArticle] = await db
       .update(articles)
       .set({
-        status: "published",
-        content: article.draft, // Freeze draft as published content
+        content: finalContent,
         publishScheduledAt: null, // Clear scheduled time when publishing
         updatedAt: new Date(),
         // Set publishedAt if not already set
@@ -360,34 +365,29 @@ export async function POST(req: NextRequest) {
         `Manually published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`,
       );
 
-      // Send webhook with proper tracking
-      void deliverWebhook(updatedArticle).catch((error: unknown) => {
+      // Send webhook with proper tracking (deliverWebhook recalculates derived metadata)
+      const deliverArticle: ArticleData = {
+        ...updatedArticle,
+        factCheckReport: undefined,
+        internalLinks: undefined,
+        sources: undefined,
+        seoScore: undefined,
+      };
+      void deliverWebhook(deliverArticle).catch((error: unknown) => {
         console.error(
           "Failed to deliver webhook for article",
-          updatedArticle.id,
+          deliverArticle.id,
           ":",
           error,
         );
       });
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          publishedCount: 1,
-          publishedArticles: [
-            {
-              id: updatedArticle.id.toString(),
-              title: updatedArticle.title,
-            },
-          ],
-        },
-        message: "Article published successfully",
-      } as ApiResponse);
+      return NextResponse.json({ success: true } as ApiResponse);
     } else {
       return NextResponse.json(
         {
           success: false,
-          error: "Failed to update article status",
+          error: "Failed to publish article",
         } as ApiResponse,
         { status: 500 },
       );
