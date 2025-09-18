@@ -1,12 +1,14 @@
 import { db } from "@/server/db";
 import {
+  articleGenerations,
   articles,
-  articleGeneration,
-  users,
   projects,
+  users,
+  type ArticleStatus,
+  type ArticleGenerationStatus,
 } from "@/server/db/schema";
-import { eq, and, desc, ne } from "drizzle-orm";
-import type { VideoEmbed } from "@/types";
+import { eq, and, desc } from "drizzle-orm";
+import type { ArticleGenerationArtifacts, VideoEmbed } from "@/types";
 
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { getRelatedArticles } from "@/lib/utils/related-articles";
@@ -14,27 +16,15 @@ import { hasEnoughCredits, deductCredits } from "@/lib/utils/credits";
 import { getCreditCost } from "@/lib/utils/credit-costs";
 import { logger } from "@/lib/utils/logger";
 
-import { performResearchDirect } from "@/lib/services/research-service";
+import { createParallelResearchTask } from "@/lib/services/research-service";
 import type { ResearchResponse } from "@/lib/services/research-service";
-import { performWriteLogic } from "@/lib/services/write-service";
+import { performWriteLogic as performWrite } from "@/lib/services/write-service";
 import type { WriteResponse } from "@/lib/services/write-service";
-import { performQualityControlLogic } from "@/lib/services/quality-control-service";
+import { performQualityControlLogic as runQualityControl } from "@/lib/services/quality-control-service";
 import type { QualityControlResponse } from "@/lib/services/quality-control-service";
-import { performValidateLogic } from "@/lib/services/validation-service";
+import { performValidateLogic as runValidation } from "@/lib/services/validation-service";
 import type { ValidateResponse } from "@/lib/services/validation-service";
-import { performGenericUpdate } from "@/lib/services/update-service";
-import { performImageSelectionLogic } from "@/lib/services/image-selection-service";
-
-import { generateStructuredOutline } from "@/lib/services/outline-generator-service";
-import { runSeoAudit } from "@/lib/services/seo-audit-service";
-import {
-  passesQualityGates,
-  passesChecklist,
-} from "@/lib/services/quality-gates";
-import type { SeoChecklist } from "@/types";
-import { performSeoRemediation } from "@/lib/services/seo-remediation-service";
-import { captureSpecificScreenshots } from "@/lib/services/screenshot-service";
-import { generateJsonLd } from "@/lib/services/schema-generator-service";
+import { performImageSelectionLogic as findCoverImage } from "@/lib/services/image-selection-service";
 
 export interface GenerationContext {
   articleId: number;
@@ -46,55 +36,69 @@ export interface GenerationContext {
 
 async function mergeArtifacts(
   generationId: number,
-  fragment: Record<string, unknown>,
+  fragment: Partial<ArticleGenerationArtifacts>,
 ): Promise<void> {
   const [current] = await db
-    .select({ artifacts: articleGeneration.artifacts })
-    .from(articleGeneration)
-    .where(eq(articleGeneration.id, generationId))
+    .select({ artifacts: articleGenerations.artifacts })
+    .from(articleGenerations)
+    .where(eq(articleGenerations.id, generationId))
     .limit(1);
-  const next = { ...(current?.artifacts ?? {}), ...fragment } as Record<
-    string,
-    unknown
-  >;
+
+  const existingArtifacts = current?.artifacts;
+  const next: ArticleGenerationArtifacts = {
+    ...(existingArtifacts ?? {}),
+    ...fragment,
+    research: {
+      ...(existingArtifacts?.research ?? {}),
+      ...fragment.research,
+    },
+    validation: {
+      ...(existingArtifacts?.validation ?? {}),
+      ...fragment.validation,
+    },
+    write: {
+      ...(existingArtifacts?.write ?? {}),
+      ...fragment.write,
+    },
+    coverImage: {
+      ...(existingArtifacts?.coverImage ?? {}),
+      ...fragment.coverImage,
+    },
+  };
+
   await db
-    .update(articleGeneration)
-    .set({ artifacts: next, updatedAt: new Date(), lastUpdated: new Date() })
-    .where(eq(articleGeneration.id, generationId));
+    .update(articleGenerations)
+    .set({ artifacts: next, updatedAt: new Date() })
+    .where(eq(articleGenerations.id, generationId));
 }
 
-// Attempt to atomically claim an article for generation by flipping its status
-// to "generating" if and only if it is not already generating/published/deleted.
-// Returns:
-// - "claimed" when this caller acquired the claim
-// - "already_generating" when another worker has the claim
-// - "not_claimable" for other states (e.g., published/deleted)
 export async function claimArticleForGeneration(
   articleId: number,
 ): Promise<"claimed" | "already_generating" | "not_claimable"> {
-  const [updated] = await db
-    .update(articles)
-    .set({ status: "generating", updatedAt: new Date() })
-    .where(
-      and(
-        eq(articles.id, articleId),
-        ne(articles.status, "generating"),
-        ne(articles.status, "published"),
-        ne(articles.status, "deleted"),
-      ),
-    )
-    .returning({ id: articles.id });
-
-  if (updated) return "claimed";
-
-  const [current] = await db
-    .select({ status: articles.status })
+  const [article] = await db
+    .select({ id: articles.id })
     .from(articles)
     .where(eq(articles.id, articleId))
     .limit(1);
-  if (!current) return "not_claimable";
-  if (current.status === "generating") return "already_generating";
-  return "not_claimable";
+
+  if (!article) return "not_claimable";
+
+  const [latestGeneration] = await db
+    .select({ status: articleGenerations.status })
+    .from(articleGenerations)
+    .where(eq(articleGenerations.articleId, articleId))
+    .orderBy(desc(articleGenerations.createdAt))
+    .limit(1);
+
+  if (
+    latestGeneration &&
+    latestGeneration.status !== "failed" &&
+    latestGeneration.status !== "completed"
+  ) {
+    return "already_generating";
+  }
+
+  return "claimed";
 }
 
 export async function validateAndSetupGeneration(
@@ -111,8 +115,14 @@ export async function validateAndSetupGeneration(
   if (!userRecord) throw new Error("User not found");
 
   const requiredCredits = getCreditCost("ARTICLE_GENERATION");
-  const userHasEnoughCredits = await hasEnoughCredits(userRecord.id, requiredCredits);
-  if (!userHasEnoughCredits) throw new Error(`Insufficient credits for article generation (requires ${requiredCredits} credits)`);
+  const userHasEnoughCredits = await hasEnoughCredits(
+    userRecord.id,
+    requiredCredits,
+  );
+  if (!userHasEnoughCredits)
+    throw new Error(
+      `Insufficient credits for article generation (requires ${requiredCredits} credits)`,
+    );
 
   if (!articleId || isNaN(parseInt(articleId)))
     throw new Error("Invalid article ID");
@@ -156,7 +166,7 @@ export async function validateAndSetupGeneration(
 export async function createOrResetArticleGeneration(
   articleId: number,
   userId: string,
-): Promise<typeof articleGeneration.$inferSelect> {
+): Promise<typeof articleGenerations.$inferSelect> {
   const [article] = await db
     .select({ projectId: articles.projectId })
     .from(articles)
@@ -164,37 +174,32 @@ export async function createOrResetArticleGeneration(
     .limit(1);
   if (!article) throw new Error(`Article ${articleId} not found`);
 
+  await db
+    .update(articles)
+    .set({ status: "generating", updatedAt: new Date() })
+    .where(eq(articles.id, articleId));
+
   const [existingRecord] = await db
     .select()
-    .from(articleGeneration)
-    .where(eq(articleGeneration.articleId, articleId))
-    .orderBy(desc(articleGeneration.createdAt))
+    .from(articleGenerations)
+    .where(eq(articleGenerations.articleId, articleId))
+    .orderBy(desc(articleGenerations.createdAt))
     .limit(1);
 
   if (existingRecord) {
-    const existingRelated = Array.isArray(existingRecord.relatedArticles)
-      ? existingRecord.relatedArticles
-      : [];
-
     const [updatedRecord] = await db
-      .update(articleGeneration)
+      .update(articleGenerations)
       .set({
-        status: "pending",
+        status: "scheduled",
         progress: 0,
         startedAt: null,
         completedAt: null,
         error: null,
         errorDetails: null,
-        draftContent: null,
-        validationReport: {},
-        qualityControlReport: null,
-        researchData: {},
-        seoReport: {},
-        imageKeywords: [],
-        relatedArticles: existingRelated.length > 0 ? existingRelated : [],
+        artifacts: {},
         updatedAt: new Date(),
       })
-      .where(eq(articleGeneration.id, existingRecord.id))
+      .where(eq(articleGenerations.id, existingRecord.id))
       .returning();
 
     if (!updatedRecord) throw new Error("Failed to reset generation record");
@@ -202,19 +207,15 @@ export async function createOrResetArticleGeneration(
   }
 
   const result = await db
-    .insert(articleGeneration)
+    .insert(articleGenerations)
     .values({
       articleId,
       userId,
       projectId: article.projectId,
-      status: "pending",
+      status: "scheduled",
       progress: 0,
       startedAt: null,
-      validationReport: {},
-      researchData: {},
-      seoReport: {},
-      imageKeywords: [],
-      relatedArticles: [],
+      artifacts: {},
     })
     .returning();
 
@@ -225,14 +226,14 @@ export async function createOrResetArticleGeneration(
 
 export async function updateGenerationProgress(
   generationId: number,
-  status: string,
+  status: ArticleGenerationStatus,
   progress: number,
   additionalData?: Record<string, unknown>,
 ): Promise<void> {
   await db
-    .update(articleGeneration)
+    .update(articleGenerations)
     .set({ status, progress, updatedAt: new Date(), ...additionalData })
-    .where(eq(articleGeneration.id, generationId));
+    .where(eq(articleGenerations.id, generationId));
 }
 
 async function performResearch(
@@ -242,24 +243,41 @@ async function performResearch(
   projectId: number,
   notes?: string,
 ): Promise<ResearchResponse> {
-  await updateGenerationProgress(generationId, "researching", 10);
+  await updateGenerationProgress(generationId, "research", 10);
   logger.debug("research:start", { title, keywordsCount: keywords.length });
 
   const excludedDomains = await getProjectExcludedDomains(projectId);
-  const comprehensiveResearchData = await performResearchDirect({
-    title,
-    keywords,
-    notes,
-    excludedDomains,
-  });
 
-  // Save the comprehensive research data structure to the database
-  await updateGenerationProgress(generationId, "researching", 25, {
-    researchData: comprehensiveResearchData,
-  });
-
-  // Return the unified response for backwards compatibility
-  return comprehensiveResearchData.unified;
+  // Try using Parallel API with webhook
+  try {
+    const task = await createParallelResearchTask(
+      title,
+      keywords,
+      notes,
+      excludedDomains,
+    );
+    await mergeArtifacts(generationId, { research_run_id: task.run_id });
+    // Webhook will handle the rest
+    return {
+      researchData:
+        "Research is in progress and will be delivered via webhook.",
+      sources: [],
+      videos: [],
+    };
+  } catch (error) {
+    logger.error("research:parallel_failed", error);
+    try {
+      await updateGenerationProgress(generationId, "failed", 100, {
+        error:
+          error instanceof Error ? error.message : "Unknown research error",
+      });
+    } catch (updateError) {
+      logger.error("research:status_update_failed", updateError);
+    }
+    throw new Error(
+      `Research failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
 }
 
 async function selectCoverImage(
@@ -271,8 +289,8 @@ async function selectCoverImage(
   projectId: number,
 ): Promise<{ coverImageUrl: string; coverImageAlt: string }> {
   try {
-    logger.debug("image-selection:start", { articleId, generationId });
-    const imageResult = await performImageSelectionLogic({
+    await updateGenerationProgress(generationId, "image", 30);
+    const imageResult = await findCoverImage({
       articleId,
       generationId,
       title,
@@ -282,13 +300,19 @@ async function selectCoverImage(
       projectId,
     });
     if (imageResult.success && imageResult.data?.coverImageUrl) {
+      await mergeArtifacts(generationId, {
+        coverImage: {
+          imageUrl: imageResult.data.coverImageUrl,
+          altText: imageResult.data.coverImageAlt,
+        },
+      });
       return {
         coverImageUrl: imageResult.data.coverImageUrl,
         coverImageAlt: imageResult.data.coverImageAlt ?? "",
       };
     }
   } catch (error) {
-    logger.warn("image-selection:error", error);
+    logger.warn("image:selection_failed", error);
   }
   return { coverImageUrl: "", coverImageAlt: "" };
 }
@@ -321,12 +345,11 @@ async function writeArticle(
   });
 
   try {
-    // Use the simplified write service with the AI-generated outline
-    const writeData = await performWriteLogic({
-      researchData: researchData,
+    const writeResult = await performWrite({
+      researchData,
       title,
       keywords,
-      coverImage: coverImageUrl ?? undefined,
+      coverImage: coverImageUrl,
       videos,
       userId,
       projectId,
@@ -337,20 +360,19 @@ async function writeArticle(
           ? sourcesOverride
           : (researchData.sources ?? []),
       notes: notes ?? undefined,
-      outlineMarkdown, // Pass the markdown outline directly
+      outlineMarkdown,
       screenshots: screenshotsForWriter,
     });
-
-    await updateGenerationProgress(generationId, "writing", 60);
-    logger.debug("ai-first-writing:completed");
-
-    return writeData;
+    await mergeArtifacts(generationId, { write: writeResult });
+    return writeResult;
   } catch (error) {
-    logger.error("ai-first-writing:error", {
-      error: error instanceof Error ? error.message : "Unknown error",
-      generationId,
+    logger.error("ai-first-writing:failed", error);
+    await updateGenerationProgress(generationId, "failed", 100, {
+      error: "Failed to write article",
     });
-    throw error;
+    throw new Error(
+      `Failed to write article: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
@@ -359,48 +381,41 @@ async function performQualityControl(
   generationId: number,
   userId: string,
   projectId: number,
+  originalPrompt: string,
 ): Promise<QualityControlResponse> {
   const startTime = Date.now();
   logger.debug("quality-control:start", { generationId });
   try {
-    const generationRecord = await db
-      .select()
-      .from(articleGeneration)
-      .where(eq(articleGeneration.id, generationId))
-      .limit(1)
-      .then((rows) => rows[0]);
-
-    const qualityControlData = await performQualityControlLogic({
+    await updateGenerationProgress(generationId, "quality-control", 75);
+    const qcResult = await runQualityControl({
       articleContent: content,
       userSettings: undefined,
-      originalPrompt: generationRecord?.writePrompt ?? "",
-      userId: userId,
-      projectId: projectId,
-      generationId: generationId,
+      originalPrompt,
+      userId,
+      projectId,
+      generationId,
     });
-
-    logger.debug("quality-control:done");
-
-    // Save the report (string or null)
-    await updateGenerationProgress(generationId, "quality-control", 70, {
-      qualityControlReport: qualityControlData.issues ?? null,
+    const duration = Date.now() - startTime;
+    logger.debug("quality-control:complete", {
+      duration,
+      issues: qcResult.issues?.length,
     });
-
-    return qualityControlData;
+    await mergeArtifacts(generationId, {
+      qualityControl: {
+        report:
+          typeof qcResult.issues === "string" ? qcResult.issues : undefined,
+        completedAt: new Date().toISOString(),
+      },
+    });
+    return qcResult;
   } catch (error) {
-    const processingTime = Date.now() - startTime;
-    logger.warn("quality-control:error", {
-      error,
-      processingTimeMs: processingTime,
+    logger.error("quality-control:failed", error);
+    await updateGenerationProgress(generationId, "failed", 100, {
+      error: "Quality control check failed",
     });
-    const fallbackResponse: QualityControlResponse = {
-      issues: null,
-      isValid: true,
-    };
-    await updateGenerationProgress(generationId, "quality-control", 70, {
-      qualityControlReport: null,
-    });
-    return fallbackResponse;
+    throw new Error(
+      `Quality control failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
@@ -410,26 +425,18 @@ async function validateArticle(
 ): Promise<ValidateResponse> {
   logger.debug("validation:start", { generationId });
   try {
-    const validationData = await performValidateLogic(content);
-    await updateGenerationProgress(generationId, "updating", 85, {
-      validationReport: validationData,
-    });
-    return validationData;
+    await updateGenerationProgress(generationId, "validating", 85);
+    const validationResult = await runValidation(content);
+    await mergeArtifacts(generationId, { validation: validationResult });
+    return validationResult;
   } catch (error) {
-    logger.warn("validation:error", error);
-    const fallbackResponse: ValidateResponse = {
-      isValid: true,
-      issues: [],
-      rawValidationText: "Validation skipped due to timeout or error",
-    };
-    await updateGenerationProgress(generationId, "updating", 90, {
-      validationReport: {
-        isValid: true,
-        issues: [],
-        rawValidationText: `Validation skipped: ${error instanceof Error ? error.message : "Unknown error"}`,
-      },
+    logger.error("validation:failed", error);
+    await updateGenerationProgress(generationId, "failed", 100, {
+      error: "Article validation failed",
     });
-    return fallbackResponse;
+    throw new Error(
+      `Article validation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
@@ -451,7 +458,7 @@ async function finalizeArticle(
     : content;
 
   const updateData: {
-    draft: string;
+    content: string;
     videos?: VideoEmbed[];
     slug?: string;
     metaDescription: string;
@@ -462,7 +469,7 @@ async function finalizeArticle(
     coverImageAlt?: string;
     introParagraph?: string;
   } = {
-    draft: finalContentWithIntro,
+    content: finalContentWithIntro,
     videos: videos ?? [],
     metaDescription: writeData.metaDescription ?? "",
     status: publishReady ? "wait_for_publish" : "scheduled",
@@ -487,48 +494,47 @@ async function finalizeArticle(
     status: "completed",
     progress: 100,
     completedAt: new Date(),
-    draftContent: finalContentWithIntro,
     updatedAt: new Date(),
   };
-  if (writeData.relatedPosts && writeData.relatedPosts.length > 0) {
-    generationUpdate.relatedArticles = writeData.relatedPosts;
-  }
   await db
-    .update(articleGeneration)
+    .update(articleGenerations)
     .set(generationUpdate)
-    .where(eq(articleGeneration.id, generationId));
+    .where(eq(articleGenerations.id, generationId));
 
   const creditsToDeduct = getCreditCost("ARTICLE_GENERATION");
   const creditDeducted = await deductCredits(userId, creditsToDeduct);
   if (!creditDeducted)
-    logger.warn("credits:deduct_failed", { userId, articleId, amount: creditsToDeduct });
+    logger.warn("credits:deduct_failed", {
+      userId,
+      articleId,
+      amount: creditsToDeduct,
+    });
 }
 
 // Ensure exactly one intro paragraph exists between H1 and TL;DR (or first H2 if TL;DR missing)
 function ensureSingleIntro(markdown: string, intro: string): string {
   const lines = markdown.split(/\r?\n/);
-  if (lines.length === 0) return markdown;
+  if (lines.length === 0) return intro;
 
   // Find H1
   let h1Idx = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i] && /^\s*#\s+.+/.test(lines[i]!)) {
+    if (lines[i]?.startsWith("# ")) {
       h1Idx = i;
       break;
     }
   }
   if (h1Idx === -1) {
-    for (let i = 0; i < lines.length - 1; i++) {
-      if (
-        lines[i + 1] &&
-        /^=+$/.test(lines[i + 1]!) &&
-        lines[i] &&
-        lines[i]!.trim().length > 0
-      ) {
-        h1Idx = i + 1;
-        break;
-      }
+    // No H1 found, prepend intro to be safe
+    const existingContent = lines.join("\n").trim();
+    if (
+      !existingContent
+        .toLowerCase()
+        .includes(intro.substring(0, 20).toLowerCase())
+    ) {
+      return `${intro}\n\n${existingContent}`;
     }
+    return existingContent;
   }
   if (h1Idx === -1) return markdown; // can't enforce safely
 
@@ -565,39 +571,35 @@ export async function handleGenerationError(
 ): Promise<void> {
   logger.error("generation:error", error.message);
   try {
-    const [currentArticle] = await db
-      .select({ status: articles.status })
-      .from(articles)
-      .where(eq(articles.id, articleId))
-      .limit(1);
-    if (!currentArticle) return;
-    if (currentArticle.status === "generating") {
-      await db
-        .update(articles)
-        .set({ status: "idea", updatedAt: new Date() })
-        .where(eq(articles.id, articleId));
-    }
+    // Update main article status to "failed"
+    await db
+      .update(articles)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(eq(articles.id, articleId));
+
     if (generationId) {
-      try {
-        await db
-          .update(articleGeneration)
-          .set({
-            status: "failed",
-            error: error.message,
-            errorDetails: {
-              timestamp: new Date().toISOString(),
-              articleId,
-              originalStatus: currentArticle.status,
-            },
-            updatedAt: new Date(),
-          })
-          .where(eq(articleGeneration.id, generationId));
-      } catch (updateError) {
-        logger.warn("generation:error_update_failed", updateError);
-      }
+      // Update generation record with error details
+      await db
+        .update(articleGenerations)
+        .set({
+          status: "failed",
+          progress: 100,
+          error: error.message,
+          errorDetails:
+            error instanceof Error
+              ? {
+                  name: error.name,
+                  stack: error.stack,
+                  cause: error.cause,
+                }
+              : { info: "Non-error object thrown" },
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(articleGenerations.id, generationId));
     }
   } catch (dbError) {
-    logger.warn("generation:error_db", dbError);
+    logger.error("generation:db_error_on_error_handling", dbError);
   }
 }
 
@@ -605,339 +607,257 @@ export async function generateArticle(
   context: GenerationContext,
 ): Promise<void> {
   const { articleId, userId, article, keywords } = context;
-  let generationRecord: typeof articleGeneration.$inferSelect | null = null;
+  let generationRecord: typeof articleGenerations.$inferSelect | null = null;
 
   try {
-    logger.info("generation:start", { articleId, title: article.title });
-
     generationRecord = await createOrResetArticleGeneration(articleId, userId);
-    await db
-      .update(articles)
-      .set({ status: "generating", updatedAt: new Date() })
-      .where(eq(articles.id, articleId));
-    await db
-      .update(articleGeneration)
-      .set({ startedAt: new Date(), updatedAt: new Date() })
-      .where(eq(articleGeneration.id, generationRecord.id));
+    const generationId = generationRecord.id;
 
-    // Related articles
-    const existingRelated = Array.isArray(generationRecord.relatedArticles)
-      ? generationRecord.relatedArticles
-      : [];
-    const shouldUpdateRelatedArticles =
-      (context.relatedArticles?.length ?? 0) > 0 &&
-      existingRelated.length === 0;
-    if (shouldUpdateRelatedArticles) {
-      await db
-        .update(articleGeneration)
-        .set({ relatedArticles: context.relatedArticles })
-        .where(eq(articleGeneration.id, generationRecord.id));
-    }
+    await updateGenerationProgress(generationId, "research", 5);
 
-    // Phase 1: Research
-    const researchData = await performResearch(
+    const researchResult = await performResearch(
       article.title,
       keywords,
-      generationRecord.id,
+      generationId,
       article.projectId,
-      article.notes!,
+      article.notes ?? undefined,
     );
 
-    // Phase 2: Image selection
+    // If research is async (webhook), the process stops here.
+    // The webhook handler will call continueGenerationFromPhase once data arrives.
+    const [latestGeneration] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, generationId))
+      .limit(1);
+    const latestArtifacts = latestGeneration?.artifacts ?? undefined;
+    if (typeof latestArtifacts?.research_run_id === "string") {
+      logger.debug("research:async_pending", {
+        articleId,
+        generationId,
+        runId: latestArtifacts.research_run_id,
+      });
+      return;
+    }
+
+    // For sync research, continue the pipeline
+    await continueGenerationPipeline(generationId, context, researchResult);
+  } catch (error) {
+    logger.error("generateArticle:error", error);
+    if (articleId && generationRecord) {
+      await handleGenerationError(
+        articleId,
+        generationRecord.id,
+        error instanceof Error ? error : new Error("Unknown generation error"),
+      );
+    }
+  }
+}
+
+/**
+ * Helper function to continue generation after async research completion
+ */
+export async function continueGenerationFromPhase(
+  generationId: number,
+  startFromPhase: ArticleGenerationStatus,
+  researchData?: ResearchResponse,
+): Promise<void> {
+  try {
+    const [genRecord] = await db
+      .select()
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, generationId))
+      .limit(1);
+
+    if (!genRecord)
+      throw new Error(`Generation record ${generationId} not found`);
+
+    const [articleRecord] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, genRecord.articleId))
+      .limit(1);
+
+    if (!articleRecord)
+      throw new Error(`Article ${genRecord.articleId} not found`);
+
+    const context: GenerationContext = {
+      articleId: articleRecord.id,
+      userId: genRecord.userId,
+      article: articleRecord,
+      keywords: Array.isArray(articleRecord.keywords)
+        ? (articleRecord.keywords as string[])
+        : [articleRecord.title],
+      relatedArticles: [], // This can be enriched if needed
+    };
+
+    let currentResearchData = researchData;
+    if (!currentResearchData) {
+      const artifacts = (genRecord.artifacts ?? {}) as Record<string, unknown>;
+      if (artifacts.research) {
+        currentResearchData = artifacts.research as ResearchResponse;
+      } else {
+        // If no research data, we might need to re-run research
+        if (startFromPhase !== "research") {
+          logger.warn("continue:no_research_data", {
+            generationId,
+            startFromPhase,
+          });
+          // Decide if we should throw an error or re-initiate research
+        }
+      }
+    }
+
+    switch (startFromPhase) {
+      case "research":
+        // This would typically re-initiate the full process
+        await generateArticle(context);
+        break;
+
+      case "image":
+        logger.debug("continue:image_phase", { generationId });
+        if (currentResearchData) {
+          await continueGenerationPipeline(
+            generationId,
+            context,
+            currentResearchData,
+          );
+        } else {
+          throw new Error(
+            "Cannot proceed to image selection without research data",
+          );
+        }
+        break;
+
+      // Other phases can be added here
+      default:
+        logger.debug("continue:default_phase", {
+          generationId,
+          startFromPhase,
+        });
+        if (currentResearchData) {
+          await continueGenerationPipeline(
+            generationId,
+            context,
+            currentResearchData,
+          );
+        } else {
+          throw new Error(
+            `Cannot proceed to ${startFromPhase} without research data`,
+          );
+        }
+    }
+  } catch (error) {
+    logger.error("continueGeneration:error", error);
+    const genId = generationId;
+    if (genId) {
+      const [genRecord] = await db
+        .select()
+        .from(articleGenerations)
+        .where(eq(articleGenerations.id, genId))
+        .limit(1);
+      if (genRecord) {
+        await handleGenerationError(
+          genRecord.articleId,
+          genId,
+          error instanceof Error
+            ? error
+            : new Error("Unknown continuation error"),
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Continue the generation pipeline from image selection onward
+ */
+async function continueGenerationPipeline(
+  generationId: number,
+  context: GenerationContext,
+  researchData: ResearchResponse,
+): Promise<void> {
+  const { articleId, userId, article, keywords } = context;
+
+  try {
     const { coverImageUrl, coverImageAlt } = await selectCoverImage(
       articleId,
-      generationRecord.id,
+      generationId,
       article.title,
       keywords,
       userId,
       article.projectId,
     );
 
-    // Phase 3: Write - AI-First Approach
-    // Get project article structure for outline generation
-    const [projectData] = await db
-      .select({
-        articleStructure: projects.articleStructure,
-        toneOfVoice: projects.toneOfVoice,
-        maxWords: projects.maxWords,
-      })
-      .from(projects)
-      .where(eq(projects.id, article.projectId))
-      .limit(1);
-
-    // Generate AI-driven outline using the simplified approach
-    const outlineResult = await generateStructuredOutline({
-      title: article.title,
-      keywords,
-      researchData: researchData.researchData,
-      projectArticleStructure: projectData?.articleStructure ?? "",
-      userNotes: article.notes ?? undefined,
-      maxWords: 1800,
-      sources: researchData.sources ?? [],
-    });
-
-    // Store outline in artifacts for debugging and transparency
-    await mergeArtifacts(generationRecord.id, {
-      outline: {
-        summary: outlineResult.summary,
-        markdown: outlineResult.outlineMarkdown,
-        approach: "ai-first-structured-generation",
-        generatedAt: new Date().toISOString(),
-      },
-    });
-
-    // Persist AI-decided link plan and screenshot plan for transparency
-    try {
-      await mergeArtifacts(generationRecord.id, {
-        linkPlan: outlineResult.recommendedLinks ?? [],
-        screenshotPlan: outlineResult.screenshotPlan ?? [],
-      });
-    } catch (e) {
-      logger.warn("outline:plan_persist_error", e);
-    }
-
-    logger.debug("outline-generation:completed", {
-      outlineLength: outlineResult.outlineMarkdown.length,
-      summaryLength: outlineResult.summary.length,
-    });
-
-    // Prefer AI-selected links if provided by outline
-    const chosenSources =
-      outlineResult.recommendedLinks &&
-      outlineResult.recommendedLinks.length > 0
-        ? outlineResult.recommendedLinks.map((l) => ({
-            url: l.url,
-            title: l.title,
-          }))
-        : (researchData.sources ?? []);
-
-    // Capture screenshots BEFORE writing so writer can embed them inline
-    let screenshotsForWriter: Array<{
-      url: string;
-      alt?: string;
-      sectionHeading?: string;
-      placement?: "start" | "middle" | "end";
-    }> = [];
-    try {
-      const planRequests = (outlineResult.screenshotPlan ?? []).map((p) => ({
-        url: p.url,
-        title: p.title,
-        sectionHeading: p.sectionHeading,
-        placement: p.placement,
-      }));
-      const useRequests =
-        planRequests.length > 0 ? planRequests.slice(0, 3) : [];
-
-      if (useRequests.length > 0) {
-        const result = await captureSpecificScreenshots({
-          articleId,
-          generationId: generationRecord.id,
-          projectId: article.projectId,
-          screenshotRequests: useRequests,
-        });
-
-        await mergeArtifacts(generationRecord.id, {
-          screenshots: result.screenshots,
-        });
-
-        // Build writer screenshots list with placement data
-        screenshotsForWriter = useRequests
-          .map((req) => {
-            const s = result.screenshots[req.url];
-            return s?.imageUrl && s?.status === 200
-              ? {
-                  url: s.imageUrl,
-                  alt: req.title ?? s.alt,
-                  sectionHeading: req.sectionHeading,
-                  placement: req.placement,
-                }
-              : undefined;
-          })
-          .filter((v): v is NonNullable<typeof v> => v !== undefined);
-      }
-    } catch (e) {
-      logger.warn("screenshots:prewrite_capture_failed", e);
-      screenshotsForWriter = [];
-    }
-
-    const writeData = await writeArticle(
+    const writeResult = await writeArticle(
       researchData,
       article.title,
       keywords,
       coverImageUrl,
-      generationRecord.id,
+      generationId,
       userId,
       article.projectId,
       context.relatedArticles,
       researchData.videos,
       article.notes ?? undefined,
-      outlineResult.outlineMarkdown,
-      chosenSources,
-      screenshotsForWriter,
     );
 
-    // Phase 4: Quality Control
-    const qualityControlData = await performQualityControl(
-      writeData.content ?? "",
-      generationRecord.id,
+    const [artifactsRecord] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, generationId))
+      .limit(1);
+    const artifacts = artifactsRecord?.artifacts ?? undefined;
+    const storedPrompt = artifacts?.write?.prompt;
+
+    if (!storedPrompt) {
+      logger.warn("quality-control:missing_prompt", { generationId });
+    }
+    const originalPrompt =
+      storedPrompt?.trim() && storedPrompt.trim().length > 0
+        ? storedPrompt.trim()
+        : `Article generation prompt for "${article.title}"`;
+
+    const qcResult = await performQualityControl(
+      writeResult.content,
+      generationId,
       userId,
       article.projectId,
+      originalPrompt,
     );
 
-    // Phase 5: Validation
-    await updateGenerationProgress(generationRecord.id, "validating", 80, {
-      currentPhase: "validation",
-    });
+    const finalContent = writeResult.content;
 
-    const validationData = await validateArticle(
-      writeData.content ?? "",
-      generationRecord.id,
-    );
+    const validationResult = await validateArticle(finalContent, generationId);
 
-    // Phase 6: Update content if needed (factual/QC issues only)
-    // Combine validation and quality control issues for content update
-    let combinedIssues = "";
-
-    // Add validation issues
-    const hasValidationIssues =
-      validationData.rawValidationText &&
-      !validationData.rawValidationText.includes(
-        "No factual issues identified",
-      ) &&
-      !validationData.rawValidationText
-        .toLowerCase()
-        .includes("validation skipped");
-    if (hasValidationIssues) {
-      combinedIssues += `## Validation Issues\n\n${validationData.rawValidationText}\n\n`;
-    }
-
-    // Add quality control issues
-    const hasQualityControlIssues =
-      qualityControlData.issues !== null &&
-      qualityControlData.issues !== undefined;
-    if (hasQualityControlIssues) {
-      combinedIssues += `## Quality Control Issues\n\n${qualityControlData.issues}\n\n`;
-    }
-
-    // Update content if there are any issues
-    let finalContent = writeData.content ?? "";
-    if (combinedIssues.trim().length > 0) {
-      logger.debug("update:start", {
-        hasValidationIssues,
-        hasQualityControlIssues,
-        combinedIssuesLength: combinedIssues.length,
-      });
-
-      const updateResult = await performGenericUpdate({
-        article: finalContent,
-        validationText: combinedIssues,
-        settings: {
-          toneOfVoice: projectData?.toneOfVoice ?? undefined,
-          articleStructure: projectData?.articleStructure ?? undefined,
-          maxWords: projectData?.maxWords ?? undefined,
-        },
-      });
-      finalContent = updateResult.updatedContent ?? finalContent;
-    } else {
-      logger.debug("update:skip", { reason: "no issues" });
-    }
-
-    // Phase 7: Single SEO audit → optional one remediation → final audit
-    let contentForSeo = finalContent;
-    const initialReport = await runSeoAudit({
-      generationId: generationRecord.id,
-      articleId,
-      content: contentForSeo,
-      targetKeywords: keywords,
-      updateArticleScore: false,
-    });
-
-    if (!passesQualityGates(initialReport).passed) {
-      const remediation = await performSeoRemediation({
-        articleMarkdown: contentForSeo,
-        seoReport: initialReport,
-        validationReportJson: validationData
-          ? JSON.stringify(validationData)
-          : undefined,
-        targetKeywords: keywords,
-      });
-      contentForSeo = remediation.updatedMarkdown ?? contentForSeo;
-
-      await updateGenerationProgress(generationRecord.id, "updating", 96, {
-        currentPhase: "seo-remediation",
-        draftContent: contentForSeo,
-      });
-    }
-
-    // Final audit and score persistence
-    await runSeoAudit({
-      generationId: generationRecord.id,
-      articleId,
-      content: contentForSeo,
-      targetKeywords: keywords,
-      updateArticleScore: true,
-    });
-
-    // Evaluate checklist-based gates
-    let publishReady = true;
-    try {
-      const [latest] = await db
-        .select({ checklist: articleGeneration.checklist })
-        .from(articleGeneration)
-        .where(eq(articleGeneration.id, generationRecord.id))
-        .limit(1);
-      const checklist = latest?.checklist as SeoChecklist | undefined;
-      if (checklist) {
-        const gate = passesChecklist(checklist, {
-          allowNoImages: false,
-          requireFaq: true,
-          maxBrokenExternalLinks: 0,
-        });
-        publishReady = gate.passed;
-        if (!gate.passed)
-          logger.warn("gates:checklist_failed", { failures: gate.failures });
-      }
-    } catch (e) {
-      logger.warn("gates:checklist_eval_error", e);
-      publishReady = false;
-    }
-
-    // JSON-LD generation and persistence (artifacts + column)
-    try {
-      const schema = await generateJsonLd({ article, markdown: contentForSeo });
-      await db
-        .update(articleGeneration)
-        .set({
-          schemaJson: schema.raw,
-          updatedAt: new Date(),
-          lastUpdated: new Date(),
-        })
-        .where(eq(articleGeneration.id, generationRecord.id));
-      await mergeArtifacts(generationRecord.id, { jsonLd: schema });
-    } catch (e) {
-      logger.warn("schema:generate_failed", e);
-    }
-
-    // Finalize
+    const publishReady = qcResult.isValid && validationResult.isValid;
     await finalizeArticle(
       articleId,
-      writeData,
-      contentForSeo,
+      writeResult,
+      finalContent,
       coverImageUrl,
       coverImageAlt,
-      generationRecord.id,
+      generationId,
       userId,
       publishReady,
-      researchData.videos,
+      researchData.videos
+        ? researchData.videos.map((v) => ({
+            url: v.url,
+            title: v.title,
+            source: "youtube",
+          }))
+        : [],
     );
 
-    logger.info("generation:done", { articleId });
+    logger.debug("generateArticle:success", { articleId, generationId });
   } catch (error) {
+    logger.error("continueGenerationPipeline:error", error);
     await handleGenerationError(
       articleId,
-      generationRecord?.id ?? null,
-      error instanceof Error ? error : new Error(String(error)),
+      generationId,
+      error instanceof Error
+        ? error
+        : new Error("Unknown pipeline continuation error"),
     );
-    throw error;
   }
 }

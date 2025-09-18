@@ -4,11 +4,17 @@ import { db } from "@/server/db";
 import {
   articles,
   users,
-  articleGeneration,
+  articleGenerations,
   projects,
 } from "@/server/db/schema";
-import { eq, and, ne } from "drizzle-orm";
-import type { ArticleStatus } from "@/types";
+import { eq, and, inArray, desc } from "drizzle-orm";
+import type {
+  ArticleStatus,
+  ArticleGenerationStatus,
+  ArticleGenerationArtifacts,
+  ValidationArtifact,
+  WriteArtifact,
+} from "@/types";
 
 // Types colocated with this API route
 export type DatabaseArticle = {
@@ -25,28 +31,99 @@ export type DatabaseArticle = {
   estimatedReadTime: number | null;
   kanbanPosition: number;
   metaDescription: string | null;
-  draft: string | null;
   content: string | null;
-  factCheckReport: unknown;
   seoScore: number | null;
-  internalLinks: unknown;
-  sources: unknown;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  notes: string | null;
+  factCheckReport?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  // Generation tracking fields
+  generationScheduledAt: Date | null;
+  generationStatus: GenerationStatusValue | null;
+  generationProgress: number | null;
+  generationError: string | null;
+};
+
+const IN_PROGRESS_STATUSES = new Set<ArticleGenerationStatus>([
+  "research",
+  "image",
+  "writing",
+  "quality-control",
+  "validating",
+  "updating",
+]);
+
+type GenerationStatusValue = ArticleGenerationStatus;
+
+type ArticleRow = {
+  id: number;
+  user_id: string | null;
+  projectId: number;
+  title: string;
+  description: string | null;
+  keywords: unknown;
+  targetAudience: string | null;
+  publishScheduledAt: Date | null;
+  publishedAt: Date | null;
+  estimatedReadTime: number | null;
+  kanbanPosition: number;
+  metaDescription: string | null;
+  content: string | null;
+  seoScore?: number | null;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
-  // Generation tracking fields
-  generationScheduledAt: Date | null;
-  generationStatus: string | null;
-  generationProgress: number | null;
-  generationError: string | null;
 };
 
+type GenerationSnapshot = {
+  status: GenerationStatusValue;
+  progress: number;
+  error: string | null;
+  scheduledAt: Date | null;
+  completedAt: Date | null;
+  artifacts: ArticleGenerationArtifacts;
+};
+
+function deriveArticleStatus(
+  article: ArticleRow,
+  generation: GenerationSnapshot | undefined,
+): ArticleStatus {
+  if (article.publishedAt) return "published";
+
+  const generationStatus = generation?.status;
+
+  if (generationStatus === "failed") {
+    return "failed";
+  }
+
+  if (generationStatus && IN_PROGRESS_STATUSES.has(generationStatus)) {
+    return "generating";
+  }
+
+  if (generationStatus === "completed") {
+    if (article.publishScheduledAt && !article.publishedAt) {
+      return "wait_for_publish";
+    }
+    return "idea";
+  }
+
+  if (generationStatus === "scheduled") {
+    return "scheduled";
+  }
+
+  if (article.publishScheduledAt) return "scheduled";
+
+  return "idea";
+}
+
 export interface KanbanColumn {
-  id: string;
+  id: "idea" | "scheduled" | "generating" | "wait_for_publish" | "published" | "failed";
   title: string;
-  status: Exclude<ArticleStatus, "deleted">; // Exclude deleted from kanban columns
+  status: "idea" | "scheduled" | "generating" | "wait_for_publish" | "published" | "failed";
   articles: DatabaseArticle[];
   color: string;
 }
@@ -80,7 +157,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const projectIdParam = searchParams.get("projectId");
 
-    let allArticles;
+    let allArticles: ArticleRow[];
 
     if (projectIdParam) {
       const projectId = parseInt(projectIdParam, 10);
@@ -91,7 +168,6 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      // Get articles for specific project (access control via user ownership of projects)
       allArticles = await db
         .select({
           id: articles.id,
@@ -101,45 +177,25 @@ export async function GET(req: NextRequest) {
           description: articles.description,
           keywords: articles.keywords,
           targetAudience: articles.targetAudience,
-          status: articles.status,
           publishScheduledAt: articles.publishScheduledAt,
           publishedAt: articles.publishedAt,
           estimatedReadTime: articles.estimatedReadTime,
           kanbanPosition: articles.kanbanPosition,
           metaDescription: articles.metaDescription,
-          draft: articles.draft,
           content: articles.content,
-          factCheckReport: articles.factCheckReport,
-          seoScore: articles.seoScore,
-          internalLinks: articles.internalLinks,
-          sources: articles.sources,
-          coverImageUrl: articles.coverImageUrl,
-          coverImageAlt: articles.coverImageAlt,
-          notes: articles.notes,
-          createdAt: articles.createdAt,
-          updatedAt: articles.updatedAt,
-          // Generation tracking fields
-          generationScheduledAt: articleGeneration.scheduledAt,
-          generationStatus: articleGeneration.status,
-          generationProgress: articleGeneration.progress,
-          generationError: articleGeneration.error,
+        coverImageUrl: articles.coverImageUrl,
+        coverImageAlt: articles.coverImageAlt,
+        notes: articles.notes,
+        createdAt: articles.createdAt,
+        updatedAt: articles.updatedAt,
         })
         .from(articles)
-        .leftJoin(
-          articleGeneration,
-          eq(articles.id, articleGeneration.articleId),
-        )
         .innerJoin(projects, eq(articles.projectId, projects.id))
         .where(
-          and(
-            eq(projects.userId, userRecord.id),
-            eq(articles.projectId, projectId),
-            ne(articles.status, "deleted"),
-          ),
+          and(eq(projects.userId, userRecord.id), eq(articles.projectId, projectId)),
         )
         .orderBy(articles.kanbanPosition, articles.createdAt);
     } else {
-      // Get articles for all user's projects
       allArticles = await db
         .select({
           id: articles.id,
@@ -149,53 +205,84 @@ export async function GET(req: NextRequest) {
           description: articles.description,
           keywords: articles.keywords,
           targetAudience: articles.targetAudience,
-          status: articles.status,
           publishScheduledAt: articles.publishScheduledAt,
           publishedAt: articles.publishedAt,
           estimatedReadTime: articles.estimatedReadTime,
           kanbanPosition: articles.kanbanPosition,
           metaDescription: articles.metaDescription,
-          draft: articles.draft,
           content: articles.content,
-          factCheckReport: articles.factCheckReport,
-          seoScore: articles.seoScore,
-          internalLinks: articles.internalLinks,
-          sources: articles.sources,
-          coverImageUrl: articles.coverImageUrl,
-          coverImageAlt: articles.coverImageAlt,
-          notes: articles.notes,
-          createdAt: articles.createdAt,
-          updatedAt: articles.updatedAt,
-          // Generation tracking fields
-          generationScheduledAt: articleGeneration.scheduledAt,
-          generationStatus: articleGeneration.status,
-          generationProgress: articleGeneration.progress,
-          generationError: articleGeneration.error,
+        coverImageUrl: articles.coverImageUrl,
+        coverImageAlt: articles.coverImageAlt,
+        notes: articles.notes,
+        createdAt: articles.createdAt,
+        updatedAt: articles.updatedAt,
         })
         .from(articles)
-        .leftJoin(
-          articleGeneration,
-          eq(articles.id, articleGeneration.articleId),
-        )
         .innerJoin(projects, eq(articles.projectId, projects.id))
-        .where(
-          and(
-            eq(projects.userId, userRecord.id),
-            ne(articles.status, "deleted"),
-          ),
-        )
+        .where(eq(projects.userId, userRecord.id))
         .orderBy(articles.kanbanPosition, articles.createdAt);
     }
 
-    // Sanitize the articles to ensure JSON fields have proper defaults
-    const sanitizedArticles = allArticles.map((article) => ({
-      ...article,
-      keywords: article.keywords ?? [],
-      factCheckReport: article.factCheckReport ?? {},
-      internalLinks: article.internalLinks ?? [],
-      sources: article.sources ?? [],
-      scheduledAt: article.publishScheduledAt, // Backward compatibility mapping
-    }));
+    const articleIds = allArticles.map((article) => article.id);
+
+    const generationMap = new Map<number, GenerationSnapshot>();
+
+    if (articleIds.length > 0) {
+      const generationRows = await db
+        .select({
+          articleId: articleGenerations.articleId,
+          status: articleGenerations.status,
+          progress: articleGenerations.progress,
+          error: articleGenerations.error,
+          scheduledAt: articleGenerations.scheduledAt,
+          completedAt: articleGenerations.completedAt,
+          artifacts: articleGenerations.artifacts,
+          createdAt: articleGenerations.createdAt,
+        })
+        .from(articleGenerations)
+        .where(inArray(articleGenerations.articleId, articleIds))
+        .orderBy(desc(articleGenerations.createdAt));
+
+      for (const row of generationRows) {
+        if (!generationMap.has(row.articleId)) {
+          generationMap.set(row.articleId, {
+            status: row.status,
+            progress: row.progress,
+            error: row.error,
+            scheduledAt: row.scheduledAt,
+            completedAt: row.completedAt,
+            artifacts: row.artifacts,
+          });
+        }
+      }
+    }
+
+    const sanitizedArticles: DatabaseArticle[] = allArticles.map((article) => {
+      const generation = generationMap.get(article.id);
+      const derivedStatus = deriveArticleStatus(article, generation);
+      const writeArtifact: WriteArtifact | undefined =
+        generation?.artifacts?.write;
+      const validationArtifact: ValidationArtifact | undefined =
+        generation?.artifacts?.validation;
+
+      return {
+        ...article,
+        status: derivedStatus,
+        keywords: article.keywords ?? [],
+        scheduledAt: article.publishScheduledAt,
+        generationScheduledAt: generation?.scheduledAt ?? null,
+        generationStatus: generation?.status ?? null,
+        generationProgress: generation?.progress ?? 0,
+        generationError: generation?.error ?? null,
+        seoScore:
+          validationArtifact?.seoScore ??
+          null,
+        factCheckReport:
+          writeArtifact?.factCheckReport ??
+          (generation?.artifacts?.qualityControl as { report?: string } | undefined)?.report ??
+          null,
+      };
+    });
 
     // Define kanban columns
     const columns: KanbanColumn[] = [
@@ -219,6 +306,13 @@ export async function GET(req: NextRequest) {
         status: "generating",
         articles: [],
         color: "#3B82F6", // blue
+      },
+      {
+        id: "failed",
+        title: "Failed",
+        status: "failed",
+        articles: [],
+        color: "#DC2626", // red
       },
       {
         id: "wait_for_publish",

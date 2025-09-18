@@ -88,8 +88,25 @@ function isWithinWeek(dateIso: string, weekStart: Date) {
 // Type for generation status API response
 interface GenerationStatusResponse {
   progress?: number;
-  phase?: Article["generationPhase"];
   status?: string;
+}
+
+function deriveGenerationPhase(status?: string): Article["generationPhase"] {
+  switch (status) {
+    case "research":
+      return "research";
+    case "writing":
+      return "writing";
+    case "quality-control":
+      return "quality-control";
+    case "validating":
+      return "validation";
+    case "updating":
+    case "image":
+      return "optimization";
+    default:
+      return undefined;
+  }
 }
 
 export function ArticlesBoard() {
@@ -212,8 +229,7 @@ export function ArticlesBoard() {
   const allBoardArticles = useMemo(() => {
     return articles.filter(
       (a) =>
-        (!projectId || a.projectId === projectId) &&
-        a.status !== STATUSES.DELETED,
+        (!projectId || a.projectId === projectId)
     );
   }, [articles, projectId]);
 
@@ -232,7 +248,8 @@ export function ArticlesBoard() {
       const queueItem = queueItemsByArticleId.get(articleId);
 
       // Skip articles that are currently in the queue AND have idea/scheduled status
-      // They'll be handled as queued items instead
+      // They'll be handled as queued items instead  
+      // Don't skip failed articles - they need special failed article rendering
       if (
         queueItem &&
         (article.status === STATUSES.IDEA ||
@@ -273,12 +290,13 @@ export function ArticlesBoard() {
 
         case STATUSES.FAILED:
           // For failed articles, try to show on originally scheduled date
+          // If no date is available, use today as fallback so failed articles are always visible
           displayDate =
             queueItem?.scheduledForDate ??
             article.publishScheduledAt ??
             article.generationCompletedAt ??
             article.generationStartedAt ??
-            null;
+            new Date().toISOString(); // Show failed articles today so they're visible and actionable
           break;
 
         default:
@@ -335,7 +353,7 @@ export function ArticlesBoard() {
             if (!r) continue;
             const { id, data } = r;
             const progress = Math.max(0, Math.min(100, data?.progress ?? 0));
-            const phase = data?.phase;
+            const phase = deriveGenerationPhase(data?.status);
             const status = data?.status;
             if (status === "completed" || status === "failed") {
               needsRefresh = true;

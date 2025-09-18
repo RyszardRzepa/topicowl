@@ -4,7 +4,7 @@
  */
 
 import { db } from "@/server/db";
-import { articles, articleGeneration } from "@/server/db/schema";
+import { articles, articleGenerations } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { env } from "@/env";
 import { google } from "@ai-sdk/google";
@@ -12,6 +12,7 @@ import { generateObject } from "ai";
 import { MODELS } from "@/constants";
 import { z } from "zod";
 import { createClient } from "pexels";
+import type { ArticleGenerationArtifacts } from "@/types";
 
 // Types for image search - extracted from API route
 export interface ImageSearchRequest {
@@ -800,8 +801,8 @@ export async function performImageSelectionLogic(
   // Get generation record (optional - may not exist for articles without user_id)
   const generationRecords = await db
     .select()
-    .from(articleGeneration)
-    .where(eq(articleGeneration.id, request.generationId))
+    .from(articleGenerations)
+    .where(eq(articleGenerations.id, request.generationId))
     .limit(1);
 
   const generationRecord =
@@ -851,19 +852,45 @@ export async function performImageSelectionLogic(
     downloadUrl: attribution.downloadUrl,
   };
 
+  const imageAlt =
+    selectedImage.altDescription ??
+    selectedImage.description ??
+    `Photo by ${attribution.photographer}`;
+
   // Update generation record with image data (if it exists)
   if (generationRecord) {
     try {
+      const [existingArtifacts] = await db
+        .select({ artifacts: articleGenerations.artifacts })
+        .from(articleGenerations)
+        .where(eq(articleGenerations.id, request.generationId))
+        .limit(1);
+
+      const artifacts = existingArtifacts?.artifacts;
+      const mergedArtifacts: ArticleGenerationArtifacts = {
+        ...(artifacts ?? {}),
+        coverImage: {
+          ...(artifacts?.coverImage ?? {}),
+          imageId: String(selectedImage.id),
+          imageUrl: selectedImage.urls.regular,
+          altText: imageAlt,
+          attribution: {
+            photographer: attribution.photographer,
+            sourceUrl: attribution.sourceUrl,
+            downloadUrl: attribution.downloadUrl,
+          },
+          query: request.title,
+          keywords: request.keywords,
+        },
+      };
+
       await db
-        .update(articleGeneration)
+        .update(articleGenerations)
         .set({
-          selectedImageId: String(selectedImage.id), // Convert to string for consistency
-          imageAttribution: legacyAttribution,
-          imageQuery: request.title,
-          imageKeywords: request.keywords,
+          artifacts: mergedArtifacts,
           updatedAt: new Date(),
         })
-        .where(eq(articleGeneration.id, request.generationId));
+        .where(eq(articleGenerations.id, request.generationId));
 
       console.log(
         "[IMAGE_SELECTION_SERVICE] Updated generation record with image data",
@@ -881,11 +908,6 @@ export async function performImageSelectionLogic(
   }
 
   // Update article with cover image
-  const imageAlt =
-    selectedImage.altDescription ??
-    selectedImage.description ??
-    `Photo by ${attribution.photographer}`;
-
   // Generate keywords from image metadata
   const imageKeywords: string[] = [];
   if (selectedImage.description) {

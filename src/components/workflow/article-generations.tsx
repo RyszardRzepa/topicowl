@@ -21,6 +21,24 @@ interface ArticleGenerationsProps {
   ) => void;
 }
 
+function mapStatusToPhase(status: string): Article["generationPhase"] {
+  switch (status) {
+    case "research":
+      return "research";
+    case "writing":
+      return "writing";
+    case "quality-control":
+      return "quality-control";
+    case "validating":
+      return "validation";
+    case "updating":
+    case "image":
+      return "optimization";
+    default:
+      return undefined;
+  }
+}
+
 export function ArticleGenerations({
   articles,
   onCancelGeneration: _onCancelGeneration,
@@ -107,22 +125,15 @@ export function ArticleGenerations({
                 const { articleId, statusData } = result;
 
                 // Map the status data to Article updates
+                const statusValue = statusData.status as string;
                 const updates: Partial<Article> = {
                   generationProgress: statusData.progress ?? 0,
-                  generationPhase: statusData.phase as
-                    | "research"
-                    | "writing"
-                    | "validation"
-                    | "optimization"
-                    | undefined,
+                  generationPhase: mapStatusToPhase(statusValue),
                   generationError: statusData.error,
                 };
 
                 // If generation completed or failed, we need a full refresh to update status
-                if (
-                  statusData.status === "completed" ||
-                  statusData.status === "failed"
-                ) {
+                if (statusValue === "completed" || statusValue === "failed") {
                   needsFullRefresh = true;
                 } else {
                   // Update local state for progress updates

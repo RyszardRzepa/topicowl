@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { apiKeys, users, articles, projects } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  apiKeys,
+  users,
+  articles,
+  projects,
+  articleGenerations,
+} from "@/server/db/schema";
+import { eq, and, inArray, desc } from "drizzle-orm";
+import type { ArticleGenerationArtifacts } from "@/types";
 import { createHash } from "crypto";
 
 // Response type for external articles API
@@ -19,7 +26,7 @@ interface ExternalArticle {
   coverImageUrl: string | null;
   coverImageAlt: string | null;
   videos: unknown; // JSONB array from DB
-  sources: unknown; // JSONB array from DB
+  sources: string[];
 }
 
 export interface ExternalArticlesResponse {
@@ -148,7 +155,6 @@ export async function GET(request: Request) {
         coverImageUrl: articles.coverImageUrl,
         coverImageAlt: articles.coverImageAlt,
         videos: articles.videos,
-        sources: articles.sources,
       })
       .from(articles)
       .where(
@@ -159,8 +165,42 @@ export async function GET(request: Request) {
       )
       .orderBy(articles.publishedAt ?? articles.createdAt);
 
+    const articleIds = rows.map((row) => row.id);
+    const artifactsMap = new Map<number, ArticleGenerationArtifacts>();
+
+    if (articleIds.length > 0) {
+      const generationRows = await db
+        .select({
+          articleId: articleGenerations.articleId,
+          artifacts: articleGenerations.artifacts,
+          createdAt: articleGenerations.createdAt,
+        })
+        .from(articleGenerations)
+        .where(inArray(articleGenerations.articleId, articleIds))
+        .orderBy(desc(articleGenerations.createdAt));
+
+      for (const row of generationRows) {
+        if (!artifactsMap.has(row.articleId)) {
+          artifactsMap.set(row.articleId, row.artifacts);
+        }
+      }
+    }
+
+    const articlesWithSources: ExternalArticle[] = rows.map((row) => {
+      const artifacts = artifactsMap.get(row.id);
+      const sources = artifacts?.research?.sources
+        ? artifacts.research.sources.map((source) =>
+            source.title ? `${source.title} — ${source.url}` : source.url,
+          )
+        : [];
+      return {
+        ...row,
+        sources,
+      };
+    });
+
     const response: ExternalArticlesResponse = {
-      articles: rows as ExternalArticle[],
+      articles: articlesWithSources,
     };
 
     return new NextResponse(JSON.stringify(response), {

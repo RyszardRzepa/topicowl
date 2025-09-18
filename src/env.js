@@ -17,6 +17,8 @@ export const env = createEnv({
     PEXELS_API_KEY: z.string().min(1),
     OPENAI_API_KEY: z.string(),
     JINA_API_KEY: z.string(),
+    PARALLEL_API_KEY: z.string(),
+    PARALLEL_WEBHOOK_SECRET: z.string(),
 
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: z.string().min(1),
@@ -83,6 +85,8 @@ export const env = createEnv({
 
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     JINA_API_KEY: process.env.JINA_API_KEY,
+    PARALLEL_API_KEY: process.env.PARALLEL_API_KEY,
+    PARALLEL_WEBHOOK_SECRET: process.env.PARALLEL_WEBHOOK_SECRET,
 
     // Reddit OAuth configuration
     REDDIT_CLIENT_ID: process.env.REDDIT_CLIENT_ID,
@@ -97,7 +101,7 @@ export const env = createEnv({
 
     STRIPE_PRIVATE_KEY: process.env.STRIPE_PRIVATE_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-    BLOB_READ_WRITE_TOKEN: process.env.STRIPE_WEBHOOK_SECRET,
+    BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
 
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },

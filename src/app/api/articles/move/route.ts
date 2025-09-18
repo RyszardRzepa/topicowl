@@ -16,25 +16,24 @@ export interface MoveArticleRequest {
 }
 
 // Kanban flow logic - inline implementation
-const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
+const STATUS_FLOW: Partial<Record<ArticleStatus, ArticleStatus[]>> = {
   idea: ["scheduled"],
   scheduled: ["generating", "idea"],
   generating: ["wait_for_publish"], // Automatically moved by system after generation
   wait_for_publish: ["published"],
   published: [], // Cannot be moved
   failed: ["idea", "scheduled"], // Failed articles can be reset to idea or scheduled
-  deleted: [], // Deleted articles cannot be moved
 };
 
 const isValidStatusTransition = (
   from: ArticleStatus,
   to: ArticleStatus,
 ): boolean => {
-  return STATUS_FLOW[from].includes(to);
+  return (STATUS_FLOW[from] ?? []).includes(to);
 };
 
 // Note: Progress tracking is now handled by the database via the generate API
-// No need for in-memory tracking since generation records are stored in articleGeneration table
+// No need for in-memory tracking since generation records are stored in articleGenerations table
 
 // Article generation function - calls the generate API endpoint
 async function generateArticleContentInline(articleId: string) {
@@ -84,7 +83,6 @@ const moveArticleSchema = z.object({
     "wait_for_publish",
     "published",
     "failed",
-    "deleted",
   ]),
   newPosition: z.number().min(0),
 });

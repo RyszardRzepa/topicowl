@@ -83,23 +83,19 @@ export function useGenerationPolling({
       const newStatus: GenerationStatus = {
         articleId: result.articleId,
         status: result.status,
+        articleStatus: result.articleStatus,
         progress: result.progress,
-        currentStep: result.currentStep,
-        phase: result.phase,
         error: result.error,
-        estimatedCompletion: result.estimatedCompletion,
         startedAt: result.startedAt,
         completedAt: result.completedAt,
-        currentPhase: (result).currentPhase,
-        seoScore: (result).seoScore,
-        seoIssues: (result).seoIssues,
+        seoScore: result.seoScore,
       };
       setStatus(newStatus);
       statusCb.current?.(newStatus);
-      if (newStatus.status === "completed") {
+      if ((newStatus.status as string) === "completed") {
         completeCb.current?.();
         clearAll();
-      } else if (newStatus.status === "failed") {
+      } else if ((newStatus.status as string) === "failed") {
         errorCb.current?.(newStatus.error ?? "Generation failed");
         clearAll();
       }

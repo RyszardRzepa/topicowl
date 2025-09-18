@@ -9,26 +9,34 @@ import type {
   DatabaseArticle,
   KanbanColumn,
 } from "@/app/api/articles/board/route";
+
+function mapGenerationStatusToPhase(
+  status: DatabaseArticle["generationStatus"],
+): Article["generationPhase"] {
+  switch (status) {
+    case "research":
+      return "research";
+    case "writing":
+      return "writing";
+    case "quality-control":
+      return "quality-control";
+    case "validating":
+      return "validation";
+    case "updating":
+    case "image":
+      return "optimization";
+    default:
+      return undefined;
+  }
+}
 import type { SchedulePublishingResponse } from "@/app/api/articles/schedule-publishing/route";
 
 export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
-  let correctedStatus = dbArticle.status;
-  if (
-    dbArticle.generationStatus === "completed" &&
-    dbArticle.generationProgress === 100 &&
-    (dbArticle.status === "scheduled" || dbArticle.status === "generating")
-  ) {
-    correctedStatus = "wait_for_publish";
-    console.log(
-      `Auto-correcting article ${dbArticle.id} status from ${dbArticle.status} to wait_for_publish`,
-    );
-  }
-
   return {
     id: dbArticle.id.toString(),
     title: dbArticle.title,
-    content: dbArticle.content ?? dbArticle.draft ?? undefined,
-    status: correctedStatus,
+    content: dbArticle.content ?? undefined,
+    status: dbArticle.status,
     // DatabaseArticle doesn't expose projectId in imported type; fallback to 0 to satisfy required field
     projectId: (dbArticle as unknown as { projectId?: number }).projectId ?? 0,
     // Include slug if present in the board payload
@@ -49,16 +57,7 @@ export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
       typeof dbArticle.generationProgress === "number"
         ? dbArticle.generationProgress
         : 0,
-    generationPhase:
-      dbArticle.generationStatus === "researching"
-        ? "research"
-        : dbArticle.generationStatus === "writing"
-          ? "writing"
-          : dbArticle.generationStatus === "validating"
-            ? "validation"
-            : dbArticle.generationStatus === "updating"
-              ? "optimization"
-              : undefined,
+    generationPhase: mapGenerationStatusToPhase(dbArticle.generationStatus),
     generationError: dbArticle.generationError ?? undefined,
     estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
     generationScheduledAt:

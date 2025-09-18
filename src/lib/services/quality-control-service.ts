@@ -8,7 +8,7 @@ import { generateText } from "ai";
 import { prompts } from "@/prompts";
 import { MODELS } from "@/constants";
 import { db } from "@/server/db";
-import { articleGeneration, users, projects } from "@/server/db/schema";
+import { articleGenerations, users, projects } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 // Re-export types from the API route
@@ -79,33 +79,36 @@ async function saveQualityControlReport(
   qualityControlReport: string | null,
 ) {
   try {
-    console.log("[QUALITY_CONTROL_SERVICE] SAVING_QUALITY_CONTROL_REPORT", {
-      timestamp: new Date().toISOString(),
-      generationId,
-      qualityControlReport,
-      reportType: typeof qualityControlReport,
-      reportIsNull: qualityControlReport === null,
-      reportLength: qualityControlReport?.length ?? 0,
-    });
+    const [currentArtifacts] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, generationId))
+      .limit(1);
 
-    const result = await db
-      .update(articleGeneration)
+    const existingArtifacts = currentArtifacts?.artifacts;
+    const completedAt = new Date();
+    const existingQualityControl = existingArtifacts?.qualityControl;
+    const existingWriteArtifact = existingArtifacts?.write;
+
+    await db
+      .update(articleGenerations)
       .set({
-        qualityControlReport,
+        artifacts: {
+          ...(existingArtifacts ?? {}),
+          qualityControl: {
+            ...(existingQualityControl ?? {}),
+            report: qualityControlReport ?? undefined,
+            completedAt: completedAt.toISOString(),
+          },
+          write: {
+            ...(existingWriteArtifact ?? {}),
+            factCheckReport: qualityControlReport ?? undefined,
+          },
+        },
         updatedAt: new Date(),
       })
-      .where(eq(articleGeneration.id, generationId))
-      .returning({
-        id: articleGeneration.id,
-        qualityControlReport: articleGeneration.qualityControlReport,
-      });
-
-    console.log("[QUALITY_CONTROL_SERVICE] QUALITY_CONTROL_REPORT_SAVED", {
-      timestamp: new Date().toISOString(),
-      generationId,
-      savedData: result[0],
-      success: true,
-    });
+      .where(eq(articleGenerations.id, generationId))
+      .returning({ id: articleGenerations.id });
   } catch (error) {
     console.error(
       "[QUALITY_CONTROL_SERVICE] FAILED_TO_SAVE_QUALITY_CONTROL_REPORT",

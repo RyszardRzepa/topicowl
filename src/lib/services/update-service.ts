@@ -41,7 +41,6 @@ export interface UpdateResponse {
 
 /**
  * Core update function that can be called directly without HTTP
- * Extracted from /api/articles/update/route.ts
  */
 export async function performUpdateLogic(
   article: string,

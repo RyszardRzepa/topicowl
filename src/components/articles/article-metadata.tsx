@@ -32,15 +32,13 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
 
   // Get status display text and color
   const getStatusDisplay = (status: ArticleMetadataData["status"]) => {
-    const statusMap = {
+    const statusMap: Record<
+      ArticleMetadataData["status"],
+      { text: string; color: string }
+    > = {
       idea: { text: "Idea", color: "text-brand-white bg-brand-white/10" },
       scheduled: {
         text: "Scheduled",
-        color: "text-brand-green bg-brand-green/10",
-      },
-      queued: { text: "Queued", color: "text-brand-orange bg-brand-orange/10" },
-      to_generate: {
-        text: "To Generate",
         color: "text-brand-green bg-brand-green/10",
       },
       generating: {
@@ -56,9 +54,11 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
         color: "text-brand-green bg-brand-green/20",
       },
       failed: { text: "Failed", color: "text-red-600 bg-red-100" },
-      deleted: { text: "Deleted", color: "text-red-600 bg-red-100" },
     };
-    return statusMap[status];
+    return statusMap[status] ?? {
+      text: status,
+      color: "text-gray-600 bg-gray-100",
+    };
   };
 
   const statusDisplay = getStatusDisplay(article.status);

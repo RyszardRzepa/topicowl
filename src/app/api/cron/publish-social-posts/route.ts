@@ -5,6 +5,7 @@ import { socialPosts } from "@/server/db/schema";
 import { and, count, eq, gte, lte } from "drizzle-orm";
 import { env } from "@/env";
 import type { ClerkPrivateMetadata } from "@/types";
+import { z } from "zod";
 
 interface CronResponse {
   success: boolean;
@@ -17,11 +18,71 @@ interface CronResponse {
   message: string;
 }
 
-interface SocialPostPayload {
-  base: { text: string };
-  reddit?: { subreddit: string; title: string; text?: string };
-  x?: { text?: string; mediaUrls?: string[] };
-}
+const socialPostPayloadSchema = z
+  .object({
+    base: z.object({ text: z.string() }),
+    reddit: z
+      .object({
+        subreddit: z.string(),
+        title: z.string(),
+        text: z.string().optional(),
+      })
+      .optional(),
+    x: z
+      .object({
+        text: z.string().optional(),
+        mediaUrls: z.array(z.string()).optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+type SocialPostPayload = z.infer<typeof socialPostPayloadSchema>;
+
+const socialPostRowSchema = z
+  .object({
+    id: z.number(),
+    provider: z.string(),
+    userId: z.string(),
+    projectId: z.number(),
+    payload: z.unknown(),
+  })
+  .passthrough();
+
+const clerkMetadataSchema = z
+  .object({
+    redditTokens: z
+      .record(
+        z
+          .object({
+            refreshToken: z.string(),
+            redditUsername: z.string(),
+            redditUserId: z.string(),
+            connectedAt: z.string(),
+            lastUsedAt: z.string().optional(),
+            scopes: z.array(z.string()),
+          })
+          .passthrough(),
+      )
+      .optional(),
+    xTokens: z
+      .record(
+        z
+          .object({
+            refreshToken: z.string(),
+            accessToken: z.string().optional(),
+            expiresAt: z.string().optional(),
+            xUsername: z.string(),
+            xUserId: z.string(),
+            connectedAt: z.string(),
+            lastUsedAt: z.string().optional(),
+            scopes: z.array(z.string()),
+          })
+          .passthrough(),
+      )
+      .optional(),
+  })
+  .passthrough();
 
 // Helpers
 async function sleep(ms: number) {
@@ -181,29 +242,51 @@ export async function POST() {
       failed = 0;
     const errors: string[] = [];
 
-    const due = await db
-      .select({
-        id: socialPosts.id,
-        provider: socialPosts.provider,
-        userId: socialPosts.userId,
-        projectId: socialPosts.projectId,
-        payload: socialPosts.payload,
-      })
-      .from(socialPosts)
-      .where(
-        and(
-          eq(socialPosts.status, "scheduled"),
-          lte(socialPosts.publishScheduledAt, now),
-        ),
-      );
+    const due = await db.query.socialPosts.findMany({
+      columns: {
+        id: true,
+        provider: true,
+        userId: true,
+        projectId: true,
+        payload: true,
+      },
+      where: (posts, { eq, lte }) =>
+        and(eq(posts.status, "scheduled"), lte(posts.publishScheduledAt, now)),
+    });
 
-    for (const row of due) {
+    for (const rawRow of due) {
       processed++;
+      const rowResult = socialPostRowSchema.safeParse(rawRow);
+      if (!rowResult.success) {
+        failed++;
+        const identifier =
+          typeof rawRow === "object" &&
+          rawRow !== null &&
+          "id" in rawRow &&
+          (typeof rawRow.id === "number" || typeof rawRow.id === "string")
+            ? String(rawRow.id)
+            : "unknown";
+        errors.push(
+          `Post ${identifier}: Invalid record - ${rowResult.error.message}`,
+        );
+        continue;
+      }
+      const row = rowResult.data;
+
       try {
         const clerk = await clerkClient();
         const user = await clerk.users.getUser(row.userId);
-        const meta = (user.privateMetadata ?? {}) as ClerkPrivateMetadata;
-        const payload = row.payload as SocialPostPayload;
+        const metadataResult = clerkMetadataSchema.safeParse(
+          user.privateMetadata ?? {},
+        );
+        const meta: ClerkPrivateMetadata = metadataResult.success
+          ? metadataResult.data
+          : {};
+        const payloadResult = socialPostPayloadSchema.safeParse(row.payload);
+        if (!payloadResult.success) {
+          throw new Error("Invalid social post payload");
+        }
+        const payload: SocialPostPayload = payloadResult.data;
 
         if (row.provider === "reddit") {
           const redditConn = meta.redditTokens?.[row.projectId.toString()];
@@ -231,8 +314,7 @@ export async function POST() {
             .where(eq(socialPosts.id, row.id));
 
           // Update last used timestamp
-          meta.redditTokens![row.projectId.toString()]!.lastUsedAt =
-            new Date().toISOString();
+          redditConn.lastUsedAt = new Date().toISOString();
           await clerk.users.updateUserMetadata(row.userId, {
             privateMetadata: meta,
           });
@@ -271,11 +353,9 @@ export async function POST() {
 
             if (newRefreshToken) {
               // persist rotated token
-              meta.xTokens![row.projectId.toString()]!.refreshToken =
-                newRefreshToken;
+              xConn.refreshToken = newRefreshToken;
             }
-            meta.xTokens![row.projectId.toString()]!.lastUsedAt =
-              new Date().toISOString();
+            xConn.lastUsedAt = new Date().toISOString();
             await clerk.users.updateUserMetadata(row.userId, {
               privateMetadata: meta,
             });

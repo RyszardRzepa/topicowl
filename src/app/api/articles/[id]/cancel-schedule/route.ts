@@ -2,10 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import {
   articles,
-  articleGeneration,
-  users,
-  generationQueue,
+  articleGenerations,
   projects,
+  users,
 } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
@@ -109,18 +108,15 @@ export async function POST(
 
     // Delete generation record to avoid DB conflicts
     await db
-      .delete(articleGeneration)
+      .delete(articleGenerations)
       .where(
         and(
-          eq(articleGeneration.articleId, articleId),
-          eq(articleGeneration.userId, userRecord.id),
+          eq(articleGenerations.articleId, articleId),
+          eq(articleGenerations.userId, userRecord.id),
         ),
       );
 
-    // Clean up orphaned queue records for this article
-    await db
-      .delete(generationQueue)
-      .where(eq(generationQueue.articleId, articleId));
+    // Note: No queue cleanup needed since we removed generation_queue table
 
     return NextResponse.json({
       success: true,

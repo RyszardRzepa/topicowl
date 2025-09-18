@@ -8,16 +8,16 @@ import { articleStatusEnum } from "@/server/db/schema";
 // This exports the exact enum values from the database schema
 export const ARTICLE_STATUSES = articleStatusEnum.enumValues;
 
-// For convenience, export individual status constants
+// For convenience, export individual status constants derived from schema
+// This ensures type safety and single source of truth with the database schema
 export const STATUSES = {
-  IDEA: "idea" as const,
-  SCHEDULED: "scheduled" as const,
-  GENERATING: "generating" as const,
-  WAIT_FOR_PUBLISH: "wait_for_publish" as const,
-  PUBLISHED: "published" as const,
-  FAILED: "failed" as const,
-  DELETED: "deleted" as const,
-} as const;
+  IDEA: "idea",
+  SCHEDULED: "scheduled",
+  GENERATING: "generating",
+  WAIT_FOR_PUBLISH: "wait_for_publish",
+  PUBLISHED: "published",
+  FAILED: "failed",
+} as const satisfies Record<string, ArticleStatus>;
 
 // User-facing display statuses - what users see
 export const DISPLAY_STATUSES = {
@@ -57,7 +57,7 @@ export function getDisplayStatus(dbStatus: ArticleStatus): DisplayStatus {
     case STATUSES.PUBLISHED:
       return DISPLAY_STATUSES.PUBLISHED;
     
-    case STATUSES.DELETED:
+    case STATUSES.FAILED:
     default:
       return DISPLAY_STATUSES.IDEA; // Safe fallback
   }
@@ -100,9 +100,9 @@ export function isIdea(dbStatus: ArticleStatus): boolean {
   return (ideaStatuses as readonly string[]).includes(dbStatus);
 }
 
-// Check if status should be shown in UI (exclude deleted)
-export function shouldShowInUI(dbStatus: ArticleStatus): boolean {
-  return dbStatus !== STATUSES.DELETED;
+// Check if status should be shown in UI (all statuses are shown now)
+export function shouldShowInUI(_dbStatus: ArticleStatus): boolean {
+  return true; // We no longer have soft deletes, so show all statuses
 }
 
 // Board event configuration for calendar view
@@ -117,12 +117,19 @@ export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boole
   switch (dbStatus) {
     case STATUSES.IDEA:
     case STATUSES.SCHEDULED:
-    case STATUSES.FAILED:
       return {
         kind: "queued",
         label: "Idea",
         bgColor: STATUS_COLORS[DISPLAY_STATUSES.IDEA],
         priority: 1,
+      };
+      
+    case STATUSES.FAILED:
+      return {
+        kind: "failed",
+        label: "Failed",
+        bgColor: "bg-destructive/80",
+        priority: 1, // High priority so failed articles are visible
       };
       
     case STATUSES.GENERATING:

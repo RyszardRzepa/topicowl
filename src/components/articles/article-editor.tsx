@@ -33,7 +33,7 @@ export function ArticleEditor({
     metaKeywords: Array.isArray(article.metaKeywords)
       ? (article.metaKeywords as string[])
       : [],
-    optimizedContent: article.draft ?? "",
+    content: article.content ?? "",
     coverImageUrl: article.coverImageUrl ?? "",
     coverImageAlt: article.coverImageAlt ?? "",
   });
@@ -315,18 +315,18 @@ export function ArticleEditor({
         <CardContent className="space-y-4">
           <div>
             <label
-              htmlFor="optimizedContent"
+              htmlFor="content"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
               Article Content
             </label>
             <Textarea
-              id="optimizedContent"
-              value={formData.optimizedContent}
+              id="content"
+              value={formData.content}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
-                  optimizedContent: e.target.value,
+                  content: e.target.value,
                 }))
               }
               placeholder="Enter article content"
