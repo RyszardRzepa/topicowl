@@ -40,12 +40,15 @@ async function performQualityControl(
     const duration = Date.now() - startTime;
     logger.debug("quality-control:complete", {
       duration,
-      issues: qcResult.issues?.length,
+      issues: qcResult.issues.length,
+      categories: qcResult.categories.length,
     });
     await mergeArtifacts(generationId, {
       qualityControl: {
-        report:
-          typeof qcResult.issues === "string" ? qcResult.issues : undefined,
+        report: qcResult.rawReport,
+        issues: qcResult.issues,
+        categories: qcResult.categories,
+        isValid: qcResult.isValid,
         completedAt: new Date().toISOString(),
         runLabel: options?.label ?? "initial",
         runCount: options?.runCount,

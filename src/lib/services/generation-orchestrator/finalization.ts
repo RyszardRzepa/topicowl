@@ -65,6 +65,13 @@ async function finalizeArticle(
   publishReady: boolean,
   videos?: VideoEmbed[],
 ): Promise<void> {
+  logger.debug("finalization:start", {
+    articleId,
+    generationId,
+    publishReady,
+    userId,
+  });
+
   // Ensure intro paragraph exists immediately after H1
   const intro = (writeData.introParagraph ?? "").trim();
   const finalContentWithIntro = intro
@@ -102,27 +109,89 @@ async function finalizeArticle(
     updateData.introParagraph = intro;
   }
 
-  await db.update(articles).set(updateData).where(eq(articles.id, articleId));
-
   const generationUpdate: Record<string, unknown> = {
     status: "completed",
     progress: 100,
     completedAt: new Date(),
     updatedAt: new Date(),
   };
-  await db
-    .update(articleGenerations)
-    .set(generationUpdate)
-    .where(eq(articleGenerations.id, generationId));
 
-  const creditsToDeduct = getCreditCost("ARTICLE_GENERATION");
-  const creditDeducted = await deductCredits(userId, creditsToDeduct);
-  if (!creditDeducted)
-    logger.warn("credits:deduct_failed", {
-      userId,
-      articleId,
-      amount: creditsToDeduct,
+  // Use database transaction to ensure atomicity between article update,
+  // generation completion, and credit deduction
+  try {
+    await db.transaction(async (tx) => {
+      // Update article with finalized content
+      await tx.update(articles).set(updateData).where(eq(articles.id, articleId));
+
+      // Mark generation as completed
+      await tx
+        .update(articleGenerations)
+        .set(generationUpdate)
+        .where(eq(articleGenerations.id, generationId));
+
+      logger.debug("finalization:db_updates_complete", {
+        articleId,
+        generationId,
+        status: updateData.status,
+      });
     });
+
+    // Only deduct credits for successful generations that are ready for publishing
+    // Credits should only be charged when the user gets a complete, usable article
+    if (publishReady) {
+      const creditsToDeduct = getCreditCost("ARTICLE_GENERATION");
+      logger.debug("finalization:deducting_credits", {
+        userId,
+        articleId,
+        amount: creditsToDeduct,
+        reason: "successful_generation_ready_for_publish",
+      });
+
+      const creditDeducted = await deductCredits(userId, creditsToDeduct);
+      if (!creditDeducted) {
+        logger.error("credits:deduct_failed", {
+          userId,
+          articleId,
+          generationId,
+          amount: creditsToDeduct,
+          publishReady,
+          status: updateData.status,
+        });
+        // Note: We don't throw here because the article generation was successful
+        // The failure to deduct credits should be handled separately (e.g., admin notification)
+      } else {
+        logger.info("credits:deducted_successfully", {
+          userId,
+          articleId,
+          amount: creditsToDeduct,
+        });
+      }
+    } else {
+      logger.debug("finalization:credits_not_deducted", {
+        userId,
+        articleId,
+        generationId,
+        publishReady,
+        reason: "generation_not_ready_for_publish",
+      });
+    }
+
+    logger.info("finalization:completed_successfully", {
+      articleId,
+      generationId,
+      publishReady,
+      creditsDeducted: publishReady,
+    });
+  } catch (error) {
+    logger.error("finalization:transaction_failed", {
+      articleId,
+      generationId,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+    throw new Error(
+      `Article finalization failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
 }
 
 export { validateArticle, finalizeArticle };

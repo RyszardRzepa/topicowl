@@ -8,7 +8,11 @@ import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import type { ArticleGenerationStatus } from "@/server/db/schema";
 import type { ResearchResponse } from "@/lib/services/research-service";
-import type { ArticleGenerationArtifacts } from "@/types";
+import type {
+  ArticleGenerationArtifacts,
+  QualityControlIssue,
+  QualityControlCategoryResult,
+} from "@/types";
 
 import { updateGenerationProgress } from "./utils";
 import { mergeArtifacts } from "./utils";
@@ -28,7 +32,7 @@ import {
 
 interface QualityControlRunState {
   runs: number;
-  latestReport: string | null;
+  latestResult: QualityControlResponse | null;
 }
 
 interface QualityControlLimiterInput {
@@ -59,16 +63,34 @@ async function applyQualityControlWithLimit(
   } = input;
 
   if (state.runs >= maxRuns) {
-    const trimmedReport = state.latestReport?.trim() ?? "";
-    const limitedIssues = trimmedReport.length > 0 ? trimmedReport : null;
     logger.warn("quality-control:max_runs_reached", {
       generationId,
       articleId,
       maxRuns,
     });
+    if (state.latestResult) {
+      return state.latestResult;
+    }
+    const fallbackIssue: QualityControlIssue = {
+      id: "qc-max-runs",
+      category: "requirements",
+      severity: "high",
+      summary: "Maximum quality control attempts reached without a passing result.",
+      location: "quality-control",
+      requiredFix:
+        "Resolve outstanding issues identified in prior quality control runs before retrying.",
+    };
     return {
-      issues: limitedIssues,
-      isValid: limitedIssues === null,
+      issues: [fallbackIssue],
+      categories: [
+        {
+          category: "requirements",
+          status: "fail",
+          issues: [fallbackIssue],
+        },
+      ],
+      isValid: false,
+      rawReport: "Max quality control attempts exceeded.",
     };
   }
 
@@ -82,9 +104,31 @@ async function applyQualityControlWithLimit(
     { ...options, runCount: nextRunCount },
   );
   state.runs = nextRunCount;
-  state.latestReport =
-    typeof qcResult.issues === "string" ? qcResult.issues : null;
+  state.latestResult = qcResult;
   return qcResult;
+}
+
+function formatQualityControlIssues(issues: QualityControlIssue[]): string {
+  try {
+    return issues
+      .map((issue) => {
+        // Handle potential type mismatch from database jsonb field
+        const typedIssue = issue as unknown as {
+          severity: string;
+          category: string;
+          summary: string;
+          location?: string;
+          requiredFix: string;
+        };
+        const severityLabel = typedIssue.severity;
+        const locationLabel = typedIssue.location ? ` (Location: ${typedIssue.location})` : "";
+        return `- **${severityLabel}** [${typedIssue.category}] ${typedIssue.summary}${locationLabel}\n  - Required fix: ${typedIssue.requiredFix}`;
+      })
+      .join("\n");
+  } catch (error) {
+    console.error("Error formatting quality control issues:", error);
+    return "Quality control issues could not be formatted";
+  }
 }
 
 export {
@@ -336,12 +380,16 @@ async function continueGenerationPipeline(
 
     const maxQualityControlRuns = 3;
     const qualityControlState: QualityControlRunState = {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       runs: typeof qualityControlArtifact?.runCount === "number" 
         ? qualityControlArtifact.runCount 
         : 0,
-      latestReport: typeof qualityControlArtifact?.report === "string"
-        ? qualityControlArtifact.report
+      latestResult: qualityControlArtifact
+        ? {
+            issues: (qualityControlArtifact.issues ?? []) as QualityControlIssue[],
+            categories: (qualityControlArtifact.categories ?? []) as QualityControlCategoryResult[],
+            isValid: Boolean(qualityControlArtifact.isValid ?? false),
+            rawReport: String(qualityControlArtifact.report ?? ""),
+          }
         : null,
     };
 
@@ -371,13 +419,12 @@ async function continueGenerationPipeline(
 
     const initialValidationText =
       (validationResult.rawValidationText ?? "").trim();
-    const initialQualityIssues =
-      typeof qualityControlResult.issues === "string"
-        ? qualityControlResult.issues.trim()
-        : "";
+    const initialQualityIssues = formatQualityControlIssues(
+      qualityControlResult.issues,
+    );
     const hasValidationIssues =
       !validationResult.isValid || validationResult.issues.length > 0;
-    const hasQualityIssues = initialQualityIssues.length > 0;
+    const hasQualityIssues = qualityControlResult.issues.length > 0;
 
     if (hasValidationIssues || hasQualityIssues) {
       const updateSettings = {

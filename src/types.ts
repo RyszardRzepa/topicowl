@@ -124,6 +124,29 @@ export interface GenerationArtifactErrors {
   [key: string]: unknown;
 }
 
+export type QualityControlCategory =
+  | "seo"
+  | "writing"
+  | "structure"
+  | "requirements";
+
+export type QualityControlSeverity = "critical" | "high" | "medium" | "low";
+
+export interface QualityControlIssue {
+  id: string;
+  category: QualityControlCategory;
+  severity: QualityControlSeverity;
+  summary: string;
+  location?: string;
+  requiredFix: string;
+}
+
+export interface QualityControlCategoryResult {
+  category: QualityControlCategory;
+  status: "pass" | "fail";
+  issues: QualityControlIssue[];
+}
+
 export interface ArticleGenerationArtifacts extends GenerationArtifactErrors {
   research_run_id?: string;
   research?: ResearchArtifact;
@@ -132,6 +155,9 @@ export interface ArticleGenerationArtifacts extends GenerationArtifactErrors {
   coverImage?: CoverImageArtifact;
   qualityControl?: {
     report?: string;
+    issues?: QualityControlIssue[];
+    categories?: QualityControlCategoryResult[];
+    isValid?: boolean;
     completedAt?: string;
     runLabel?: "initial" | "post-update";
     runCount?: number;
