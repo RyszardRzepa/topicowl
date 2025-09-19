@@ -9,21 +9,39 @@ import { performValidateLogic as runValidation } from "@/lib/services/validation
 import type { ValidateResponse } from "@/lib/services/validation-service";
 import type { WriteResponse } from "@/lib/services/write-service";
 import type { VideoEmbed } from "@/types";
+import type { ArticleGenerationStatus } from "@/server/db/schema";
 import { getCreditCost } from "@/lib/utils/credit-costs";
 import { deductCredits } from "@/lib/utils/credits";
 import { updateGenerationProgress } from "./utils";
 import { mergeArtifacts } from "./utils";
 import { ensureSingleIntro } from "./utils";
 
+interface ValidationRunOptions {
+  progress?: number;
+  status?: ArticleGenerationStatus;
+  skipProgressUpdate?: boolean;
+  label?: "initial" | "post-update";
+}
+
 async function validateArticle(
   content: string,
   generationId: number,
+  options?: ValidationRunOptions,
 ): Promise<ValidateResponse> {
   logger.debug("validation:start", { generationId });
   try {
-    await updateGenerationProgress(generationId, "validating", 85);
+    if (!options?.skipProgressUpdate) {
+      const status = options?.status ?? "validating";
+      const progress = options?.progress ?? 85;
+      await updateGenerationProgress(generationId, status, progress);
+    }
     const validationResult = await runValidation(content);
-    await mergeArtifacts(generationId, { validation: validationResult });
+    await mergeArtifacts(generationId, {
+      validation: {
+        ...validationResult,
+        runLabel: options?.label ?? "initial",
+      },
+    });
     return validationResult;
   } catch (error) {
     logger.error("validation:failed", error);

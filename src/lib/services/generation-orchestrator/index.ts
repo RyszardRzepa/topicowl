@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import type { ArticleGenerationStatus } from "@/server/db/schema";
 import type { ResearchResponse } from "@/lib/services/research-service";
+import type { ArticleGenerationArtifacts } from "@/types";
 
 import { updateGenerationProgress } from "./utils";
 import { mergeArtifacts } from "./utils";
@@ -17,9 +18,74 @@ import { performResearch } from "./research";
 import { selectCoverImage } from "./image-selection";
 import { writeArticle } from "./writing";
 import { performQualityControl } from "./quality-control";
+import type { QualityControlResponse } from "@/lib/services/quality-control-service";
 import { validateArticle, finalizeArticle } from "./finalization";
 import { enhanceArticleWithScreenshots } from "./screenshots";
-import { performGenericUpdate } from "@/lib/services/update-service";
+import {
+  performGenericUpdate,
+  performQualityControlUpdate,
+} from "@/lib/services/update-service";
+
+interface QualityControlRunState {
+  runs: number;
+  latestReport: string | null;
+}
+
+interface QualityControlLimiterInput {
+  state: QualityControlRunState;
+  maxRuns: number;
+  content: string;
+  generationId: number;
+  articleId: number;
+  userId: string;
+  projectId: number;
+  originalPrompt: string;
+  options: { label: "initial" | "post-update"; progress?: number };
+}
+
+async function applyQualityControlWithLimit(
+  input: QualityControlLimiterInput,
+) {
+  const {
+    state,
+    maxRuns,
+    content,
+    generationId,
+    articleId,
+    userId,
+    projectId,
+    originalPrompt,
+    options,
+  } = input;
+
+  if (state.runs >= maxRuns) {
+    const trimmedReport = state.latestReport?.trim() ?? "";
+    const limitedIssues = trimmedReport.length > 0 ? trimmedReport : null;
+    logger.warn("quality-control:max_runs_reached", {
+      generationId,
+      articleId,
+      maxRuns,
+    });
+    return {
+      issues: limitedIssues,
+      isValid: limitedIssues === null,
+    };
+  }
+
+  const nextRunCount = state.runs + 1;
+  const qcResult = await performQualityControl(
+    content,
+    generationId,
+    userId,
+    projectId,
+    originalPrompt,
+    { ...options, runCount: nextRunCount },
+  );
+  state.runs = nextRunCount;
+  state.latestReport =
+    typeof qcResult.issues === "string" ? qcResult.issues : null;
+  return qcResult;
+}
 
 export {
   validateAndSetupGeneration,
@@ -264,8 +330,20 @@ async function continueGenerationPipeline(
       .from(articleGenerations)
       .where(eq(articleGenerations.id, generationId))
       .limit(1);
-    const artifacts = artifactsRecord?.artifacts ?? undefined;
+    const artifacts: ArticleGenerationArtifacts | undefined = artifactsRecord?.artifacts;
     const storedPrompt = artifacts?.write?.prompt;
+    const qualityControlArtifact = artifacts?.qualityControl;
+
+    const maxQualityControlRuns = 3;
+    const qualityControlState: QualityControlRunState = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      runs: typeof qualityControlArtifact?.runCount === "number" 
+        ? qualityControlArtifact.runCount 
+        : 0,
+      latestReport: typeof qualityControlArtifact?.report === "string"
+        ? qualityControlArtifact.report
+        : null,
+    };
 
     if (!storedPrompt) {
       logger.warn("quality-control:missing_prompt", { generationId });
@@ -275,35 +353,33 @@ async function continueGenerationPipeline(
         ? storedPrompt.trim()
         : `Article generation prompt for "${article.title}"`;
 
-    const qcResult = await performQualityControl(
-      enhancedWriteResult.content,
+    let qualityControlResult = await applyQualityControlWithLimit({
+      state: qualityControlState,
+      maxRuns: maxQualityControlRuns,
+      content: enhancedWriteResult.content,
       generationId,
+      articleId,
       userId,
-      article.projectId,
+      projectId: article.projectId,
       originalPrompt,
-    );
+      options: { label: "initial" },
+    });
 
     let finalContent = enhancedWriteResult.content;
 
-    const validationResult = await validateArticle(finalContent, generationId);
+    let validationResult = await validateArticle(finalContent, generationId);
 
-    const combinedIssueSections: string[] = [];
-    const validationText = (validationResult.rawValidationText ?? "").trim();
+    const initialValidationText =
+      (validationResult.rawValidationText ?? "").trim();
+    const initialQualityIssues =
+      typeof qualityControlResult.issues === "string"
+        ? qualityControlResult.issues.trim()
+        : "";
     const hasValidationIssues =
       !validationResult.isValid || validationResult.issues.length > 0;
-    if (hasValidationIssues && validationText.length > 0) {
-      combinedIssueSections.push(`## Validation Issues\n\n${validationText}`);
-    }
+    const hasQualityIssues = initialQualityIssues.length > 0;
 
-    const qualityControlIssues =
-      typeof qcResult.issues === "string" ? qcResult.issues.trim() : "";
-    if (qualityControlIssues.length > 0) {
-      combinedIssueSections.push(
-        `## Quality Control Issues\n\n${qualityControlIssues}`,
-      );
-    }
-
-    if (combinedIssueSections.length > 0) {
+    if (hasValidationIssues || hasQualityIssues) {
       const updateSettings = {
         toneOfVoice: projectSettings?.toneOfVoice ?? undefined,
         articleStructure: projectSettings?.articleStructure ?? undefined,
@@ -314,21 +390,76 @@ async function continueGenerationPipeline(
       };
 
       await updateGenerationProgress(generationId, "updating", 90);
-      const updateResult = await performGenericUpdate({
-        article: finalContent,
-        validationText: combinedIssueSections.join("\n\n"),
-        settings: updateSettings,
+
+      if (hasValidationIssues) {
+        const sections: string[] = [];
+        if (initialValidationText.length > 0) {
+          sections.push(`## Validation Issues\n\n${initialValidationText}`);
+        }
+        if (hasQualityIssues) {
+          sections.push(`## Quality Control Issues\n\n${initialQualityIssues}`);
+        }
+        if (sections.length === 0) {
+          const derivedIssues = validationResult.issues
+            .map((issue) => {
+              const factLine = `Fact: ${issue.fact}`;
+              const issueLine = `Issue: ${issue.issue}`;
+              const correctionLine = `Correction: ${issue.correction}`;
+              return `${factLine}\n${issueLine}\n${correctionLine}`;
+            })
+            .join("\n\n");
+          if (derivedIssues.trim().length > 0) {
+            sections.push(`## Validation Issues\n\n${derivedIssues}`);
+          }
+        }
+        if (sections.length === 0) {
+          sections.push(
+            "## Validation Issues\n\n- Validation issues detected but no descriptive details were returned.",
+          );
+        }
+        const updateResult = await performGenericUpdate({
+          article: finalContent,
+          validationText: sections.join("\n\n"),
+          settings: updateSettings,
+        });
+        finalContent = updateResult.updatedContent;
+      } else if (hasQualityIssues) {
+        const updateResult = await performQualityControlUpdate(
+          finalContent,
+          initialQualityIssues,
+          updateSettings,
+        );
+        finalContent = updateResult.updatedContent;
+      }
+
+      enhancedWriteResult = { ...enhancedWriteResult, content: finalContent };
+
+      qualityControlResult = await applyQualityControlWithLimit({
+        state: qualityControlState,
+        maxRuns: maxQualityControlRuns,
+        content: finalContent,
+        generationId,
+        articleId,
+        userId,
+        projectId: article.projectId,
+        originalPrompt,
+        options: { progress: 96, label: "post-update" },
       });
 
-      finalContent = updateResult.updatedContent;
-      enhancedWriteResult = { ...enhancedWriteResult, content: finalContent };
+      if (hasValidationIssues) {
+        validationResult = await validateArticle(finalContent, generationId, {
+          progress: 97,
+          label: "post-update",
+        });
+      }
     }
 
     await mergeArtifacts(generationId, {
       write: enhancedWriteResult,
     });
 
-    const publishReady = qcResult.isValid && validationResult.isValid;
+    const publishReady =
+      qualityControlResult.isValid && validationResult.isValid;
     await finalizeArticle(
       articleId,
       enhancedWriteResult,

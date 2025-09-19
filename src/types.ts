@@ -88,6 +88,7 @@ export interface ValidationArtifact {
   issues?: Array<{ fact: string; issue: string; correction: string }>;
   rawValidationText?: string;
   seoScore?: number;
+  runLabel?: "initial" | "post-update";
 }
 
 export interface WriteArtifact {
@@ -129,7 +130,12 @@ export interface ArticleGenerationArtifacts extends GenerationArtifactErrors {
   validation?: ValidationArtifact;
   write?: WriteArtifact;
   coverImage?: CoverImageArtifact;
-  qualityControl?: { report?: string; completedAt?: string };
+  qualityControl?: {
+    report?: string;
+    completedAt?: string;
+    runLabel?: "initial" | "post-update";
+    runCount?: number;
+  };
   errors?: GenerationArtifactErrors;
   [key: string]: unknown;
 }

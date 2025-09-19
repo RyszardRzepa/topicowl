@@ -8,6 +8,7 @@ import { generateObject } from "ai";
 import { MODELS } from "@/constants";
 import { blogPostSchema } from "@/types";
 import update from "@/prompts/update";
+import { updateWithQualityControl } from "@/prompts/update-with-quality-control";
 
 // Re-export types from the API route
 interface ValidationIssue {
@@ -67,8 +68,26 @@ export async function performQualityControlUpdate(
     maxWords?: number;
   },
 ): Promise<UpdateResponse> {
-  // Single update path using QC issues as the driver
-  return performGenericUpdate({ article, qualityControlIssues, settings });
+  if (!article) {
+    throw new Error("Article is required");
+  }
+
+  if (!qualityControlIssues) {
+    throw new Error("Quality control issues are required");
+  }
+
+  const model = anthropic(MODELS.CLAUDE_SONNET_4);
+
+  const { object: articleObject } = await generateObject({
+    model,
+    schema: blogPostSchema,
+    prompt: updateWithQualityControl(article, qualityControlIssues, settings),
+    maxOutputTokens: 20000,
+  });
+
+  return {
+    updatedContent: articleObject.content,
+  };
 }
 
 /**
