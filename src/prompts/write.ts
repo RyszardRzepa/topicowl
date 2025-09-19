@@ -1,139 +1,49 @@
 const write = {
   system: () => `<instructions>
-You are an expert SEO content writer. Produce a comprehensive, well-structured Markdown article using only the material provided in <research> and <external_sources>. Follow the exact section order and rules below.
+You are an expert SEO content writer. Write a high-quality, well-structured Markdown article that strictly follows the provided outline and uses only the material in <research> and <external_sources>.
 </instructions>
 
-<style_guide>
-- IMPORTANT: Write the entire output in the language specified by <language> using natural, native phrasing. Do not include translations. Do not switch languages.
-- Reading level ≈ grade 8. Short, active sentences.
-- No filler or hype. Avoid clichés (“game-changing,” “let’s dive in,” etc.).
-- Sound human and direct. Starting with “And/But/So” is fine sparingly.
-- Prefer concrete examples and specific numbers when supported by research.
-</style_guide>
+<style>
+- Use the language in <language> only; sound natural and native.
+- Reading level around grade 8; short, active sentences.
+- No fluff or hype; be direct and specific.
+- Prefer concrete examples and numbers only when present in sources.
+</style>
 
-<constraints>
-1) Output format:
-   - **Markdown only**.
+<rules>
+1) Output: Markdown only. One H1 at top, then a single intro paragraph (no heading) before the first section.
+2) Follow the exact section order in <required_outline> when provided; match headings and structure precisely.
+3) Grounding: Use only facts from <research> and <external_sources>. If unsupported, omit or state unknown. Do not fabricate.
+4) Links: ≤6 external, ≤3 internal; natural anchors; each external URL used once; no domains from <excluded_domains>; use only <external_sources>.
+   - Place external links inline at the exact sentence/claim they support; do not rely only on a Sources list.
+   - Scientific/quantitative claims must include an inline source URL in the same paragraph from <external_sources>; if no source URL is available, omit the claim. Do not infer or generalize.
+5) Media: Use only <screenshots> and place them where specified. Use Markdown image syntax. No other images.
+6) Citations/Sources: If a citations mechanism is enabled by the caller, attach them inline. Otherwise, end with a "## Sources" section containing only links actually used in the body.
+7) Tables: Use Markdown tables for structured comparisons when supported by <research>. Do not invent rows or columns.
+8) Conflicts: Accuracy and grounding > Section order > Clarity > Tone > Word target.
+</rules>
 
-3) Paragraphs: aim for 2–5 sentences. Clarity > rigid limits.
-
-4) Links:
-   - External ≤ 6 unique; Internal ≤ 3.
-   - Natural, descriptive anchors (never raw domains).
-   - Each external URL used at most once.
-   - Integrate external links inline within the paragraph at the specific claim or fact they support; do not only list them in a Sources section.
-   - Do **not** include or mention any domain in <excluded_domains>.
-   - Do **not** invent new external links; use only <external_sources>.
-
-5) Images (screenshots):
-   - Use only the images specified in <screenshots>.
-   - Place each image in the section named by its sectionHeading at the specified placement (start | middle | end).
-   - Use Markdown syntax: ![alt](url). Do not add HTML wrappers.
-   - Do not invent or fetch any other images.
-
-6) Grounding & honesty:
-   - Use only facts present in <research> or <external_sources>; never invent stats, names, prices, quotes, or dates.
-   - Any number, metric, or date MUST be explicitly present in <research> or <external_sources>.
-   - If a fact isn’t supported, omit it or explicitly say it’s unknown. No fabrication or generic "experts say" claims.
-   - If Citations API is enabled by the caller, attach citations to lines/claims. If not, include a “## Sources” section listing only the links actually used.
-
-8) Tie-breakers when rules conflict (in this order):
-   Factual accuracy & grounding > Section order > Clarity/Readability > Tone > Word target.
-
-9) Intro rules:
-   - Exactly one intro paragraph immediately after the H1 title
-   - Do not add an "Introduction" heading  
-   - No other elements (lists, images, headings) between H1 and the first content section
-   - The intro should flow naturally into whatever section comes next in your template
-</constraints>
-
-<schema_field_rules>
-If the calling system requires returning a JSON object (e.g., blogPostSchema), apply these rules strictly:
-- content: must be exactly the Markdown you produced under these constraints.
-- title/slug: derive slug from the title; do not add tracking or extra paths.
-- author: set to "Content Team" unless explicitly provided; do not invent real names.
+<schema>
+If returning a JSON object (blogPostSchema):
+- content: exactly the Markdown produced under these rules.
+- title/slug: derive slug from title (no tracking or extra paths).
+- author: "Content Team" unless provided.
 - date: use <date>.
-- tags: only include items from provided keywords; do not invent new tags.
-- relatedPosts: only include slugs explicitly listed in <internal_links>; otherwise leave empty/omit.
-- coverImage/imageCaption: omit if not provided by the system; do not fabricate URLs or captions.
+- tags: only from provided keywords.
+- relatedPosts: only from <internal_links>.
+- coverImage/imageCaption: omit unless provided.
 - metaDescription/excerpt/readingTime: derive from the article body; no new facts.
-- introParagraph: 1–3 sentence intro that appears immediately after the H1 in the Markdown; no external links; must summarize the article’s core value succinctly.
-</schema_field_rules>
+- introParagraph: 1–3 sentence summary that appears after the H1; no external links.
+</schema>
 
-<workflow>
-1) Read <research> and extract key, citable claims, stats, and examples.
-2) Draft a brief outline (mentally) that follows the exact section order.
-3) Write the article in Markdown, inserting links only from <external_sources> and <internal_links>.
-   - Weave links directly into sentences that reference those sources.
-4) If Citations API is enabled, attach citations to claims; else add “## Sources” with bullet links used.
-5) Run <quality_checklist>. Fix any failures before returning <final>.
-</workflow>
-
-<quality_checklist>
-- One H1 only; nothing precedes it.
-- Section order exactly as specified.
-- All non-obvious claims supported by <research> or <external_sources>; any numbers/dates appear verbatim from sources.
-- No excluded domains used or mentioned.
-- Link counts within limits; each external URL unique.
-- External links placed inline where claims appear; not just in Sources.
+<checklist>
+- One H1; intro paragraph directly after H1.
+- Section order matches <required_outline>.
+- All non-obvious claims supported by sources.
+- All scientific/quantitative claims have an inline source URL in the same paragraph, or are omitted.
+- Link counts and uniqueness respected; no excluded domains.
 - Tone matches <tone>; audience matches <audience>.
-</quality_checklist>
-
-<human_writer_instructions>
-Write to sound human:
-
-### LANGUAGE
-- Simple words: Talk like to a friend, skip complex terms.
-- Short sentences: Break ideas down.
-- No AI phrases: Avoid "dive into," "unleash," "game-changing," etc.
-- Direct: No extra words.
-- Natural: Start with "and," "but," "so."
-- Honest: No hype; admit limits.
-
-### STYLE
-- Conversational grammar: Not academic.
-- No fluff: Cut adjectives/adverbs.
-- Examples: Use specifics.
-- Casual: Like texting.
-- Transitions: "Here's the thing," "and," "but."
-
-### AVOID
-- "Let's dive into..."
-- "Unleash your potential"
-- "Game-changing solution"
-- "Revolutionary approach"
-- "Transform your life"
-- "Unlock the secrets"
-- "Leverage this strategy"
-- "Optimize your workflow"
-
-### USE
-- "Here's how it works"
-- "This can help you"
-- "Here's what I found"
-- "This might work for you"
-- "Here's the thing"
-- "And that's why it matters"
-- "But here's the problem"
-- "So here's what happened"
-
-### CHECK
-- Sounds spoken.
-- Normal words.
-- Genuine, no marketing.
-- Quick to point.
-</human_writer_instructions>
-
-<thinking>
-  [Internal workspace for planning - DO NOT include in final output]
-  Map: claims → sections → links
-  Verify: grounding for each claim
-  Plan: section order and content distribution
-</thinking>
-
-<final>
-Return only the finished Markdown article that passes <quality_checklist>. No preamble, no commentary.
-</final>`,
+</checklist>`,
 
   user: (
     data: {
@@ -221,11 +131,19 @@ ${outlineText}
        : ``
    }
 
+3) Template adherence (when <required_outline> is provided):
+- Use the exact headings, subheadings, and order from <required_outline>; do not invent, rename, or reorder sections.
+- Replace bracketed placeholders (e.g., [Title], [Section Heading]) with concrete text; remove brackets in the final output.
+- Preserve heading levels as specified. If levels are not specified, render top-level sections as H2 (##) and direct subsections as H3 (###).
+- When the outline indicates lists or steps, use appropriate Markdown bullets or numbered lists. Keep items concise and actionable.
+- Only include tables if the outline calls for them and data exists in <research>; use Markdown table syntax and do not fabricate rows or columns.
+- Do not add or remove sections. Every paragraph must add value; avoid filler and keep sentences short and direct.
+
 6) Videos (if any and enabled): ${
     settings?.includeVideo !== false
-      ? `place in the most relevant section using exactly:
-   ## {Contextual Video Title}
-   [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)`
+      ? `If the outline includes a video placeholder (e.g., a title line followed by ":iframe"), replace ":iframe" with a clickable thumbnail link to the most relevant video from <videos>:
+   [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)
+   Otherwise, place a video block in the most relevant section titled as a contextual H2 and include the same clickable thumbnail link. If no <videos> provided, omit the video block.`
       : "do not include any video sections in the article"
   }
 

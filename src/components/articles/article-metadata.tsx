@@ -32,10 +32,7 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
 
   // Get status display text and color
   const getStatusDisplay = (status: ArticleMetadataData["status"]) => {
-    const statusMap: Record<
-      ArticleMetadataData["status"],
-      { text: string; color: string }
-    > = {
+    const statusMap = {
       idea: { text: "Idea", color: "text-brand-white bg-brand-white/10" },
       scheduled: {
         text: "Scheduled",
@@ -54,7 +51,7 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
         color: "text-brand-green bg-brand-green/20",
       },
       failed: { text: "Failed", color: "text-red-600 bg-red-100" },
-    };
+    } as const satisfies Record<ArticleStatus, { text: string; color: string }>;
     return statusMap[status] ?? {
       text: status,
       color: "text-gray-600 bg-gray-100",

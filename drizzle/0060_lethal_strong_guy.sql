@@ -29,9 +29,3 @@ ALTER TABLE "topicowl"."article_generations" ADD CONSTRAINT "article_generations
 ALTER TABLE "topicowl"."article_generations" ADD CONSTRAINT "article_generations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "topicowl"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "topicowl"."article_generations" ADD CONSTRAINT "article_generations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "topicowl"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "article_generations_project_id_idx" ON "topicowl"."article_generations" USING btree ("project_id");--> statement-breakpoint
-ALTER TABLE "topicowl"."articles" ALTER COLUMN "status" SET DATA TYPE text;--> statement-breakpoint
-ALTER TABLE "topicowl"."reddit_posts" ALTER COLUMN "status" SET DATA TYPE text;--> statement-breakpoint
-DROP TYPE "topicowl"."article_status";--> statement-breakpoint
-CREATE TYPE "topicowl"."article_status" AS ENUM('idea', 'scheduled', 'generating', 'wait_for_publish', 'published', 'failed');--> statement-breakpoint
-ALTER TABLE "topicowl"."articles" ALTER COLUMN "status" SET DATA TYPE "topicowl"."article_status" USING "status"::"topicowl"."article_status";--> statement-breakpoint
-ALTER TABLE "topicowl"."reddit_posts" ALTER COLUMN "status" SET DATA TYPE "topicowl"."article_status" USING "status"::"topicowl"."article_status";

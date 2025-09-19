@@ -1924,7 +1924,8 @@
         "generating",
         "wait_for_publish",
         "published",
-        "failed"
+        "failed",
+        "deleted"
       ]
     }
   },

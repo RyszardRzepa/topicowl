@@ -57,7 +57,6 @@ export function getDisplayStatus(dbStatus: ArticleStatus): DisplayStatus {
     case STATUSES.PUBLISHED:
       return DISPLAY_STATUSES.PUBLISHED;
     
-    case STATUSES.FAILED:
     default:
       return DISPLAY_STATUSES.IDEA; // Safe fallback
   }

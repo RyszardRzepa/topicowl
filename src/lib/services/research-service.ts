@@ -57,10 +57,6 @@ const PARALLEL_RESEARCH_SCHEMA = {
       type: "string",
       description: "3-5 content opportunities and gaps identified with source references where relevant"
     },
-    article_outline: {
-      type: "string",
-      description: "Draft H2/H3 outline structure with max 12 items for the article"
-    },
     frequently_asked_questions: {
       type: "string",
       description: "4-6 Q&A pairs, each with source citations [S1], [S2] format"
@@ -89,10 +85,6 @@ const PARALLEL_RESEARCH_SCHEMA = {
       type: "string",
       description: "Brief explanation of why the YouTube video was selected, or empty string if none"
     },
-    research_timestamp: {
-      type: "string",
-      description: "ISO timestamp when the research was conducted"
-    }
   },
   required: [
     "executive_summary",
@@ -100,110 +92,11 @@ const PARALLEL_RESEARCH_SCHEMA = {
     "key_insights",
     "statistics_data",
     "content_gaps",
-    "article_outline",
     "frequently_asked_questions",
     "source_urls",
-    "research_timestamp"
   ],
   additionalProperties: false
 } as const;
-
-type ParallelResearchResponse = {
-  executive_summary: string;
-  primary_intent: string;
-  secondary_intents: string;
-  key_insights: string;
-  statistics_data: string;
-  content_gaps: string;
-  article_outline: string;
-  frequently_asked_questions: string;
-  internal_linking_suggestions: string;
-  risk_assessment: string;
-  source_urls: string;
-  youtube_video_title: string;
-  youtube_video_url: string;
-  youtube_selection_reason: string;
-  research_timestamp: string;
-};
-
-// Export type for use in webhook handler
-export type { ParallelResearchResponse };
-
-/**
- * Converts Parallel API response to our existing ResearchResponse format
- */
-export function convertParallelResponseToResearchResponse(
-  parallelResponse: ParallelResearchResponse
-): {
-  researchData: string;
-  sources: Array<{ url: string; title?: string }>;
-  videos: Array<{ title: string; url: string; reason: string }>;
-} {
-  // Parse sources from the source_urls string
-  const sources: Array<{ url: string; title?: string }> = [];
-  const sourceLines = parallelResponse.source_urls.split('\n').filter(line => line.trim());
-  
-  const sourceRegex = /^S\d+:\s*(.+)$/;
-  for (const line of sourceLines) {
-    const match = sourceRegex.exec(line);
-    if (match) {
-      const url = match[1]?.trim();
-      if (url) {
-        sources.push({ url, title: undefined });
-      }
-    }
-  }
-
-  // Parse videos if available
-  const videos: Array<{ title: string; url: string; reason: string }> = [];
-  if (parallelResponse.youtube_video_url && parallelResponse.youtube_video_title) {
-    videos.push({
-      title: parallelResponse.youtube_video_title,
-      url: parallelResponse.youtube_video_url,
-      reason: parallelResponse.youtube_selection_reason || "Selected as most relevant video for the topic"
-    });
-  }
-
-  // Construct comprehensive research data
-  const researchData = `# Research Brief
-
-## Executive Summary
-${parallelResponse.executive_summary}
-
-## Search Intent Analysis
-**Primary Intent:** ${parallelResponse.primary_intent}
-${parallelResponse.secondary_intents ? `**Secondary Intents:** ${parallelResponse.secondary_intents}` : ''}
-
-## Key Findings
-${parallelResponse.key_insights}
-
-## Statistics & Data
-${parallelResponse.statistics_data}
-
-## Content Opportunities
-${parallelResponse.content_gaps}
-
-## Recommended Article Structure
-${parallelResponse.article_outline}
-
-## Frequently Asked Questions
-${parallelResponse.frequently_asked_questions}
-
-${parallelResponse.internal_linking_suggestions ? `## Internal Linking Opportunities
-${parallelResponse.internal_linking_suggestions}` : ''}
-
-${parallelResponse.risk_assessment ? `## Risk Assessment
-${parallelResponse.risk_assessment}` : ''}
-
----
-*Research conducted: ${parallelResponse.research_timestamp}*`;
-
-  return {
-    researchData,
-    sources,
-    videos
-  };
-}
 
 // Re-export types for backward compatibility
 export interface ResearchRequest {
@@ -245,6 +138,52 @@ const parallelResearchTaskResponseSchema = z
   })
   .passthrough();
 
+const parallelResearchContentSchema = z.object({
+  executive_summary: z.string(),
+  primary_intent: z.string(),
+  secondary_intents: z.string().optional().default(""),
+  key_insights: z.string(),
+  statistics_data: z.string(),
+  content_gaps: z.string(),
+  frequently_asked_questions: z.string(),
+  internal_linking_suggestions: z.string().optional().default(""),
+  risk_assessment: z.string().optional().default(""),
+  source_urls: z.string(),
+  youtube_video_title: z.string().optional().default(""),
+  youtube_video_url: z.string().optional().default(""),
+  youtube_selection_reason: z.string().optional().default(""),
+  research_timestamp: z.string().optional(),
+});
+
+export type ParallelResearchResponse = z.infer<typeof parallelResearchContentSchema>;
+
+export type ParallelResearchOutputContent = ParallelResearchResponse;
+
+export const parallelRunResultSchema = z.object({
+  output: z.object({
+    type: z.string(),
+    basis: z
+      .array(
+        z.object({
+          field: z.string(),
+          citations: z
+            .array(
+              z.object({
+                title: z.string().optional(),
+                url: z.string(),
+                excerpts: z.array(z.string()).optional(),
+              }),
+            )
+            .optional(),
+          reasoning: z.string().optional(),
+          confidence: z.string().optional(),
+        }),
+      )
+      .optional(),
+    content: parallelResearchContentSchema,
+  }),
+});
+
 // Configuration for Parallel API
 const PARALLEL_CONFIG = {
   baseUrl: "https://api.parallel.ai/v1",
@@ -279,12 +218,11 @@ Research this topic comprehensively and provide a structured analysis. Focus on:
 3. KEY INSIGHTS: 5-8 bullet points with specific findings, include source citations as [S1], [S2]
 4. STATISTICS: 3-6 concrete data points with exact figures and citations
 5. CONTENT GAPS: 3-5 opportunities where competitors aren't covering topics well
-6. ARTICLE OUTLINE: H2/H3 structure (max 12 items) for comprehensive coverage
-7. FAQ SECTION: 4-6 common questions with answers, each citing sources
-8. INTERNAL LINKS: 3-5 suggestions for related content to link to
-9. RISK ASSESSMENT: Any outdated info, conflicts, or ambiguities found
-10. SOURCES: All URLs found during research in format "S1: <URL>"
-11. YOUTUBE VIDEO: Find the most relevant YouTube video with title, URL, and selection reason
+6. FAQ SECTION: 4-6 common questions with answers, each citing sources
+7. INTERNAL LINKS: 3-5 suggestions for related content to link to
+8. RISK ASSESSMENT: Any outdated info, conflicts, or ambiguities found
+9. SOURCES: All URLs found during research in format "S1: <URL>"
+10. YOUTUBE VIDEO: Find the most relevant YouTube video with title, URL, and selection reason
 
 Use only authoritative sources and recent information. Cite everything with [S1], [S2] format. Be thorough but concise.`;
 }

@@ -1,4 +1,5 @@
-const seoAuditFix = (
+// Targeted SEO improvements without inventing new facts or links
+export const seoAuditFix = (
   articleMarkdown: string,
   params: {
     seoReportJson: string; // JSON string with { score, issues[], metrics }
@@ -46,5 +47,3 @@ ${params.validationReportJson ?? ""}
 Return ONLY the updated Markdown article. No commentary.
 </output>
 `;
-
-export default seoAuditFix;

@@ -3,7 +3,6 @@ import { withTracing } from "@posthog/ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
-import { MODELS } from "../constants";
 import getPostHogServer from "./posthog-server";
 
 /**

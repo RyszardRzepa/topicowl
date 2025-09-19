@@ -38,7 +38,7 @@ interface WriteRequest {
     title?: string;
   }>;
   notes?: string;
-  outlineMarkdown?: string; // AI-generated markdown outline
+  outlineMarkdown?: string;
   userId: string;
   projectId: number;
   relatedArticles?: string[];
@@ -181,9 +181,8 @@ export async function performWriteLogic(
     languageCode: (projectSettings as { language?: string })?.language ?? "en",
   };
 
-  const outlineText = request.outlineMarkdown;
+  const outlineText = settingsData.articleStructure;
 
-  // Build the complete prompt for storage (system + user)
   const systemPrompt = write.system();
   const userPrompt = write.user(
     {
@@ -197,7 +196,7 @@ export async function performWriteLogic(
     settingsData,
     request.relatedArticles,
     excludedDomains,
-    outlineText,
+    settingsData.articleStructure,
   );
 
   // Save the complete prompt if generationId is provided
@@ -225,11 +224,7 @@ export async function performWriteLogic(
   }
 
   const result = await generateObject({
-    model: await getModel(
-      "anthropic",
-      MODELS.CLAUDE_SONNET_4,
-      "write-service",
-    ),
+    model: await getModel("anthropic", MODELS.CLAUDE_SONNET_4, "write-service"),
     schema: blogPostSchema,
     messages: [
       {
@@ -272,14 +267,11 @@ export async function performWriteLogic(
       request.keywords,
       3,
     );
-    console.log(
-      "[WRITE_SERVICE] Generated related articles (project-scoped)",
-      {
-        projectId: request.projectId,
-        count: finalRelatedArticles.length,
-        articles: finalRelatedArticles,
-      },
-    );
+    console.log("[WRITE_SERVICE] Generated related articles (project-scoped)", {
+      projectId: request.projectId,
+      count: finalRelatedArticles.length,
+      articles: finalRelatedArticles,
+    });
   } else {
     console.log("[WRITE_SERVICE] Using pre-generated related articles", {
       count: finalRelatedArticles.length,
