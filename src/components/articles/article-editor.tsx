@@ -10,7 +10,7 @@ import { X, Plus, Save, XCircle, Link, Search } from "lucide-react";
 import Image from "next/image";
 import { ImagePicker } from "./image-picker";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
-import type { CombinedImage } from "@/lib/services/image-selection-service";
+import type { CombinedImage } from "@/lib/services/image-selection";
 
 interface ArticleEditorProps {
   article: ArticleDetailResponse["data"];

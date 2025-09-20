@@ -7,28 +7,31 @@ import {
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import type { ArticleGenerationStatus } from "@/server/db/schema";
-import type { ResearchResponse } from "@/lib/services/research-service";
+import type {
+  ResearchResponse,
+  ResearchVideo,
+} from "@/lib/services/research";
 import type {
   ArticleGenerationArtifacts,
   QualityControlIssue,
-  QualityControlCategoryResult,
+  VideoEmbed,
 } from "@/types";
 
-import { updateGenerationProgress } from "./utils";
-import { mergeArtifacts } from "./utils";
-import { handleGenerationError } from "./utils";
+import { updateGenerationProgress } from "./progress";
+import { mergeArtifacts } from "./artifacts";
+import { handleGenerationError } from "./progress";
 import { createOrResetArticleGeneration, type GenerationContext } from "./validation";
 import { performResearch } from "./research";
 import { selectCoverImage } from "./image-selection";
 import { writeArticle } from "./writing";
 import { performQualityControl } from "./quality-control";
-import type { QualityControlResponse } from "@/lib/services/quality-control-service";
+import type { QualityControlResponse } from "@/lib/services/quality-control";
 import { validateArticle, finalizeArticle } from "./finalization";
-import { enhanceArticleWithScreenshots } from "./screenshots";
+import { enhanceArticleWithScreenshots } from "@/lib/services/screenshots";
 import {
   performGenericUpdate,
   performQualityControlUpdate,
-} from "@/lib/services/update-service";
+} from "@/lib/services/content-updates";
 
 interface QualityControlRunState {
   runs: number;
@@ -79,7 +82,7 @@ async function applyQualityControlWithLimit(
       location: "quality-control",
       requiredFix:
         "Resolve outstanding issues identified in prior quality control runs before retrying.",
-    };
+    } as QualityControlIssue;
     return {
       issues: [fallbackIssue],
       categories: [
@@ -137,7 +140,7 @@ export {
   claimArticleForGeneration,
 } from "./validation";
 
-export { handleGenerationError } from "./utils";
+export { handleGenerationError } from "./progress";
 
 export async function generateArticle(
   context: GenerationContext,
@@ -166,18 +169,41 @@ export async function generateArticle(
       .from(articleGenerations)
       .where(eq(articleGenerations.id, generationId))
       .limit(1);
-    const latestArtifacts = latestGeneration?.artifacts ?? undefined;
-    if (typeof latestArtifacts?.research_run_id === "string") {
+
+    const latestArtifacts = latestGeneration?.artifacts as
+      | Record<string, unknown>
+      | undefined;
+    const pendingRunIdRaw = (latestArtifacts as {
+      research_run_id?: unknown;
+    })?.research_run_id;
+    const pendingRunId =
+      typeof pendingRunIdRaw === "string" && pendingRunIdRaw.trim().length > 0
+        ? pendingRunIdRaw
+        : undefined;
+
+    const pendingVideosRaw = (latestArtifacts as {
+      researchVideos?: unknown;
+    })?.researchVideos;
+    const pendingVideos = Array.isArray(pendingVideosRaw)
+      ? (pendingVideosRaw as ResearchVideo[])
+      : [];
+
+    if (pendingRunId) {
       logger.debug("research:async_pending", {
         articleId,
         generationId,
-        runId: latestArtifacts.research_run_id,
+        runId: pendingRunId,
       });
       return;
     }
 
     // For sync research, continue the pipeline
-    await continueGenerationPipeline(generationId, context, researchResult);
+    await continueGenerationPipeline(
+      generationId,
+      context,
+      researchResult,
+      pendingVideos,
+    );
   } catch (error) {
     logger.error("generateArticle:error", error);
     if (articleId && generationRecord) {
@@ -217,6 +243,8 @@ export async function continueGenerationFromPhase(
     if (!articleRecord)
       throw new Error(`Article ${genRecord.articleId} not found`);
 
+    const artifacts = (genRecord.artifacts ?? {}) as Record<string, unknown>;
+
     const context: GenerationContext = {
       articleId: articleRecord.id,
       userId: genRecord.userId,
@@ -229,7 +257,6 @@ export async function continueGenerationFromPhase(
 
     let currentResearchData = researchData;
     if (!currentResearchData) {
-      const artifacts = (genRecord.artifacts ?? {}) as Record<string, unknown>;
       if (artifacts.research) {
         currentResearchData = artifacts.research as ResearchResponse;
       } else {
@@ -244,6 +271,13 @@ export async function continueGenerationFromPhase(
       }
     }
 
+    const storedResearchVideosRaw = (artifacts as {
+      researchVideos?: unknown;
+    }).researchVideos;
+    const storedResearchVideos = Array.isArray(storedResearchVideosRaw)
+      ? (storedResearchVideosRaw as ResearchVideo[])
+      : [];
+
     switch (startFromPhase) {
       case "research":
         // This would typically re-initiate the full process
@@ -257,6 +291,7 @@ export async function continueGenerationFromPhase(
             generationId,
             context,
             currentResearchData,
+            storedResearchVideos,
           );
         } else {
           throw new Error(
@@ -276,6 +311,7 @@ export async function continueGenerationFromPhase(
             generationId,
             context,
             currentResearchData,
+            storedResearchVideos,
           );
         } else {
           throw new Error(
@@ -312,6 +348,7 @@ async function continueGenerationPipeline(
   generationId: number,
   context: GenerationContext,
   researchData: ResearchResponse,
+  researchVideos: ResearchVideo[] = [],
 ): Promise<void> {
   const { articleId, userId, article, keywords } = context;
 
@@ -335,6 +372,13 @@ async function continueGenerationPipeline(
       article.projectId,
     );
 
+    const videosForWriting = researchVideos.length > 0
+      ? researchVideos.map((video) => ({
+          title: video.title,
+          url: video.url,
+        }))
+      : undefined;
+
     const writeResult = await writeArticle(
       researchData,
       article.title,
@@ -344,7 +388,7 @@ async function continueGenerationPipeline(
       userId,
       article.projectId,
       context.relatedArticles,
-      researchData.videos,
+      videosForWriting,
       article.notes ?? undefined,
     );
 
@@ -385,8 +429,8 @@ async function continueGenerationPipeline(
         : 0,
       latestResult: qualityControlArtifact
         ? {
-            issues: (qualityControlArtifact.issues ?? []) as QualityControlIssue[],
-            categories: (qualityControlArtifact.categories ?? []) as QualityControlCategoryResult[],
+            issues: qualityControlArtifact.issues ?? [],
+            categories: qualityControlArtifact.categories ?? [],
             isValid: Boolean(qualityControlArtifact.isValid ?? false),
             rawReport: String(qualityControlArtifact.report ?? ""),
           }
@@ -507,6 +551,11 @@ async function continueGenerationPipeline(
 
     const publishReady =
       qualityControlResult.isValid && validationResult.isValid;
+
+    const videoEmbeds: VideoEmbed[] = researchVideos.map((video) => ({
+      title: video.title,
+      url: video.url,
+    }));
     await finalizeArticle(
       articleId,
       enhancedWriteResult,
@@ -516,13 +565,7 @@ async function continueGenerationPipeline(
       generationId,
       userId,
       publishReady,
-      researchData.videos
-        ? researchData.videos.map((v) => ({
-            url: v.url,
-            title: v.title,
-            source: "youtube",
-          }))
-        : [],
+      videoEmbeds,
     );
 
     logger.debug("generateArticle:success", { articleId, generationId });

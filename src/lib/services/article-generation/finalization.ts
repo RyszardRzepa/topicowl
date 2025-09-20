@@ -5,16 +5,16 @@ import {
 } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
-import { performValidateLogic as runValidation } from "@/lib/services/validation-service";
-import type { ValidateResponse } from "@/lib/services/validation-service";
-import type { WriteResponse } from "@/lib/services/write-service";
+import { performValidation as runValidation } from "@/lib/services/content-validation";
+import type { ValidateResponse } from "@/lib/services/content-validation";
+import type { WriteResponse } from "@/lib/services/content-generation";
 import type { VideoEmbed } from "@/types";
 import type { ArticleGenerationStatus } from "@/server/db/schema";
 import { getCreditCost } from "@/lib/utils/credit-costs";
 import { deductCredits } from "@/lib/utils/credits";
-import { updateGenerationProgress } from "./utils";
-import { mergeArtifacts } from "./utils";
-import { ensureSingleIntro } from "./utils";
+import { updateGenerationProgress } from "./progress";
+import { mergeArtifacts } from "./artifacts";
+import { ensureSingleIntro } from "./progress";
 
 interface ValidationRunOptions {
   progress?: number;
@@ -35,7 +35,7 @@ async function validateArticle(
       const progress = options?.progress ?? 85;
       await updateGenerationProgress(generationId, status, progress);
     }
-    const validationResult = await runValidation(content);
+    const validationResult = await runValidation({ content });
     await mergeArtifacts(generationId, {
       validation: {
         ...validationResult,

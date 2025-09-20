@@ -14,7 +14,7 @@ import Image from "next/image";
 import type {
   ImageSearchResponse,
   CombinedImage,
-} from "@/lib/services/image-selection-service";
+} from "@/lib/services/image-selection";
 
 interface ImagePickerProps {
   onImageSelect: (image: CombinedImage) => void;

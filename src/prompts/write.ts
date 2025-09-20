@@ -70,7 +70,7 @@ If returning a JSON object (blogPostSchema):
     _excludedDomains?: string[],
     outlineText?: string,
   ) => `<instructions>
-Write a article following instructions.
+Write a article following instructions. Don't change article title.
 </instructions>
 
 <variables>
@@ -141,9 +141,9 @@ ${outlineText}
 
 6) Videos (if any and enabled): ${
     settings?.includeVideo !== false
-      ? `If the outline includes a video placeholder (e.g., a title line followed by ":iframe"), replace ":iframe" with a clickable thumbnail link to the most relevant video from <videos>:
+      ? `If the outline includes a video placeholder (e.g., a title line followed by ":iframe"), replace ":iframe" to the most relevant video from <videos>:
    [![Watch on YouTube](https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)](VIDEO_URL)
-   Otherwise, place a video block in the most relevant section titled as a contextual H2 and include the same clickable thumbnail link. If no <videos> provided, omit the video block.`
+   Otherwise, place a video block in the most relevant section titled as a contextual H2. If no <videos> provided, omit the video block.`
       : "do not include any video sections in the article"
   }
 

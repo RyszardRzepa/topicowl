@@ -1,11 +1,11 @@
 /**
- * Research service for article generation using Parallel AI
- * Updated to use Parallel API with webhook support instead of Gemini and Jina
+ * Parallel AI integration for research tasks
  */
 
 import { env } from "@/env";
-import { logger } from "../utils/logger";
+import { logger } from "@/lib/utils/logger";
 import { z } from "zod";
+import type { ResearchVideo, ParallelResearchTaskResponse } from "./types";
 
 /**
  * Get the webhook URL based on environment
@@ -73,18 +73,6 @@ const PARALLEL_RESEARCH_SCHEMA = {
       type: "string",
       description: "Newline-separated list of source URLs found during research, format: S1: <URL>"
     },
-    youtube_video_title: {
-      type: "string",
-      description: "Title of the most relevant YouTube video found, or empty string if none"
-    },
-    youtube_video_url: {
-      type: "string", 
-      description: "URL of the most relevant YouTube video found, or empty string if none"
-    },
-    youtube_selection_reason: {
-      type: "string",
-      description: "Brief explanation of why the YouTube video was selected, or empty string if none"
-    },
   },
   required: [
     "executive_summary",
@@ -98,34 +86,23 @@ const PARALLEL_RESEARCH_SCHEMA = {
   additionalProperties: false
 } as const;
 
-// Re-export types for backward compatibility
-export interface ResearchRequest {
-  title: string;
-  keywords: string[];
-  notes?: string;
-  excludedDomains?: string[];
+const PARALLEL_SEARCH_ENDPOINT = "https://api.parallel.ai/v1beta/search" as const;
+
+// Configuration for Parallel API
+const PARALLEL_CONFIG = {
+  baseUrl: "https://api.parallel.ai/v1",
+  processor: "ultra", // Use ultra processor for research tasks
+} as const;
+
+interface ParallelSearchItem {
+  url?: string;
+  title?: string;
+  excerpts?: string[];
 }
 
-export interface ResearchResponse {
-  researchData: string;
-  sources: Array<{
-    url: string;
-    title?: string;
-  }>;
-  videos?: Array<{
-    title: string;
-    url: string;
-    reason?: string;
-  }>;
-}
-
-// New response structure for Parallel API
-export interface ParallelResearchTaskResponse {
-  run_id: string;
-  status: "queued" | "running" | "completed" | "failed";
-  is_active: boolean;
-  created_at: string;
-  modified_at: string;
+interface ParallelSearchResponse {
+  search_id: string;
+  results: ParallelSearchItem[];
 }
 
 const parallelResearchTaskResponseSchema = z
@@ -138,26 +115,7 @@ const parallelResearchTaskResponseSchema = z
   })
   .passthrough();
 
-const parallelResearchContentSchema = z.object({
-  executive_summary: z.string(),
-  primary_intent: z.string(),
-  secondary_intents: z.string().optional().default(""),
-  key_insights: z.string(),
-  statistics_data: z.string(),
-  content_gaps: z.string(),
-  frequently_asked_questions: z.string(),
-  internal_linking_suggestions: z.string().optional().default(""),
-  risk_assessment: z.string().optional().default(""),
-  source_urls: z.string(),
-  youtube_video_title: z.string().optional().default(""),
-  youtube_video_url: z.string().optional().default(""),
-  youtube_selection_reason: z.string().optional().default(""),
-  research_timestamp: z.string().optional(),
-});
 
-export type ParallelResearchResponse = z.infer<typeof parallelResearchContentSchema>;
-
-export type ParallelResearchOutputContent = ParallelResearchResponse;
 
 export const parallelRunResultSchema = z.object({
   output: z.object({
@@ -180,15 +138,167 @@ export const parallelRunResultSchema = z.object({
         }),
       )
       .optional(),
-    content: parallelResearchContentSchema,
+    content: z.any(), // Using z.any() to avoid circular dependency
   }),
 });
 
-// Configuration for Parallel API
-const PARALLEL_CONFIG = {
-  baseUrl: "https://api.parallel.ai/v1",
-  processor: "ultra", // Use ultra processor for research tasks
-} as const;
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function firstExcerpt(excerpts: string[] | undefined): string | undefined {
+  if (!Array.isArray(excerpts)) {
+    return undefined;
+  }
+  for (const item of excerpts) {
+    if (isNonEmptyString(item)) {
+      return item.trim();
+    }
+  }
+  return undefined;
+}
+
+function parseYouTubeWatchUrl(rawUrl: string): { canonicalUrl: string | null; videoId: string | null } {
+  try {
+    const parsed = new URL(rawUrl);
+    const hostname = parsed.hostname.toLowerCase();
+    if (!hostname.endsWith("youtube.com")) {
+      return { canonicalUrl: null, videoId: null };
+    }
+    const pathname = parsed.pathname.toLowerCase();
+    if (pathname !== "/watch") {
+      return { canonicalUrl: null, videoId: null };
+    }
+    const videoId = parsed.searchParams.get("v");
+    if (!videoId || videoId.trim().length === 0) {
+      return { canonicalUrl: null, videoId: null };
+    }
+    const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    return { canonicalUrl, videoId };
+  } catch (error) {
+    logger.debug("[PARALLEL_YOUTUBE] Skipping invalid URL", {
+      url: rawUrl,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return { canonicalUrl: null, videoId: null };
+  }
+}
+
+export async function searchYoutubeVideos(
+  topic: string,
+  keywords: string[],
+  options?: { maxResults?: number },
+): Promise<ResearchVideo[]> {
+  if (!env.PARALLEL_API_KEY) {
+    logger.warn("[PARALLEL_YOUTUBE] Missing Parallel API key, skipping search", {
+      topic,
+    });
+    return [];
+  }
+
+  const maxResults = options?.maxResults ?? 5;
+  const baseQueries = [topic, ...keywords.slice(0, 2)]
+    .map((query) => query.trim())
+    .filter((query) => query.length > 0);
+  const searchQueries = Array.from(new Set(baseQueries));
+
+  if (searchQueries.length === 0) {
+    logger.debug("[PARALLEL_YOUTUBE] No valid queries provided", { topic });
+    return [];
+  }
+
+  const objectiveLines = [
+    `Search the web for YouTube links for topic "${topic}".`,
+    " Return only valid YouTube video links that have '/watch' in url. Find videos with most views or likes.",
+  ];
+
+  const body = {
+    search_queries: searchQueries,
+    processor: "base",
+    objective: objectiveLines.join("\n"),
+  };
+
+  try {
+    const response = await fetch(PARALLEL_SEARCH_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": env.PARALLEL_API_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("[PARALLEL_YOUTUBE] Search API error", {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+      });
+      return [];
+    }
+
+    const payload = (await response.json()) as ParallelSearchResponse;
+
+    if (!Array.isArray(payload.results)) {
+      logger.warn("[PARALLEL_YOUTUBE] Unexpected search response shape", {
+        topic,
+        payloadType: typeof payload.results,
+      });
+      return [];
+    }
+
+    const seenVideoIds = new Set<string>();
+    const videos: ResearchVideo[] = [];
+
+    for (const item of payload.results) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+
+      if (!isNonEmptyString(item.url)) {
+        continue;
+      }
+
+      const { canonicalUrl, videoId } = parseYouTubeWatchUrl(item.url);
+      if (!canonicalUrl || !videoId) {
+        continue;
+      }
+
+      if (seenVideoIds.has(videoId)) {
+        continue;
+      }
+      seenVideoIds.add(videoId);
+
+      const rawTitle = isNonEmptyString(item.title)
+        ? item.title.trim()
+        : "";
+      const title = rawTitle.length > 0 ? rawTitle : canonicalUrl;
+      const excerpt = firstExcerpt(item.excerpts);
+
+      videos.push({
+        title,
+        url: canonicalUrl,
+        excerpt,
+      });
+
+      if (videos.length >= maxResults) {
+        break;
+      }
+    }
+
+    logger.debug("[PARALLEL_YOUTUBE] Retrieved video results", {
+      topic,
+      keywordCount: keywords.length,
+      videoCount: videos.length,
+    });
+
+    return videos;
+  } catch (error) {
+    logger.error("[PARALLEL_YOUTUBE] Failed to execute search", error);
+    return [];
+  }
+}
 
 /**
  * Creates a research task prompt for Parallel AI
@@ -207,7 +317,7 @@ function createResearchPrompt(
     ? `\n\nADDITIONAL CONTEXT: ${notes}`
     : "";
 
-  return `You are an expert content researcher analyzing the topic: "${title}"
+ return `You are an expert content researcher analyzing the topic: "${title}"
 
 TARGET KEYWORDS: ${keywords.join(", ")}${notesText}${excludedDomainsText}
 
@@ -222,7 +332,6 @@ Research this topic comprehensively and provide a structured analysis. Focus on:
 7. INTERNAL LINKS: 3-5 suggestions for related content to link to
 8. RISK ASSESSMENT: Any outdated info, conflicts, or ambiguities found
 9. SOURCES: All URLs found during research in format "S1: <URL>"
-10. YOUTUBE VIDEO: Find the most relevant YouTube video with title, URL, and selection reason
 
 Use only authoritative sources and recent information. Cite everything with [S1], [S2] format. Be thorough but concise.`;
 }
@@ -298,50 +407,4 @@ export async function createParallelResearchTask(
       `Failed to create research task: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
-}
-
-// Polling logic removed - webhook handles completion
-
-/**
- * Simplified research function - just triggers Parallel API and returns run_id
- * Webhook handles completion and status updates
- */
-export async function performResearchDirect(
-  request: ResearchRequest
-): Promise<{
-  run_id: string;
-  status: string;
-}> {
-  const { title, keywords, notes, excludedDomains } = request;
-
-  // Validate required fields
-  if (!title) {
-    throw new Error("Title is required");
-  }
-
-  if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
-    throw new Error("At least one keyword is required");
-  }
-
-  logger.info("[RESEARCH_SERVICE] Starting Parallel AI research", {
-    title,
-    keywordCount: keywords.length
-  });
-
-  // Create the research task with webhook
-  const taskResult = await createParallelResearchTask(
-    title, 
-    keywords, 
-    notes, 
-    excludedDomains
-  );
-
-  logger.info("[RESEARCH_SERVICE] Task created with webhook", {
-    run_id: taskResult.run_id
-  });
-
-  return {
-    run_id: taskResult.run_id,
-    status: taskResult.status
-  };
 }

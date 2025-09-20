@@ -1,9 +1,15 @@
 import { getProjectExcludedDomains } from "@/lib/utils/article-generation";
 import { logger } from "@/lib/utils/logger";
-import { createParallelResearchTask } from "@/lib/services/research-service";
-import type { ResearchResponse } from "@/lib/services/research-service";
-import { updateGenerationProgress } from "./utils";
-import { mergeArtifacts } from "./utils";
+import {
+  searchYoutubeVideos,
+  createParallelResearchTask,
+} from "@/lib/services/research";
+import type {
+  ResearchVideo,
+  ResearchResponse,
+} from "@/lib/services/research";
+import { updateGenerationProgress } from "./progress";
+import { mergeArtifacts } from "./artifacts";
 
 async function performResearch(
   title: string,
@@ -19,19 +25,27 @@ async function performResearch(
 
   // Try using Parallel API with webhook
   try {
-    const task = await createParallelResearchTask(
-      title,
-      keywords,
-      notes,
-      excludedDomains,
-    );
-    await mergeArtifacts(generationId, { research_run_id: task.run_id });
+    const [task, videoResults] = await Promise.all([
+      createParallelResearchTask(title, keywords, notes, excludedDomains),
+      searchYoutubeVideos(title, keywords),
+    ]);
+
+    const videos: ResearchVideo[] = videoResults;
+
+    await mergeArtifacts(generationId, {
+      research_run_id: task.run_id,
+      researchVideos: videos,
+    });
+
+    logger.debug("research:videos_attached", {
+      generationId,
+      videoCount: videos.length,
+    });
     // Webhook will handle the rest
     return {
       researchData:
         "Research is in progress and will be delivered via webhook.",
       sources: [],
-      videos: [],
     };
   } catch (error) {
     logger.error("research:parallel_failed", error);

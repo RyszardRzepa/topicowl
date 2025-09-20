@@ -193,16 +193,6 @@ export const research = (
       
       [Continue based on available grounding insights]
 
-      ## YOUTUBE VIDEO RECOMMENDATIONS
-      
-      [Only include if YouTube videos are found in grounding attributions:]
-      
-      **Video:** [Video title from grounding]
-      **URL:** [S#] (YouTube URL from attributions only)
-      **Relevance:** [How it enhances article content]
-      
-      [Continue for available videos]
-
       ## AI PLATFORM OPTIMIZATION NOTES
       
       **Content Structure:** This research data is organized for:

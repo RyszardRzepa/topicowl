@@ -1,9 +1,9 @@
 import { logger } from "@/lib/utils/logger";
-import { performQualityControlLogic as runQualityControl } from "@/lib/services/quality-control-service";
-import type { QualityControlResponse } from "@/lib/services/quality-control-service";
+import { performQualityCheck as runQualityControl } from "@/lib/services/quality-control";
+import type { QualityControlResponse } from "@/lib/services/quality-control";
 import type { ArticleGenerationStatus } from "@/server/db/schema";
-import { updateGenerationProgress } from "./utils";
-import { mergeArtifacts } from "./utils";
+import { updateGenerationProgress } from "./progress";
+import { mergeArtifacts } from "./artifacts";
 
 interface QualityControlRunOptions {
   progress?: number;

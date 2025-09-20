@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import {
   searchForImages,
   type ImageSearchRequest,
-} from "@/lib/services/image-selection-service";
+} from "@/lib/services/image-selection";
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,7 +1,7 @@
 import { logger } from "@/lib/utils/logger";
-import { performImageSelectionLogic as findCoverImage } from "@/lib/services/image-selection-service";
-import { updateGenerationProgress } from "./utils";
-import { mergeArtifacts } from "./utils";
+import { selectImageForArticle as findCoverImage } from "@/lib/services/image-selection";
+import { updateGenerationProgress } from "./progress";
+import { mergeArtifacts } from "./artifacts";
 
 async function selectCoverImage(
   articleId: number,

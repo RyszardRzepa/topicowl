@@ -49,15 +49,46 @@ if (!projectRecord) return NextResponse.json({ error: 'Project not found or acce
 
 **File Creation Guidelines**:
 - **Utils** (`src/lib/utils/`): Pure functions with NO external API calls, only create if used in 3+ places
-- **Services** (`src/lib/services/`): Functions that call external APIs (database, AI models, webhooks)
+- **Services** (`src/lib/services/`): Domain-based organization with external API calls (database, AI models, webhooks)
 - **Types**: Common types in `src/types.ts`, API-specific types colocated with routes
 - **Components**: Feature-based organization, no generic helpers in component files
+
+Key Principles Applied
+Single Responsibility: Each directory handles one domain
+Clear Naming: Purpose is obvious from directory name
+Colocation: Related functionality grouped together
+Consistent Structure: Every service follows same pattern
+Type Isolation: Types colocated with their domain logic
+Import Clarity: Clear import paths, no deep nesting
+
+**Service Structure (Domain-Based)**:
+```
+src/lib/services/
+├── article-generation/           # Main orchestrator
+│   ├── index.ts                 # Main generateArticle function
+│   ├── pipeline.ts              # Generation pipeline orchestration
+│   ├── progress.ts              # Progress tracking utilities
+│   └── artifacts.ts             # Artifact management
+├── research/
+│   ├── index.ts                 # Main research function
+│   ├── parallel-api.ts          # Parallel AI integration
+│   ├── youtube-search.ts        # YouTube video search
+│   └── types.ts                 #
+```
+
+**Service Organization Principles**:
+- Group by domain/feature, not technical layer
+- Each service has clear `index.ts` with main export functions
+- Domain-specific types colocated in service `types.ts`
+- No redundant naming (avoid `-service` suffixes)
+- Single responsibility per service directory
 
 **Forbidden Patterns**:
 - Creating utils for single-use code - inline instead
 - Database calls in utils - move to services
 - Business logic in API routes - inline or extract to services
 - Shared state in utils - use React Context or component props
+- Mixed concerns in single service files - separate by domain logic
 
 ## Database Architecture
 
@@ -102,13 +133,14 @@ Articles flow through a sophisticated multi-phase generation system with service
 3. **Content Phases** - `research` -> `outline` -> `writing` -> `quality-control` -> `validation` -> `updating`
 4. **Publishing** (`wait_for_publish` -> `published`) - Webhook delivery to external systems
 
-**Service Architecture**: Each phase has dedicated service in `src/lib/services/`:
-- `research-service.ts` - Content research and data gathering
-- `write-service.ts` - AI-powered article writing 
-- `quality-control-service.ts` - Content quality assessment
-- `validation-service.ts` - SEO and compliance validation
-- `update-service.ts` - Generic content updates
-- `generation-orchestrator.ts` - Coordinates entire pipeline
+**Service Architecture**: Each phase has dedicated service domain in `src/lib/services/`:
+- `article-generation/` - Main generation orchestrator and pipeline coordination
+- `research/` - Content research, data gathering, and external API integration
+- `content-generation/` - AI-powered article writing and content creation
+- `quality-control/` - Content quality assessment and issue detection
+- `content-validation/` - SEO and compliance validation
+- `content-updates/` - Generic content updates and improvements
+- `image-selection/` - Cover image selection and management
 
 **State Management**: Track generation state in `article_generation` table with `artifacts` jsonb field for phase results. Never modify articles table directly during generation.
 
@@ -133,7 +165,7 @@ src/
 │   │   └── settings/           # Configuration forms
 │   └── layout/                 # Layout-specific components
 ├── lib/
-│   ├── services/               # External API integrations (DB, AI, webhooks)
+│   ├── services/               # Domain-based service organization (DB, AI, webhooks)
 │   ├── utils/                  # Pure utility functions (3+ usage rule)
 │   └── hooks/                  # Custom React hooks
 ├── server/

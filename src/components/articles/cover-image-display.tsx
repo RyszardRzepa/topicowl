@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { CombinedImage } from "@/lib/services/image-selection-service";
+import type { CombinedImage } from "@/lib/services/image-selection";
 
 interface CoverImageDisplayProps {
   coverImageUrl?: string;

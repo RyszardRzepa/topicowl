@@ -263,6 +263,30 @@ export function ArticlesBoard() {
   // Removed unused publishScheduledEvents and readyToPublishEvents
   // Now using getBoardEventConfig for comprehensive board event generation
 
+  const fetchQueue = useCallback(async () => {
+    try {
+      setLoadingQueue(true);
+      const res = await fetch("/api/articles/generation-queue");
+      if (!res.ok) throw new Error("Failed to load generation queue");
+      const data = (await res.json()) as {
+        success: boolean;
+        data?: { articles: QueueItem[] };
+      };
+      if (data.success && data.data) {
+        setQueueItems(data.data.articles);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load scheduled items");
+    } finally {
+      setLoadingQueue(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchQueue();
+  }, [fetchQueue]);
+
   // Poll generation progress for generating articles
   useEffect(() => {
     if (generatingArticles.length === 0) return;
@@ -302,14 +326,16 @@ export function ArticlesBoard() {
               );
             }
           }
-          if (needsRefresh) await refetchArticles();
+          if (needsRefresh) {
+            await Promise.all([refetchArticles(), fetchQueue()]);
+          }
         } catch (e) {
           console.error("Polling error", e);
         }
       })();
     }, 5000);
     return () => clearInterval(interval);
-  }, [generatingArticles, actions, refetchArticles]);
+  }, [generatingArticles, actions, refetchArticles, fetchQueue]);
 
   // Fallback: if queue reports an item is processing but the article status
   // hasn't updated yet, promote it to generating locally so UI reflects reality
@@ -333,30 +359,6 @@ export function ArticlesBoard() {
       return changed ? updated : prev;
     });
   }, [queueItems, actions]);
-
-  const fetchQueue = useCallback(async () => {
-    try {
-      setLoadingQueue(true);
-      const res = await fetch("/api/articles/generation-queue");
-      if (!res.ok) throw new Error("Failed to load generation queue");
-      const data = (await res.json()) as {
-        success: boolean;
-        data?: { articles: QueueItem[] };
-      };
-      if (data.success && data.data) {
-        setQueueItems(data.data.articles);
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load scheduled items");
-    } finally {
-      setLoadingQueue(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchQueue();
-  }, [fetchQueue]);
 
   const handleGenerateIdeas = async () => {
     if (!projectId) return;

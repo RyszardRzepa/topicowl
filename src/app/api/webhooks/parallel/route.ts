@@ -15,9 +15,10 @@ import { logger } from "@/lib/utils/logger";
 import {
   parallelRunResultSchema,
   type ParallelResearchResponse,
-} from "@/lib/services/research-service";
+  type ResearchResponse,
+} from "@/lib/services/research";
 import crypto from "crypto";
-import { continueGenerationFromPhase } from "@/lib/services/generation-orchestrator";
+import { continueGenerationFromPhase } from "@/lib/services/article-generation";
 
 export const maxDuration = 800;
 
@@ -49,12 +50,8 @@ interface ParallelWebhookPayload {
  * Converts Parallel API response to our existing ResearchResponse format
  */
 export function convertParallelResponseToResearchResponse(
-  parallelResponse: ParallelResearchResponse
-): {
-  researchData: string;
-  sources: Array<{ url: string; title?: string }>;
-  videos: Array<{ title: string; url: string; reason: string }>;
-} {
+  parallelResponse: ParallelResearchResponse,
+): ResearchResponse {
   // Parse sources from the source_urls string
   const sources: Array<{ url: string; title?: string }> = [];
   const sourceLines = parallelResponse.source_urls.split('\n').filter(line => line.trim());
@@ -68,16 +65,6 @@ export function convertParallelResponseToResearchResponse(
         sources.push({ url, title: undefined });
       }
     }
-  }
-
-  // Parse videos if available
-  const videos: Array<{ title: string; url: string; reason: string }> = [];
-  if (parallelResponse.youtube_video_url && parallelResponse.youtube_video_title) {
-    videos.push({
-      title: parallelResponse.youtube_video_title,
-      url: parallelResponse.youtube_video_url,
-      reason: parallelResponse.youtube_selection_reason || "Selected as most relevant video for the topic"
-    });
   }
 
   // Construct comprehensive research data
@@ -115,7 +102,6 @@ ${parallelResponse.risk_assessment}` : ''}
   return {
     researchData,
     sources,
-    videos
   };
 }
 
@@ -185,11 +171,7 @@ async function findArticleGenerationByRunId(runId: string) {
 /**
  * Fetch completed task result from Parallel API
  */
-async function fetchTaskResult(runId: string): Promise<{
-  researchData: string;
-  sources: Array<{ url: string; title?: string }>;
-  videos: Array<{ title: string; url: string; reason: string }>;
-}> {
+async function fetchTaskResult(runId: string): Promise<ResearchResponse> {
   const response = await fetch(
     `https://api.parallel.ai/v1/tasks/runs/${runId}/result`,
     {
@@ -216,11 +198,7 @@ async function fetchTaskResult(runId: string): Promise<{
  */
 async function updateArticleGenerationWithResearch(
   generationId: number,
-  researchResult: {
-    researchData: string;
-    sources: Array<{ url: string; title?: string }>;
-    videos: Array<{ title: string; url: string; reason: string }>;
-  },
+  researchResult: ResearchResponse,
 ) {
   // Get current artifacts and merge with new research data
   const [currentRecord] = await db
@@ -252,7 +230,6 @@ async function updateArticleGenerationWithResearch(
     {
       generationId,
       sourceCount: researchResult.sources.length,
-      hasVideos: researchResult.videos.length > 0,
     },
   );
 }

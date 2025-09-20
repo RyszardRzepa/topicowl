@@ -7,7 +7,7 @@ import { logServerError } from "@/lib/posthog-server";
 import {
   validateAndSetupGeneration,
   generateArticle,
-} from "@/lib/services/generation-orchestrator";
+} from "@/lib/services/article-generation";
 import { getUserCredits } from "@/lib/utils/credits";
 import { 
   hasEnoughCreditsForOperation, 

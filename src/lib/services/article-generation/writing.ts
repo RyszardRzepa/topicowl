@@ -1,8 +1,10 @@
+import { performWriteLogic as performWrite } from "@/lib/services/content-generation";
+import type {
+  WriteResponse,
+  ResearchResponse,
+} from "@/lib/services/content-generation";
 import { logger } from "@/lib/utils/logger";
-import { performWriteLogic as performWrite } from "@/lib/services/write-service";
-import type { WriteResponse } from "@/lib/services/write-service";
-import type { ResearchResponse } from "@/lib/services/research-service";
-import { updateGenerationProgress } from "./utils";
+import { updateGenerationProgress } from "./progress";
 
 async function writeArticle(
   researchData: ResearchResponse,
