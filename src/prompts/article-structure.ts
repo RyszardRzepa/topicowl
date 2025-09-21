@@ -143,7 +143,7 @@ Keywords focus: [relevant keywords from provided list]
 Links to integrate: [specific URLs from sources]
   
 ## "Video Title Here that matches article content" (if relevant video url available)
-:iframe[https://www.youtube.com/embed/_qiurB6YDv0]
+:iframe[https://www.youtube.com/watch?v=WEe9f3DP06M]
 
 ## Table Section (if relevant structured data available)
 

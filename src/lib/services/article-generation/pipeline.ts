@@ -27,7 +27,7 @@ import { writeArticle } from "./writing";
 import { performQualityControl } from "./quality-control";
 import type { QualityControlResponse } from "@/lib/services/quality-control";
 import { validateArticle, finalizeArticle } from "./finalization";
-import { enhanceArticleWithScreenshots } from "@/lib/services/screenshots";
+import { enhanceArticleWithScreenshots } from "@/lib/services/screenshots/enhancement";
 import {
   performGenericUpdate,
   performQualityControlUpdate,
@@ -401,16 +401,9 @@ async function continueGenerationPipeline(
       articleTitle: article.title,
     });
 
-    let enhancedWriteResult =
-      screenshotEnhancement?.content !== undefined
-        ? { ...writeResult, content: screenshotEnhancement.content }
-        : writeResult;
-
-    if (screenshotEnhancement) {
-      await mergeArtifacts(generationId, {
-        screenshots: screenshotEnhancement.artifacts,
-        screenshotUsageStats: screenshotEnhancement.usageStats,
-      });
+    let enhancedWriteResult = writeResult;
+    if (screenshotEnhancement?.content) {
+      enhancedWriteResult = { ...writeResult, content: screenshotEnhancement.content };
     }
 
     const [artifactsRecord] = await db
