@@ -26,6 +26,7 @@ import { selectCoverImage } from "./image-selection";
 import { writeArticle } from "./writing";
 import { performQualityControl } from "./quality-control";
 import type { QualityControlResponse } from "@/lib/services/quality-control";
+import type { WriteResponse } from "@/lib/services/content-generation";
 import { validateArticle, finalizeArticle } from "./finalization";
 import { enhanceArticleWithScreenshots } from "@/lib/services/screenshots/enhancement";
 import {
@@ -286,18 +287,104 @@ export async function continueGenerationFromPhase(
 
       case "image":
         logger.debug("continue:image_phase", { generationId });
-        if (currentResearchData) {
+        if (!currentResearchData) {
+          throw new Error("Cannot proceed to image selection without research data");
+        }
+        await continueGenerationPipeline(
+          generationId,
+          context,
+          currentResearchData,
+          storedResearchVideos,
+        );
+        break;
+
+      case "writing":
+        logger.debug("continue:writing_phase", { generationId });
+        if (!currentResearchData) {
+          throw new Error("Cannot proceed to writing without research data");
+        }
+        
+        // Start from writing phase - skip image selection if we already have it
+        const existingCoverImage = artifacts.coverImage as { imageUrl?: string; altText?: string } | undefined;
+        if (existingCoverImage?.imageUrl) {
+          // Skip image selection, start from writing
+          await continueFromWriting(
+            generationId,
+            context,
+            currentResearchData,
+            storedResearchVideos,
+            existingCoverImage.imageUrl,
+            existingCoverImage.altText ?? "",
+          );
+        } else {
+          // Need to do image selection first, then continue
           await continueGenerationPipeline(
             generationId,
             context,
             currentResearchData,
             storedResearchVideos,
           );
-        } else {
-          throw new Error(
-            "Cannot proceed to image selection without research data",
-          );
         }
+        break;
+
+      case "quality-control":
+        logger.debug("continue:quality_control_phase", { generationId });
+        const writeArtifact = artifacts.write as { content?: string } | undefined;
+        const existingContent = writeArtifact?.content;
+        if (!existingContent) {
+          throw new Error("Cannot proceed to quality control without existing content");
+        }
+        if (!currentResearchData) {
+          throw new Error("Cannot proceed to quality control without research data");
+        }
+        await continueFromQualityControl(
+          generationId,
+          context,
+          existingContent,
+          currentResearchData,
+          storedResearchVideos,
+          true, // This is a retry operation, reset counters
+        );
+        break;
+
+      case "validating":
+        logger.debug("continue:validating_phase", { generationId });
+        const writeArtifactForValidation = artifacts.write as { content?: string } | undefined;
+        const contentForValidation = writeArtifactForValidation?.content;
+        if (!contentForValidation) {
+          throw new Error("Cannot proceed to validation without existing content");
+        }
+        await continueFromValidation(
+          generationId,
+          context,
+          contentForValidation,
+          currentResearchData,
+          storedResearchVideos,
+        );
+        break;
+
+      case "updating":
+        logger.debug("continue:updating_phase", { generationId });
+        const writeArtifactForUpdating = artifacts.write as { content?: string } | undefined;
+        const contentForUpdating = writeArtifactForUpdating?.content;
+        const qualityControlResult = artifacts.qualityControl;
+        const validationResult = artifacts.validation;
+        
+        if (!contentForUpdating) {
+          throw new Error("Cannot proceed to updating without existing content");
+        }
+        if (!qualityControlResult && !validationResult) {
+          throw new Error("Cannot proceed to updating without QC or validation results");
+        }
+        await continueFromUpdating(
+          generationId,
+          context,
+          contentForUpdating,
+          qualityControlResult,
+          validationResult,
+          currentResearchData,
+          storedResearchVideos,
+        );
         break;
 
       // Other phases can be added here
@@ -306,18 +393,15 @@ export async function continueGenerationFromPhase(
           generationId,
           startFromPhase,
         });
-        if (currentResearchData) {
-          await continueGenerationPipeline(
-            generationId,
-            context,
-            currentResearchData,
-            storedResearchVideos,
-          );
-        } else {
-          throw new Error(
-            `Cannot proceed to ${startFromPhase} without research data`,
-          );
+        if (!currentResearchData) {
+          throw new Error(`Cannot proceed to ${startFromPhase} without research data`);
         }
+        await continueGenerationPipeline(
+          generationId,
+          context,
+          currentResearchData,
+          storedResearchVideos,
+        );
     }
   } catch (error) {
     logger.error("continueGeneration:error", error);
@@ -338,6 +422,553 @@ export async function continueGenerationFromPhase(
         );
       }
     }
+  }
+}
+
+/**
+ * Continue from writing phase with existing research data and cover image
+ */
+async function continueFromWriting(
+  generationId: number,
+  context: GenerationContext,
+  researchData: ResearchResponse,
+  researchVideos: ResearchVideo[],
+  coverImageUrl: string,
+  coverImageAlt: string,
+): Promise<void> {
+  // This is essentially the same as continueGenerationPipeline but starts from writing
+  const { articleId, userId, article, keywords } = context;
+
+  try {
+    const [projectSettings] = await db
+      .select({
+        toneOfVoice: projects.toneOfVoice,
+        articleStructure: projects.articleStructure,
+        maxWords: projects.maxWords,
+      })
+      .from(projects)
+      .where(eq(projects.id, article.projectId))
+      .limit(1);
+
+    const videosForWriting = researchVideos.length > 0
+      ? researchVideos.map((video) => ({
+          title: video.title,
+          url: video.url,
+        }))
+      : undefined;
+
+    const writeResult = await writeArticle(
+      researchData,
+      article.title,
+      keywords,
+      coverImageUrl,
+      generationId,
+      userId,
+      article.projectId,
+      context.relatedArticles,
+      videosForWriting,
+      article.notes ?? undefined,
+    );
+
+    // Save write result to artifacts immediately after writing
+    await mergeArtifacts(generationId, {
+      write: writeResult,
+    });
+
+    // Continue with the rest of the pipeline (QC, validation, etc.)
+    await continueFromQualityControlWithContent(
+      generationId,
+      context,
+      writeResult,
+      coverImageUrl,
+      coverImageAlt,
+      researchVideos,
+    );
+  } catch (error) {
+    logger.error("continueFromWriting:error", error);
+    await handleGenerationError(
+      articleId,
+      generationId,
+      error instanceof Error ? error : new Error("Writing continuation error"),
+    );
+  }
+}
+
+/**
+ * Continue from quality control phase with existing content
+ */
+async function continueFromQualityControl(
+  generationId: number,
+  context: GenerationContext,
+  existingContent: string,
+  researchData: ResearchResponse,
+  researchVideos: ResearchVideo[],
+  isRetry = false,
+): Promise<void> {
+  const { articleId } = context;
+
+  try {
+    // Get existing write artifact and cover image info from artifacts
+    const [artifactsRecord] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, generationId))
+      .limit(1);
+
+    const artifacts = artifactsRecord?.artifacts;
+    const writeArtifact = artifacts?.write;
+    const coverImageArtifact = artifacts?.coverImage;
+
+    // Use the actual stored WriteArtifact data to reconstruct WriteResponse
+    if (!writeArtifact?.content) {
+      throw new Error("Cannot continue from quality control without existing write artifact content");
+    }
+
+    const realWriteResult: WriteResponse = {
+      id: `article-${articleId}`,
+      title: context.article.title,
+      slug: writeArtifact.slug ?? "",
+      excerpt: "",  // Not stored in WriteArtifact, would need to be generated
+      metaDescription: writeArtifact.metaDescription ?? "",
+      introParagraph: writeArtifact.introParagraph ?? "",
+      readingTime: "5 min read",  // Would need to be calculated from content length
+      content: existingContent,
+      author: "AI Assistant",  // Default, not stored in WriteArtifact
+      date: new Date().toISOString(),
+      tags: writeArtifact.tags ?? [],
+      relatedPosts: writeArtifact.relatedPosts ?? [],
+    };
+
+    await continueFromQualityControlWithContent(
+      generationId,
+      context,
+      realWriteResult,
+      coverImageArtifact?.imageUrl ?? "",
+      coverImageArtifact?.altText ?? "",
+      researchVideos,
+      isRetry,
+    );
+  } catch (error) {
+    logger.error("continueFromQualityControl:error", error);
+    await handleGenerationError(
+      articleId,
+      generationId,
+      error instanceof Error ? error : new Error("Quality control continuation error"),
+    );
+  }
+}
+
+/**
+ * Continue from validation phase with existing content
+ */
+async function continueFromValidation(
+  generationId: number,
+  context: GenerationContext,
+  existingContent: string,
+  researchData: ResearchResponse | undefined,
+  researchVideos: ResearchVideo[],
+): Promise<void> {
+  const { articleId } = context;
+
+  try {
+    let validationResult = await validateArticle(existingContent, generationId);
+
+    // Get project settings for potential updates
+    const [projectSettings] = await db
+      .select({
+        toneOfVoice: projects.toneOfVoice,
+        articleStructure: projects.articleStructure,
+        maxWords: projects.maxWords,
+      })
+      .from(projects)
+      .where(eq(projects.id, context.article.projectId))
+      .limit(1);
+
+    // Handle validation issues if any
+    let finalContent = existingContent;
+    const hasValidationIssues = !validationResult.isValid || validationResult.issues.length > 0;
+
+    if (hasValidationIssues) {
+      await updateGenerationProgress(generationId, "updating", 90);
+      
+      const sections: string[] = [];
+      const initialValidationText = (validationResult.rawValidationText ?? "").trim();
+      if (initialValidationText.length > 0) {
+        sections.push(`## Validation Issues\n\n${initialValidationText}`);
+      }
+      
+      if (sections.length === 0) {
+        const derivedIssues = validationResult.issues
+          .map((issue) => {
+            const factLine = `Fact: ${issue.fact}`;
+            const issueLine = `Issue: ${issue.issue}`;
+            const correctionLine = `Correction: ${issue.correction}`;
+            return `${factLine}\n${issueLine}\n${correctionLine}`;
+          })
+          .join("\n\n");
+        if (derivedIssues.trim().length > 0) {
+          sections.push(`## Validation Issues\n\n${derivedIssues}`);
+        }
+      }
+
+      if (sections.length > 0) {
+        const updateResult = await performGenericUpdate({
+          article: finalContent,
+          validationText: sections.join("\n\n"),
+          settings: {
+            toneOfVoice: projectSettings?.toneOfVoice ?? undefined,
+            articleStructure: projectSettings?.articleStructure ?? undefined,
+            maxWords: typeof projectSettings?.maxWords === "number" ? projectSettings?.maxWords : undefined,
+          },
+        });
+        finalContent = updateResult.updatedContent;
+
+        // Re-validate after update
+        validationResult = await validateArticle(finalContent, generationId, {
+          progress: 97,
+          label: "post-update",
+        });
+      }
+    }
+
+    // Get artifacts for finalization
+    const [artifactsRecord] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, generationId))
+      .limit(1);
+
+    const artifacts = artifactsRecord?.artifacts;
+    const writeArtifact = artifacts?.write;
+    const coverImageArtifact = artifacts?.coverImage;
+
+    // Use the actual stored WriteArtifact data to reconstruct WriteResponse
+    if (!writeArtifact?.content) {
+      throw new Error("Cannot continue from validation without existing write artifact content");
+    }
+
+    const realWriteResult: WriteResponse = {
+      id: `article-${articleId}`,
+      title: context.article.title,
+      slug: writeArtifact.slug ?? "",
+      excerpt: "",  // Not stored in WriteArtifact, would need to be generated
+      metaDescription: writeArtifact.metaDescription ?? "",
+      introParagraph: writeArtifact.introParagraph ?? "",
+      readingTime: "5 min read",  // Would need to be calculated from content length
+      content: finalContent,
+      author: "AI Assistant",  // Default, not stored in WriteArtifact
+      date: new Date().toISOString(),
+      tags: writeArtifact.tags ?? [],
+      relatedPosts: writeArtifact.relatedPosts ?? [],
+    };
+
+    await mergeArtifacts(generationId, {
+      write: realWriteResult,
+      validation: validationResult,
+    });
+
+    const videoEmbeds: VideoEmbed[] = researchVideos.map((video) => ({
+      title: video.title,
+      url: video.url,
+    }));
+
+    await finalizeArticle(
+      articleId,
+      realWriteResult,
+      finalContent,
+      coverImageArtifact?.imageUrl ?? "",
+      coverImageArtifact?.altText ?? "",
+      generationId,
+      context.userId,
+      validationResult.isValid,
+      videoEmbeds,
+    );
+  } catch (error) {
+    logger.error("continueFromValidation:error", error);
+    await handleGenerationError(
+      articleId,
+      generationId,
+      error instanceof Error ? error : new Error("Validation continuation error"),
+    );
+  }
+}
+
+/**
+ * Continue from updating phase with existing content and QC/validation results
+ */
+async function continueFromUpdating(
+  generationId: number,
+  context: GenerationContext,
+  existingContent: string,
+  qualityControlResult: unknown,
+  validationResult: unknown,
+  researchData: ResearchResponse | undefined,
+  researchVideos: ResearchVideo[],
+): Promise<void> {
+  const { articleId } = context;
+
+  try {
+    // This phase assumes there were issues that need to be addressed
+    // We'll re-run the update logic based on the stored issues
+    
+    await updateGenerationProgress(generationId, "updating", 90);
+
+    const [projectSettings] = await db
+      .select({
+        toneOfVoice: projects.toneOfVoice,
+        articleStructure: projects.articleStructure,
+        maxWords: projects.maxWords,
+      })
+      .from(projects)
+      .where(eq(projects.id, context.article.projectId))
+      .limit(1);
+
+    const updateSettings = {
+      toneOfVoice: projectSettings?.toneOfVoice ?? undefined,
+      articleStructure: projectSettings?.articleStructure ?? undefined,
+      maxWords: typeof projectSettings?.maxWords === "number" ? projectSettings?.maxWords : undefined,
+    };
+
+    // Apply generic updates based on stored issues
+    let finalContent = existingContent;
+
+    // Check if we have quality control or validation issues to address
+    const qcArtifact = qualityControlResult as { issues?: QualityControlIssue[] } | undefined;
+    const validationArtifact = validationResult as { issues?: Array<{fact: string; issue: string; correction: string}> } | undefined;
+
+    if (qcArtifact?.issues?.length) {
+      const qualityIssues = formatQualityControlIssues(qcArtifact.issues);
+      const updateResult = await performQualityControlUpdate(
+        finalContent,
+        qualityIssues,
+        updateSettings,
+      );
+      finalContent = updateResult.updatedContent;
+    }
+
+    if (validationArtifact?.issues?.length) {
+      const derivedIssues = validationArtifact.issues
+        .map((issue) => {
+          const factLine = `Fact: ${issue.fact}`;
+          const issueLine = `Issue: ${issue.issue}`;
+          const correctionLine = `Correction: ${issue.correction}`;
+          return `${factLine}\n${issueLine}\n${correctionLine}`;
+        })
+        .join("\n\n");
+      
+      if (derivedIssues.trim().length > 0) {
+        const updateResult = await performGenericUpdate({
+          article: finalContent,
+          validationText: `## Validation Issues\n\n${derivedIssues}`,
+          settings: updateSettings,
+        });
+        finalContent = updateResult.updatedContent;
+      }
+    }
+
+    // After updating, continue with final QC and validation
+    await continueFromQualityControl(generationId, context, finalContent, researchData!, researchVideos, true);
+  } catch (error) {
+    logger.error("continueFromUpdating:error", error);
+    await handleGenerationError(
+      articleId,
+      generationId,
+      error instanceof Error ? error : new Error("Updating continuation error"),
+    );
+  }
+}
+
+/**
+ * Helper function that continues from quality control with write result
+ */
+async function continueFromQualityControlWithContent(
+  generationId: number,
+  context: GenerationContext,
+  writeResult: WriteResponse,
+  coverImageUrl: string,
+  coverImageAlt: string,
+  researchVideos: ResearchVideo[],
+  isRetry = false,
+): Promise<void> {
+  const { articleId, userId, article } = context;
+
+  try {
+    // Enhance with screenshots if needed
+    const screenshotEnhancement = await enhanceArticleWithScreenshots({
+      content: writeResult.content,
+      sources: [], // We might not have sources at this stage
+      articleId,
+      projectId: article.projectId,
+      generationId,
+      articleTitle: article.title,
+    });
+
+    let enhancedWriteResult = writeResult;
+    if (screenshotEnhancement?.content) {
+      enhancedWriteResult = { ...writeResult, content: screenshotEnhancement.content };
+    }
+
+    // Continue with the rest of the pipeline from the original continueGenerationPipeline
+    const [artifactsRecord] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.id, generationId))
+      .limit(1);
+
+    const artifacts = artifactsRecord?.artifacts;
+    const storedPrompt = artifacts?.write?.prompt;
+    const qualityControlArtifact = artifacts?.qualityControl;
+
+    const maxQualityControlRuns = 3;
+    const qualityControlState: QualityControlRunState = {
+      runs: isRetry 
+        ? 0  // Reset run count for retry operations
+        : (typeof qualityControlArtifact?.runCount === "number" 
+           ? qualityControlArtifact.runCount 
+           : 0),
+      latestResult: qualityControlArtifact
+        ? {
+            issues: qualityControlArtifact.issues ?? [],
+            categories: qualityControlArtifact.categories ?? [],
+            isValid: Boolean(qualityControlArtifact.isValid ?? false),
+            rawReport: String(qualityControlArtifact.report ?? ""),
+          }
+        : null,
+    };
+
+    const originalPrompt =
+      storedPrompt?.trim() && storedPrompt.trim().length > 0
+        ? storedPrompt.trim()
+        : `Article generation prompt for "${article.title}"`;
+
+    let qualityControlResult = await applyQualityControlWithLimit({
+      state: qualityControlState,
+      maxRuns: maxQualityControlRuns,
+      content: enhancedWriteResult.content,
+      generationId,
+      articleId,
+      userId,
+      projectId: article.projectId,
+      originalPrompt,
+      options: { label: "initial" },
+    });
+
+    let finalContent = enhancedWriteResult.content;
+    let validationResult = await validateArticle(finalContent, generationId);
+
+    // Handle issues and updates (same logic as original pipeline)
+    const [projectSettings] = await db
+      .select({
+        toneOfVoice: projects.toneOfVoice,
+        articleStructure: projects.articleStructure,
+        maxWords: projects.maxWords,
+      })
+      .from(projects)
+      .where(eq(projects.id, article.projectId))
+      .limit(1);
+
+    const initialValidationText = (validationResult.rawValidationText ?? "").trim();
+    const initialQualityIssues = formatQualityControlIssues(qualityControlResult.issues);
+    const hasValidationIssues = !validationResult.isValid || validationResult.issues.length > 0;
+    const hasQualityIssues = qualityControlResult.issues.length > 0;
+
+    if (hasValidationIssues || hasQualityIssues) {
+      const updateSettings = {
+        toneOfVoice: projectSettings?.toneOfVoice ?? undefined,
+        articleStructure: projectSettings?.articleStructure ?? undefined,
+        maxWords: typeof projectSettings?.maxWords === "number" ? projectSettings?.maxWords : undefined,
+      };
+
+      await updateGenerationProgress(generationId, "updating", 90);
+
+      if (hasValidationIssues) {
+        const sections: string[] = [];
+        if (initialValidationText.length > 0) {
+          sections.push(`## Validation Issues\n\n${initialValidationText}`);
+        }
+        if (hasQualityIssues) {
+          sections.push(`## Quality Control Issues\n\n${initialQualityIssues}`);
+        }
+        if (sections.length === 0) {
+          const derivedIssues = validationResult.issues
+            .map((issue) => {
+              const factLine = `Fact: ${issue.fact}`;
+              const issueLine = `Issue: ${issue.issue}`;
+              const correctionLine = `Correction: ${issue.correction}`;
+              return `${factLine}\n${issueLine}\n${correctionLine}`;
+            })
+            .join("\n\n");
+          if (derivedIssues.trim().length > 0) {
+            sections.push(`## Validation Issues\n\n${derivedIssues}`);
+          }
+        }
+        if (sections.length === 0) {
+          sections.push("## Validation Issues\n\n- Validation issues detected but no descriptive details were returned.");
+        }
+        const updateResult = await performGenericUpdate({
+          article: finalContent,
+          validationText: sections.join("\n\n"),
+          settings: updateSettings,
+        });
+        finalContent = updateResult.updatedContent;
+      } else if (hasQualityIssues) {
+        const updateResult = await performQualityControlUpdate(finalContent, initialQualityIssues, updateSettings);
+        finalContent = updateResult.updatedContent;
+      }
+
+      enhancedWriteResult = { ...enhancedWriteResult, content: finalContent };
+
+      qualityControlResult = await applyQualityControlWithLimit({
+        state: qualityControlState,
+        maxRuns: maxQualityControlRuns,
+        content: finalContent,
+        generationId,
+        articleId,
+        userId,
+        projectId: article.projectId,
+        originalPrompt,
+        options: { progress: 96, label: "post-update" },
+      });
+
+      if (hasValidationIssues) {
+        validationResult = await validateArticle(finalContent, generationId, {
+          progress: 97,
+          label: "post-update",
+        });
+      }
+    }
+
+    await mergeArtifacts(generationId, {
+      write: enhancedWriteResult,
+      validation: validationResult,
+    });
+
+    const publishReady = qualityControlResult.isValid && validationResult.isValid;
+    const videoEmbeds: VideoEmbed[] = researchVideos.map((video) => ({
+      title: video.title,
+      url: video.url,
+    }));
+
+    await finalizeArticle(
+      articleId,
+      enhancedWriteResult,
+      finalContent,
+      coverImageUrl,
+      coverImageAlt,
+      generationId,
+      userId,
+      publishReady,
+      videoEmbeds,
+    );
+
+    logger.debug("continueFromQualityControlWithContent:success", { articleId, generationId });
+  } catch (error) {
+    logger.error("continueFromQualityControlWithContent:error", error);
+    await handleGenerationError(
+      articleId,
+      generationId,
+      error instanceof Error ? error : new Error("QC continuation error"),
+    );
   }
 }
 
@@ -391,6 +1022,11 @@ async function continueGenerationPipeline(
       videosForWriting,
       article.notes ?? undefined,
     );
+
+    // Save write result to artifacts immediately after writing
+    await mergeArtifacts(generationId, {
+      write: writeResult,
+    });
 
     const screenshotEnhancement = await enhanceArticleWithScreenshots({
       content: writeResult.content,
@@ -540,6 +1176,7 @@ async function continueGenerationPipeline(
 
     await mergeArtifacts(generationId, {
       write: enhancedWriteResult,
+      validation: validationResult,
     });
 
     const publishReady =

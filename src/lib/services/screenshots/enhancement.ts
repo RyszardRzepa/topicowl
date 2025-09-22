@@ -2,7 +2,7 @@ import { z } from "zod";
 import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { logger } from "@/lib/utils/logger";
-import { captureSpecificScreenshots } from "./capture";
+import { captureSpecificScreenshots, validatePagesBeforeScreenshots } from "./capture";
 import { MODELS } from "@/constants";
 
 const screenshotPlacementSchema = z.object({
@@ -147,8 +147,12 @@ ${content}
     const urlsToCapture = screenshotPlacement.placements.map(
       (p) => p.screenshotUrl,
     );
+
+    // Validate pages before capturing screenshots
+    const validatedUrls = await validatePagesBeforeScreenshots(urlsToCapture);
+    
     const screenshotResults = await captureSpecificScreenshots({
-      screenshotRequests: urlsToCapture.map((url) => ({ url })),
+      screenshotRequests: validatedUrls.map((url: string) => ({ url })),
       articleId,
       projectId,
       generationId,
@@ -156,7 +160,11 @@ ${content}
 
     const finalContent = injectScreenshots(
       content,
-      screenshotPlacement,
+      {
+        placements: screenshotPlacement.placements.filter((p) =>
+          validatedUrls.includes(p.screenshotUrl)
+        ),
+      },
       Object.entries(screenshotResults.screenshots).map(([url, record]) => ({
         sourceUrl: url,
         storagePath: record.imageUrl,

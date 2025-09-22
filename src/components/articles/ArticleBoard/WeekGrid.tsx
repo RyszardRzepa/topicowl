@@ -45,6 +45,7 @@ interface WeekGridProps {
   readonly handleGenerateArticle: (article: Article) => Promise<void>;
   readonly handleDeleteArticle: (item: QueueItem) => Promise<void>;
   readonly handleDeleteArticleDirectly: (article: Article) => Promise<void>;
+  readonly handleRetryGeneration: (article: Article) => Promise<void>;
 }
 
 export function WeekGrid({
@@ -65,6 +66,7 @@ export function WeekGrid({
   handleGenerateArticle,
   handleDeleteArticle,
   handleDeleteArticleDirectly,
+  handleRetryGeneration,
 }: WeekGridProps) {
   return (
 
@@ -526,7 +528,7 @@ export function WeekGrid({
                                               className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                void handleGenerateArticle(
+                                                void handleRetryGeneration(
                                                   article,
                                                 );
                                               }}
@@ -534,7 +536,6 @@ export function WeekGrid({
                                                 parseInt(article.id),
                                                 "generate",
                                               )}
-                                              aria-label="Retry generation"
                                             >
                                               {isOperationLoading(
                                                 parseInt(article.id),
@@ -621,18 +622,18 @@ export function WeekGrid({
                                             className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              void handleGenerateNow(
-                                                queueItem,
+                                              void handleRetryGeneration(
+                                                article,
                                               );
                                             }}
                                             disabled={isOperationLoading(
-                                              queueItem.id,
+                                              parseInt(article.id),
                                               "generate",
                                             )}
                                             aria-label="Retry generation"
                                           >
                                             {isOperationLoading(
-                                              queueItem.id,
+                                              parseInt(article.id),
                                               "generate",
                                             ) ? (
                                               <Loader2 className="h-4 w-4 animate-spin" />

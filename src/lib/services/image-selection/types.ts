@@ -2,28 +2,14 @@ export interface ImageSearchRequest {
   query: string;
   keywords?: string[];
   orientation?: "landscape" | "portrait" | "squarish";
-  color?:
-    | "black_and_white"
-    | "black"
-    | "white"
-    | "yellow"
-    | "orange"
-    | "red"
-    | "purple"
-    | "magenta"
-    | "green"
-    | "teal"
-    | "blue";
-  contentFilter?: "low" | "high";
-  count?: number;
-  excludeIds?: string[];
-  aiEnhance?: boolean;
+  limit?: number;
+  aiSelect?: boolean;
 }
 
-export interface UnsplashImage {
+export interface UnsplashApiImage {
   id: string;
   description: string | null;
-  altDescription: string | null;
+  alt_description: string | null;
   urls: {
     raw: string;
     full: string;
@@ -33,16 +19,16 @@ export interface UnsplashImage {
   };
   width: number;
   height: number;
-  color: string;
-  blurHash: string;
-  likes: number;
+  color: string | null;
+  blur_hash: string | null;
+  likes?: number;
   downloads?: number;
   user: {
     id: string;
     username: string;
     name: string;
-    portfolioUrl: string | null;
-    profileImage: {
+    portfolio_url: string | null;
+    profile_image?: {
       small: string;
       medium: string;
       large: string;
@@ -52,77 +38,51 @@ export interface UnsplashImage {
     self: string;
     html: string;
     download: string;
-    downloadLocation: string;
+    download_location: string;
   };
-  relevanceScore: number;
-  source: "unsplash";
 }
 
-export interface PexelsImage {
+export interface PexelsApiImage {
   id: number;
-  description: string | null;
-  altDescription: string | null;
-  urls: {
-    raw: string;
-    full: string;
-    regular: string;
-    small: string;
-    thumb: string;
-  };
+  alt?: string | null;
+  url: string;
+  photographer: string;
+  photographer_url: string | null;
+  photographer_id: number;
+  avg_color?: string | null;
   width: number;
   height: number;
-  color: string;
-  blurHash?: string;
-  likes?: number;
-  downloads?: number;
-  user: {
-    id: number;
-    username: string;
-    name: string;
-    portfolioUrl: string | null;
-    profileImage: {
-      small: string;
-      medium: string;
-      large: string;
-    };
+  src: {
+    original: string;
+    large2x?: string;
+    large?: string;
+    medium?: string;
+    small?: string;
+    portrait?: string;
+    landscape?: string;
+    tiny?: string;
   };
-  links: {
-    self: string;
-    html: string;
-    download: string;
-    downloadLocation: string;
-  };
-  relevanceScore: number;
-  source: "pexels";
 }
 
-export type CombinedImage = UnsplashImage | PexelsImage;
+export interface ImageSummary {
+  id: string;
+  provider: "unsplash" | "pexels";
+  url: string;
+  previewUrl: string;
+  alt: string;
+  width: number;
+  height: number;
+  author: {
+    name: string;
+    profileUrl?: string;
+  };
+}
 
 export interface ImageSearchResponse {
   success: boolean;
-  data: {
-    images: CombinedImage[];
-    selectedImage?: CombinedImage;
-    totalResults: number;
-    searchQuery: string;
-    attribution?: {
-      photographer: string;
-      sourceUrl: string;
-      downloadUrl: string;
-    };
-    aiQueries?: string[];
-    aiUsed?: boolean;
-  };
-  metadata: {
-    searchTerms: string[];
-    processingTime: number;
-    apiCallsUsed: number;
-    ranking: "algorithm" | "hybrid-ai";
-    sources: {
-      unsplash: number;
-      pexels: number;
-    };
-  };
+  images?: ImageSummary[];
+  selected?: ImageSummary;
+  error?: string;
 }
 
 export interface ArticleImageSelectionRequest {
@@ -137,14 +97,15 @@ export interface ArticleImageSelectionRequest {
 
 export interface ArticleImageSelectionResponse {
   success: boolean;
-  data: {
+  data?: {
     coverImageUrl: string;
-    coverImageAlt?: string;
-    attribution: {
-      photographer: string;
-      unsplashUrl: string;
-      downloadUrl: string;
+    coverImageAlt: string;
+    width: number;
+    height: number;
+    author: {
+      name: string;
+      profileUrl?: string;
     };
-    unsplashImageId: string;
   };
+  error?: string;
 }

@@ -664,6 +664,31 @@ export function ArticlesBoard() {
     }
   };
 
+  const handleRetryGeneration = async (article: Article) => {
+    try {
+      setOperationLoading(parseInt(article.id), "generate", true);
+      const res = await fetch(`/api/articles/${article.id}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("Failed to retry generation");
+      actions.setArticles((prev) =>
+        prev.map((x) =>
+          x.id === article.id
+            ? { ...x, status: "generating", generationProgress: 0 }
+            : x,
+        ),
+      );
+      toast.success("Generation retry started");
+      await Promise.all([refetchArticles(), fetchQueue()]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to retry generation");
+    } finally {
+      setOperationLoading(parseInt(article.id), "generate", false);
+    }
+  };
+
   const openEditModal = (item: QueueItem) => {
     const article = articleById.get(item.articleId);
     setEditTarget(item);
@@ -880,6 +905,7 @@ export function ArticlesBoard() {
           handleGenerateArticle={handleGenerateArticle}
           handleDeleteArticle={handleDeleteArticle}
           handleDeleteArticleDirectly={handleDeleteArticleDirectly}
+          handleRetryGeneration={handleRetryGeneration}
         />
         <CreateArticleDialog
           open={isCreating}

@@ -15,77 +15,53 @@ import type {
   ArticleImageSelectionRequest,
   ArticleImageSelectionResponse,
   ImageSearchResponse,
-  CombinedImage,
-  UnsplashImage,
-  PexelsImage,
+  ImageSummary,
+  UnsplashApiImage,
+  PexelsApiImage,
 } from "./types";
 
 
-// Helper functions for relevance scoring
-const calculateTextRelevance = (text: string | null, searchTerms: string[]): number => {
-  if (!text) return 0;
-  const lowerText = text.toLowerCase();
-  let relevance = 0;
-  for (const term of searchTerms) {
-    const lowerTerm = term.toLowerCase();
-    if (lowerText.includes(lowerTerm)) {
-      relevance += 1;
-      const wordBoundaryRegex = new RegExp(`\\b${lowerTerm}\\b`);
-      if (wordBoundaryRegex.test(lowerText)) relevance += 0.5;
-    }
-  }
-  return Math.min(relevance / searchTerms.length, 1);
+type CandidateImage = {
+  id: string;
+  provider: "unsplash" | "pexels";
+  url: string;
+  previewUrl: string;
+  altText: string | null;
+  width: number;
+  height: number;
+  authorName: string;
+  authorProfileUrl?: string;
+  downloadLocation?: string;
 };
 
-const normalizeMetric = (value: number, threshold: number): number => Math.min(value / threshold, 1);
-const calculateAspectRatioScore = (width: number, height: number): number => {
-  const aspectRatio = width / height;
-  if (aspectRatio >= 1.3 && aspectRatio <= 1.8) return 1;
-  if (aspectRatio >= 1.1 && aspectRatio <= 2.0) return 0.8;
-  return 0.5;
-};
-const calculateResolutionScore = (width: number, height: number): number => {
-  const pixels = width * height;
-  if (pixels >= 2073600) return 1; // 1920x1080
-  if (pixels >= 921600) return 0.8; // 1280x720
-  if (pixels >= 307200) return 0.6; // 640x480
-  return 0.3;
-};
-
-const calculateRelevance = (
-  image: CombinedImage,
-  searchTerms: string[],
-): number => {
-  let score = 0;
-  score += calculateTextRelevance(image.description, searchTerms) * 0.4;
-  score += calculateTextRelevance(image.altDescription, searchTerms) * 0.4;
-  if (image.likes) score += normalizeMetric(image.likes, 100) * 0.05;
-  if (image.downloads) score += normalizeMetric(image.downloads, 1000) * 0.05;
-  score += calculateAspectRatioScore(image.width, image.height) * 0.05;
-  score += calculateResolutionScore(image.width, image.height) * 0.05;
-  return Math.min(score, 1);
-};
-
-// Transformation functions
-const transformUnsplashImage = (
-  image: UnsplashImage,
-  relevanceScore: number,
-): UnsplashImage => {
+const normalizeUnsplashImage = (image: UnsplashApiImage): CandidateImage => {
   return {
-    ...image,
-    relevanceScore,
-    source: "unsplash",
+    id: image.id,
+    provider: "unsplash",
+    url: image.urls.regular,
+    previewUrl: image.urls.small,
+    altText: image.alt_description ?? image.description,
+    width: image.width,
+    height: image.height,
+    authorName: image.user.name,
+    authorProfileUrl: image.user.portfolio_url ?? undefined,
+    downloadLocation: image.links.download_location,
   };
 };
 
-const transformPexelsImage = (
-  image: PexelsImage,
-  relevanceScore: number,
-): PexelsImage => {
+const normalizePexelsImage = (image: PexelsApiImage): CandidateImage => {
+  const displayUrl = image.src.large ?? image.src.medium ?? image.src.original;
+  const previewUrl = image.src.small ?? image.src.medium ?? image.src.original;
   return {
-    ...image,
-    relevanceScore,
-    source: "pexels",
+    id: String(image.id),
+    provider: "pexels",
+    url: displayUrl,
+    previewUrl,
+    altText: image.alt ?? null,
+    width: image.width,
+    height: image.height,
+    authorName: image.photographer,
+    authorProfileUrl: image.photographer_url ?? undefined,
   };
 };
 
@@ -97,7 +73,7 @@ const fetchFromUnsplash = async (
   query: string,
   options: Record<string, unknown>,
 ): Promise<{
-  results: UnsplashImage[];
+  results: UnsplashApiImage[];
   total: number;
   total_pages: number;
 }> => {
@@ -108,7 +84,7 @@ const fetchFromUnsplash = async (
     } as Record<string, string>)}`,
     {
       headers: {
-        Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}`,
+        Authorization: `Client-ID ${env.UNSPLASH_ACCESS_KEY}`,
       },
     },
   );
@@ -116,7 +92,7 @@ const fetchFromUnsplash = async (
     throw new Error(`Unsplash API error: ${response.statusText}`);
   }
   return response.json() as Promise<{
-    results: UnsplashImage[];
+    results: UnsplashApiImage[];
     total: number;
     total_pages: number;
   }>;
@@ -125,7 +101,7 @@ const fetchFromUnsplash = async (
 const fetchFromPexels = async (
   query: string,
   options: Record<string, unknown>,
-): Promise<{ photos: PexelsImage[]; total_results: number }> => {
+): Promise<{ photos: PexelsApiImage[]; total_results: number }> => {
   const response = await fetch(
     `${pexelsApiUrl}/search?${new URLSearchParams({
       query,
@@ -133,7 +109,7 @@ const fetchFromPexels = async (
     } as Record<string, string>)}`,
     {
       headers: {
-        Authorization: `${process.env.PEXELS_API_KEY}`,
+        Authorization: `${env.PEXELS_API_KEY}`,
       },
     },
   );
@@ -141,20 +117,13 @@ const fetchFromPexels = async (
     throw new Error(`Pexels API error: ${response.statusText}`);
   }
   return response.json() as Promise<{
-    photos: PexelsImage[];
+    photos: PexelsApiImage[];
     total_results: number;
   }>;
 };
 
-// Zod schemas
-const queryRefinementSchema = z.object({
-  primaryQuery: z.string(),
-  alternatives: z.array(z.string()).default([]),
-});
-
-const aiRankingSchema = z.object({
-  scores: z.array(z.object({ id: z.string(), score: z.number(), reason: z.string().optional() })),
-  bestId: z.string().optional(),
+const aiSelectionSchema = z.object({
+  bestId: z.string(),
 });
 
 export async function searchForImages(
@@ -162,11 +131,8 @@ export async function searchForImages(
   keywords: string[] = [],
   options: {
     orientation?: "landscape" | "portrait" | "squarish";
-    color?: string;
-    contentFilter?: "low" | "high";
-    count?: number;
-    excludeIds?: string[];
-    aiEnhance?: boolean;
+    limit?: number;
+    aiSelect?: boolean;
   } = {},
 ): Promise<ImageSearchResponse> {
   console.log(
@@ -178,295 +144,179 @@ export async function searchForImages(
     throw new Error("Search query is required");
   }
 
-  const startTime = Date.now();
-  let apiCallsUsed = 0;
+  const aiSelect = options.aiSelect ?? true;
+  const limit = Math.max(1, options.limit ?? (aiSelect ? 12 : 100));
 
-  const totalCount = options.count ?? 100;
-  const unsplashCount = Math.floor(totalCount / 2);
-  const pexelsCount = totalCount - unsplashCount;
+  const unsplashTarget = aiSelect
+    ? Math.min(12, 30)
+    : Math.min(Math.ceil(limit / 2), 30);
+  const remainingForPexels = Math.max(limit - unsplashTarget, 0);
+  const pexelsTarget = aiSelect
+    ? Math.min(12, 80)
+    : Math.min(remainingForPexels, 80);
 
-  const unsplashSearchParams: Record<string, string> = {
-    per_page: Math.min(unsplashCount, 30).toString(),
+  const unsplashParams: Record<string, string> = {
+    per_page: Math.max(1, unsplashTarget).toString(),
     order_by: "relevant",
-    content_filter: options.contentFilter ?? "low",
   };
 
-  const pexelsSearchParams: Record<string, string> = {
-    per_page: Math.min(pexelsCount, 80).toString(),
+  const pexelsParams: Record<string, string> = {
+    per_page: Math.max(1, pexelsTarget).toString(),
   };
 
   if (options.orientation) {
-    unsplashSearchParams.orientation = options.orientation;
+    unsplashParams.orientation = options.orientation;
     if (options.orientation !== "squarish") {
-      pexelsSearchParams.orientation = options.orientation;
+      pexelsParams.orientation = options.orientation;
     }
   }
-  if (options.color) {
-    unsplashSearchParams.color = options.color;
-    pexelsSearchParams.color = options.color;
+
+  const fetchPromises: Promise<
+    | { source: "unsplash"; images: UnsplashApiImage[] }
+    | { source: "pexels"; images: PexelsApiImage[] }
+  >[] = [];
+
+  if (unsplashTarget > 0) {
+    fetchPromises.push(
+      fetchFromUnsplash(query, unsplashParams)
+        .then((res) => ({ source: "unsplash" as const, images: res.results }))
+        .catch((error: Error) => {
+          console.warn("[IMAGE_SEARCH_SERVICE] Unsplash search failed", error);
+          return { source: "unsplash" as const, images: [] };
+        }),
+    );
   }
 
-  let aiQueries: string[] = [];
-  let effectiveQueries: string[] = [query];
-  let aiUsed = false;
+  if (pexelsTarget > 0) {
+    fetchPromises.push(
+      fetchFromPexels(query, pexelsParams)
+        .then((res) => ({ source: "pexels" as const, images: res.photos }))
+        .catch((error: Error) => {
+          console.warn("[IMAGE_SEARCH_SERVICE] Pexels search failed", error);
+          return { source: "pexels" as const, images: [] };
+        }),
+    );
+  }
 
-  if (options.aiEnhance) {
-    try {
-      const refinementPrompt = `You are generating optimal photo search queries for an article title.
-Return ONLY JSON: {"primaryQuery":"...","alternatives":["...", "..."]}
-Instructions:
-- Extract any specific place names or proper nouns from the title and KEEP them intact in queries.
-- Use 1-3 word visually concrete phrases (nouns/adjectives only).
-- Remove filler words (guide, how to, tips, strategy, introduction, ultimate).
-- Prefer plural for generic scene subjects (e.g. "museums", "solar panels").
-- If title is abstract, choose a concrete visual proxy.
-- Each alternative must be distinct (different focus or synonym).
+  const providerResults = await Promise.all(fetchPromises);
 
-Title: ${query}
-Keywords: ${keywords.join(", ")}`;
+  const candidates: CandidateImage[] = [];
 
-      const { object: refinementObj } = await generateObject({
-        model: google(MODELS.GEMINI_2_5_FLASH),
-        prompt: refinementPrompt,
-        schema: queryRefinementSchema,
-        temperature: 0.2,
+  providerResults.forEach((result) => {
+    if (result.source === "unsplash") {
+      result.images.forEach((image) => {
+        candidates.push(normalizeUnsplashImage(image));
       });
-
-      if (refinementObj.primaryQuery.trim()) {
-        aiUsed = true;
-        aiQueries = [
-          refinementObj.primaryQuery.trim(),
-          ...refinementObj.alternatives.filter((q) => q?.trim()),
-        ];
-        const seen = new Set<string>();
-        effectiveQueries = [];
-        for (const q of aiQueries) {
-          const cleaned = q.toLowerCase();
-          if (!seen.has(cleaned)) {
-            seen.add(cleaned);
-            effectiveQueries.push(q);
-          }
-          if (effectiveQueries.length >= 4) break;
-        }
-      } else {
-        console.log(
-          "[IMAGE_SEARCH_SERVICE] AI refinement parse failed, falling back to original query",
-        );
-      }
-    } catch (aiRefineError) {
-      console.warn(
-        "[IMAGE_SEARCH_SERVICE] AI refinement error, continuing without it:",
-        aiRefineError,
-      );
-    }
-  }
-
-  console.log("[IMAGE_SEARCH_SERVICE] Effective queries:", effectiveQueries);
-
-  type SearchResult =
-    | {
-        source: "unsplash";
-        query: string;
-        images: UnsplashImage[];
-      }
-    | {
-        source: "pexels";
-        query: string;
-        images: PexelsImage[];
-      }
-    | {
-        source: "unsplash" | "pexels";
-        query: string;
-        error: Error;
-      };
-
-  const searchPromises: Promise<SearchResult>[] = effectiveQueries.flatMap(
-    (q: string) => [
-      fetchFromUnsplash(q, unsplashSearchParams)
-        .then((res) => ({
-          source: "unsplash" as const,
-          query: q,
-          images: res.results,
-        }))
-        .catch((error: Error) => ({
-          source: "unsplash" as const,
-          query: q,
-          error,
-        })),
-      fetchFromPexels(q, pexelsSearchParams)
-        .then((res) => ({
-          source: "pexels" as const,
-          query: q,
-          images: res.photos,
-        }))
-        .catch((error: Error) => ({
-          source: "pexels" as const,
-          query: q,
-          error,
-        })),
-    ],
-  );
-
-  const results = await Promise.all(searchPromises);
-
-  let allTransformedImages: CombinedImage[] = [];
-  const searchTerms = [...(keywords ?? []), query];
-
-  results.forEach((result) => {
-    if ("images" in result && result.images) {
-      if (result.source === "unsplash") {
-        result.images.forEach((img) => {
-          const relevanceScore = calculateRelevance(img, searchTerms);
-          allTransformedImages.push(
-            transformUnsplashImage(img, relevanceScore),
-          );
-        });
-      } else if (result.source === "pexels") {
-        result.images.forEach((img) => {
-          const relevanceScore = calculateRelevance(img, searchTerms);
-          allTransformedImages.push(transformPexelsImage(img, relevanceScore));
-        });
-      }
+    } else {
+      result.images.forEach((image) => {
+        candidates.push(normalizePexelsImage(image));
+      });
     }
   });
 
-  allTransformedImages.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-  if (options.excludeIds?.length) {
-    allTransformedImages = allTransformedImages.filter(
-      (img) => !options.excludeIds!.includes(String(img.id)),
-    );
-    console.log(
-      "[IMAGE_SEARCH_SERVICE] Filtered excluded images, remaining:",
-      allTransformedImages.length,
-    );
+  if (!candidates.length) {
+    return {
+      success: false,
+      error: "No images found",
+    };
   }
 
-  let rankingMode: "algorithm" | "hybrid-ai" = "algorithm";
-  if (options.aiEnhance && allTransformedImages.length > 1) {
-    try {
-      const candidateCount = Math.min(12, allTransformedImages.length);
-      const candidates = allTransformedImages
-        .sort((a, b) => b.relevanceScore - a.relevanceScore)
-        .slice(0, candidateCount);
+  const createSummary = (candidate: CandidateImage): ImageSummary => {
+    const altText = candidate.altText?.trim()
+      ? candidate.altText
+      : `Photo by ${candidate.authorName}`;
+    return {
+      id: candidate.id,
+      provider: candidate.provider,
+      url: candidate.url,
+      previewUrl: candidate.previewUrl,
+      alt: altText,
+      width: candidate.width,
+      height: candidate.height,
+      author: {
+        name: candidate.authorName,
+        profileUrl: candidate.authorProfileUrl,
+      },
+    };
+  };
 
-      const aiRankingPrompt = `You are selecting the best image for an article.
-Article topic: ${query}
+  if (!aiSelect) {
+    const summaries = candidates
+      .slice(0, limit)
+      .map((candidate) => createSummary(candidate));
+
+    return {
+      success: true,
+      images: summaries,
+    };
+  }
+
+  const initialCandidate = candidates[0]!;
+
+  const candidatePrompt = candidates
+    .slice(0, 12)
+    .map((candidate, index) => {
+      const fallbackAlt = keywords.join(", ") ?? "";
+      return `Candidate ${index + 1}:\nID: ${candidate.id}\nAuthor: ${candidate.authorName}\nAlt: ${candidate.altText ?? fallbackAlt}\nSource: ${candidate.provider}`;
+    })
+    .join("\n\n");
+
+  const aiPrompt = `You are selecting a single photo that best matches an article topic.
+Article title: ${query}
 Keywords: ${keywords.join(", ")}
 
-Rate each candidate image from 0-100 (higher is better) based on semantic relevance, descriptive clarity, likely usefulness as a blog cover, composition quality implied by description, and general professionalism.
-Return ONLY JSON in the structure: {"scores":[{"id":"<id>","score":90,"reason":"short reason"},...],"bestId":"<id>"}
-Be concise. If unsure, approximate.
+Pick the most relevant and high-quality option from the list.
+Return ONLY JSON: {"bestId":"<ID>"}.
 
-Candidates:\n${candidates.map((c) => `ID:${c.id}\nAlt:${c.altDescription ?? ""}\nDesc:${c.description ?? ""}\nSource:${c.source}\n`).join("\n")}`;
+${candidatePrompt}`;
 
-      const { object: ranking } = await generateObject({
-        model: google(MODELS.GEMINI_2_5_FLASH),
-        prompt: aiRankingPrompt,
-        schema: aiRankingSchema,
-        temperature: 0.1,
-      });
+  let selected: CandidateImage = initialCandidate;
 
-      if (ranking.scores.length) {
-        rankingMode = "hybrid-ai";
-        const aiScoreMap = new Map<string, number>();
-        ranking.scores.forEach((s) => {
-          if (typeof s.score === "number")
-            aiScoreMap.set(String(s.id), Math.max(0, Math.min(100, s.score)));
-        });
-        allTransformedImages = allTransformedImages.map((img) => {
-          const aiScore = aiScoreMap.get(String(img.id));
-          if (aiScore !== undefined) {
-            const combined = img.relevanceScore * 0.4 + (aiScore / 100) * 0.6;
-            return { ...img, relevanceScore: combined };
-          }
-          return img;
-        });
-        console.log("[IMAGE_SEARCH_SERVICE] Applied AI ranking to images");
-      }
-    } catch (aiRankError) {
-      console.warn(
-        "[IMAGE_SEARCH_SERVICE] AI ranking error, continuing with algorithmic ranking:",
-        aiRankError,
-      );
+  try {
+    const { object: selection } = await generateObject({
+      model: google(MODELS.GEMINI_2_5_FLASH),
+      prompt: aiPrompt,
+      schema: aiSelectionSchema,
+      temperature: 0.1,
+    });
+
+    const aiChoice = candidates.find((candidate) => candidate.id === selection.bestId);
+    if (aiChoice) {
+      selected = aiChoice;
     }
+  } catch (aiError) {
+    console.warn("[IMAGE_SEARCH_SERVICE] AI selection failed, using first candidate", aiError);
   }
 
-  allTransformedImages = allTransformedImages
-    .sort((a, b) => b.relevanceScore - a.relevanceScore)
-    .slice(0, totalCount);
-
-  const unsplashCount_actual = allTransformedImages.filter(
-    (i) => i.source === "unsplash",
-  ).length;
-  const pexelsCount_actual = allTransformedImages.filter(
-    (i) => i.source === "pexels",
-  ).length;
-
-  console.log("[IMAGE_SEARCH_SERVICE] Combined results:", {
-    unsplash: unsplashCount_actual,
-    pexels: pexelsCount_actual,
-    total: allTransformedImages.length,
-  });
-
-  const selectedImage = allTransformedImages[0];
-  const totalResults = allTransformedImages.length;
-
-  let attribution:
-    | { photographer: string; sourceUrl: string; downloadUrl: string }
-    | undefined = undefined;
-  if (selectedImage) {
+  if (selected.provider === "unsplash" && selected.downloadLocation) {
     try {
-      if (selectedImage.source === "unsplash") {
-        await fetch(selectedImage.links.downloadLocation, {
-          headers: {
-            Authorization: `Client-ID ${env.UNSPLASH_ACCESS_KEY}`,
-          },
-        });
-        apiCallsUsed++;
-      }
-
-      attribution = {
-        photographer: selectedImage.user.name,
-        sourceUrl: selectedImage.links.html,
-        downloadUrl: selectedImage.links.downloadLocation,
-      };
+      await fetch(selected.downloadLocation, {
+        headers: {
+          Authorization: `Client-ID ${env.UNSPLASH_ACCESS_KEY}`,
+        },
+      });
     } catch (downloadError) {
       console.error(
-        "[IMAGE_SEARCH_SERVICE] Failed to track attribution:",
+        "[IMAGE_SEARCH_SERVICE] Failed to track Unsplash download",
         downloadError,
       );
     }
   }
 
-  const processingTime = Date.now() - startTime;
-  console.log(
-    "[IMAGE_SEARCH_SERVICE] Combined search completed successfully in",
-    processingTime,
-    "ms",
-  );
+  const summaries: ImageSummary[] = candidates.map(createSummary);
+
+  const selectedSummary =
+    summaries.find((img) => img.id === selected.id) ?? summaries[0]!;
+
+  let images = summaries.slice(0, limit);
+  if (!images.some((img) => img.id === selectedSummary.id)) {
+    images = [selectedSummary, ...images].slice(0, limit);
+  }
 
   return {
     success: true,
-    data: {
-      images: allTransformedImages,
-      selectedImage,
-      totalResults,
-      searchQuery: query,
-      attribution,
-      aiQueries: aiQueries.length > 0 ? aiQueries : undefined,
-      aiUsed: aiUsed || (options.aiEnhance ?? false),
-    },
-    metadata: {
-      searchTerms: [query, ...keywords],
-      processingTime,
-      apiCallsUsed,
-      ranking: rankingMode,
-      sources: {
-        unsplash: unsplashCount_actual,
-        pexels: pexelsCount_actual,
-      },
-    },
+    images,
+    selected: selectedSummary,
   };
 }
 
@@ -501,44 +351,26 @@ export async function selectImageForArticle(
     );
   }
 
-  const imageData = await searchForImages(request.title, request.keywords, {
+  const imageResult = await searchForImages(request.title, request.keywords, {
     orientation: request.orientation ?? "landscape",
-    contentFilter: "low",
-    count: 1,
-    aiEnhance: false,
   });
 
   console.log("[IMAGE_SELECTION_SERVICE] Image search completed");
 
-  if (!imageData.success || !imageData.data.selectedImage) {
+  if (!imageResult.success || !imageResult.selected) {
     console.log("[IMAGE_SELECTION_SERVICE] No suitable image found");
     throw new Error("No suitable image found");
   }
 
-  const selectedImage: CombinedImage = imageData.data.selectedImage;
-  const attribution = imageData.data.attribution;
+  const fallbackImage = imageResult.selected ?? (imageResult.images?.[0] ?? undefined);
 
-  if (!attribution) {
-    throw new Error("Attribution data missing from image search response");
+  if (!fallbackImage) {
+    throw new Error("No suitable image found");
   }
 
-  console.log(
-    "[IMAGE_SELECTION_SERVICE] Selected image:",
-    selectedImage.id,
-    "from",
-    selectedImage.source,
-  );
+  const imageSummary: ImageSummary = fallbackImage;
 
-  const legacyAttribution = {
-    photographer: attribution.photographer,
-    unsplashUrl: attribution.sourceUrl,
-    downloadUrl: attribution.downloadUrl,
-  };
-
-  const imageAlt =
-    selectedImage.altDescription ??
-    selectedImage.description ??
-    `Photo by ${attribution.photographer}`;
+  console.log("[IMAGE_SELECTION_SERVICE] Selected image:", imageSummary.url);
 
   if (generationRecord) {
     try {
@@ -552,15 +384,15 @@ export async function selectImageForArticle(
       const mergedArtifacts: ArticleGenerationArtifacts = {
         ...(artifacts ?? {}),
         coverImage: {
-          ...(artifacts?.coverImage ?? {}),
-          imageId: String(selectedImage.id),
-          imageUrl: selectedImage.urls.regular,
-          altText: imageAlt,
-          attribution: {
-            photographer: attribution.photographer,
-            sourceUrl: attribution.sourceUrl,
-            downloadUrl: attribution.downloadUrl,
-          },
+          imageId: imageSummary.id,
+          imageUrl: imageSummary.url,
+          altText: imageSummary.alt,
+          attribution: imageSummary.author.name
+            ? {
+                photographer: imageSummary.author.name,
+                sourceUrl: imageSummary.author.profileUrl,
+              }
+            : undefined,
           query: request.title,
           keywords: request.keywords,
         },
@@ -589,26 +421,11 @@ export async function selectImageForArticle(
     );
   }
 
-  const imageKeywords: string[] = [];
-  if (selectedImage.description) {
-    const descWords = selectedImage.description
-      .toLowerCase()
-      .replace(/[^\w\s]/gi, "")
-      .split(/\s+/)
-      .filter((word) => word.length > 3)
-      .slice(0, 5);
-    imageKeywords.push(...descWords);
-  }
-  if (selectedImage.user.name) {
-    imageKeywords.push(selectedImage.user.name);
-  }
-  imageKeywords.push(selectedImage.source);
-
   await db
     .update(articles)
     .set({
-      coverImageUrl: selectedImage.urls.regular,
-      coverImageAlt: imageAlt,
+      coverImageUrl: imageSummary.url,
+      coverImageAlt: imageSummary.alt,
       updatedAt: new Date(),
     })
     .where(eq(articles.id, request.articleId));
@@ -618,10 +435,11 @@ export async function selectImageForArticle(
   const response: ArticleImageSelectionResponse = {
     success: true,
     data: {
-      coverImageUrl: selectedImage.urls.regular,
-      coverImageAlt: imageAlt,
-      attribution: legacyAttribution,
-      unsplashImageId: String(selectedImage.id),
+      coverImageUrl: imageSummary.url,
+      coverImageAlt: imageSummary.alt,
+      width: imageSummary.width,
+      height: imageSummary.height,
+      author: imageSummary.author,
     },
   };
 

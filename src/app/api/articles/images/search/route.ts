@@ -26,11 +26,8 @@ export async function POST(request: NextRequest) {
     // Use the extracted service instead of inline logic
     const result = await searchForImages(body.query, body.keywords ?? [], {
       orientation: body.orientation,
-      color: body.color,
-      contentFilter: body.contentFilter,
-      count: body.count,
-      excludeIds: body.excludeIds,
-      aiEnhance: body.aiEnhance,
+      limit: typeof body.limit === "number" ? Math.max(1, Math.min(body.limit, 100)) : 100,
+      aiSelect: false,
     });
 
     console.log("[IMAGE_SEARCH_API] Search completed successfully");

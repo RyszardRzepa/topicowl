@@ -13,7 +13,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { CombinedImage } from "@/lib/services/image-selection";
+import type { ImageSummary } from "@/lib/services/image-selection";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface CoverImageDisplayProps {
   coverImageUrl?: string;
@@ -37,7 +45,9 @@ export function CoverImageDisplay({
   const [tempImageUrl, setTempImageUrl] = useState(coverImageUrl);
   const [tempImageAlt, setTempImageAlt] = useState(coverImageAlt);
   const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
-  const [selectedImage, setSelectedImage] = useState<CombinedImage | null>(
+  const [selectedImage, setSelectedImage] = useState<ImageSummary | null>(null);
+  const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [dialogSelection, setDialogSelection] = useState<ImageSummary | null>(
     null,
   );
 
@@ -65,16 +75,36 @@ export function CoverImageDisplay({
     setTempImageUrl("");
     setTempImageAlt("");
     setIsEditing(false);
+    setSelectedImage(null);
   };
 
-  const handleImageSelect = (image: CombinedImage) => {
+  const applyImageSelection = (image: ImageSummary) => {
     setSelectedImage(image);
-    setTempImageUrl(image.urls.regular);
-    setTempImageAlt(
-      image.altDescription ??
-        image.description ??
-        `Photo by ${image.user.name}`,
-    );
+    setTempImageUrl(image.url);
+    setTempImageAlt(image.alt);
+  };
+
+  const closeSearchDialog = (open: boolean) => {
+    setIsSearchDialogOpen(open);
+    if (!open) {
+      setDialogSelection(selectedImage);
+    }
+  };
+
+  const handleDialogSelect = () => {
+    if (!dialogSelection) return;
+    applyImageSelection(dialogSelection);
+    setIsSearchDialogOpen(false);
+  };
+
+  const openUrlMode = () => {
+    setImageInputMode("url");
+  };
+
+  const openSearchMode = () => {
+    setImageInputMode("search");
+    setDialogSelection(selectedImage);
+    setIsSearchDialogOpen(true);
   };
 
   if (!coverImageUrl && !isEditing) {
@@ -119,7 +149,7 @@ export function CoverImageDisplay({
               type="button"
               variant={imageInputMode === "url" ? "default" : "outline"}
               size="sm"
-              onClick={() => setImageInputMode("url")}
+              onClick={openUrlMode}
             >
               <Link className="mr-1 h-4 w-4" />
               URL
@@ -128,7 +158,7 @@ export function CoverImageDisplay({
               type="button"
               variant={imageInputMode === "search" ? "default" : "outline"}
               size="sm"
-              onClick={() => setImageInputMode("search")}
+              onClick={openSearchMode}
             >
               <Search className="mr-1 h-4 w-4" />
               Search
@@ -173,10 +203,40 @@ export function CoverImageDisplay({
               <label className="mb-3 block text-sm font-medium text-gray-700">
                 Search Images
               </label>
-              <ImagePicker
-                onImageSelect={handleImageSelect}
-                selectedImageId={selectedImage?.id}
-              />
+              <Dialog
+                open={isSearchDialogOpen}
+                onOpenChange={closeSearchDialog}
+              >
+                <DialogContent className="flex max-h-[90vh] w-xl flex-col gap-4 overflow-hidden">
+                  <div className="shrink-0">
+                    <DialogHeader>
+                      <DialogTitle>Select a cover image</DialogTitle>
+                    </DialogHeader>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <ImagePicker
+                      onImageSelect={setDialogSelection}
+                      selectedImageUrl={dialogSelection?.url}
+                    />
+                  </div>
+                  <DialogFooter className="justify-end border-t pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsSearchDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleDialogSelect}
+                      disabled={!dialogSelection}
+                    >
+                      Select
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Show alt text input for selected image */}
               {selectedImage && (
@@ -245,36 +305,20 @@ export function CoverImageDisplay({
                   unoptimized
                 />
               </TooltipTrigger>
-              {selectedImage &&
-              (selectedImage.description ?? selectedImage.altDescription) ? (
+              {selectedImage ? (
                 <TooltipContent className="max-w-sm">
-                  <div className="space-y-2">
-                    {selectedImage.description && (
-                      <div>
-                        <p className="text-sm font-medium">Description:</p>
-                        <p className="text-muted-foreground text-xs">
-                          {selectedImage.description}
-                        </p>
-                      </div>
-                    )}
-                    {selectedImage.altDescription &&
-                      selectedImage.altDescription !==
-                        selectedImage.description && (
-                        <div>
-                          <p className="text-sm font-medium">Alt text:</p>
-                          <p className="text-muted-foreground text-xs">
-                            {selectedImage.altDescription}
-                          </p>
-                        </div>
-                      )}
+                  <div className="text-muted-foreground space-y-2 text-xs">
                     <div>
-                      <p className="text-sm font-medium">Source:</p>
-                      <p className="text-muted-foreground text-xs">
-                        Photo by {selectedImage.user.name} on{" "}
-                        {selectedImage.source === "unsplash"
-                          ? "Unsplash"
-                          : "Pexels"}
+                      <p className="text-sm font-medium text-gray-900">
+                        Alt text
                       </p>
+                      <p>{selectedImage.alt}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Photographer
+                      </p>
+                      <p>{selectedImage.author.name}</p>
                     </div>
                   </div>
                 </TooltipContent>
