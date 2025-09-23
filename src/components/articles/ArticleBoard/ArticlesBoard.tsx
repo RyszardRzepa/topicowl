@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCurrentProjectId } from "@/contexts/project-context";
 import { useWorkflowArticles } from "@/components/workflow/use-workflow-articles";
+import { useTopicGenerationPolling } from "@/hooks/use-topic-generation-polling";
 import type { Article } from "@/types";
 import { STATUSES, getBoardEventConfig } from "@/lib/article-status";
 import { BoardHeader } from "./BoardHeader";
@@ -14,7 +15,6 @@ import { CreateArticleDialog } from "./CreateArticleDialog";
 import { EditArticleDialog } from "./EditArticleDialog";
 import type {
   ArticleEvent,
-  ArticleIdea,
   CreateFormState,
   EditFormState,
   GenerationStatusResponse,
@@ -65,6 +65,13 @@ export function ArticlesBoard() {
     actions,
   } = useWorkflowArticles();
 
+  // Use the new topic generation hook
+  const {
+    isGenerating: isGeneratingTopics,
+    taskStatus,
+    startTopicGeneration,
+  } = useTopicGenerationPolling();
+
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [loadingQueue, setLoadingQueue] = useState(false);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
@@ -85,7 +92,6 @@ export function ArticlesBoard() {
     notes: "",
     scheduledAt: null,
   });
-  const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
 
   const isPastDay = useCallback((d: Date) => {
     const day = new Date(d);
@@ -359,140 +365,6 @@ export function ArticlesBoard() {
       return changed ? updated : prev;
     });
   }, [queueItems, actions]);
-
-  const handleGenerateIdeas = async () => {
-    if (!projectId) return;
-
-    try {
-      setIsGeneratingIdeas(true);
-
-      // Call the generate-ideas API
-      const generateRes = await fetch("/api/articles/generate-ideas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
-      });
-
-      if (!generateRes.ok) {
-        const errorData = (await generateRes.json()) as { error?: string };
-        throw new Error(errorData.error ?? "Failed to generate ideas");
-      }
-
-      const generateData = (await generateRes.json()) as {
-        success: boolean;
-        ideas: ArticleIdea[];
-        error?: string;
-      };
-
-      if (!generateData.success) {
-        throw new Error(generateData.error ?? "Failed to generate ideas");
-      }
-
-      const ideas = generateData.ideas;
-      if (ideas.length === 0) {
-        toast.error("No ideas were generated");
-        return;
-      }
-
-      // Create articles from the ideas
-      const createdArticles: Array<{ id: number; title: string }> = [];
-      for (const idea of ideas) {
-        try {
-          const createRes = await fetch("/api/articles", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: idea.title,
-              keywords: idea.keywords,
-              notes: idea.description,
-              projectId,
-            }),
-          });
-
-          if (createRes.ok) {
-            const created = (await createRes.json()) as {
-              id: number;
-              title: string;
-            };
-            createdArticles.push(created);
-          }
-        } catch (error) {
-          console.error(
-            `Failed to create article for idea: ${idea.title}`,
-            error,
-          );
-        }
-      }
-
-      if (createdArticles.length === 0) {
-        toast.error("Failed to create articles from generated ideas");
-        return;
-      }
-
-      // Schedule the created articles over the next few days, starting tomorrow
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(now.getDate() + 1);
-      tomorrow.setHours(9, 0, 0, 0); // 9 AM tomorrow
-
-      for (let i = 0; i < createdArticles.length; i++) {
-        const article = createdArticles[i];
-        if (!article) continue;
-
-        try {
-          // Schedule each article i days after tomorrow (tomorrow, day after, etc.)
-          const scheduledDate = new Date(tomorrow);
-          scheduledDate.setDate(tomorrow.getDate() + i);
-
-          // Ensure we're always in the future
-          if (scheduledDate.getTime() <= now.getTime()) {
-            console.warn("Generated past date, adjusting to tomorrow");
-            scheduledDate.setDate(now.getDate() + i + 2);
-          }
-
-          const scheduledIso = scheduledDate.toISOString();
-          console.log(
-            `Scheduling article "${article.title}" for ${scheduledDate.toLocaleDateString()}`,
-          );
-
-          // Add to generation queue
-          const queueRes = await fetch("/api/articles/generation-queue", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              articleId: article.id,
-              scheduledForDate: scheduledIso,
-            }),
-          });
-
-          if (queueRes.ok) {
-            // Update article with publish schedule
-            await fetch(`/api/articles/${article.id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ publishScheduledAt: scheduledIso }),
-            });
-          }
-        } catch (error) {
-          console.error(`Failed to schedule article: ${article.title}`, error);
-        }
-      }
-
-      toast.success(
-        `Generated ${ideas.length} article ideas and scheduled them for the coming days`,
-      );
-
-      // Refresh the data
-      await Promise.all([refetchArticles(), fetchQueue()]);
-    } catch (error) {
-      console.error("Failed to generate ideas:", error);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to generate ideas",
-      );
-    } finally {
-      setIsGeneratingIdeas(false);
-    }
-  };
 
   const navigateWeek = (direction: "prev" | "next") => {
     setCurrentDate((prev) =>
@@ -879,12 +751,12 @@ export function ArticlesBoard() {
         <BoardHeader
           weekStart={weekStart}
           isBusy={isBusy}
-          isGeneratingIdeas={isGeneratingIdeas}
+          isGeneratingIdeas={isGeneratingTopics}
           overdueCount={overdueQueueItemIds.size}
           onToday={goToToday}
           onPrevWeek={() => navigateWeek("prev")}
           onNextWeek={() => navigateWeek("next")}
-          onGenerateIdeas={handleGenerateIdeas}
+          onGenerateIdeas={startTopicGeneration}
           onRescheduleOverdue={handleRescheduleOverdue}
         />
         <WeekGrid
@@ -925,6 +797,23 @@ export function ArticlesBoard() {
           isUpdating={isUpdating}
           onSubmit={handleEditSave}
         />
+        
+        {/* Topic Generation Banner */}
+        {isGeneratingTopics && (
+          <div className="bg-primary/10 border-t border-primary/20 p-3">
+            <div className="flex items-center justify-center gap-3">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="text-sm text-primary font-medium">
+                {taskStatus?.status === 'running' 
+                  ? `Researching topics for your project...` 
+                  : 'Generating article ideas...'}
+              </span>
+              <span className="text-xs text-primary/70">
+                This may take a few minutes
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </TooltipProvider>
   );
