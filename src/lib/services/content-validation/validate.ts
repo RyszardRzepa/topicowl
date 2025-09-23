@@ -81,7 +81,7 @@ export async function performValidation(
     tools: {
       google_search: google.tools.googleSearch({}),
       url_context: google.tools.urlContext({}),
-      code_execution: google.tools.codeExecution({}),
+      // code_execution: google.tools.codeExecution({}),
     },
     system: prompts.verifyClaimsPrompt(claimsObject.claims),
     prompt: `Please verify the claims for the article.`,

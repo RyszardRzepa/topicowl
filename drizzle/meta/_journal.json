@@ -435,6 +435,13 @@
       "when": 1758181719786,
       "tag": "0061_curious_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1758622609057,
+      "tag": "0062_stiff_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

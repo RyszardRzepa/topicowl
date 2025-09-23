@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
 import type { ArticleGenerationArtifacts } from "@/types";
+import type { GenerationTaskStatus } from "@/lib/services/topic-discovery/types";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -335,6 +336,27 @@ export const socialPosts = topicowlSchema.table(
   (table) => ({
     projectIdIdx: index("social_posts_project_id_idx").on(table.projectId),
   }),
+);
+
+export const topicGenerationTasks = topicowlSchema.table(
+  "topic_generation_tasks",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    taskId: text("task_id").notNull().unique(),
+    status: text("status").$type<GenerationTaskStatus>().default("running").notNull(),
+    topicsGenerated: integer("topics_generated").default(0),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  }
 );
 
 // Reddit automation workflows table
