@@ -41,6 +41,7 @@ interface ArticleSettingsForm {
   industryCategory: string;
   targetAudience: string;
   publishingFrequency: string;
+  language: string;
 }
 
 interface ArticleSettingsFormProps {
@@ -74,6 +75,7 @@ export function ArticleSettingsForm({
     industryCategory: "business",
     targetAudience: "",
     publishingFrequency: "weekly",
+    language: initialSettings.language ?? "en",
   });
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -129,6 +131,8 @@ export function ArticleSettingsForm({
         companyName: formData.companyName || undefined,
         productDescription: formData.productDescription || undefined,
         keywords: formData.keywords,
+        // Language settings
+        language: formData.language,
       };
 
       const response = await fetch("/api/settings", {
@@ -253,6 +257,7 @@ export function ArticleSettingsForm({
         companyName: "",
         productDescription: "",
         keywords: [],
+        language: "en",
       };
 
       const response = await fetch("/api/settings", {
@@ -289,6 +294,7 @@ export function ArticleSettingsForm({
         industryCategory: "business",
         targetAudience: "",
         publishingFrequency: "weekly",
+        language: settings.language ?? "en",
       });
       onSettingsUpdate(settings);
       setSaveMessage(
@@ -467,6 +473,65 @@ export function ArticleSettingsForm({
                 />
                 <p className="mt-1 text-sm text-gray-500">
                   Who your articles are primarily written for
+                </p>
+              </div>
+
+              {/* Language */}
+              <div>
+                <label
+                  htmlFor="language"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Content Language
+                </label>
+                <Select
+                  value={formData.language}
+                  onValueChange={(value) =>
+                    handleInputChange("language", value)
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select content language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="es">Spanish</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
+                    <SelectItem value="de">German</SelectItem>
+                    <SelectItem value="it">Italian</SelectItem>
+                    <SelectItem value="pt">Portuguese</SelectItem>
+                    <SelectItem value="pl">Polish</SelectItem>
+                    <SelectItem value="nl">Dutch</SelectItem>
+                    <SelectItem value="sv">Swedish</SelectItem>
+                    <SelectItem value="da">Danish</SelectItem>
+                    <SelectItem value="no">Norwegian</SelectItem>
+                    <SelectItem value="fi">Finnish</SelectItem>
+                    <SelectItem value="cs">Czech</SelectItem>
+                    <SelectItem value="hu">Hungarian</SelectItem>
+                    <SelectItem value="ro">Romanian</SelectItem>
+                    <SelectItem value="bg">Bulgarian</SelectItem>
+                    <SelectItem value="hr">Croatian</SelectItem>
+                    <SelectItem value="sk">Slovak</SelectItem>
+                    <SelectItem value="sl">Slovenian</SelectItem>
+                    <SelectItem value="et">Estonian</SelectItem>
+                    <SelectItem value="lv">Latvian</SelectItem>
+                    <SelectItem value="lt">Lithuanian</SelectItem>
+                    <SelectItem value="ru">Russian</SelectItem>
+                    <SelectItem value="uk">Ukrainian</SelectItem>
+                    <SelectItem value="ja">Japanese</SelectItem>
+                    <SelectItem value="ko">Korean</SelectItem>
+                    <SelectItem value="zh">Chinese (Simplified)</SelectItem>
+                    <SelectItem value="zh-tw">Chinese (Traditional)</SelectItem>
+                    <SelectItem value="ar">Arabic</SelectItem>
+                    <SelectItem value="he">Hebrew</SelectItem>
+                    <SelectItem value="hi">Hindi</SelectItem>
+                    <SelectItem value="th">Thai</SelectItem>
+                    <SelectItem value="vi">Vietnamese</SelectItem>
+                    <SelectItem value="tr">Turkish</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-sm text-gray-500">
+                  Primary language for AI-generated articles and content
                 </p>
               </div>
             </CardContent>

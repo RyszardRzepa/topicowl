@@ -96,7 +96,7 @@ Write a article following instructions. Don't change article title.
 <tone>${settings?.toneOfVoice ?? "expert, clear, direct, friendly"}</tone>
 <audience>${data.audience ?? "General business readers"}</audience>
 <date>${new Date().toISOString().split("T")[0]}</date>
-<language>${settings?.languageCode ?? "en"}</language>
+<article_language>${settings?.languageCode}</article_language>
 
 <internal_links>
 ${relatedPosts?.length ? relatedPosts.slice(0, 3).join("\n") : ""}

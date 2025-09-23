@@ -28,6 +28,8 @@ export interface ProjectSettingsRequest {
   // Content generation preferences
   includeVideo?: boolean;
   includeTables?: boolean;
+  // Language settings
+  language?: string;
 }
 
 export interface ProjectSettingsResponse {
@@ -53,6 +55,8 @@ export interface ProjectSettingsResponse {
   // Content generation preferences
   includeVideo: boolean;
   includeTables: boolean;
+  // Language settings
+  language: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -77,6 +81,8 @@ const projectSettingsSchema = z.object({
   // Content generation preferences
   includeVideo: z.boolean().optional(),
   includeTables: z.boolean().optional(),
+  // Language settings
+  language: z.string().min(2).max(10).optional(),
 });
 
 // GET /api/settings?projectId=123 - Get project settings
@@ -148,6 +154,7 @@ export async function GET(req: NextRequest) {
         : [],
       includeVideo: project.includeVideo,
       includeTables: project.includeTables,
+      language: project.language ?? "en",
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     };
@@ -267,6 +274,7 @@ export async function PUT(req: NextRequest) {
         : [],
       includeVideo: updatedProject.includeVideo,
       includeTables: updatedProject.includeTables,
+      language: updatedProject.language ?? "en",
       createdAt: updatedProject.createdAt,
       updatedAt: updatedProject.updatedAt,
     };

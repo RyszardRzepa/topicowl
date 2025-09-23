@@ -89,7 +89,7 @@ const PARALLEL_TOPIC_DISCOVERY_OUTPUT_SCHEMA = {
 // Configuration for Parallel API
 const PARALLEL_TOPIC_CONFIG = {
   baseUrl: "https://api.parallel.ai/v1",
-  processor: "pro", // Use pro processor for topic discovery
+  processor: "pro",
 } as const;
 
 const parallelTopicTaskResponseSchema = z

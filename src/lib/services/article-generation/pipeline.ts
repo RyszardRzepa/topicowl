@@ -445,6 +445,7 @@ async function continueFromWriting(
         toneOfVoice: projects.toneOfVoice,
         articleStructure: projects.articleStructure,
         maxWords: projects.maxWords,
+        language: projects.language,
       })
       .from(projects)
       .where(eq(projects.id, article.projectId))
@@ -579,6 +580,7 @@ async function continueFromValidation(
         toneOfVoice: projects.toneOfVoice,
         articleStructure: projects.articleStructure,
         maxWords: projects.maxWords,
+        language: projects.language,
       })
       .from(projects)
       .where(eq(projects.id, context.article.projectId))
@@ -718,6 +720,7 @@ async function continueFromUpdating(
         toneOfVoice: projects.toneOfVoice,
         articleStructure: projects.articleStructure,
         maxWords: projects.maxWords,
+        language: projects.language,
       })
       .from(projects)
       .where(eq(projects.id, context.article.projectId))
@@ -862,6 +865,7 @@ async function continueFromQualityControlWithContent(
         toneOfVoice: projects.toneOfVoice,
         articleStructure: projects.articleStructure,
         maxWords: projects.maxWords,
+        language: projects.language,
       })
       .from(projects)
       .where(eq(projects.id, article.projectId))
@@ -989,6 +993,7 @@ async function continueGenerationPipeline(
         toneOfVoice: projects.toneOfVoice,
         articleStructure: projects.articleStructure,
         maxWords: projects.maxWords,
+        language: projects.language,
       })
       .from(projects)
       .where(eq(projects.id, article.projectId))
