@@ -450,6 +450,13 @@ export function ArticlesBoard() {
   const handleGenerateNow = async (item: QueueItem) => {
     try {
       setOperationLoading(item.id, "generate", true);
+      actions.setArticles((prev) =>
+        prev.map((x) =>
+          x.id === String(item.articleId)
+            ? { ...x, status: "generating", generationProgress: 0 }
+            : x,
+        ),
+      );
       await fetch(`/api/articles/generation-queue?queueItemId=${item.id}`, {
         method: "DELETE",
       });
@@ -459,18 +466,13 @@ export function ArticlesBoard() {
         body: JSON.stringify({ articleId: String(item.articleId) }),
       });
       if (!res.ok) throw new Error("Failed to start generation");
-      actions.setArticles((prev) =>
-        prev.map((x) =>
-          x.id === String(item.articleId)
-            ? { ...x, status: "generating", generationProgress: 0 }
-            : x,
-        ),
-      );
       toast.success("Generation started");
       await Promise.all([refetchArticles(), fetchQueue()]);
     } catch (e) {
       console.error(e);
       toast.error("Failed to start generation");
+      // Revert on error
+      await Promise.all([refetchArticles(), fetchQueue()]);
     } finally {
       setOperationLoading(item.id, "generate", false);
     }
@@ -479,12 +481,6 @@ export function ArticlesBoard() {
   const handleGenerateArticle = async (article: Article) => {
     try {
       setOperationLoading(parseInt(article.id), "generate", true);
-      const res = await fetch(`/api/articles/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ articleId: article.id }),
-      });
-      if (!res.ok) throw new Error("Failed to start generation");
       actions.setArticles((prev) =>
         prev.map((x) =>
           x.id === article.id
@@ -492,11 +488,19 @@ export function ArticlesBoard() {
             : x,
         ),
       );
+      const res = await fetch(`/api/articles/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId: article.id }),
+      });
+      if (!res.ok) throw new Error("Failed to start generation");
       toast.success("Generation started");
       await Promise.all([refetchArticles(), fetchQueue()]);
     } catch (e) {
       console.error(e);
       toast.error("Failed to start generation");
+      // Revert on error
+      await Promise.all([refetchArticles(), fetchQueue()]);
     } finally {
       setOperationLoading(parseInt(article.id), "generate", false);
     }
@@ -539,11 +543,6 @@ export function ArticlesBoard() {
   const handleRetryGeneration = async (article: Article) => {
     try {
       setOperationLoading(parseInt(article.id), "generate", true);
-      const res = await fetch(`/api/articles/${article.id}/retry`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) throw new Error("Failed to retry generation");
       actions.setArticles((prev) =>
         prev.map((x) =>
           x.id === article.id
@@ -551,11 +550,18 @@ export function ArticlesBoard() {
             : x,
         ),
       );
+      const res = await fetch(`/api/articles/${article.id}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("Failed to retry generation");
       toast.success("Generation retry started");
       await Promise.all([refetchArticles(), fetchQueue()]);
     } catch (e) {
       console.error(e);
       toast.error("Failed to retry generation");
+      // Revert on error
+      await Promise.all([refetchArticles(), fetchQueue()]);
     } finally {
       setOperationLoading(parseInt(article.id), "generate", false);
     }

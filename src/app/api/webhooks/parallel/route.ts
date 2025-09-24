@@ -17,7 +17,6 @@ import {
   type ParallelResearchResponse,
   type ResearchResponse,
 } from "@/lib/services/research";
-import crypto from "crypto";
 import { continueGenerationFromPhase } from "@/lib/services/article-generation";
 
 export const maxDuration = 800;
@@ -105,50 +104,7 @@ ${parallelResponse.risk_assessment}` : ''}
   };
 }
 
-/**
- * Verify webhook signature using HMAC-SHA256
- */
-function verifyWebhookSignature(
-  webhookId: string,
-  webhookTimestamp: string,
-  body: string,
-  signature: string,
-  secret: string,
-): boolean {
-  try {
-    // Construct the payload string as per Parallel docs
-    const payload = `${webhookId}.${webhookTimestamp}.${body}`;
 
-    // Compute HMAC signature
-    const expectedSignature = crypto
-      .createHmac("sha256", secret)
-      .update(payload, "utf8")
-      .digest("base64");
-
-    // Parse the signature header - can be space-delimited with multiple v1,signature entries
-    const signatureParts = signature.split(" ");
-
-    for (const part of signatureParts) {
-      const [version, sig] = part.split(",", 2);
-      if (version === "v1" && sig) {
-        // Use constant-time comparison
-        if (
-          crypto.timingSafeEqual(
-            Buffer.from(sig),
-            Buffer.from(expectedSignature),
-          )
-        ) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  } catch (error) {
-    logger.error("[PARALLEL_WEBHOOK] Error verifying signature", error);
-    return false;
-  }
-}
 
 /**
  * Find article generation record by run_id in metadata
@@ -236,38 +192,8 @@ async function updateArticleGenerationWithResearch(
 
 export async function POST(request: NextRequest) {
   try {
-    // Get webhook headers
-    const webhookId = request.headers.get("webhook-id");
-    const webhookTimestamp = request.headers.get("webhook-timestamp");
-    const webhookSignature = request.headers.get("webhook-signature");
-
-    if (!webhookId || !webhookTimestamp || !webhookSignature) {
-      logger.warn("[PARALLEL_WEBHOOK] Missing required webhook headers");
-      return NextResponse.json(
-        { error: "Missing required webhook headers" },
-        { status: 400 },
-      );
-    }
-
-    // Get and verify the body
+    // Get and parse the body
     const body = await request.text();
-
-    // Verify webhook signature
-    if (
-      !verifyWebhookSignature(
-        webhookId,
-        webhookTimestamp,
-        body,
-        webhookSignature,
-        env.PARALLEL_WEBHOOK_SECRET,
-      )
-    ) {
-      logger.error("[PARALLEL_WEBHOOK] Invalid webhook signature");
-      return NextResponse.json(
-        { error: "Invalid webhook signature" },
-        { status: 401 },
-      );
-    }
 
     // Parse webhook payload
     const payload = JSON.parse(body) as ParallelWebhookPayload;

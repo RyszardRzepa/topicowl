@@ -110,7 +110,7 @@ export function useTopicGenerationPolling() {
         const taskId = data.data.taskId;
         sessionStorage.setItem(`topic-generation-${currentProject.id}`, taskId);
         setActiveTaskId(taskId);
-        toast.success("Topic generation started! You'll receive 10 article ideas shortly.");
+        toast.success("Topic research started! It might take few minutes.");
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to generate topics");

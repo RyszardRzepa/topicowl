@@ -6,25 +6,7 @@ import { env } from "@/env";
 import { logger } from "@/lib/utils/logger";
 import { z } from "zod";
 import type { ResearchVideo, ParallelResearchTaskResponse } from "./types";
-
-/**
- * Get the webhook URL based on environment
- */
-function getWebhookUrl(): string {
-  const isDevelopment = env.NODE_ENV === "development";
-  
-  if (isDevelopment) {
-    return "https://tunnel.roomsdecor.com/api/webhooks/parallel";
-  } else {
-    // Production - use Vercel URL or custom domain
-    const vercelUrl = process.env.VERCEL_URL;
-    if (vercelUrl) {
-      return `https://${vercelUrl}/api/webhooks/parallel`;
-    }
-    // Fallback to your production domain (replace with actual domain)
-    return "https://topicowl.com/api/webhooks/parallel";
-  }
-}
+import { API_BASE_URL } from "@/constants";
 
 /**
  * Parallel API JSON Schema for Research Tasks
@@ -346,7 +328,7 @@ export async function createParallelResearchTask(
   excludedDomains?: string[]
 ): Promise<ParallelResearchTaskResponse> {
   const prompt = createResearchPrompt(title, keywords, notes, excludedDomains);
-  const webhookUrl = getWebhookUrl();
+  const webhookUrl = API_BASE_URL + "/api/webhooks/parallel"
   
   const requestBody = {
     task_spec: {
@@ -365,7 +347,7 @@ export async function createParallelResearchTask(
     webhook: {
       url: webhookUrl,
       event_types: ["task_run.status"]
-    }
+    },
   };
 
   logger.debug("[PARALLEL_RESEARCH] Creating research task", {
