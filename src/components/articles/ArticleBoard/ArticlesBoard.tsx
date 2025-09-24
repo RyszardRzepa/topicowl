@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { addWeeks, startOfWeek, subWeeks } from "date-fns";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useCurrentProjectId } from "@/contexts/project-context";
 import { useWorkflowArticles } from "@/components/workflow/use-workflow-articles";
 import { useTopicGenerationPolling } from "@/hooks/use-topic-generation-polling";
@@ -92,6 +95,9 @@ export function ArticlesBoard() {
     notes: "",
     scheduledAt: null,
   });
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [rescheduleArticle, setRescheduleArticle] = useState<Article | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState<Date | null>(null);
 
   const isPastDay = useCallback((d: Date) => {
     const day = new Date(d);
@@ -467,7 +473,7 @@ export function ArticlesBoard() {
       });
       if (!res.ok) throw new Error("Failed to start generation");
       toast.success("Generation started");
-      await Promise.all([refetchArticles(), fetchQueue()]);
+      await fetchQueue();
     } catch (e) {
       console.error(e);
       toast.error("Failed to start generation");
@@ -495,7 +501,7 @@ export function ArticlesBoard() {
       });
       if (!res.ok) throw new Error("Failed to start generation");
       toast.success("Generation started");
-      await Promise.all([refetchArticles(), fetchQueue()]);
+      await fetchQueue();
     } catch (e) {
       console.error(e);
       toast.error("Failed to start generation");
@@ -556,7 +562,7 @@ export function ArticlesBoard() {
       });
       if (!res.ok) throw new Error("Failed to retry generation");
       toast.success("Generation retry started");
-      await Promise.all([refetchArticles(), fetchQueue()]);
+      await fetchQueue();
     } catch (e) {
       console.error(e);
       toast.error("Failed to retry generation");
@@ -593,6 +599,44 @@ export function ArticlesBoard() {
       ),
     });
     setIsEditOpen(true);
+  };
+
+  const handleRescheduleArticle = async (article: Article) => {
+    setRescheduleArticle(article);
+    setRescheduleDate(new Date(
+      article.publishScheduledAt ??
+        article.generationScheduledAt ??
+        new Date(),
+    ));
+    setIsRescheduleOpen(true);
+  };
+
+  const handleRescheduleSave = async () => {
+    if (!rescheduleArticle || !rescheduleDate) return;
+
+    try {
+      setIsUpdating(true);
+      const newIso = rescheduleDate.toISOString();
+
+      const res = await fetch(`/api/articles/${rescheduleArticle.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishScheduledAt: newIso }),
+      });
+
+      if (!res.ok) throw new Error("Failed to reschedule article");
+
+      toast.success("Article rescheduled successfully");
+      setIsRescheduleOpen(false);
+      setRescheduleArticle(null);
+      setRescheduleDate(null);
+      await refetchArticles();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to reschedule article");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleEditSave = async () => {
@@ -784,6 +828,7 @@ export function ArticlesBoard() {
           handleDeleteArticle={handleDeleteArticle}
           handleDeleteArticleDirectly={handleDeleteArticleDirectly}
           handleRetryGeneration={handleRetryGeneration}
+          handleRescheduleArticle={handleRescheduleArticle}
         />
         <CreateArticleDialog
           open={isCreating}
@@ -803,6 +848,44 @@ export function ArticlesBoard() {
           isUpdating={isUpdating}
           onSubmit={handleEditSave}
         />
+
+        {/* Reschedule Date Dialog */}
+        <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Reschedule Article</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              <div className="text-sm text-muted-foreground">
+                {rescheduleArticle?.title && (
+                  <div className="font-medium mb-2">{rescheduleArticle.title}</div>
+                )}
+                Select a new date and time for this article:
+              </div>
+              <DateTimePicker
+                value={rescheduleDate ?? undefined}
+                onChange={(date) => setRescheduleDate(date ?? null)}
+                minDate={new Date()}
+                placeholder="Select date and time..."
+              />
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsRescheduleOpen(false)}
+                disabled={isUpdating}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleRescheduleSave}
+                disabled={!rescheduleDate || isUpdating}
+              >
+                {isUpdating ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         
         {/* Topic Generation Banner */}
         {isGeneratingTopics && (

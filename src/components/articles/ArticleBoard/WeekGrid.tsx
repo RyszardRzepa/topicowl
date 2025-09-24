@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { STATUSES, type BoardEventConfig } from "@/lib/article-status";
-import { AlertTriangle, Edit3, Loader2, Play, Plus, Trash2, Zap } from "lucide-react";
+import { AlertTriangle, Calendar, Edit3, Loader2, Play, Plus, Trash2, Zap } from "lucide-react";
 import type { Article } from "@/types";
 import type { ArticleEvent, OperationType, QueueItem } from "./types";
 
@@ -46,6 +46,7 @@ interface WeekGridProps {
   readonly handleDeleteArticle: (item: QueueItem) => Promise<void>;
   readonly handleDeleteArticleDirectly: (article: Article) => Promise<void>;
   readonly handleRetryGeneration: (article: Article) => Promise<void>;
+  readonly handleRescheduleArticle: (article: Article) => Promise<void>;
 }
 
 export function WeekGrid({
@@ -67,6 +68,7 @@ export function WeekGrid({
   handleDeleteArticle,
   handleDeleteArticleDirectly,
   handleRetryGeneration,
+  handleRescheduleArticle,
 }: WeekGridProps) {
   return (
 
@@ -730,112 +732,141 @@ export function WeekGrid({
                                 </div>
                               </div>
                               {(() => {
-                                const scheduledDate = new Date(
-                                  ev.dateIso,
-                                );
-                                const isInPast =
-                                  scheduledDate.getTime() < Date.now();
-                                const shouldShowActions =
-                                  // Show for idea and scheduled statuses that are not in the past
-                                  !isInPast &&
-                                  (article.status === STATUSES.IDEA ||
-                                    article.status ===
-                                      STATUSES.SCHEDULED);
-
-                                if (!shouldShowActions) return null;
+                                // Show edit actions for all articles that reach this section
+                                // (generating articles are handled in their own section above)
+                                // Allow editing schedule date for generated, published, and all other statuses
 
                                 return (
                                   <div className="flex items-center gap-1">
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <button
-                                          className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openEditModalForArticle(
-                                              article,
-                                            );
-                                          }}
-                                          disabled={isOperationLoading(
-                                            parseInt(article.id),
-                                            "edit",
-                                          )}
-                                          aria-label="Edit"
-                                        >
-                                          {isOperationLoading(
-                                            parseInt(article.id),
-                                            "edit",
-                                          ) ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <Edit3 className="h-4 w-4" />
-                                          )}
-                                        </button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top">
-                                        Edit
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <button
-                                          className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            void handleGenerateArticle(
-                                              article,
-                                            );
-                                          }}
-                                          disabled={isOperationLoading(
-                                            parseInt(article.id),
-                                            "generate",
-                                          )}
-                                          aria-label="Generate now"
-                                        >
-                                          {isOperationLoading(
-                                            parseInt(article.id),
-                                            "generate",
-                                          ) ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <Play className="h-4 w-4" />
-                                          )}
-                                        </button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top">
-                                        Generate now
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <button
-                                          className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            void handleDeleteArticleDirectly(
-                                              article,
-                                            );
-                                          }}
-                                          disabled={isOperationLoading(
-                                            parseInt(article.id),
-                                            "delete",
-                                          )}
-                                          aria-label="Delete article"
-                                        >
-                                          {isOperationLoading(
-                                            parseInt(article.id),
-                                            "delete",
-                                          ) ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <Trash2 className="h-4 w-4" />
-                                          )}
-                                        </button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top">
-                                        Delete article
-                                      </TooltipContent>
-                                    </Tooltip>
+                                    {/* For idea and scheduled articles, show full edit, generate, and delete buttons */}
+                                    {(article.status === STATUSES.IDEA || article.status === STATUSES.SCHEDULED) && (
+                                      <>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEditModalForArticle(
+                                                  article,
+                                                );
+                                              }}
+                                              disabled={isOperationLoading(
+                                                parseInt(article.id),
+                                                "edit",
+                                              )}
+                                              aria-label="Edit"
+                                            >
+                                              {isOperationLoading(
+                                                parseInt(article.id),
+                                                "edit",
+                                              ) ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <Edit3 className="h-4 w-4" />
+                                              )}
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">
+                                            Edit
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleGenerateArticle(
+                                                  article,
+                                                );
+                                              }}
+                                              disabled={isOperationLoading(
+                                                parseInt(article.id),
+                                                "generate",
+                                              )}
+                                              aria-label="Generate now"
+                                            >
+                                              {isOperationLoading(
+                                                parseInt(article.id),
+                                                "generate",
+                                              ) ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <Play className="h-4 w-4" />
+                                              )}
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">
+                                            Generate now
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleDeleteArticleDirectly(
+                                                  article,
+                                                );
+                                              }}
+                                              disabled={isOperationLoading(
+                                                parseInt(article.id),
+                                                "delete",
+                                              )}
+                                              aria-label="Delete article"
+                                            >
+                                              {isOperationLoading(
+                                                parseInt(article.id),
+                                                "delete",
+                                              ) ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <Trash2 className="h-4 w-4" />
+                                              )}
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">
+                                            Delete article
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </>
+                                    )}
+                                    
+                                    {/* For generated articles (wait_for_publish, published), show only reschedule button */}
+                                    {(article.status === STATUSES.WAIT_FOR_PUBLISH || article.status === STATUSES.PUBLISHED) && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void handleRescheduleArticle(article);
+                                            }}
+                                            disabled={isOperationLoading(
+                                              parseInt(article.id),
+                                              "edit",
+                                            )}
+                                            aria-label="Reschedule date"
+                                          >
+                                            {isOperationLoading(
+                                              parseInt(article.id),
+                                              "edit",
+                                            ) ? (
+                                              <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <Calendar className="h-4 w-4" />
+                                            )}
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">
+                                          Reschedule date
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
                                   </div>
                                 );
                               })()}

@@ -199,7 +199,7 @@ export async function performWriteLogic(
       },
     ],
     maxRetries: 2,
-    maxOutputTokens: 10000,
+    maxOutputTokens: 20000,
   });
   const articleObject = result.object;
 
