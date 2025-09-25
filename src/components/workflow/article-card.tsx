@@ -195,13 +195,24 @@ export function ArticleCard({
     }
   };
 
+  const generationComplete =
+    (typeof article.generationProgress === "number" &&
+      article.generationProgress >= 100) ||
+    Boolean(article.content);
+
+  const isReadyToPublish =
+    article.status === "scheduled" &&
+    generationComplete &&
+    !article.generationPhase &&
+    !article.generationError;
+
   // Determine what actions are available based on mode and status
   const canEdit =
     mode === "planning" &&
     (article.status === "idea" || article.status === "scheduled");
   const canDelete =
     (mode === "planning" && article.status === "idea") ||
-    (mode === "publishing" && article.status === "wait_for_publish");
+    (mode === "publishing" && isReadyToPublish);
   const canGenerate =
     mode === "planning" &&
     (article.status === "idea" ||
@@ -220,7 +231,7 @@ export function ArticleCard({
     article.status === "scheduled" &&
     article.generationScheduledAt;
   const canPublish =
-    mode === "publishing" && article.status === "wait_for_publish";
+    mode === "publishing" && isReadyToPublish;
   const isGenerating = article.status === "generating";
   const isPublished = article.status === "published";
 

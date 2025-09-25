@@ -9,12 +9,12 @@ import {
 } from "@/server/db/schema";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import type {
-  ArticleStatus,
   ArticleGenerationStatus,
   ArticleGenerationArtifacts,
   ValidationArtifact,
   WriteArtifact,
 } from "@/types";
+import type { ArticleStatus } from "@/types";
 
 // Types colocated with this API route
 export type DatabaseArticle = {
@@ -46,15 +46,6 @@ export type DatabaseArticle = {
   generationError: string | null;
 };
 
-const IN_PROGRESS_STATUSES = new Set<ArticleGenerationStatus>([
-  "research",
-  "image",
-  "writing",
-  "quality-control",
-  "validating",
-  "updating",
-]);
-
 type GenerationStatusValue = ArticleGenerationStatus;
 
 type ArticleRow = {
@@ -77,6 +68,7 @@ type ArticleRow = {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  status: ArticleStatus;
 };
 
 type GenerationSnapshot = {
@@ -90,40 +82,17 @@ type GenerationSnapshot = {
 
 function deriveArticleStatus(
   article: ArticleRow,
-  generation: GenerationSnapshot | undefined,
+  _generation: GenerationSnapshot | undefined,
 ): ArticleStatus {
-  if (article.publishedAt) return "published";
-
-  const generationStatus = generation?.status;
-
-  if (generationStatus === "failed") {
-    return "failed";
-  }
-
-  if (generationStatus && IN_PROGRESS_STATUSES.has(generationStatus)) {
-    return "generating";
-  }
-
-  if (generationStatus === "completed") {
-    if (article.publishScheduledAt && !article.publishedAt) {
-      return "wait_for_publish";
-    }
-    return "idea";
-  }
-
-  if (generationStatus === "scheduled") {
-    return "scheduled";
-  }
-
-  if (article.publishScheduledAt) return "scheduled";
-
-  return "idea";
+  // The status from the articles table is now the source of truth.
+  // We supplement it with generation data, but the core status is not derived here anymore.
+  return article.status;
 }
 
 export interface KanbanColumn {
-  id: "idea" | "scheduled" | "generating" | "wait_for_publish" | "published" | "failed";
+  id: ArticleStatus;
   title: string;
-  status: "idea" | "scheduled" | "generating" | "wait_for_publish" | "published" | "failed";
+  status: ArticleStatus;
   articles: DatabaseArticle[];
   color: string;
 }
@@ -183,11 +152,12 @@ export async function GET(req: NextRequest) {
           kanbanPosition: articles.kanbanPosition,
           metaDescription: articles.metaDescription,
           content: articles.content,
-        coverImageUrl: articles.coverImageUrl,
-        coverImageAlt: articles.coverImageAlt,
-        notes: articles.notes,
-        createdAt: articles.createdAt,
-        updatedAt: articles.updatedAt,
+          coverImageUrl: articles.coverImageUrl,
+          coverImageAlt: articles.coverImageAlt,
+          notes: articles.notes,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+          status: articles.status,
         })
         .from(articles)
         .innerJoin(projects, eq(articles.projectId, projects.id))
@@ -211,11 +181,12 @@ export async function GET(req: NextRequest) {
           kanbanPosition: articles.kanbanPosition,
           metaDescription: articles.metaDescription,
           content: articles.content,
-        coverImageUrl: articles.coverImageUrl,
-        coverImageAlt: articles.coverImageAlt,
-        notes: articles.notes,
-        createdAt: articles.createdAt,
-        updatedAt: articles.updatedAt,
+          coverImageUrl: articles.coverImageUrl,
+          coverImageAlt: articles.coverImageAlt,
+          notes: articles.notes,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+          status: articles.status,
         })
         .from(articles)
         .innerJoin(projects, eq(articles.projectId, projects.id))
@@ -257,6 +228,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    
     const sanitizedArticles: DatabaseArticle[] = allArticles.map((article) => {
       const generation = generationMap.get(article.id);
       const derivedStatus = deriveArticleStatus(article, generation);
@@ -265,7 +237,7 @@ export async function GET(req: NextRequest) {
       const validationArtifact: ValidationArtifact | undefined =
         generation?.artifacts?.validation;
 
-      return {
+      const sanitized = {
         ...article,
         status: derivedStatus,
         keywords: article.keywords ?? [],
@@ -282,6 +254,8 @@ export async function GET(req: NextRequest) {
           (generation?.artifacts?.qualityControl as { report?: string } | undefined)?.report ??
           null,
       };
+
+      return sanitized;
     });
 
     // Define kanban columns
@@ -315,13 +289,6 @@ export async function GET(req: NextRequest) {
         color: "#DC2626", // red
       },
       {
-        id: "wait_for_publish",
-        title: "Wait for Publish",
-        status: "wait_for_publish",
-        articles: [],
-        color: "#8B5CF6", // purple
-      },
-      {
         id: "published",
         title: "Published",
         status: "published",
@@ -335,9 +302,9 @@ export async function GET(req: NextRequest) {
       const column = columns.find((col) => col.status === article.status);
       if (column) {
         column.articles.push(article);
+      } else {
       }
     });
-
     return NextResponse.json(columns);
   } catch (error) {
     console.error("Get kanban board error:", error);

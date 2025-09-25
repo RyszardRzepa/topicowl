@@ -1,13 +1,9 @@
 "use client";
 
-// Generation status data interface
+import type { ArticleStatus } from "@/types";
+
 interface GenerationStatusData {
-  status:
-    | "idea"
-    | "to_generate"
-    | "generating"
-    | "wait_for_publish"
-    | "published";
+  status: ArticleStatus;
 }
 
 interface GenerationStatusProps {

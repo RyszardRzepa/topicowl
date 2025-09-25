@@ -112,17 +112,10 @@ export function StatusIndicator({
             ? getPhaseConfig(phase).description
             : "AI writing content",
         };
-      case "wait_for_publish":
-        return {
-          icon: CheckCircle,
-          label: "Ready to Publish",
-          badgeVariant: "green" as const,
-          description: "Content generated successfully",
-        };
-      case "published":
-        return {
-          icon: CheckCircle,
-          label: "Published",
+     case "published":
+       return {
+         icon: CheckCircle,
+         label: "Published",
           badgeVariant: "default" as const,
           description: "Live on website",
         };

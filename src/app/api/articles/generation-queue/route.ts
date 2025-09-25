@@ -2,14 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { db } from "@/server/db";
-import {
-  articles,
-  articleGenerations,
-  projects,
-  users,
-  type ArticleStatus,
-  type ArticleGenerationStatus,
-} from "@/server/db/schema";
+import { articles, articleGenerations, projects, users } from "@/server/db/schema";
+import type { ArticleStatus, ArticleGenerationStatus } from "@/types";
 import {
   and,
   desc,

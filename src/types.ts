@@ -3,10 +3,30 @@
 
 import { z } from "zod";
 import type { projects } from "@/server/db/schema";
-import type {
-  articleStatusEnum,
-  articleGenerationStatusEnum,
-} from "@/server/db/schema";
+export const ARTICLE_STATUSES = [
+  "idea",
+  "scheduled",
+  "generating",
+  "published",
+  "failed",
+] as const;
+
+export type ArticleStatus = (typeof ARTICLE_STATUSES)[number];
+
+export const ARTICLE_GENERATION_STATUSES = [
+  "scheduled",
+  "research",
+  "image",
+  "writing",
+  "quality-control",
+  "validating",
+  "updating",
+  "completed",
+  "failed",
+] as const;
+
+export type ArticleGenerationStatus =
+  (typeof ARTICLE_GENERATION_STATUSES)[number];
 
 // OpenGraph metadata schema
 export const ogMetadataSchema = z.object({
@@ -274,11 +294,6 @@ export const enhancedBlogPostSchema = blogPostSchema.extend({
     .default(false)
     .describe("Indicates if article includes video content"),
 });
-
-// Article status type - imported from database schema
-export type ArticleStatus = (typeof articleStatusEnum.enumValues)[number];
-export type ArticleGenerationStatus =
-  (typeof articleGenerationStatusEnum.enumValues)[number];
 
 // Workflow phases for new UI
 export type WorkflowPhase = "planning" | "generations" | "publishing";

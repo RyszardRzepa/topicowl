@@ -4,7 +4,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { addWeeks, startOfWeek, subWeeks } from "date-fns";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useCurrentProjectId } from "@/contexts/project-context";
@@ -80,7 +86,11 @@ export function ArticlesBoard() {
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [creatingAt, setCreatingAt] = useState<ScheduleSelection | null>(null);
-  const [createForm, setCreateForm] = useState<CreateFormState>({ title: "", keywords: "", notes: "" });
+  const [createForm, setCreateForm] = useState<CreateFormState>({
+    title: "",
+    keywords: "",
+    notes: "",
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [loadingOperations, setLoadingOperations] = useState<
@@ -96,7 +106,9 @@ export function ArticlesBoard() {
     scheduledAt: null,
   });
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
-  const [rescheduleArticle, setRescheduleArticle] = useState<Article | null>(null);
+  const [rescheduleArticle, setRescheduleArticle] = useState<Article | null>(
+    null,
+  );
   const [rescheduleDate, setRescheduleDate] = useState<Date | null>(null);
 
   const isPastDay = useCallback((d: Date) => {
@@ -145,17 +157,41 @@ export function ArticlesBoard() {
   }, [articles]);
 
   const scheduledItems = useMemo(() => {
-    return queueItems.filter((q) => {
+    const filtered = queueItems.filter((q) => {
       const a = articleById.get(q.articleId);
-      if (!a) return false;
-      if (projectId && a.projectId !== projectId) return false;
+
+      if (!a) {
+        return false;
+      }
+
+      if (projectId && a.projectId !== projectId) {
+        return false;
+      }
+
       // Only show items that are still queued; hide processing/completed/failed
-      if (q.status !== "queued") return false;
-      if (!q.scheduledForDate) return false;
-      if (!isWithinWeek(q.scheduledForDate, weekDays[0]!)) return false;
-      if (a.status === "generating") return false;
+      if (q.status !== "queued") {
+        return false;
+      }
+
+      if (!q.scheduledForDate) {
+        return false;
+      }
+
+      const withinWeek = isWithinWeek(q.scheduledForDate, weekDays[0]!);
+      if (!withinWeek) {
+        return false;
+      }
+
+      if (a.status === "generating") {
+        console.log(`  - FILTERED OUT: Article status is generating`);
+        return false;
+      }
+
+      console.log(`  - INCLUDED: Queue item passes all filters`);
       return true;
     });
+
+    return filtered;
   }, [queueItems, articleById, projectId, weekDays]);
 
   const overdueQueueItemIds = useMemo(() => {
@@ -176,7 +212,11 @@ export function ArticlesBoard() {
   }, [articles, projectId]);
 
   const allBoardArticles = useMemo(() => {
-    return articles.filter((a) => !projectId || a.projectId === projectId);
+    const filtered = articles.filter(
+      (a) => !projectId || a.projectId === projectId,
+    );
+
+    return filtered;
   }, [articles, projectId]);
 
   // Generate comprehensive board events using the status management system
@@ -196,13 +236,25 @@ export function ArticlesBoard() {
       // Skip articles that are currently in the queue AND have idea/scheduled status
       // They'll be handled as queued items instead
       // Don't skip failed articles - they need special failed article rendering
+      // Exception: If queue item is completed/failed, show the article as a regular board event
       if (
         queueItem &&
+        queueItem.status === "queued" &&
         (article.status === STATUSES.IDEA ||
           article.status === STATUSES.SCHEDULED)
       ) {
         continue;
       }
+
+      const generationComplete =
+        (typeof article.generationProgress === "number" &&
+          article.generationProgress >= 100) ||
+        Boolean(article.content);
+      const readyToPublish =
+        article.status === STATUSES.SCHEDULED &&
+        generationComplete &&
+        !article.generationPhase &&
+        !article.generationError;
 
       const eventConfig = getBoardEventConfig(
         article.status,
@@ -222,20 +274,24 @@ export function ArticlesBoard() {
             null;
           break;
 
-        case STATUSES.WAIT_FOR_PUBLISH:
-          // Show on scheduled publish date, fallback to generation completion date, then today
-          displayDate =
-            article.publishScheduledAt ?? 
-            article.generationCompletedAt ?? 
-            new Date().toISOString(); // Show completed articles today so they're always visible
+        case STATUSES.SCHEDULED:
+          if (readyToPublish) {
+            displayDate =
+              article.publishScheduledAt ??
+              article.generationCompletedAt ??
+              new Date().toISOString();
+          } else {
+            displayDate =
+              article.publishScheduledAt ??
+              article.generationScheduledAt ??
+              queueItem?.scheduledForDate ??
+              null;
+          }
           break;
 
         case STATUSES.PUBLISHED:
-          // Show on actual publish date, fallback to generation completion date, then today
-          displayDate =
-            article.publishedAt ?? 
-            article.generationCompletedAt ?? 
-            new Date().toISOString(); // Show published articles today so they're always visible
+          // Show published articles today so they're always visible in the current week
+          displayDate = new Date().toISOString();
           break;
 
         case STATUSES.FAILED:
@@ -250,9 +306,21 @@ export function ArticlesBoard() {
           break;
 
         default:
-          // For other statuses, use publish scheduled date or generation scheduled date
-          displayDate =
-            article.publishScheduledAt ?? article.generationScheduledAt ?? null;
+          // For ideas, show them on their creation date.
+          // If the creation date is before the current week, show them on the first day of the week.
+          if (article.status === STATUSES.IDEA) {
+            const creationDate = new Date(article.createdAt);
+            if (creationDate < weekDays[0]!) {
+              displayDate = weekDays[0]!.toISOString();
+            } else {
+              displayDate = article.createdAt;
+            }
+          } else {
+            displayDate =
+              article.publishScheduledAt ??
+              article.generationScheduledAt ??
+              null;
+          }
           break;
       }
 
@@ -265,12 +333,11 @@ export function ArticlesBoard() {
           article,
           eventConfig,
         });
+      } else {
       }
     }
-
     return events;
   }, [allBoardArticles, weekDays, queueItems]);
-
 
   // Removed unused publishScheduledEvents and readyToPublishEvents
   // Now using getBoardEventConfig for comprehensive board event generation
@@ -352,13 +419,20 @@ export function ArticlesBoard() {
   // Fallback: if queue reports an item is processing but the article status
   // hasn't updated yet, promote it to generating locally so UI reflects reality
   useEffect(() => {
-    const processingItems = queueItems.filter((item) => item.status === "processing");
+    const processingItems = queueItems.filter(
+      (item) => item.status === "processing",
+    );
     if (processingItems.length === 0) return;
-    const processingIds = new Set(processingItems.map((item) => String(item.articleId)));
+    const processingIds = new Set(
+      processingItems.map((item) => String(item.articleId)),
+    );
     actions.setArticles((prev) => {
       let changed = false;
       const updated = prev.map((article) => {
-        if (!processingIds.has(article.id) || article.status === STATUSES.GENERATING) {
+        if (
+          !processingIds.has(article.id) ||
+          article.status === STATUSES.GENERATING
+        ) {
           return article;
         }
         changed = true;
@@ -603,11 +677,13 @@ export function ArticlesBoard() {
 
   const handleRescheduleArticle = async (article: Article) => {
     setRescheduleArticle(article);
-    setRescheduleDate(new Date(
-      article.publishScheduledAt ??
-        article.generationScheduledAt ??
-        new Date(),
-    ));
+    setRescheduleDate(
+      new Date(
+        article.publishScheduledAt ??
+          article.generationScheduledAt ??
+          new Date(),
+      ),
+    );
     setIsRescheduleOpen(true);
   };
 
@@ -766,7 +842,11 @@ export function ArticlesBoard() {
         nextDate.setDate(currentDate.getDate() + 1);
         if (nextDate.getTime() < Date.now()) {
           const now = new Date();
-          nextDate.setFullYear(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+          nextDate.setFullYear(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() + 1,
+          );
         }
         await fetch(`/api/articles/generation-queue?queueItemId=${item.id}`, {
           method: "DELETE",
@@ -789,8 +869,6 @@ export function ArticlesBoard() {
       await fetchQueue();
     }
   }, [scheduledItems, overdueQueueItemIds, fetchQueue]);
-
-
 
   const weekStart = weekDays[0] ?? new Date();
   const isBusy = loadingQueue || isUpdating;
@@ -856,9 +934,11 @@ export function ArticlesBoard() {
               <DialogTitle>Reschedule Article</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-4">
-              <div className="text-sm text-muted-foreground">
+              <div className="text-muted-foreground text-sm">
                 {rescheduleArticle?.title && (
-                  <div className="font-medium mb-2">{rescheduleArticle.title}</div>
+                  <div className="mb-2 font-medium">
+                    {rescheduleArticle.title}
+                  </div>
                 )}
                 Select a new date and time for this article:
               </div>
@@ -870,14 +950,14 @@ export function ArticlesBoard() {
               />
             </div>
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setIsRescheduleOpen(false)}
                 disabled={isUpdating}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleRescheduleSave}
                 disabled={!rescheduleDate || isUpdating}
               >
@@ -886,18 +966,18 @@ export function ArticlesBoard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
+
         {/* Topic Generation Banner */}
         {isGeneratingTopics && (
-          <div className="bg-primary/10 border-t border-primary/20 p-3">
+          <div className="bg-primary/10 border-primary/20 border-t p-3">
             <div className="flex items-center justify-center gap-3">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <span className="text-sm text-primary font-medium">
-                {taskStatus?.status === 'running' 
-                  ? `Researching topics for your project...` 
-                  : 'Generating article ideas...'}
+              <div className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+              <span className="text-primary text-sm font-medium">
+                {taskStatus?.status === "running"
+                  ? `Researching topics for your project...`
+                  : "Generating article ideas..."}
               </span>
-              <span className="text-xs text-primary/70">
+              <span className="text-primary/70 text-xs">
                 This may take a few minutes
               </span>
             </div>

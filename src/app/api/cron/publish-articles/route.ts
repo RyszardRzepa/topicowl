@@ -6,7 +6,7 @@ import {
   projects,
   webhookDeliveries,
 } from "@/server/db/schema";
-import { eq, and, lte, desc, isNotNull, isNull } from "drizzle-orm";
+import { eq, and, lte, desc } from "drizzle-orm";
 import type {
   ArticleGenerationArtifacts,
   ValidationArtifact,
@@ -328,7 +328,7 @@ async function publishScheduledArticles(): Promise<
     .from(articles)
     .where(
       and(
-        eq(articles.status, "wait_for_publish"),
+        eq(articles.status, "scheduled"),
         lte(articles.publishScheduledAt, now),
       ),
     );
@@ -372,7 +372,7 @@ async function publishScheduledArticles(): Promise<
         `Publishing article: ${article.title} (ID: ${article.id}, Project: ${article.projectId})`,
       );
 
-      // Atomic update with concurrency protection - only update if still wait_for_publish
+      // Atomic update with concurrency protection - only update if still scheduled
       // Explicitly return all fields needed for webhook delivery
       const [updatedArticle] = await db
         .update(articles)
@@ -381,8 +381,9 @@ async function publishScheduledArticles(): Promise<
           publishScheduledAt: null,
           updatedAt: new Date(),
           ...(!article.publishedAt && { publishedAt: new Date() }),
+          status: "published",
         })
-        .where(eq(articles.id, article.id))
+        .where(and(eq(articles.id, article.id), eq(articles.status, "scheduled")))
         .returning({
           id: articles.id,
           userId: articles.userId,

@@ -10,7 +10,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { continueGenerationFromPhase } from "@/lib/services/article-generation";
 import type { ArticleGenerationArtifacts } from "@/types";
-import type { ArticleGenerationStatus } from "@/server/db/schema";
+import type { ArticleGenerationStatus } from "@/types";
 
 // API types for this endpoint
 export interface RetryResponse {

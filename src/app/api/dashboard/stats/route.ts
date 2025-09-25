@@ -9,7 +9,7 @@ import {
   redditTasks,
   userCredits,
 } from "@/server/db/schema";
-import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, inArray, isNotNull } from "drizzle-orm";
 import type { ClerkPrivateMetadata } from "@/types";
 
 // Dashboard stats response types
@@ -147,6 +147,7 @@ export async function GET(request: NextRequest) {
         publishedLastWeekResult,
         workflowCountsResult,
         recentActivityResult,
+        scheduledReadyResult,
         userCreditsResult,
       ] = await Promise.all([
         // Total articles created this month
@@ -176,12 +177,7 @@ export async function GET(request: NextRequest) {
           .where(
             and(
               eq(articles.projectId, projectId),
-              inArray(articles.status, [
-                "idea",
-                "scheduled",
-                "generating",
-                "wait_for_publish",
-              ]),
+              inArray(articles.status, ["idea", "scheduled", "generating"]),
               gte(articles.publishScheduledAt, currentWeekStart),
               lte(articles.publishScheduledAt, currentWeekEnd),
             ),
@@ -234,15 +230,24 @@ export async function GET(request: NextRequest) {
             createdAt: articles.createdAt,
             publishedAt: articles.publishedAt,
             updatedAt: articles.updatedAt,
+            publishScheduledAt: articles.publishScheduledAt,
           })
+          .from(articles)
+          .where(eq(articles.projectId, projectId))
+          .orderBy(desc(articles.updatedAt))
+          .limit(10),
+
+        // Scheduled articles that are queued for publishing
+        db
+          .select({ count: sql<number>`count(*)` })
           .from(articles)
           .where(
             and(
               eq(articles.projectId, projectId),
+              eq(articles.status, "scheduled"),
+              isNotNull(articles.publishScheduledAt),
             ),
-          )
-          .orderBy(desc(articles.updatedAt))
-          .limit(10),
+          ),
 
         // User credits
         db
@@ -272,22 +277,31 @@ export async function GET(request: NextRequest) {
         publishing: 0,
       };
 
+      let ideaCount = 0;
+      let scheduledCount = 0;
+
       workflowCountsResult.forEach((row) => {
         const count = Number(row.count);
         switch (row.status) {
           case "idea":
+            ideaCount += count;
+            break;
           case "scheduled":
-            workflowCounts.planning += count;
+            scheduledCount += count;
             break;
           case "generating":
             workflowCounts.generating += count;
             break;
-          case "wait_for_publish":
-            workflowCounts.publishing += count;
+          default:
             break;
-          // "published" and "failed" don't count toward active workflow
         }
       });
+
+      const scheduledReady = Number(scheduledReadyResult[0]?.count ?? 0);
+      const scheduledPlanning = Math.max(scheduledCount - scheduledReady, 0);
+
+      workflowCounts.planning = ideaCount + scheduledPlanning;
+      workflowCounts.publishing = scheduledReady;
 
       // Process recent activity
       const recentActivity = recentActivityResult.map((article) => {
@@ -298,8 +312,7 @@ export async function GET(request: NextRequest) {
           action = "published";
           timestamp = article.publishedAt.toISOString();
         } else if (
-          article.status === "wait_for_publish" ||
-          article.status === "published"
+          article.status === "scheduled" && article.publishScheduledAt
         ) {
           action = "generated";
           timestamp = article.updatedAt.toISOString();

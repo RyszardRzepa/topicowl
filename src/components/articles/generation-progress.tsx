@@ -38,7 +38,7 @@ function resolveDisplayStatus(status: GenerationStatus): DisplayStatus {
 
   if (generationStatus === "completed") {
     if (articleStatus === "published") return "published";
-    if (articleStatus === "wait_for_publish") return "wait_for_publish";
+    if (articleStatus === "scheduled") return "completed";
     return "completed";
   }
 
@@ -75,7 +75,6 @@ export function GenerationProgress({
       case "validating":
       case "updating":
         return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
-      case "wait_for_publish":
       case "completed":
       case "published":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
@@ -99,7 +98,6 @@ export function GenerationProgress({
       case "validating":
       case "updating":
         return "text-blue-600";
-      case "wait_for_publish":
       case "completed":
       case "published":
         return "text-green-600";
@@ -130,8 +128,6 @@ export function GenerationProgress({
         return "Validating";
       case "updating":
         return "Updating";
-      case "wait_for_publish":
-        return "Ready to Publish";
       case "completed":
         return "Ready to Publish";
       case "published":

@@ -185,11 +185,18 @@ export function ArticleGenerations({
     (article) =>
       article.status === "scheduled" && article.generationScheduledAt,
   );
-  const completedArticles = articles.filter(
-    (article) =>
-      article.status === "wait_for_publish" ||
-      (article.generationProgress === 100 && !article.generationError),
-  );
+  const completedArticles = articles.filter((article) => {
+    const generationComplete =
+      (typeof article.generationProgress === "number" &&
+        article.generationProgress >= 100) ||
+      Boolean(article.content);
+    return (
+      article.status === "scheduled" &&
+      generationComplete &&
+      !article.generationError &&
+      !article.generationPhase
+    );
+  });
   const failedArticles = articles.filter((article) => article.generationError);
 
   return (

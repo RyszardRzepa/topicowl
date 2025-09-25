@@ -1,7 +1,7 @@
 import { logger } from "@/lib/utils/logger";
 import { performQualityCheck as runQualityControl } from "@/lib/services/quality-control";
 import type { QualityControlResponse } from "@/lib/services/quality-control";
-import type { ArticleGenerationStatus } from "@/server/db/schema";
+import type { ArticleGenerationStatus } from "@/types";
 import { updateGenerationProgress } from "./progress";
 import { mergeArtifacts } from "./artifacts";
 

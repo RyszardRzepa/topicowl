@@ -7,6 +7,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import type { ArticleStatus } from "@/types";
 
 // Article preview data interface
 interface ArticlePreviewData {
@@ -15,12 +16,7 @@ interface ArticlePreviewData {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status:
-    | "idea"
-    | "to_generate"
-    | "generating"
-    | "wait_for_publish"
-    | "published";
+  status: ArticleStatus;
   scheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;

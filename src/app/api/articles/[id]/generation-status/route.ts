@@ -2,14 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import {
-  articles,
-  articleGenerations,
-  users,
-  projects,
-  type ArticleStatus,
-  type ArticleGenerationStatus,
-} from "@/server/db/schema";
+import { articles, articleGenerations, users, projects } from "@/server/db/schema";
+import type { ArticleStatus, ArticleGenerationStatus } from "@/types";
 import { eq, desc, and } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
 

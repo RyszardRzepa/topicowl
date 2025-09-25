@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ReusableTabs } from "@/components/ui/reusable-tabs";
 import { ExcludedDomainsField } from "./excluded-domains-field";
@@ -318,7 +317,7 @@ export function ArticleSettingsForm({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full rounded-lg border border-gray-200 bg-white p-6">
       <ReusableTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -336,16 +335,60 @@ export function ArticleSettingsForm({
             label: "Article Generation",
           },
         ]}
-        className="mb-0"
+        className="mb-6"
       />
-
-      <Tabs value={activeTab} className="w-full">
-        <TabsContent value="company" className="mt-0">
-          <Card>
-            <CardHeader>
-              <CardTitle>Company & Brand Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      <div className="w-full">
+        <Tabs value={activeTab} className="w-full">
+          <TabsContent value="company" className="mt-0">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Company & Brand Information
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Define your company, brand, and product details.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || isLoading}
+                  size="sm"
+                >
+                  {saving && (
+                    <svg
+                      className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4">
               {/* Company Name */}
               <div>
                 <label
@@ -534,16 +577,59 @@ export function ArticleSettingsForm({
                   Primary language for AI-generated articles and content
                 </p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="seo" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>SEO & Sitemap</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <TabsContent value="seo" className="mt-4">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  SEO & Content Settings
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Configure sitemap and domain settings.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || isLoading}
+                  size="sm"
+                >
+                  {saving && (
+                    <svg
+                      className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4">
               <div>
                 <label
                   htmlFor="sitemapUrl"
@@ -650,16 +736,59 @@ export function ArticleSettingsForm({
                 }
                 disabled={saving || isLoading}
               />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="generation" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Article Generation Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <TabsContent value="generation" className="mt-4">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Article Generation Settings
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Customize article structure, tone, and content.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || isLoading}
+                  size="sm"
+                >
+                  {saving && (
+                    <svg
+                      className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4">
               {/* Tone of Voice */}
               <div>
                 <label
@@ -806,15 +935,15 @@ export function ArticleSettingsForm({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* Save Message */}
       {saveMessage && (
         <div
-          className={`flex items-start gap-3 rounded-lg p-4 ${
+          className={`mt-6 flex items-start gap-3 rounded-lg p-4 ${
             saveMessage.includes("successfully") ||
             saveMessage.includes("reset")
               ? "border border-green-200 bg-green-50 text-green-800"
@@ -861,34 +990,7 @@ export function ArticleSettingsForm({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex space-x-4">
-        <Button onClick={handleSave} disabled={saving || isLoading}>
-          {saving && (
-            <svg
-              className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-          )}
-          {saving ? "Saving Changes..." : "Save Changes"}
-        </Button>
-      </div>
+
     </div>
   );
 }

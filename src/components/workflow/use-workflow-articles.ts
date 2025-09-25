@@ -32,13 +32,26 @@ function mapGenerationStatusToPhase(
 import type { SchedulePublishingResponse } from "@/app/api/articles/schedule-publishing/route";
 
 export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
+  const projectIdValue = (() => {
+    const articleWithProject = dbArticle as unknown as {
+      projectId?: number;
+      project_id?: number;
+    };
+    if (typeof articleWithProject.projectId === "number") {
+      return articleWithProject.projectId;
+    }
+    if (typeof articleWithProject.project_id === "number") {
+      return articleWithProject.project_id;
+    }
+    return 0;
+  })();
+
   return {
     id: dbArticle.id.toString(),
     title: dbArticle.title,
     content: dbArticle.content ?? undefined,
     status: dbArticle.status,
-    // DatabaseArticle doesn't expose projectId in imported type; fallback to 0 to satisfy required field
-    projectId: (dbArticle as unknown as { projectId?: number }).projectId ?? 0,
+    projectId: projectIdValue,
     // Include slug if present in the board payload
     slug: (dbArticle as unknown as { slug?: string | null }).slug ?? undefined,
     keywords: Array.isArray(dbArticle.keywords)
@@ -69,10 +82,10 @@ export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
     generationStartedAt: undefined,
     generationCompletedAt: undefined,
     publishScheduledAt:
-      dbArticle.scheduledAt instanceof Date
-        ? dbArticle.scheduledAt.toISOString()
-        : typeof dbArticle.scheduledAt === "string"
-          ? dbArticle.scheduledAt
+      dbArticle.publishScheduledAt instanceof Date
+        ? dbArticle.publishScheduledAt.toISOString()
+        : typeof dbArticle.publishScheduledAt === "string"
+          ? dbArticle.publishScheduledAt
           : undefined,
     publishedAt:
       dbArticle.publishedAt instanceof Date
@@ -113,10 +126,14 @@ export function useWorkflowArticles() {
       const raw: unknown = await response.json();
       if (!Array.isArray(raw)) throw new Error("Invalid response format");
       const data = raw as KanbanColumn[];
+      
       const all: Article[] = [];
-      data.forEach((col) =>
-        col.articles.forEach((a) => all.push(transformDatabaseArticle(a))),
-      );
+      data.forEach((col) => {
+        col.articles.forEach((a) => {
+          const transformed = transformDatabaseArticle(a);
+          all.push(transformed);
+        });
+      });
       setArticles(all);
       setError(null);
     } catch (err) {
@@ -133,11 +150,19 @@ export function useWorkflowArticles() {
 
   const planningArticles = useMemo(
     () =>
-      articles.filter(
-        (a) =>
-          a.status === "idea" ||
-          (a.status === "scheduled" && !a.generationScheduledAt),
-      ),
+      articles.filter((a) => {
+        if (a.status === "idea") return true;
+        if (a.status !== "scheduled" || a.generationScheduledAt) return false;
+
+        const generationComplete =
+          (typeof a.generationProgress === "number" &&
+            a.generationProgress >= 100) ||
+          Boolean(a.content);
+        const readyToPublish =
+          generationComplete && !a.generationPhase && !a.generationError;
+
+        return !readyToPublish;
+      }),
     [articles],
   );
 
@@ -152,18 +177,20 @@ export function useWorkflowArticles() {
     [articles],
   );
 
-  const publishingArticles = useMemo(
-    () =>
-      articles.filter(
-        (a) =>
-          a.status === "wait_for_publish" ||
-          a.status === "published" ||
-          (a.generationProgress === 100 &&
-            a.generationPhase === undefined &&
-            !a.generationError),
-      ),
-    [articles],
-  );
+  const publishingArticles = useMemo(() => {
+    return articles.filter((a) => {
+      const generationComplete =
+        (typeof a.generationProgress === "number" &&
+          a.generationProgress >= 100) ||
+        Boolean(a.content);
+      const readyToPublish =
+        a.status === "scheduled" &&
+        generationComplete &&
+        !a.generationPhase &&
+        !a.generationError;
+      return readyToPublish || a.status === "published";
+    });
+  }, [articles]);
 
   const generatingArticles = useMemo(
     () => articles.filter((a) => a.status === "generating"),
@@ -428,7 +455,7 @@ export function useWorkflowArticles() {
             ? {
                 ...a,
                 publishScheduledAt: undefined,
-                status: "wait_for_publish",
+                status: "scheduled",
               }
             : a,
         ),

@@ -6,7 +6,7 @@ import {
 } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
-import type { ArticleGenerationStatus } from "@/server/db/schema";
+import type { ArticleGenerationStatus } from "@/types";
 import type {
   ResearchResponse,
   ResearchVideo,

@@ -78,12 +78,12 @@ export async function POST(
       );
     }
 
-    // Update: clear publishScheduledAt, status remains wait_for_publish
+    // Update: clear publishScheduledAt, status remains scheduled (ready state)
     const updatedRows = await db
       .update(articles)
       .set({
         publishScheduledAt: null,
-        status: "wait_for_publish",
+        status: "scheduled",
         updatedAt: new Date(),
       })
       .where(eq(articles.id, articleId))

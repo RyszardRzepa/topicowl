@@ -1,10 +1,6 @@
 import { db } from "@/server/db";
-import {
-  articleGenerations,
-  articles,
-  type ArticleGenerationStatus,
-  type ArticleStatus,
-} from "@/server/db/schema";
+import { articleGenerations, articles } from "@/server/db/schema";
+import type { ArticleGenerationStatus, ArticleStatus } from "@/types";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 

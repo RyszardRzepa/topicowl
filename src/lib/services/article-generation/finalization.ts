@@ -9,7 +9,7 @@ import { performValidation as runValidation } from "@/lib/services/content-valid
 import type { ValidateResponse } from "@/lib/services/content-validation";
 import type { WriteResponse } from "@/lib/services/content-generation";
 import type { VideoEmbed } from "@/types";
-import type { ArticleGenerationStatus } from "@/server/db/schema";
+import type { ArticleGenerationStatus } from "@/types";
 import { getCreditCost } from "@/lib/utils/credit-costs";
 import { deductCredits } from "@/lib/utils/credits";
 import { updateGenerationProgress } from "./progress";
@@ -84,7 +84,7 @@ async function finalizeArticle(
     slug?: string;
     metaDescription: string;
     metaKeywords?: string[];
-    status: "wait_for_publish" | "scheduled";
+    status: "scheduled";
     updatedAt: Date;
     coverImageUrl?: string;
     coverImageAlt?: string;
@@ -93,7 +93,7 @@ async function finalizeArticle(
     content: finalContentWithIntro,
     videos: videos ?? [],
     metaDescription: writeData.metaDescription ?? "",
-    status: publishReady ? "wait_for_publish" : "scheduled",
+    status: "scheduled",
     updatedAt: new Date(),
   };
   if (writeData.slug) updateData.slug = writeData.slug;

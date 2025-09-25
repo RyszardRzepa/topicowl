@@ -1,17 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import {
-  articles,
-  articleGenerations,
-  projects,
-  webhookDeliveries,
-  users,
-} from "@/server/db/schema";
+import { articles, articleGenerations, projects, webhookDeliveries, users } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
-import type { ArticleStatus } from "@/types";
-import { videoEmbedSchema } from "@/types";
+import { ARTICLE_STATUSES, type ArticleStatus, videoEmbedSchema } from "@/types";
 import { logServerError } from "@/lib/posthog-server";
 import type {
   ArticleGenerationArtifacts,
@@ -96,16 +89,7 @@ const updateArticleSchema = z.object({
   scheduledAt: z.string().datetime().optional(), // For publishing schedule
   publishScheduledAt: z.string().datetime().optional().or(z.undefined()), // Frontend compatibility
   // Add status and publication fields
-  status: z
-    .enum([
-      "idea",
-      "scheduled",
-      "generating",
-      "wait_for_publish",
-      "published",
-      "failed",
-    ])
-    .optional(),
+  status: z.enum(ARTICLE_STATUSES).optional(),
   publishedAt: z.string().datetime().optional(), // When article was published
   // Add basic article fields
   title: z.string().min(1).max(255).optional(),

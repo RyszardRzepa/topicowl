@@ -4,7 +4,7 @@ import { db } from "@/server/db";
 import { articles, users, projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import type { ApiResponse, ArticleStatus } from "@/types";
+import { ARTICLE_STATUSES, type ApiResponse, type ArticleStatus } from "@/types";
 import type { ArticleGenerationRequest } from "@/app/api/articles/generate/route";
 import { API_BASE_URL } from "@/constants";
 
@@ -19,10 +19,9 @@ export interface MoveArticleRequest {
 const STATUS_FLOW: Partial<Record<ArticleStatus, ArticleStatus[]>> = {
   idea: ["scheduled"],
   scheduled: ["generating", "idea"],
-  generating: ["wait_for_publish"], // Automatically moved by system after generation
-  wait_for_publish: ["published"],
-  published: [], // Cannot be moved
-  failed: ["idea", "scheduled"], // Failed articles can be reset to idea or scheduled
+  generating: ["scheduled"], // Automatically moved by system after generation
+  published: [],
+  failed: ["idea", "scheduled"],
 };
 
 const isValidStatusTransition = (
@@ -76,14 +75,7 @@ async function generateArticleContentInline(articleId: string) {
 
 const moveArticleSchema = z.object({
   articleId: z.number(),
-  newStatus: z.enum([
-    "idea",
-    "scheduled",
-    "generating",
-    "wait_for_publish",
-    "published",
-    "failed",
-  ]),
+  newStatus: z.enum(ARTICLE_STATUSES),
   newPosition: z.number().min(0),
 });
 

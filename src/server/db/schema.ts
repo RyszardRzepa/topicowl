@@ -12,7 +12,11 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
-import type { ArticleGenerationArtifacts } from "@/types";
+import {
+  ARTICLE_STATUSES,
+  ARTICLE_GENERATION_STATUSES,
+} from "@/types";
+import type { ArticleGenerationArtifacts, ArticleStatus, ArticleGenerationStatus } from "@/types";
 import type { GenerationTaskStatus } from "@/lib/services/topic-discovery/types";
 
 /**
@@ -23,37 +27,6 @@ import type { GenerationTaskStatus } from "@/lib/services/topic-discovery/types"
  */
 
 export const topicowlSchema = pgSchema("topicowl");
-
-// Article-level kanban statuses
-export const articleStatusEnum = topicowlSchema.enum("article_status", [
-  "idea",
-  "scheduled",
-  "generating",
-  "wait_for_publish",
-  "published",
-  "failed",
-]);
-
-// Per-run generation statuses (phases + terminal states)
-export const articleGenerationStatusEnum = topicowlSchema.enum(
-  "article_generation_status",
-  [
-    "scheduled",
-    "research",
-    "image",
-    "writing",
-    "quality-control",
-    "validating",
-    "updating",
-    "completed",
-    "failed",
-  ],
-);
-
-// TypeScript types for use in API routes and services  
-export type ArticleStatus = (typeof articleStatusEnum.enumValues)[number];
-export type ArticleGenerationStatus =
-  (typeof articleGenerationStatusEnum.enumValues)[number];
 
 export const users = topicowlSchema.table("users", {
   id: text("id").primaryKey(),
@@ -162,8 +135,6 @@ export const userCredits = topicowlSchema.table("user_credits", {
     .notNull(),
 });
 
-// Note: Unified articleStatusEnum is defined above
-
 // Articles table for kanban-based workflow
 export const articles = topicowlSchema.table(
   "articles",
@@ -177,7 +148,10 @@ export const articles = topicowlSchema.table(
     description: text("description"),
     keywords: jsonb("keywords").default([]).notNull(),
     targetAudience: varchar("target_audience", { length: 255 }),
-    status: articleStatusEnum("status").default("idea").notNull(),
+    status: text("status", { enum: ARTICLE_STATUSES })
+      .$type<ArticleStatus>()
+      .default("idea")
+      .notNull(),
 
     // Publishing scheduling (separate from generation scheduling)
     publishScheduledAt: timestamp("publish_scheduled_at", {
@@ -236,7 +210,10 @@ export const articleGenerations = topicowlSchema.table(
       .notNull(),
 
     taskId: varchar("task_id"),
-    status: articleGenerationStatusEnum("status").default("scheduled").notNull(),
+    status: text("status", { enum: ARTICLE_GENERATION_STATUSES })
+      .$type<ArticleGenerationStatus>()
+      .default("scheduled")
+      .notNull(),
     progress: integer("progress").default(0).notNull(),
     artifacts: jsonb("artifacts")
       .$type<ArticleGenerationArtifacts>()
@@ -284,7 +261,10 @@ export const redditPosts = topicowlSchema.table(
     text: text("text").notNull(),
 
     // Reusing the existing enum for consistency with article scheduling
-    status: articleStatusEnum("status").default("scheduled").notNull(),
+    status: text("status", { enum: ARTICLE_STATUSES })
+      .$type<ArticleStatus>()
+      .default("scheduled")
+      .notNull(),
 
     // Scheduling fields
     publishScheduledAt: timestamp("publish_scheduled_at", {

@@ -836,8 +836,10 @@ export function WeekGrid({
                                       </>
                                     )}
                                     
-                                    {/* For generated articles (wait_for_publish, published), show only reschedule button */}
-                                    {(article.status === STATUSES.WAIT_FOR_PUBLISH || article.status === STATUSES.PUBLISHED) && (
+                                    {/* For articles already scheduled or published, show only reschedule button */}
+                                    {(article.status === STATUSES.PUBLISHED ||
+                                      (article.status === STATUSES.SCHEDULED &&
+                                        article.publishScheduledAt)) && (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <button

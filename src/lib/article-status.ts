@@ -1,12 +1,14 @@
-import type { ArticleStatus } from "@/types";
-import { articleStatusEnum } from "@/server/db/schema";
+import {
+  ARTICLE_STATUSES as ARTICLE_STATUS_VALUES,
+  type ArticleStatus,
+} from "@/types";
 
 // Centralized article status management
 // Single source of truth for all status-related logic
 
 // Use schema enum as the single source of truth for article statuses
 // This exports the exact enum values from the database schema
-export const ARTICLE_STATUSES = articleStatusEnum.enumValues;
+export const ARTICLE_STATUSES = ARTICLE_STATUS_VALUES;
 
 // For convenience, export individual status constants derived from schema
 // This ensures type safety and single source of truth with the database schema
@@ -14,7 +16,6 @@ export const STATUSES = {
   IDEA: "idea",
   SCHEDULED: "scheduled",
   GENERATING: "generating",
-  WAIT_FOR_PUBLISH: "wait_for_publish",
   PUBLISHED: "published",
   FAILED: "failed",
 } as const satisfies Record<string, ArticleStatus>;
@@ -46,12 +47,13 @@ type DisplayStatus = (typeof DISPLAY_STATUSES)[keyof typeof DISPLAY_STATUSES];
 export function getDisplayStatus(dbStatus: ArticleStatus): DisplayStatus {
   switch (dbStatus) {
     case STATUSES.IDEA:
-    case STATUSES.SCHEDULED:
-    case STATUSES.GENERATING:
     case STATUSES.FAILED:
       return DISPLAY_STATUSES.IDEA;
     
-    case STATUSES.WAIT_FOR_PUBLISH:
+    case STATUSES.SCHEDULED:
+      return DISPLAY_STATUSES.GENERATED;
+
+    case STATUSES.GENERATING:
       return DISPLAY_STATUSES.GENERATED;
     
     case STATUSES.PUBLISHED:
@@ -80,7 +82,7 @@ export function isGenerating(dbStatus: ArticleStatus): boolean {
 }
 
 export function isReadyToPublish(dbStatus: ArticleStatus): boolean {
-  return dbStatus === STATUSES.WAIT_FOR_PUBLISH;
+  return dbStatus === STATUSES.SCHEDULED;
 }
 
 export function isPublished(dbStatus: ArticleStatus): boolean {
@@ -115,7 +117,6 @@ export interface BoardEventConfig {
 export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boolean): BoardEventConfig {
   switch (dbStatus) {
     case STATUSES.IDEA:
-    case STATUSES.SCHEDULED:
       return {
         kind: "queued",
         label: "Idea",
@@ -139,7 +140,7 @@ export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boole
         priority: 2,
       };
       
-    case STATUSES.WAIT_FOR_PUBLISH:
+    case STATUSES.SCHEDULED:
       if (hasSchedule) {
         return {
           kind: "publishScheduled",
@@ -147,14 +148,13 @@ export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boole
           bgColor: "bg-chart-3", // Yellow for scheduled
           priority: 3,
         };
-      } else {
-        return {
-          kind: "readyToPublish",
-          label: "Ready to publish",
-          bgColor: STATUS_COLORS[DISPLAY_STATUSES.GENERATED],
-          priority: 3,
-        };
       }
+      return {
+        kind: "readyToPublish",
+        label: "Ready to publish",
+        bgColor: STATUS_COLORS[DISPLAY_STATUSES.GENERATED],
+        priority: 3,
+      };
       
     case STATUSES.PUBLISHED:
       return {

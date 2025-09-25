@@ -106,7 +106,7 @@ users (id: text) -> projects (userId: text, id: serial) -> articles (projectId: 
 **Key schema patterns**:
 - All project-scoped tables include `projectId` foreign key to `projects.id`
 - Use `jsonb` fields for structured data (keywords, artifacts, metadata)
-- PostgreSQL enums for status fields (`articleStatusEnum`)
+- Status fields stored as constrained text values managed in application types
 - Composite indexes on `(userId, projectId)` for efficient multi-tenant queries
 
 **Migration commands**:

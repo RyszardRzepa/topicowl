@@ -42,10 +42,6 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
         text: "Generating",
         color: "text-brand-orange bg-brand-orange/10",
       },
-      wait_for_publish: {
-        text: "Wait for Publish",
-        color: "text-brand-green bg-brand-green/10",
-      },
       published: {
         text: "Published",
         color: "text-brand-green bg-brand-green/20",

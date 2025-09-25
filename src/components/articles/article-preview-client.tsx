@@ -62,7 +62,7 @@ export function ArticlePreviewClient({
       // Update the article state when generation is complete
       setArticle((prev) => ({
         ...prev,
-        status: "wait_for_publish",
+        status: "scheduled",
       }));
       // Refresh credits since generation completed and credits were deducted
       void refreshCredits();
