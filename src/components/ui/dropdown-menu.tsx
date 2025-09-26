@@ -47,7 +47,7 @@ export function DropdownMenu({ children }: DropdownMenuProps) {
 
   return (
     <DropdownMenuContext.Provider value={{ open, setOpen }}>
-      <div className="relative inline-block w-full text-left">{children}</div>
+      <div className="relative inline-block text-left">{children}</div>
     </DropdownMenuContext.Provider>
   );
 }

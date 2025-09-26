@@ -6,10 +6,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { STATUSES, type BoardEventConfig } from "@/lib/article-status";
@@ -17,9 +19,10 @@ import {
   AlertTriangle,
   Calendar,
   Edit3,
-  Loader2,
+  MoreHorizontal,
   Play,
   Plus,
+  Send,
   Trash2,
   Zap,
 } from "lucide-react";
@@ -47,7 +50,7 @@ type BoardEvent =
 interface WeekGridProps {
   readonly weekDays: Date[];
   readonly scheduledItems: QueueItem[];
-  readonly queueItems: QueueItem[];
+  readonly queueItems: QueueItem[]; // Kept for interface compatibility but unused
   readonly allBoardEvents: ArticleEvent[];
   readonly articleById: Map<number, Article>;
   readonly overdueQueueItemIds: Set<number>;
@@ -67,12 +70,13 @@ interface WeekGridProps {
   readonly handleDeleteArticleDirectly: (article: Article) => Promise<void>;
   readonly handleRetryGeneration: (article: Article) => Promise<void>;
   readonly handleRescheduleArticle: (article: Article) => Promise<void>;
+  readonly handlePublishNow: (article: Article) => Promise<void>;
 }
 
 export function WeekGrid({
   weekDays,
   scheduledItems,
-  queueItems,
+  queueItems: _queueItems,
   allBoardEvents,
   articleById,
   overdueQueueItemIds,
@@ -89,6 +93,7 @@ export function WeekGrid({
   handleDeleteArticleDirectly,
   handleRetryGeneration,
   handleRescheduleArticle,
+  handlePublishNow,
 }: WeekGridProps) {
   return (
     <div className="flex-1 overflow-hidden">
@@ -291,157 +296,99 @@ export function WeekGrid({
                                     )}
                                   </div>
                                 </div>
+                                
                                 {(() => {
                                   const article = articleById.get(
                                     item.articleId,
                                   );
-                                  const scheduledDate = new Date(
-                                    item.scheduledForDate,
-                                  );
-                                  const isInPast =
-                                    scheduledDate.getTime() < Date.now();
-                                  const shouldShowActions =
-                                    article &&
-                                    // Show for idea phase that are not in the past
-                                    ((!isInPast &&
-                                      (article.status === STATUSES.IDEA ||
-                                        article.status ===
-                                          STATUSES.SCHEDULED)) ||
-                                      // Show for failed articles regardless of time
-                                      article.status === STATUSES.FAILED ||
-                                      // Show for overdue scheduled articles (they need rescheduling)
-                                      (isInPast &&
-                                        article.status === STATUSES.SCHEDULED));
+                                  if (!article) return null;
 
-                                  if (!shouldShowActions) return null;
-
-                                  // For ALL scheduled articles, show only reschedule button
+                                  // Simple status-based logic
                                   if (article.status === STATUSES.SCHEDULED) {
                                     return (
-                                      <div className="flex items-center gap-1">
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                void handleRescheduleArticle(
-                                                  article,
-                                                );
-                                              }}
-                                              disabled={isOperationLoading(
-                                                parseInt(article.id),
-                                                "edit",
-                                              )}
-                                              aria-label="Reschedule date"
-                                            >
-                                              {isOperationLoading(
-                                                parseInt(article.id),
-                                                "edit",
-                                              ) ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <Calendar className="h-4 w-4" />
-                                              )}
-                                            </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top">
-                                            Reschedule date
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </div>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              if (!isOperationLoading(parseInt(article.id), "publish")) {
+                                                void handlePublishNow(article);
+                                              }
+                                            }}
+                                            className={isOperationLoading(parseInt(article.id), "publish") ? "opacity-50 cursor-not-allowed" : ""}
+                                          >
+                                            <Send className="mr-2 h-4 w-4" />
+                                            Publish now
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              if (!isOperationLoading(parseInt(article.id), "edit")) {
+                                                void handleRescheduleArticle(article);
+                                              }
+                                            }}
+                                            className={isOperationLoading(parseInt(article.id), "edit") ? "opacity-50 cursor-not-allowed" : ""}
+                                          >
+                                            <Calendar className="mr-2 h-4 w-4" />
+                                            Reschedule
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     );
                                   }
 
-                                  // For non-overdue articles, show full action buttons
-                                  return (
-                                    <div className="flex items-center gap-1">
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
+                                  if (article.status === STATUSES.IDEA) {
+                                    return (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem
+                                            onClick={() => {
                                               openEditModal(item);
                                             }}
-                                            disabled={isOperationLoading(
-                                              item.id,
-                                              "edit",
-                                            )}
-                                            aria-label="Edit"
                                           >
-                                            {isOperationLoading(
-                                              item.id,
-                                              "edit",
-                                            ) ? (
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <Edit3 className="h-4 w-4" />
-                                            )}
-                                          </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                          Edit
-                                        </TooltipContent>
-                                      </Tooltip>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
+                                            <Edit3 className="mr-2 h-4 w-4" />
+                                            Edit
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
                                               void handleGenerateNow(item);
                                             }}
-                                            disabled={isOperationLoading(
-                                              item.id,
-                                              "generate",
-                                            )}
-                                            aria-label="Generate now"
                                           >
-                                            {isOperationLoading(
-                                              item.id,
-                                              "generate",
-                                            ) ? (
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <Play className="h-4 w-4" />
-                                            )}
-                                          </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                          Generate now
-                                        </TooltipContent>
-                                      </Tooltip>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
+                                            <Play className="mr-2 h-4 w-4" />
+                                            Generate now
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
                                               void handleDeleteArticle(item);
                                             }}
-                                            disabled={isOperationLoading(
-                                              item.id,
-                                              "delete",
-                                            )}
-                                            aria-label="Delete article"
+                                            className="text-destructive focus:text-destructive"
                                           >
-                                            {isOperationLoading(
-                                              item.id,
-                                              "delete",
-                                            ) ? (
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <Trash2 className="h-4 w-4" />
-                                            )}
-                                          </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                          Delete article
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </div>
-                                  );
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Delete article
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              void handleRescheduleArticle(article);
+                                            }}
+                                          >
+                                            <Calendar className="mr-2 h-4 w-4" />
+                                            Reschedule
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    );
+                                  }
+
+                                  // No actions for other statuses
+                                  return null;
                                 })()}
                               </div>
                             </PopoverContent>
@@ -589,173 +536,33 @@ export function WeekGrid({
                                       </div>
                                     )}
                                   </div>
-                                  {(() => {
-                                    // Find the corresponding queue item
-                                    const queueItem = queueItems.find(
-                                      (q) =>
-                                        q.articleId === parseInt(article.id),
-                                    );
-                                    if (!queueItem) {
-                                      // No queue item - use direct article handlers
-                                      return (
-                                        <div className="flex items-center gap-1">
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <button
-                                                className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  void handleRetryGeneration(
-                                                    article,
-                                                  );
-                                                }}
-                                                disabled={isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "generate",
-                                                )}
-                                              >
-                                                {isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "generate",
-                                                ) ? (
-                                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                  <Play className="h-4 w-4" />
-                                                )}
-                                              </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                              Retry generation
-                                            </TooltipContent>
-                                          </Tooltip>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <button
-                                                className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  void handleDeleteArticleDirectly(
-                                                    article,
-                                                  );
-                                                }}
-                                                disabled={isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "delete",
-                                                )}
-                                                aria-label="Delete article"
-                                              >
-                                                {isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "delete",
-                                                ) ? (
-                                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                  <Trash2 className="h-4 w-4" />
-                                                )}
-                                              </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                              Delete article
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </div>
-                                      );
-                                    }
-
-                                    // If there's an actual queue item, use the regular action buttons
-                                    return (
-                                      <div className="flex items-center gap-1">
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                openEditModal(queueItem);
-                                              }}
-                                              disabled={isOperationLoading(
-                                                queueItem.id,
-                                                "edit",
-                                              )}
-                                              aria-label="Edit"
-                                            >
-                                              {isOperationLoading(
-                                                queueItem.id,
-                                                "edit",
-                                              ) ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <Edit3 className="h-4 w-4" />
-                                              )}
-                                            </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top">
-                                            Edit
-                                          </TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                void handleRetryGeneration(
-                                                  article,
-                                                );
-                                              }}
-                                              disabled={isOperationLoading(
-                                                parseInt(article.id),
-                                                "generate",
-                                              )}
-                                              aria-label="Retry generation"
-                                            >
-                                              {isOperationLoading(
-                                                parseInt(article.id),
-                                                "generate",
-                                              ) ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <Play className="h-4 w-4" />
-                                              )}
-                                            </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top">
-                                            Retry generation
-                                          </TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                void handleDeleteArticle(
-                                                  queueItem,
-                                                );
-                                              }}
-                                              disabled={isOperationLoading(
-                                                queueItem.id,
-                                                "delete",
-                                              )}
-                                              aria-label="Delete article"
-                                            >
-                                              {isOperationLoading(
-                                                queueItem.id,
-                                                "delete",
-                                              ) ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <Trash2 className="h-4 w-4" />
-                                              )}
-                                            </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top">
-                                            Delete article
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </div>
-                                    );
-                                  })()}
+                                  
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          void handleRetryGeneration(article);
+                                        }}
+                                      >
+                                        <Play className="mr-2 h-4 w-4" />
+                                        Retry generation
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          void handleDeleteArticleDirectly(article);
+                                        }}
+                                        className="text-destructive focus:text-destructive"
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete article
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </PopoverContent>
                             </Popover>
@@ -806,147 +613,88 @@ export function WeekGrid({
                                     — {config.label.toLowerCase()}
                                   </div>
                                 </div>
+                                
                                 {(() => {
-                                  // Show edit actions for all articles that reach this section
-                                  // (generating articles are handled in their own section above)
-                                  // Allow editing schedule date for generated, published, and all other statuses
+                                  // Simple status-based logic
+                                  if (article.status === STATUSES.SCHEDULED) {
+                                    return (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              void handlePublishNow(article);
+                                            }}
+                                          >
+                                            <Send className="mr-2 h-4 w-4" />
+                                            Publish now
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              void handleRescheduleArticle(article);
+                                            }}
+                                          >
+                                            <Calendar className="mr-2 h-4 w-4" />
+                                            Reschedule
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    );
+                                  }
 
-                                  return (
-                                    <div className="flex items-center gap-1">
-                                      {/* For idea articles, show full edit, generate, and delete buttons */}
-                                      {article.status === STATUSES.IDEA && (
-                                        <>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <button
-                                                className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  openEditModalForArticle(
-                                                    article,
-                                                  );
-                                                }}
-                                                disabled={isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "edit",
-                                                )}
-                                                aria-label="Edit"
-                                              >
-                                                {isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "edit",
-                                                ) ? (
-                                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                  <Edit3 className="h-4 w-4" />
-                                                )}
-                                              </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                              Edit
-                                            </TooltipContent>
-                                          </Tooltip>
+                                  if (article.status === STATUSES.IDEA) {
+                                    return (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              openEditModalForArticle(article);
+                                            }}
+                                          >
+                                            <Edit3 className="mr-2 h-4 w-4" />
+                                            Edit
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              void handleGenerateArticle(article);
+                                            }}
+                                          >
+                                            <Play className="mr-2 h-4 w-4" />
+                                            Generate now
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              void handleDeleteArticleDirectly(article);
+                                            }}
+                                            className="text-destructive focus:text-destructive"
+                                          >
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Delete article
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              void handleRescheduleArticle(article);
+                                            }}
+                                          >
+                                            <Calendar className="mr-2 h-4 w-4" />
+                                            Reschedule
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    );
+                                  }
 
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <button
-                                                className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  void handleGenerateArticle(
-                                                    article,
-                                                  );
-                                                }}
-                                                disabled={isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "generate",
-                                                )}
-                                                aria-label="Generate now"
-                                              >
-                                                {isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "generate",
-                                                ) ? (
-                                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                  <Play className="h-4 w-4" />
-                                                )}
-                                              </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                              Generate now
-                                            </TooltipContent>
-                                          </Tooltip>
-
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <button
-                                                className="hover:bg-accent/40 text-destructive flex size-8 items-center justify-center rounded-full transition-colors"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  void handleDeleteArticleDirectly(
-                                                    article,
-                                                  );
-                                                }}
-                                                disabled={isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "delete",
-                                                )}
-                                                aria-label="Delete article"
-                                              >
-                                                {isOperationLoading(
-                                                  parseInt(article.id),
-                                                  "delete",
-                                                ) ? (
-                                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                  <Trash2 className="h-4 w-4" />
-                                                )}
-                                              </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                              Delete article
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </>
-                                      )}
-
-                                      {/* For scheduled articles, show only reschedule button */}
-                                      {article.status ===
-                                        STATUSES.SCHEDULED && (
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                void handleRescheduleArticle(
-                                                  article,
-                                                );
-                                              }}
-                                              disabled={isOperationLoading(
-                                                parseInt(article.id),
-                                                "edit",
-                                              )}
-                                              aria-label="Reschedule date"
-                                            >
-                                              {isOperationLoading(
-                                                parseInt(article.id),
-                                                "edit",
-                                              ) ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <Calendar className="h-4 w-4" />
-                                              )}
-                                            </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top">
-                                            Reschedule date
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      )}
-                                    </div>
-                                  );
+                                  // No actions for other statuses
+                                  return null;
                                 })()}
                               </div>
                             </PopoverContent>

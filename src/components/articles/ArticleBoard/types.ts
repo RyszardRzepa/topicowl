@@ -28,7 +28,7 @@ export interface GenerationStatusResponse {
   status?: string;
 }
 
-export type OperationType = "generate" | "edit" | "delete";
+export type OperationType = "generate" | "edit" | "delete" | "publish";
 
 export type ArticleEvent = {
   id: string;

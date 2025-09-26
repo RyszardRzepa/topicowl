@@ -577,6 +577,24 @@ export function ArticlesBoard() {
     }
   };
 
+  const handlePublishNow = async (article: Article) => {
+    try {
+      setOperationLoading(parseInt(article.id), "publish", true);
+      const res = await fetch(`/api/articles/${article.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("Failed to publish article");
+      toast.success("Article published");
+      await refetchArticles();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to publish article");
+    } finally {
+      setOperationLoading(parseInt(article.id), "publish", false);
+    }
+  };
+
   const openEditModal = (item: QueueItem) => {
     const article = articleById.get(item.articleId);
     setEditTarget(item);
@@ -795,6 +813,7 @@ export function ArticlesBoard() {
           handleDeleteArticleDirectly={handleDeleteArticleDirectly}
           handleRetryGeneration={handleRetryGeneration}
           handleRescheduleArticle={handleRescheduleArticle}
+          handlePublishNow={handlePublishNow}
         />
         <CreateArticleDialog
           open={isCreating}
