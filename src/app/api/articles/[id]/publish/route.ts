@@ -351,8 +351,8 @@ export async function POST(req: NextRequest) {
     const [updatedArticle] = await db
       .update(articles)
       .set({
+        status: "published",
         content: finalContent,
-        publishScheduledAt: null, // Clear scheduled time when publishing
         updatedAt: new Date(),
         // Set publishedAt if not already set
         ...(!article.publishedAt && { publishedAt: new Date() }),

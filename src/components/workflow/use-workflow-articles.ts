@@ -337,7 +337,7 @@ export function useWorkflowArticles() {
     if (!project) return;
     try {
       const article = articles.find((a) => a.id === articleId);
-      const response = await fetch("/api/articles/publish", {
+      const response = await fetch(`/api/articles/${articleId}/publish`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

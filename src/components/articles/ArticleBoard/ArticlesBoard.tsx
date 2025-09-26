@@ -583,6 +583,10 @@ export function ArticlesBoard() {
       const res = await fetch(`/api/articles/${article.id}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articleId: parseInt(article.id),
+          projectId: article.projectId,
+        }),
       });
       if (!res.ok) throw new Error("Failed to publish article");
       toast.success("Article published");
