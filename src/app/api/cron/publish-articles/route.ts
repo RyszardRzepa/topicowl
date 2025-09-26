@@ -298,6 +298,7 @@ async function publishScheduledArticles(): Promise<
   CronPublishResponse["data"]
 > {
   const now = new Date();
+  console.log("📅 Current timestamp for comparison:", now.toISOString());
 
   // Find articles ready for publishing (no user filtering - system-wide)
   // Explicitly select all fields needed for publishing and webhook delivery
@@ -334,8 +335,12 @@ async function publishScheduledArticles(): Promise<
     );
 
   console.log(
-    `Found ${articlesToPublish.length} articles ready for publishing`,
+    `📋 Found ${articlesToPublish.length} articles ready for publishing`,
   );
+  
+  if (articlesToPublish.length > 0) {
+    console.log("📄 Articles to publish:", articlesToPublish.map(a => ({ id: a.id, title: a.title, scheduledAt: a.publishScheduledAt })));
+  }
 
   const publishedArticles = [];
 
@@ -442,13 +447,16 @@ async function publishScheduledArticles(): Promise<
 // GET /api/cron/publish-articles - Vercel Cron calls this with GET
 export async function GET() {
   try {
-    console.log("Cron publish articles started at", new Date().toISOString());
+    console.log("🚀 CRON JOB STARTED - Publish Articles:", new Date().toISOString());
+    console.log("🔍 Environment check - Node env:", process.env.NODE_ENV);
+    console.log("📊 Starting to look for scheduled articles...");
 
     const result = await publishScheduledArticles();
 
     console.log(
-      `Cron publish completed: ${result.publishedCount} articles published`,
+      `✅ CRON JOB COMPLETED: ${result.publishedCount} articles published`,
     );
+    console.log("🏁 Cron job finished successfully at:", new Date().toISOString());
 
     return NextResponse.json({
       success: true,
@@ -456,39 +464,8 @@ export async function GET() {
       message: `Published ${result.publishedCount} scheduled articles`,
     } as CronPublishResponse);
   } catch (error) {
-    console.error("Cron publish articles error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        data: { publishedCount: 0, publishedArticles: [] },
-        message: "Failed to publish scheduled articles",
-      } as CronPublishResponse,
-      { status: 500 },
-    );
-  }
-}
-
-// POST /api/cron/publish-articles - Optional manual trigger for testing
-export async function POST() {
-  try {
-    console.log(
-      "Manual publish articles trigger started at",
-      new Date().toISOString(),
-    );
-
-    const result = await publishScheduledArticles();
-
-    console.log(
-      `Manual publish completed: ${result.publishedCount} articles published`,
-    );
-
-    return NextResponse.json({
-      success: true,
-      data: result,
-      message: `Published ${result.publishedCount} scheduled articles`,
-    } as CronPublishResponse);
-  } catch (error) {
-    console.error("Manual publish articles error:", error);
+    console.error("❌ CRON JOB ERROR - Publish Articles:", error);
+    console.error("🚨 Error details:", JSON.stringify(error, null, 2));
     return NextResponse.json(
       {
         success: false,
