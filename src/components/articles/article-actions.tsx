@@ -16,11 +16,12 @@ import { toast } from "sonner";
 // Import colocated types from API routes for type safety
 import type { SchedulePublishingRequest } from "@/app/api/articles/schedule-publishing/route";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
+import type { ArticleStatus } from "@/types";
 
 interface ArticleActionsProps {
   article: ArticleDetailResponse["data"];
   onEdit: () => void;
-  onStatusChange?: (newStatus: string) => void;
+  onStatusChange?: (newStatus: ArticleStatus) => void;
   className?: string;
 }
 
@@ -62,7 +63,7 @@ export function ArticleActions({
       };
 
       if (result.success) {
-        onStatusChange?.("wait_for_publish");
+        onStatusChange?.("scheduled");
         setShowScheduleDialog(false);
         setScheduledDate("");
         toast.success("Article scheduled successfully!");
@@ -106,8 +107,7 @@ export function ArticleActions({
   };
 
   const canSchedule =
-    article.status === "wait_for_publish" ||
-    (article.draft && article.status !== "generating");
+    article.status === "scheduled" && Boolean(article.content);
 
   return (
     <>

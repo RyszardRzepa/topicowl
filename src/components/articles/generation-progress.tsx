@@ -12,6 +12,45 @@ import { AlertCircle, CheckCircle, Clock, Loader2 } from "lucide-react";
 import { SEO_MIN_SCORE } from "@/constants";
 import type { GenerationStatus } from "@/app/api/articles/[id]/generation-status/route";
 
+type DisplayStatus =
+  | GenerationStatus["status"]
+  | GenerationStatus["articleStatus"]
+  | "completed";
+
+const IN_PROGRESS_STATUSES: GenerationStatus["status"][] = [
+  "research",
+  "image",
+  "writing",
+  "quality-control",
+  "validating",
+  "updating",
+];
+
+function resolveDisplayStatus(status: GenerationStatus): DisplayStatus {
+  const generationStatus = status.status;
+  const articleStatus = status.articleStatus;
+
+  if (generationStatus === "failed") return "failed";
+
+  if (IN_PROGRESS_STATUSES.includes(generationStatus)) {
+    return generationStatus;
+  }
+
+  if (generationStatus === "completed") {
+    if (articleStatus === "published") return "published";
+    if (articleStatus === "scheduled") return "completed";
+    return "completed";
+  }
+
+  if (generationStatus === "scheduled") {
+    if (articleStatus === "generating") return "generating";
+    if (articleStatus === "scheduled") return "scheduled";
+    return "idea";
+  }
+
+  return articleStatus ?? generationStatus;
+}
+
 interface GenerationProgressProps {
   status: GenerationStatus;
   className?: string;
@@ -21,16 +60,23 @@ export function GenerationProgress({
   status,
   className,
 }: GenerationProgressProps) {
+  const displayStatus = resolveDisplayStatus(status);
+
   const getStatusIcon = () => {
-    switch (status.status) {
-      case "pending":
+    switch (displayStatus) {
+      case "idea":
+      case "scheduled":
         return <Clock className="h-5 w-5 text-gray-500" />;
-      case "researching":
+      case "research":
+      case "generating":
       case "writing":
+      case "image":
+      case "quality-control":
       case "validating":
       case "updating":
         return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
       case "completed":
+      case "published":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case "failed":
         return <AlertCircle className="h-5 w-5 text-red-500" />;
@@ -40,15 +86,20 @@ export function GenerationProgress({
   };
 
   const getStatusColor = () => {
-    switch (status.status) {
-      case "pending":
+    switch (displayStatus) {
+      case "idea":
+      case "scheduled":
         return "text-gray-600";
-      case "researching":
+      case "research":
+      case "generating":
       case "writing":
+      case "image":
+      case "quality-control":
       case "validating":
       case "updating":
         return "text-blue-600";
       case "completed":
+      case "published":
         return "text-green-600";
       case "failed":
         return "text-red-600";
@@ -58,23 +109,33 @@ export function GenerationProgress({
   };
 
   const getStatusText = () => {
-    switch (status.status) {
-      case "pending":
-        return "Pending";
-      case "researching":
+    switch (displayStatus) {
+      case "idea":
+        return "Idea";
+      case "scheduled":
+        return "Scheduled";
+      case "generating":
+        return "Generating";
+      case "research":
         return "Researching";
       case "writing":
         return "Writing";
+      case "image":
+        return "Selecting Image";
+      case "quality-control":
+        return "Quality Control";
       case "validating":
         return "Validating";
       case "updating":
         return "Updating";
       case "completed":
-        return "Completed";
+        return "Ready to Publish";
+      case "published":
+        return "Published";
       case "failed":
         return "Failed";
       default:
-        return "Unknown";
+        return "Processing";
     }
   };
 
@@ -108,16 +169,6 @@ export function GenerationProgress({
           </div>
           <Progress value={status.progress} className="w-full" />
         </div>
-
-        {/* Current Step */}
-        {status.currentStep && (
-          <div>
-            <h4 className="mb-1 text-sm font-medium text-gray-900">
-              Current Step
-            </h4>
-            <p className="text-sm text-gray-600">{status.currentStep}</p>
-          </div>
-        )}
 
         {/* Error Message */}
         {status.error && (
@@ -177,32 +228,6 @@ export function GenerationProgress({
                 {status.seoScore}/100
               </span>
             </div>
-            {Array.isArray(status.seoIssues) && status.seoIssues.length > 0 && (
-              <div>
-                <div className="mb-1 text-xs font-medium text-gray-900">
-                  Top Issues
-                </div>
-                <ul className="list-disc space-y-1 pl-5 text-xs text-gray-700">
-                  {status.seoIssues.slice(0, 5).map((i, idx) => (
-                    <li key={`${i.code}-${idx}`}>
-                      <span
-                        className={
-                          i.severity === "CRITICAL"
-                            ? "text-red-600"
-                            : i.severity === "HIGH"
-                              ? "text-orange-600"
-                              : i.severity === "MEDIUM"
-                                ? "text-yellow-700"
-                                : "text-gray-700"
-                        }
-                      >
-                        [{i.severity}] {i.message}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         )}
       </CardContent>

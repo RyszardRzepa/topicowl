@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ReusableTabs } from "@/components/ui/reusable-tabs";
 import { ExcludedDomainsField } from "./excluded-domains-field";
@@ -41,6 +40,7 @@ interface ArticleSettingsForm {
   industryCategory: string;
   targetAudience: string;
   publishingFrequency: string;
+  language: string;
 }
 
 interface ArticleSettingsFormProps {
@@ -74,6 +74,7 @@ export function ArticleSettingsForm({
     industryCategory: "business",
     targetAudience: "",
     publishingFrequency: "weekly",
+    language: initialSettings.language ?? "en",
   });
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -129,6 +130,8 @@ export function ArticleSettingsForm({
         companyName: formData.companyName || undefined,
         productDescription: formData.productDescription || undefined,
         keywords: formData.keywords,
+        // Language settings
+        language: formData.language,
       };
 
       const response = await fetch("/api/settings", {
@@ -253,6 +256,7 @@ export function ArticleSettingsForm({
         companyName: "",
         productDescription: "",
         keywords: [],
+        language: "en",
       };
 
       const response = await fetch("/api/settings", {
@@ -289,6 +293,7 @@ export function ArticleSettingsForm({
         industryCategory: "business",
         targetAudience: "",
         publishingFrequency: "weekly",
+        language: settings.language ?? "en",
       });
       onSettingsUpdate(settings);
       setSaveMessage(
@@ -312,7 +317,7 @@ export function ArticleSettingsForm({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full rounded-lg border border-gray-200 bg-white p-6">
       <ReusableTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -330,16 +335,60 @@ export function ArticleSettingsForm({
             label: "Article Generation",
           },
         ]}
-        className="mb-0"
+        className="mb-6"
       />
-
-      <Tabs value={activeTab} className="w-full">
-        <TabsContent value="company" className="mt-0">
-          <Card>
-            <CardHeader>
-              <CardTitle>Company & Brand Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      <div className="w-full">
+        <Tabs value={activeTab} className="w-full">
+          <TabsContent value="company" className="mt-0">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Company & Brand Information
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Define your company, brand, and product details.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || isLoading}
+                  size="sm"
+                >
+                  {saving && (
+                    <svg
+                      className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4">
               {/* Company Name */}
               <div>
                 <label
@@ -469,16 +518,118 @@ export function ArticleSettingsForm({
                   Who your articles are primarily written for
                 </p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="seo" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>SEO & Sitemap</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              {/* Language */}
+              <div>
+                <label
+                  htmlFor="language"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Content Language
+                </label>
+                <Select
+                  value={formData.language}
+                  onValueChange={(value) =>
+                    handleInputChange("language", value)
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select content language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="es">Spanish</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
+                    <SelectItem value="de">German</SelectItem>
+                    <SelectItem value="it">Italian</SelectItem>
+                    <SelectItem value="pt">Portuguese</SelectItem>
+                    <SelectItem value="pl">Polish</SelectItem>
+                    <SelectItem value="nl">Dutch</SelectItem>
+                    <SelectItem value="sv">Swedish</SelectItem>
+                    <SelectItem value="da">Danish</SelectItem>
+                    <SelectItem value="no">Norwegian</SelectItem>
+                    <SelectItem value="fi">Finnish</SelectItem>
+                    <SelectItem value="cs">Czech</SelectItem>
+                    <SelectItem value="hu">Hungarian</SelectItem>
+                    <SelectItem value="ro">Romanian</SelectItem>
+                    <SelectItem value="bg">Bulgarian</SelectItem>
+                    <SelectItem value="hr">Croatian</SelectItem>
+                    <SelectItem value="sk">Slovak</SelectItem>
+                    <SelectItem value="sl">Slovenian</SelectItem>
+                    <SelectItem value="et">Estonian</SelectItem>
+                    <SelectItem value="lv">Latvian</SelectItem>
+                    <SelectItem value="lt">Lithuanian</SelectItem>
+                    <SelectItem value="ru">Russian</SelectItem>
+                    <SelectItem value="uk">Ukrainian</SelectItem>
+                    <SelectItem value="ja">Japanese</SelectItem>
+                    <SelectItem value="ko">Korean</SelectItem>
+                    <SelectItem value="zh">Chinese (Simplified)</SelectItem>
+                    <SelectItem value="zh-tw">Chinese (Traditional)</SelectItem>
+                    <SelectItem value="ar">Arabic</SelectItem>
+                    <SelectItem value="he">Hebrew</SelectItem>
+                    <SelectItem value="hi">Hindi</SelectItem>
+                    <SelectItem value="th">Thai</SelectItem>
+                    <SelectItem value="vi">Vietnamese</SelectItem>
+                    <SelectItem value="tr">Turkish</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-sm text-gray-500">
+                  Primary language for AI-generated articles and content
+                </p>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="seo" className="mt-4">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  SEO & Content Settings
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Configure sitemap and domain settings.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || isLoading}
+                  size="sm"
+                >
+                  {saving && (
+                    <svg
+                      className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4">
               <div>
                 <label
                   htmlFor="sitemapUrl"
@@ -585,16 +736,59 @@ export function ArticleSettingsForm({
                 }
                 disabled={saving || isLoading}
               />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="generation" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Article Generation Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <TabsContent value="generation" className="mt-4">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Article Generation Settings
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Customize article structure, tone, and content.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || isLoading}
+                  size="sm"
+                >
+                  {saving && (
+                    <svg
+                      className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4">
               {/* Tone of Voice */}
               <div>
                 <label
@@ -741,15 +935,15 @@ export function ArticleSettingsForm({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* Save Message */}
       {saveMessage && (
         <div
-          className={`flex items-start gap-3 rounded-lg p-4 ${
+          className={`mt-6 flex items-start gap-3 rounded-lg p-4 ${
             saveMessage.includes("successfully") ||
             saveMessage.includes("reset")
               ? "border border-green-200 bg-green-50 text-green-800"
@@ -796,34 +990,7 @@ export function ArticleSettingsForm({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex space-x-4">
-        <Button onClick={handleSave} disabled={saving || isLoading}>
-          {saving && (
-            <svg
-              className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-          )}
-          {saving ? "Saving Changes..." : "Save Changes"}
-        </Button>
-      </div>
+
     </div>
   );
 }

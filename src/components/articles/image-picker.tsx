@@ -1,40 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Search, Loader2, Check } from "lucide-react";
 import Image from "next/image";
 import type {
   ImageSearchResponse,
-  CombinedImage,
-} from "@/lib/services/image-selection-service";
+  ImageSummary,
+} from "@/lib/services/image-selection";
+import { ScrollArea } from "../ui/scroll-area";
 
 interface ImagePickerProps {
-  onImageSelect: (image: CombinedImage) => void;
-  selectedImageId?: string | number;
+  onImageSelect: (image: ImageSummary) => void;
+  selectedImageUrl?: string;
 }
 
 export function ImagePicker({
   onImageSelect,
-  selectedImageId,
+  selectedImageUrl,
 }: ImagePickerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [images, setImages] = useState<CombinedImage[]>([]);
-  const [searchPerformed, setSearchPerformed] = useState(false);
+  const [images, setImages] = useState<ImageSummary[]>([]);
+  const [selectedUrl, setSelectedUrl] = useState<string | undefined>(selectedImageUrl);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  useEffect(() => {
+    setSelectedUrl(selectedImageUrl);
+  }, [selectedImageUrl]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
     try {
+      setErrorMessage(null);
       const response = await fetch("/api/articles/images/search", {
         method: "POST",
         headers: {
@@ -42,8 +44,9 @@ export function ImagePicker({
         },
         body: JSON.stringify({
           query: searchQuery,
-          count: 100,
           orientation: "landscape",
+          limit: 100,
+          aiSelect: false,
         }),
       });
 
@@ -52,12 +55,26 @@ export function ImagePicker({
       }
 
       const data = (await response.json()) as ImageSearchResponse;
-      if (data.success) {
-        setImages(data.data.images);
-        setSearchPerformed(true);
+      if (data.success && data.images?.length) {
+        setImages(data.images);
+        if (data.selected) {
+          setSelectedUrl(data.selected.url);
+          onImageSelect(data.selected);
+        } else {
+          setSelectedUrl(undefined);
+        }
+      } else {
+        setImages([]);
+        setSelectedUrl(undefined);
+        setErrorMessage(data.error ?? "No image found");
       }
+      setHasSearched(true);
     } catch (error) {
       console.error("Error searching images:", error);
+      setErrorMessage("Unable to fetch image. Try a different search term.");
+      setImages([]);
+      setSelectedUrl(undefined);
+      setHasSearched(true);
     } finally {
       setIsSearching(false);
     }
@@ -70,165 +87,88 @@ export function ImagePicker({
     }
   };
 
+  const highlightUrl = selectedUrl ?? selectedImageUrl;
+
   return (
-    <TooltipProvider>
-      <div className="space-y-4">
-        {/* Search Input */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Search for images (e.g., 'technology', 'business meeting', 'nature')"
-              className="pl-10"
-              disabled={isSearching}
-            />
-          </div>
-          <Button
-            onClick={handleSearch}
-            disabled={isSearching || !searchQuery.trim()}
-            size="default"
-          >
-            {isSearching ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4" />
-            )}
-          </Button>
+    <div className="flex h-full flex-col gap-4">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Search for an image (e.g., 'technology skyline')"
+            className="pl-10"
+            disabled={isSearching}
+          />
         </div>
-
-        {/* Search Results */}
-        {searchPerformed && (
-          <div>
-            {images.length === 0 ? (
-              <p className="py-8 text-center text-gray-500">
-                No images found. Try a different search term.
-              </p>
-            ) : (
-              <>
-                <p className="mb-3 text-sm text-gray-600">
-                  Found {images.length} images. Click to select:
-                </p>
-                <div className="max-h-[400px] overflow-y-auto pr-1">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                    {images.map((image) => (
-                      <Tooltip key={String(image.id)}>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={`group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all hover:border-blue-400 ${
-                              String(selectedImageId) === String(image.id)
-                                ? "border-blue-500 ring-2 ring-blue-200"
-                                : "border-gray-200"
-                            }`}
-                            onClick={() => onImageSelect(image)}
-                          >
-                            <div className="aspect-video">
-                              <Image
-                                src={image.urls.small}
-                                alt={
-                                  image.altDescription ??
-                                  image.description ??
-                                  "Stock image"
-                                }
-                                width={400}
-                                height={300}
-                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                                unoptimized
-                              />
-                            </div>
-                            {/* Selection indicator */}
-                            {String(selectedImageId) === String(image.id) && (
-                              <div className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
-                                <Check className="h-4 w-4" />
-                              </div>
-                            )}
-                            {/* Image info overlay */}
-                            <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                              <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                                by {image.user.name}
-                                {image.source === "unsplash" && " on Unsplash"}
-                                {image.source === "pexels" && " on Pexels"}
-                              </p>
-                            </div>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-sm" side="top">
-                          <div className="space-y-2">
-                            {image.description && (
-                              <div>
-                                <p className="text-sm font-medium">
-                                  Description:
-                                </p>
-                                <p className="text-muted-foreground text-xs">
-                                  {image.description}
-                                </p>
-                              </div>
-                            )}
-                            {image.altDescription &&
-                              image.altDescription !== image.description && (
-                                <div>
-                                  <p className="text-sm font-medium">
-                                    Alt text:
-                                  </p>
-                                  <p className="text-muted-foreground text-xs">
-                                    {image.altDescription}
-                                  </p>
-                                </div>
-                              )}
-                            <div>
-                              <p className="text-sm font-medium">Source:</p>
-                              <p className="text-muted-foreground text-xs">
-                                Photo by {image.user.name} on{" "}
-                                {image.source === "unsplash"
-                                  ? "Unsplash"
-                                  : "Pexels"}
-                              </p>
-                            </div>
-                            {image.likes !== undefined && (
-                              <div>
-                                <p className="text-sm font-medium">Likes:</p>
-                                <p className="text-muted-foreground text-xs">
-                                  {image.likes.toLocaleString()}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Attribution notice */}
-        {images.length > 0 && (
-          <p className="text-xs text-gray-500">
-            Images provided by{" "}
-            <a
-              href="https://unsplash.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-gray-700"
-            >
-              Unsplash
-            </a>{" "}
-            and{" "}
-            <a
-              href="https://pexels.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-gray-700"
-            >
-              Pexels
-            </a>
-          </p>
-        )}
+        <Button
+          onClick={handleSearch}
+          disabled={isSearching || !searchQuery.trim()}
+          size="default"
+        >
+          {isSearching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+        </Button>
       </div>
-    </TooltipProvider>
+
+      {errorMessage && (
+        <p className="text-sm text-red-600">{errorMessage}</p>
+      )}
+
+      {images.length > 0 ? (
+        <ScrollArea className="h-[400px] w-full">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {images.map((image) => {
+              const isSelected = highlightUrl === image.url;
+              return (
+                <button
+                  key={image.id}
+                  type="button"
+                  className={`group relative overflow-hidden rounded-lg border-2 transition-all focus:outline-none ${
+                    isSelected
+                      ? "border-blue-500 ring-2 ring-blue-200"
+                      : "border-gray-200 hover:border-blue-400"
+                  }`}
+                  onClick={() => {
+                    setSelectedUrl(image.url);
+                    onImageSelect(image);
+                  }}
+                >
+                  <div className="relative aspect-square w-full overflow-hidden">
+                    <Image
+                      src={image.previewUrl}
+                      alt={image.alt}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 50vw"
+                      className="object-cover transition-transform group-hover:scale-105"
+                      unoptimized
+                    />
+                  </div>
+                  {isSelected && (
+                    <div className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                      <Check className="h-4 w-4" />
+                    </div>
+                  )}
+                  <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                    <p className="text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      {image.author.name}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      ) : hasSearched && !isSearching && !errorMessage ? (
+        <div className="flex-1 rounded border border-dashed border-muted-foreground/30 bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+          No images found. Try a different search term.
+        </div>
+      ) : null}
+    </div>
   );
 }

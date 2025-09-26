@@ -63,8 +63,8 @@ export default function SettingsPage() {
 
   if (!currentProject) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mx-auto max-w-6xl">
+      <div className="container mx-auto">
+        <div className="mx-auto">
           <Card className="p-6">
             <div className="text-center">
               <div className="mb-4 text-gray-500">
@@ -147,8 +147,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="container mx-auto">
+      <div className="mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Project Settings</h1>
           <p className="mt-1 text-gray-600">

@@ -44,13 +44,14 @@ export function ArticlePreviewClient({
     articleId: article.id.toString(),
     enabled: article.status === "generating",
     onStatusUpdate: (status) => {
+      const statusValue = status.status as string;
       // Update article status when generation progresses
-      if (status.status === "completed") {
+      if (statusValue === "completed") {
         setShowSuccessMessage("Article generation completed successfully!");
         setTimeout(() => setShowSuccessMessage(null), 5000);
         // Refresh the page to get the updated content
         router.refresh();
-      } else if (status.status === "failed") {
+      } else if (statusValue === "failed") {
         setShowErrorMessage(status.error ?? "Article generation failed");
         setTimeout(() => setShowErrorMessage(null), 5000);
         // Refresh the page to get the updated status
@@ -61,7 +62,7 @@ export function ArticlePreviewClient({
       // Update the article state when generation is complete
       setArticle((prev) => ({
         ...prev,
-        status: "wait_for_publish",
+        status: "scheduled",
       }));
       // Refresh credits since generation completed and credits were deducted
       void refreshCredits();
@@ -138,7 +139,7 @@ export function ArticlePreviewClient({
       keywords: currentMetadata.keywords,
       slug: currentMetadata.slug,
       metaDescription: currentMetadata.metaDescription,
-      draft: currentContent,
+      content: currentContent,
     });
   }, [handleSave, currentMetadata, currentContent]);
 

@@ -4,7 +4,7 @@ import { db } from "@/server/db";
 import { articles, users, projects } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import type { ApiResponse, ArticleStatus } from "@/types";
+import { ARTICLE_STATUSES, type ApiResponse, type ArticleStatus } from "@/types";
 import type { ArticleGenerationRequest } from "@/app/api/articles/generate/route";
 import { API_BASE_URL } from "@/constants";
 
@@ -16,25 +16,23 @@ export interface MoveArticleRequest {
 }
 
 // Kanban flow logic - inline implementation
-const STATUS_FLOW: Record<ArticleStatus, ArticleStatus[]> = {
+const STATUS_FLOW: Partial<Record<ArticleStatus, ArticleStatus[]>> = {
   idea: ["scheduled"],
   scheduled: ["generating", "idea"],
-  generating: ["wait_for_publish"], // Automatically moved by system after generation
-  wait_for_publish: ["published"],
-  published: [], // Cannot be moved
-  failed: ["idea", "scheduled"], // Failed articles can be reset to idea or scheduled
-  deleted: [], // Deleted articles cannot be moved
+  generating: ["scheduled"], // Automatically moved by system after generation
+  published: [],
+  failed: ["idea", "scheduled"],
 };
 
 const isValidStatusTransition = (
   from: ArticleStatus,
   to: ArticleStatus,
 ): boolean => {
-  return STATUS_FLOW[from].includes(to);
+  return (STATUS_FLOW[from] ?? []).includes(to);
 };
 
 // Note: Progress tracking is now handled by the database via the generate API
-// No need for in-memory tracking since generation records are stored in articleGeneration table
+// No need for in-memory tracking since generation records are stored in articleGenerations table
 
 // Article generation function - calls the generate API endpoint
 async function generateArticleContentInline(articleId: string) {
@@ -77,15 +75,7 @@ async function generateArticleContentInline(articleId: string) {
 
 const moveArticleSchema = z.object({
   articleId: z.number(),
-  newStatus: z.enum([
-    "idea",
-    "scheduled",
-    "generating",
-    "wait_for_publish",
-    "published",
-    "failed",
-    "deleted",
-  ]),
+  newStatus: z.enum(ARTICLE_STATUSES),
   newPosition: z.number().min(0),
 });
 

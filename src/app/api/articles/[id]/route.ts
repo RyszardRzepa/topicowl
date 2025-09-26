@@ -1,19 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import {
-  articles,
-  users,
-  articleGeneration,
-  projects,
-  generationQueue,
-  webhookDeliveries,
-} from "@/server/db/schema";
+import { articles, articleGenerations, projects, webhookDeliveries, users } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
-import type { ArticleStatus } from "@/types";
-import { videoEmbedSchema } from "@/types";
+import { ARTICLE_STATUSES, type ArticleStatus, videoEmbedSchema } from "@/types";
 import { logServerError } from "@/lib/posthog-server";
+import type {
+  ArticleGenerationArtifacts,
+  ValidationArtifact,
+  WriteArtifact,
+} from "@/types";
 
 // Types colocated with this API route
 export interface SEOAnalysis {
@@ -50,17 +47,12 @@ type ArticleData = {
   slug: string | null;
   metaDescription: string | null;
   metaKeywords: unknown;
-  draft: string | null;
   content: string | null; // Final published content
   videos: unknown; // YouTube video embeds
-  factCheckReport: unknown;
-  seoScore: number | null;
-  internalLinks: unknown;
-  sources: unknown;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
-  coverImageDescription: string | null;
-  coverImageKeywords: unknown;
+  coverImageDescription?: string | null;
+  coverImageKeywords?: unknown;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -75,6 +67,10 @@ export interface ArticleDetailResponse {
     wordCount?: number;
     targetKeywords?: string[];
     researchSources?: string[];
+    seoScore?: number | null;
+    internalLinks?: string[];
+    sources?: string[];
+    factCheckReport?: string | null;
   };
 }
 
@@ -82,8 +78,7 @@ const updateArticleSchema = z.object({
   slug: z.string().optional(),
   metaDescription: z.string().optional(),
   metaKeywords: z.array(z.string()).optional(),
-  draft: z.string().optional(), // Save edits to draft
-  content: z.string().optional(), // Only set on publish
+  content: z.string().optional(), // Article content (working + published)
   videos: z.array(videoEmbedSchema).optional(), // Video embeds
   optimizedContent: z.string().optional(), // Deprecated - for backward compatibility
   coverImageUrl: z.string().optional(),
@@ -94,17 +89,7 @@ const updateArticleSchema = z.object({
   scheduledAt: z.string().datetime().optional(), // For publishing schedule
   publishScheduledAt: z.string().datetime().optional().or(z.undefined()), // Frontend compatibility
   // Add status and publication fields
-  status: z
-    .enum([
-      "idea",
-      "scheduled",
-      "generating",
-      "wait_for_publish",
-      "published",
-      "failed",
-      "deleted",
-    ])
-    .optional(),
+  status: z.enum(ARTICLE_STATUSES).optional(),
   publishedAt: z.string().datetime().optional(), // When article was published
   // Add basic article fields
   title: z.string().min(1).max(255).optional(),
@@ -173,13 +158,8 @@ export async function GET(
         slug: articles.slug,
         metaDescription: articles.metaDescription,
         metaKeywords: articles.metaKeywords,
-        draft: articles.draft,
         content: articles.content,
         videos: articles.videos,
-        factCheckReport: articles.factCheckReport,
-        seoScore: articles.seoScore,
-        internalLinks: articles.internalLinks,
-        sources: articles.sources,
         coverImageUrl: articles.coverImageUrl,
         coverImageAlt: articles.coverImageAlt,
         notes: articles.notes,
@@ -203,67 +183,94 @@ export async function GET(
       );
     }
 
-    const articleData = article[0] as ArticleData;
-
-    // Also fetch the latest generation data to get the full draft content
-    const [generationData] = await db
-      .select()
-      .from(articleGeneration)
-      .where(eq(articleGeneration.articleId, articleId))
-      .orderBy(desc(articleGeneration.createdAt))
-      .limit(1);
-
-    // Verify article ownership and that it's not deleted
-    if (articleData.status === "deleted") {
+    const articleData = article[0];
+    if (!articleData) {
       return NextResponse.json(
         {
           success: false,
-          error: "Article not found",
+          error: "Article not found or access denied",
         },
         { status: 404 },
       );
     }
 
+    // Also fetch the latest generation data to get the full content context
+    const [generationData] = await db
+      .select()
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, articleId))
+      .orderBy(desc(articleGenerations.createdAt))
+      .limit(1);
+    const artifacts: ArticleGenerationArtifacts =
+      generationData?.artifacts ?? {};
+    const writeArtifact: WriteArtifact | undefined = artifacts.write;
+    const researchArtifact = artifacts.research;
+    const qcArtifact = artifacts.qualityControl;
+    const validationArtifact: ValidationArtifact | undefined = artifacts.validation;
+
+    const workingContent = writeArtifact?.content ?? articleData.content;
+
+    const derivedSeoScore = validationArtifact?.seoScore ?? null;
+
+    // Note: We don't use soft deletes anymore - article exists if we got here
+
     // Generate SEO analysis from existing data
-    const seoAnalysis: SEOAnalysis | undefined = articleData.seoScore
+    const seoAnalysis: SEOAnalysis | undefined = derivedSeoScore
       ? {
-          score: articleData.seoScore,
-          recommendations: generateSEORecommendations(articleData),
-          keywordDensity: calculateKeywordDensity(
-            articleData,
-            generationData?.draftContent,
-          ),
-          readabilityScore: calculateReadabilityScore(
-            articleData,
-            generationData?.draftContent,
-          ),
+          score: derivedSeoScore,
+          recommendations: generateSEORecommendations(articleData, derivedSeoScore),
+          keywordDensity: calculateKeywordDensity(articleData, workingContent),
+          readabilityScore: calculateReadabilityScore(articleData, workingContent),
         }
       : undefined;
 
-    // Generate generation logs from tracking fields
-    const generationLogs: GenerationLog[] = generateGenerationLogs(articleData);
+    // Generate generation logs from generation artifacts
+    const generationLogs: GenerationLog[] = generateGenerationLogs(
+      generationData,
+      artifacts,
+      articleData,
+    );
 
-    // Calculate word count from content (use generation draft content if available)
-    const contentForWordCount =
-      generationData?.draftContent ?? articleData.draft;
-    const wordCount = calculateWordCount(contentForWordCount);
+    // Calculate word count from content (use generation content if available)
+    const wordCount = calculateWordCount(workingContent);
 
     // Extract target keywords from keywords field
-    const targetKeywords = Array.isArray(articleData.keywords)
-      ? (articleData.keywords as string[])
-      : [];
+    const targetKeywords =
+      Array.isArray(articleData.keywords) &&
+      articleData.keywords.every((keyword) => typeof keyword === "string")
+        ? articleData.keywords
+        : [];
 
     // Extract research sources from sources field
-    const researchSources = Array.isArray(articleData.sources)
-      ? (articleData.sources as string[])
+    const researchSources = researchArtifact?.sources
+      ? researchArtifact.sources.map((source) =>
+          source.title ? `${source.title} — ${source.url}` : source.url,
+        )
       : [];
+
+    const factCheckReport =
+      writeArtifact?.factCheckReport ??
+      qcArtifact?.report ??
+      null;
+
+    const internalLinksCandidate = writeArtifact?.internalLinks;
+    const internalLinks = Array.isArray(internalLinksCandidate)
+      ? internalLinksCandidate.filter(
+          (link): link is string => typeof link === "string",
+        )
+      : [];
+    const sourceList = researchSources;
 
     const response: ArticleDetailResponse = {
       success: true,
       data: {
         ...articleData,
-        // Use generation draft content if available, otherwise fall back to article draft
-        draft: generationData?.draftContent ?? articleData.draft,
+        // Use generation content if available, otherwise fall back to stored content
+        content: workingContent ?? articleData.content,
+        factCheckReport,
+        internalLinks,
+        sources: sourceList,
+        seoScore: derivedSeoScore,
         seoAnalysis,
         generationLogs,
         wordCount,
@@ -286,7 +293,10 @@ export async function GET(
 }
 
 // Helper functions for generating extended data
-function generateSEORecommendations(article: ArticleData): string[] {
+function generateSEORecommendations(
+  article: ArticleData,
+  seoScore: number | null,
+): string[] {
   const recommendations: string[] = [];
 
   if (!article.metaDescription) {
@@ -300,11 +310,11 @@ function generateSEORecommendations(article: ArticleData): string[] {
     recommendations.push("Add target keywords to improve SEO ranking");
   }
 
-  if (!article.draft) {
+  if (!article.content) {
     recommendations.push("Generate content to analyze SEO performance");
   }
 
-  if (article.seoScore && article.seoScore < 70) {
+  if (typeof seoScore === "number" && seoScore < 70) {
     recommendations.push("Improve content optimization to increase SEO score");
   }
 
@@ -315,7 +325,7 @@ function calculateKeywordDensity(
   article: ArticleData,
   generationContent?: string | null,
 ): Record<string, number> {
-  const content = generationContent ?? article.draft ?? "";
+  const content = generationContent ?? article.content ?? "";
   const keywords = Array.isArray(article.keywords)
     ? (article.keywords as string[])
     : [];
@@ -342,7 +352,7 @@ function calculateReadabilityScore(
   article: ArticleData,
   generationContent?: string | null,
 ): number {
-  const content = generationContent ?? article.draft ?? "";
+  const content = generationContent ?? article.content ?? "";
 
   if (!content) {
     return 0;
@@ -385,34 +395,60 @@ function calculateWordCount(content: string | null): number {
   return content.split(/\s+/).filter((word) => word.length > 0).length;
 }
 
-function generateGenerationLogs(article: ArticleData): GenerationLog[] {
+function generateGenerationLogs(
+  generation:
+    | (typeof articleGenerations.$inferSelect & {
+        artifacts?: unknown;
+      })
+    | undefined,
+  artifacts: ArticleGenerationArtifacts,
+  article: ArticleData,
+): GenerationLog[] {
   const logs: GenerationLog[] = [];
+  const baseTimestamp = generation?.updatedAt
+    ? new Date(generation.updatedAt)
+    : new Date(article.updatedAt);
 
-  // Simple logs based on available content
-  if (article.draft) {
+  if (artifacts.research) {
+    logs.push({
+      phase: "research",
+      status: "completed",
+      timestamp: baseTimestamp,
+      details: "Research data captured",
+    });
+  }
+
+  if (artifacts.write?.content ?? article.content) {
     logs.push({
       phase: "writing",
       status: "completed",
-      timestamp: new Date(article.updatedAt),
+      timestamp: baseTimestamp,
       details: "Draft content generated",
     });
   }
 
-  if (article.factCheckReport) {
+  const qcReport =
+    artifacts.qualityControl && typeof artifacts.qualityControl === "object"
+      ? (artifacts.qualityControl as { report?: string | null }).report
+      : undefined;
+
+  if (qcReport) {
     logs.push({
       phase: "validation",
       status: "completed",
-      timestamp: new Date(article.updatedAt),
-      details: "Content validated and fact-checked",
+      timestamp: baseTimestamp,
+      details: "Quality control report completed",
     });
   }
 
-  if (article.draft) {
+  if (artifacts.validation) {
     logs.push({
-      phase: "optimization",
-      status: "completed",
-      timestamp: new Date(article.updatedAt),
-      details: "Content optimized for SEO",
+      phase: "validation",
+      status: artifacts.validation.isValid ? "completed" : "failed",
+      timestamp: baseTimestamp,
+      details: artifacts.validation.isValid
+        ? "Validation checks passed"
+        : "Validation issues found",
     });
   }
 
@@ -489,35 +525,40 @@ export async function PUT(
       );
     }
 
-    // Prevent updating deleted articles
-    if (existingArticle[0]!.status === "deleted") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Cannot update deleted article",
-        },
-        { status: 410 },
-      );
-    }
+    // Note: We don't use soft deletes anymore
 
     // Update the article with only the allowed fields
-    const updateData = {
-      ...validatedData,
+    const {
+      optimizedContent,
+      content: contentPayload,
+      scheduledAt,
+      ...otherFields
+    } = validatedData;
+
+    const updateData: Record<string, unknown> = {
+      ...otherFields,
       // Convert string dates to Date objects for database
-      publishScheduledAt: validatedData.scheduledAt
-        ? new Date(validatedData.scheduledAt)
-        : undefined,
-      publishedAt: validatedData.publishedAt
-        ? new Date(validatedData.publishedAt)
-        : undefined,
+      publishScheduledAt:
+        scheduledAt == null ? undefined : new Date(scheduledAt),
+      publishedAt:
+        validatedData.publishedAt == null
+          ? undefined
+          : new Date(validatedData.publishedAt),
       updatedAt: new Date(),
     };
 
+    if (contentPayload !== undefined) {
+      updateData.content = contentPayload;
+    } else if (optimizedContent !== undefined) {
+      updateData.content = optimizedContent;
+    }
+
     // Handle field mapping for frontend compatibility
-    if (validatedData.publishScheduledAt !== undefined) {
-      updateData.publishScheduledAt = validatedData.publishScheduledAt
-        ? new Date(validatedData.publishScheduledAt)
-        : undefined;
+    if (Object.prototype.hasOwnProperty.call(validatedData, "publishScheduledAt")) {
+      updateData.publishScheduledAt =
+        validatedData.publishScheduledAt == null
+          ? undefined
+          : new Date(validatedData.publishScheduledAt);
     }
 
     const [updatedArticle] = await db
@@ -526,28 +567,44 @@ export async function PUT(
       .where(eq(articles.id, articleId))
       .returning();
 
-    // If draft content was updated, also sync it to the latest articleGeneration row (if any)
-    if (
-      Object.prototype.hasOwnProperty.call(validatedData, "draft") &&
-      validatedData.draft !== undefined
-    ) {
+    // If content was updated, also sync it to the latest articleGenerations row (if any)
+    const contentProvided =
+      Object.prototype.hasOwnProperty.call(validatedData, "content") ||
+      Object.prototype.hasOwnProperty.call(validatedData, "optimizedContent");
+    const contentToSync = contentPayload ?? optimizedContent;
+
+    if (contentProvided && contentToSync !== undefined) {
       try {
         const latestGen = await db
-          .select({ id: articleGeneration.id })
-          .from(articleGeneration)
-          .where(eq(articleGeneration.articleId, articleId))
-          .orderBy(desc(articleGeneration.createdAt))
+          .select({ id: articleGenerations.id, artifacts: articleGenerations.artifacts })
+          .from(articleGenerations)
+          .where(eq(articleGenerations.articleId, articleId))
+          .orderBy(desc(articleGenerations.createdAt))
           .limit(1);
 
-        if (latestGen.length > 0) {
+        const latestGenerationRow = latestGen[0];
+        if (latestGenerationRow) {
+          const existingArtifacts: ArticleGenerationArtifacts =
+            latestGenerationRow.artifacts;
+          const existingWriteArtifact: WriteArtifact | undefined =
+            existingArtifacts.write;
           await db
-            .update(articleGeneration)
-            .set({ draftContent: validatedData.draft, updatedAt: new Date() })
-            .where(eq(articleGeneration.id, latestGen[0]!.id));
+            .update(articleGenerations)
+            .set({
+              artifacts: {
+                ...existingArtifacts,
+                write: {
+                  ...existingWriteArtifact,
+                  content: contentToSync,
+                },
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(articleGenerations.id, latestGenerationRow.id));
         }
       } catch (syncError) {
         // Non-fatal: log and continue; we don't want to fail the primary article update
-        console.error("Failed to sync draft to articleGeneration:", syncError);
+        console.error("Failed to sync content to articleGenerations:", syncError);
       }
     }
 
@@ -656,10 +713,10 @@ export async function DELETE(
     }
 
     // Hard delete: remove dependent records first to satisfy FKs, then remove the article
-    await db.delete(generationQueue).where(eq(generationQueue.articleId, articleId));
+    // Note: no generation_queue to clean up anymore
     await db
-      .delete(articleGeneration)
-      .where(eq(articleGeneration.articleId, articleId));
+      .delete(articleGenerations)
+      .where(eq(articleGenerations.articleId, articleId));
     await db.delete(webhookDeliveries).where(eq(webhookDeliveries.articleId, articleId));
 
     const [removed] = await db

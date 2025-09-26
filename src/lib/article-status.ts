@@ -1,23 +1,24 @@
-import type { ArticleStatus } from "@/types";
-import { articleStatusEnum } from "@/server/db/schema";
+import {
+  ARTICLE_STATUSES as ARTICLE_STATUS_VALUES,
+  type ArticleStatus,
+} from "@/types";
 
 // Centralized article status management
 // Single source of truth for all status-related logic
 
 // Use schema enum as the single source of truth for article statuses
 // This exports the exact enum values from the database schema
-export const ARTICLE_STATUSES = articleStatusEnum.enumValues;
+export const ARTICLE_STATUSES = ARTICLE_STATUS_VALUES;
 
-// For convenience, export individual status constants
+// For convenience, export individual status constants derived from schema
+// This ensures type safety and single source of truth with the database schema
 export const STATUSES = {
-  IDEA: "idea" as const,
-  SCHEDULED: "scheduled" as const,
-  GENERATING: "generating" as const,
-  WAIT_FOR_PUBLISH: "wait_for_publish" as const,
-  PUBLISHED: "published" as const,
-  FAILED: "failed" as const,
-  DELETED: "deleted" as const,
-} as const;
+  IDEA: "idea",
+  SCHEDULED: "scheduled",
+  GENERATING: "generating",
+  PUBLISHED: "published",
+  FAILED: "failed",
+} as const satisfies Record<string, ArticleStatus>;
 
 // User-facing display statuses - what users see
 export const DISPLAY_STATUSES = {
@@ -46,18 +47,18 @@ type DisplayStatus = (typeof DISPLAY_STATUSES)[keyof typeof DISPLAY_STATUSES];
 export function getDisplayStatus(dbStatus: ArticleStatus): DisplayStatus {
   switch (dbStatus) {
     case STATUSES.IDEA:
-    case STATUSES.SCHEDULED:
-    case STATUSES.GENERATING:
     case STATUSES.FAILED:
       return DISPLAY_STATUSES.IDEA;
     
-    case STATUSES.WAIT_FOR_PUBLISH:
+    case STATUSES.SCHEDULED:
+      return DISPLAY_STATUSES.GENERATED;
+
+    case STATUSES.GENERATING:
       return DISPLAY_STATUSES.GENERATED;
     
     case STATUSES.PUBLISHED:
       return DISPLAY_STATUSES.PUBLISHED;
     
-    case STATUSES.DELETED:
     default:
       return DISPLAY_STATUSES.IDEA; // Safe fallback
   }
@@ -81,7 +82,7 @@ export function isGenerating(dbStatus: ArticleStatus): boolean {
 }
 
 export function isReadyToPublish(dbStatus: ArticleStatus): boolean {
-  return dbStatus === STATUSES.WAIT_FOR_PUBLISH;
+  return dbStatus === STATUSES.SCHEDULED;
 }
 
 export function isPublished(dbStatus: ArticleStatus): boolean {
@@ -100,9 +101,9 @@ export function isIdea(dbStatus: ArticleStatus): boolean {
   return (ideaStatuses as readonly string[]).includes(dbStatus);
 }
 
-// Check if status should be shown in UI (exclude deleted)
-export function shouldShowInUI(dbStatus: ArticleStatus): boolean {
-  return dbStatus !== STATUSES.DELETED;
+// Check if status should be shown in UI (all statuses are shown now)
+export function shouldShowInUI(_dbStatus: ArticleStatus): boolean {
+  return true; // We no longer have soft deletes, so show all statuses
 }
 
 // Board event configuration for calendar view
@@ -116,13 +117,19 @@ export interface BoardEventConfig {
 export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boolean): BoardEventConfig {
   switch (dbStatus) {
     case STATUSES.IDEA:
-    case STATUSES.SCHEDULED:
-    case STATUSES.FAILED:
       return {
         kind: "queued",
         label: "Idea",
         bgColor: STATUS_COLORS[DISPLAY_STATUSES.IDEA],
         priority: 1,
+      };
+      
+    case STATUSES.FAILED:
+      return {
+        kind: "failed",
+        label: "Failed",
+        bgColor: "bg-destructive/80",
+        priority: 1, // High priority so failed articles are visible
       };
       
     case STATUSES.GENERATING:
@@ -133,7 +140,7 @@ export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boole
         priority: 2,
       };
       
-    case STATUSES.WAIT_FOR_PUBLISH:
+    case STATUSES.SCHEDULED:
       if (hasSchedule) {
         return {
           kind: "publishScheduled",
@@ -141,14 +148,13 @@ export function getBoardEventConfig(dbStatus: ArticleStatus, hasSchedule?: boole
           bgColor: "bg-chart-3", // Yellow for scheduled
           priority: 3,
         };
-      } else {
-        return {
-          kind: "readyToPublish",
-          label: "Ready to publish",
-          bgColor: STATUS_COLORS[DISPLAY_STATUSES.GENERATED],
-          priority: 3,
-        };
       }
+      return {
+        kind: "readyToPublish",
+        label: "Ready to publish",
+        bgColor: STATUS_COLORS[DISPLAY_STATUSES.GENERATED],
+        priority: 3,
+      };
       
     case STATUSES.PUBLISHED:
       return {

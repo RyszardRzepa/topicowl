@@ -1,5 +1,5 @@
 "use client";
-import { ArticlesBoard } from "@/components/articles/ArticlesBoard";
+import { ArticlesBoard } from "@/components/articles/ArticleBoard";
 
 export default function ArticlesPage() {
   return (

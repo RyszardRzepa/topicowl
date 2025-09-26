@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { articles, users, articleGeneration } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, users, articleGenerations } from "@/server/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
 
@@ -60,11 +60,11 @@ export async function POST(req: NextRequest) {
         status: articles.status,
         scheduledAt: articles.publishScheduledAt,
         // Include generation status to check if article is ready
-        generationStatus: articleGeneration.status,
-        generationProgress: articleGeneration.progress,
+        generationStatus: articleGenerations.status,
+        generationProgress: articleGenerations.progress,
       })
       .from(articles)
-      .leftJoin(articleGeneration, eq(articles.id, articleGeneration.articleId))
+      .leftJoin(articleGenerations, eq(articles.id, articleGenerations.articleId))
       .where(eq(articles.id, articleId))
       .limit(1);
 
@@ -77,16 +77,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Allow scheduling for articles that are ready to publish:
-    // 1. Articles with "wait_for_publish" status
-    // 2. Articles with completed generation (status="scheduled" + generationStatus="completed")
-    const isReadyForPublishing =
-      existingArticle.status === "wait_for_publish" ||
-      (existingArticle.status === "scheduled" &&
-        existingArticle.generationStatus === "completed" &&
-        existingArticle.generationProgress === 100);
+    const [latestGeneration] = await db
+      .select({
+        status: articleGenerations.status,
+        progress: articleGenerations.progress,
+        completedAt: articleGenerations.completedAt,
+      })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, articleId))
+      .orderBy(desc(articleGenerations.createdAt))
+      .limit(1);
 
-    if (!isReadyForPublishing) {
+    const generationStatus =
+      (latestGeneration?.status ?? null) as string | null;
+
+    if (!latestGeneration || generationStatus !== "completed") {
       return NextResponse.json(
         {
           error:
@@ -111,7 +116,6 @@ export async function POST(req: NextRequest) {
       .update(articles)
       .set({
         publishScheduledAt: publishDate,
-        status: "wait_for_publish", // Ensure status is correct
         updatedAt: new Date(),
       })
       .where(eq(articles.id, articleId))

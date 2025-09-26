@@ -3,7 +3,7 @@ import { db } from "@/server/db";
 import {
   articles,
   users,
-  articleGeneration,
+  articleGenerations,
   projects,
 } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -104,12 +104,12 @@ export async function POST(
 
     // Update the generation record to indicate immediate processing
     await db
-      .update(articleGeneration)
+      .update(articleGenerations)
       .set({
         scheduledAt: null, // Clear scheduled time to indicate immediate processing
         updatedAt: new Date(),
       })
-      .where(eq(articleGeneration.articleId, articleId));
+      .where(eq(articleGenerations.articleId, articleId));
 
     return NextResponse.json({
       success: true,

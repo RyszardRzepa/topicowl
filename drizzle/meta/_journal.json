@@ -421,6 +421,41 @@
       "when": 1757509396380,
       "tag": "0059_youthful_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1758108099061,
+      "tag": "0060_lethal_strong_guy",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1758181719786,
+      "tag": "0061_curious_wildside",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1758622609057,
+      "tag": "0062_stiff_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1758803106931,
+      "tag": "0063_fantastic_ender_wiggin",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1758804152732,
+      "tag": "0064_silent_hemingway",
+      "breakpoints": true
     }
   ]
 }

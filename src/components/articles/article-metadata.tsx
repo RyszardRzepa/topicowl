@@ -38,27 +38,20 @@ export function ArticleMetadata({ article }: ArticleMetadataProps) {
         text: "Scheduled",
         color: "text-brand-green bg-brand-green/10",
       },
-      queued: { text: "Queued", color: "text-brand-orange bg-brand-orange/10" },
-      to_generate: {
-        text: "To Generate",
-        color: "text-brand-green bg-brand-green/10",
-      },
       generating: {
         text: "Generating",
         color: "text-brand-orange bg-brand-orange/10",
-      },
-      wait_for_publish: {
-        text: "Wait for Publish",
-        color: "text-brand-green bg-brand-green/10",
       },
       published: {
         text: "Published",
         color: "text-brand-green bg-brand-green/20",
       },
       failed: { text: "Failed", color: "text-red-600 bg-red-100" },
-      deleted: { text: "Deleted", color: "text-red-600 bg-red-100" },
+    } as const satisfies Record<ArticleStatus, { text: string; color: string }>;
+    return statusMap[status] ?? {
+      text: status,
+      color: "text-gray-600 bg-gray-100",
     };
-    return statusMap[status];
   };
 
   const statusDisplay = getStatusDisplay(article.status);

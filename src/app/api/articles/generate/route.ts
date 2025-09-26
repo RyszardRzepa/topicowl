@@ -7,8 +7,7 @@ import { logServerError } from "@/lib/posthog-server";
 import {
   validateAndSetupGeneration,
   generateArticle,
-  claimArticleForGeneration,
-} from "@/lib/services/generation-orchestrator";
+} from "@/lib/services/article-generation";
 import { getUserCredits } from "@/lib/utils/credits";
 import { 
   hasEnoughCreditsForOperation, 
@@ -63,21 +62,6 @@ export async function POST(req: NextRequest) {
       forceRegenerate,
     );
 
-    // Atomic claim to prevent races with cron/manual triggers
-    const claim = await claimArticleForGeneration(parseInt(articleId, 10));
-    if (claim !== "claimed") {
-      const msg =
-        claim === "already_generating"
-          ? "Article generation already in progress"
-          : "Article cannot be generated in current state";
-      return NextResponse.json(
-        { success: false, error: msg } as ApiResponse,
-        { status: 409 },
-      );
-    }
-
-    // Run generation in background (Vercel waitUntil)
-    // Note: Credit deduction will happen inside generateArticle after successful completion
     waitUntil(generateArticle(context));
 
     return NextResponse.json({

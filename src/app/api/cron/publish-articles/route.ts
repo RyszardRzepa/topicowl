@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import {
   articles,
-  articleGeneration,
+  articleGenerations,
   projects,
   webhookDeliveries,
 } from "@/server/db/schema";
 import { eq, and, lte, desc } from "drizzle-orm";
+import type {
+  ArticleGenerationArtifacts,
+  ValidationArtifact,
+  WriteArtifact,
+} from "@/types";
 import crypto from "crypto";
 
 // Types colocated with this API route
@@ -32,34 +37,22 @@ type ArticleData = {
   description: string | null;
   keywords: unknown;
   targetAudience: string | null;
-  status:
-    | "idea"
-    | "scheduled"
-    | "queued"
-    | "to_generate"
-    | "generating"
-    | "wait_for_publish"
-    | "published"
-    | "failed"
-    | "deleted";
   publishScheduledAt: Date | null;
   publishedAt: Date | null;
   estimatedReadTime: number | null;
-  kanbanPosition: number;
   slug: string | null;
   metaDescription: string | null;
   metaKeywords: unknown;
-  draft: string | null;
-  content: string | null; // Final published content
-  videos: unknown; // YouTube video embeds
-  factCheckReport: unknown;
-  seoScore: number | null;
-  internalLinks: unknown;
-  sources: unknown;
+  content: string | null;
+  videos: unknown;
+  seoScore?: number | null;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
   createdAt: Date;
   updatedAt: Date;
+  factCheckReport?: string | null;
+  internalLinks?: string[];
+  sources?: string[];
 };
 
 // Webhook delivery function with proper tracking - duplicated per architecture guidelines
@@ -108,23 +101,28 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
       return; // No webhook configured, skip
     }
 
-    // Get related articles from articleGeneration table
-    let relatedArticles: string[] = [];
-    try {
-      const [generationRecord] = await db
-        .select({ relatedArticles: articleGeneration.relatedArticles })
-        .from(articleGeneration)
-        .where(eq(articleGeneration.articleId, article.id))
-        .orderBy(desc(articleGeneration.createdAt))
-        .limit(1);
+    const [generationRecord] = await db
+      .select({ artifacts: articleGenerations.artifacts })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, article.id))
+      .orderBy(desc(articleGenerations.createdAt))
+      .limit(1);
 
-      relatedArticles = Array.isArray(generationRecord?.relatedArticles)
-        ? generationRecord.relatedArticles
-        : [];
-    } catch (error) {
-      console.error("Error fetching related articles for webhook:", error);
-      // Continue without related articles
-    }
+    const artifacts: ArticleGenerationArtifacts | undefined =
+      generationRecord?.artifacts;
+    const writeArtifact: WriteArtifact | undefined = artifacts?.write;
+    const validationArtifact: ValidationArtifact | undefined = artifacts?.validation;
+    const qualityControl = artifacts?.qualityControl;
+    const relatedArticles = writeArtifact?.relatedPosts ?? [];
+    const researchSources = artifacts?.research?.sources
+      ? artifacts.research.sources.map((source) =>
+          source.title ? `${source.title} — ${source.url}` : source.url,
+        )
+      : [];
+    const internalLinks = writeArtifact?.internalLinks ?? [];
+    const seoScore = validationArtifact?.seoScore ?? null;
+    const factCheckReport = writeArtifact?.factCheckReport ?? qualityControl?.report ?? null;
+    const finalContent = writeArtifact?.content ?? article.content ?? "";
 
     // Prepare webhook payload
     const payload = {
@@ -132,19 +130,18 @@ async function deliverWebhook(article: ArticleData): Promise<void> {
       title: article.title,
       slug: article.slug,
       description: article.description ?? article.metaDescription,
-      content: article.content ?? article.draft ?? "",
+      content: finalContent,
       keywords: Array.isArray(article.keywords) ? article.keywords : [],
       targetAudience: article.targetAudience,
       metaDescription: article.metaDescription,
       estimatedReadTime: article.estimatedReadTime,
-      seoScore: article.seoScore,
+      seoScore,
       coverImageUrl: article.coverImageUrl,
       coverImageAlt: article.coverImageAlt,
       publishedAt: article.publishedAt?.toISOString(),
-      sources: Array.isArray(article.sources) ? article.sources : [],
-      internalLinks: Array.isArray(article.internalLinks)
-        ? article.internalLinks
-        : [],
+      sources: researchSources,
+      internalLinks,
+      factCheckReport,
       relatedArticles: relatedArticles,
       createdAt: article.createdAt.toISOString(),
       updatedAt: article.updatedAt.toISOString(),
@@ -301,6 +298,7 @@ async function publishScheduledArticles(): Promise<
   CronPublishResponse["data"]
 > {
   const now = new Date();
+  console.log("📅 Current timestamp for comparison:", now.toISOString());
 
   // Find articles ready for publishing (no user filtering - system-wide)
   // Explicitly select all fields needed for publishing and webhook delivery
@@ -321,13 +319,8 @@ async function publishScheduledArticles(): Promise<
       slug: articles.slug,
       metaDescription: articles.metaDescription,
       metaKeywords: articles.metaKeywords,
-      draft: articles.draft,
       content: articles.content,
       videos: articles.videos,
-      factCheckReport: articles.factCheckReport,
-      seoScore: articles.seoScore,
-      internalLinks: articles.internalLinks,
-      sources: articles.sources,
       coverImageUrl: articles.coverImageUrl,
       coverImageAlt: articles.coverImageAlt,
       createdAt: articles.createdAt,
@@ -336,14 +329,18 @@ async function publishScheduledArticles(): Promise<
     .from(articles)
     .where(
       and(
-        eq(articles.status, "wait_for_publish"),
+        eq(articles.status, "scheduled"),
         lte(articles.publishScheduledAt, now),
       ),
     );
 
   console.log(
-    `Found ${articlesToPublish.length} articles ready for publishing`,
+    `📋 Found ${articlesToPublish.length} articles ready for publishing`,
   );
+  
+  if (articlesToPublish.length > 0) {
+    console.log("📄 Articles to publish:", articlesToPublish.map(a => ({ id: a.id, title: a.title, scheduledAt: a.publishScheduledAt })));
+  }
 
   const publishedArticles = [];
 
@@ -358,36 +355,40 @@ async function publishScheduledArticles(): Promise<
         continue;
       }
 
-      // Ensure article has content to publish (either draft or content)
-      if (!article.draft && !article.content) {
-        console.error(
-          `Article ${article.id} has no content to publish (both draft and content are null)`,
-        );
+      const [generationRecord] = await db
+        .select({
+          status: articleGenerations.status,
+          artifacts: articleGenerations.artifacts,
+        })
+        .from(articleGenerations)
+        .where(eq(articleGenerations.articleId, article.id))
+        .orderBy(desc(articleGenerations.createdAt))
+        .limit(1);
+
+      if (generationRecord?.status !== "completed") {
         continue;
       }
+
+      const artifacts: ArticleGenerationArtifacts | undefined =
+        generationRecord?.artifacts;
+      const finalContent = artifacts?.write?.content ?? article.content ?? "";
 
       console.log(
         `Publishing article: ${article.title} (ID: ${article.id}, Project: ${article.projectId})`,
       );
 
-      // Atomic update with concurrency protection - only update if still wait_for_publish
+      // Atomic update with concurrency protection - only update if still scheduled
       // Explicitly return all fields needed for webhook delivery
       const [updatedArticle] = await db
         .update(articles)
         .set({
-          status: "published",
-          content: article.draft, // Freeze draft as published content
-          publishScheduledAt: null, // Clear scheduled time when publishing
+          content: finalContent,
+          publishScheduledAt: null,
           updatedAt: new Date(),
-          // Set publishedAt if not already set
           ...(!article.publishedAt && { publishedAt: new Date() }),
+          status: "published",
         })
-        .where(
-          and(
-            eq(articles.id, article.id),
-            eq(articles.status, "wait_for_publish"), // Ensure status hasn't changed
-          ),
-        )
+        .where(and(eq(articles.id, article.id), eq(articles.status, "scheduled")))
         .returning({
           id: articles.id,
           userId: articles.userId,
@@ -396,21 +397,14 @@ async function publishScheduledArticles(): Promise<
           description: articles.description,
           keywords: articles.keywords,
           targetAudience: articles.targetAudience,
-          status: articles.status,
           publishScheduledAt: articles.publishScheduledAt,
           publishedAt: articles.publishedAt,
           estimatedReadTime: articles.estimatedReadTime,
-          kanbanPosition: articles.kanbanPosition,
           slug: articles.slug,
           metaDescription: articles.metaDescription,
           metaKeywords: articles.metaKeywords,
-          draft: articles.draft,
           content: articles.content,
           videos: articles.videos,
-          factCheckReport: articles.factCheckReport,
-          seoScore: articles.seoScore,
-          internalLinks: articles.internalLinks,
-          sources: articles.sources,
           coverImageUrl: articles.coverImageUrl,
           coverImageAlt: articles.coverImageAlt,
           createdAt: articles.createdAt,
@@ -419,26 +413,14 @@ async function publishScheduledArticles(): Promise<
 
       if (updatedArticle) {
         publishedArticles.push(updatedArticle);
-        console.log(
-          `Successfully published article: ${updatedArticle.title} (ID: ${updatedArticle.id})`,
-        );
-
-        // Validate updated article has all required fields for webhook
-        if (!updatedArticle.projectId) {
+        void deliverWebhook(updatedArticle).catch((error: unknown) => {
           console.error(
-            `Updated article ${updatedArticle.id} missing projectId, skipping webhook delivery`,
+            "Failed to deliver webhook for article",
+            updatedArticle.id,
+            ":",
+            error,
           );
-        } else {
-          // Send webhook with proper tracking
-          void deliverWebhook(updatedArticle).catch((error: unknown) => {
-            console.error(
-              "Failed to deliver webhook for article",
-              updatedArticle.id,
-              ":",
-              error,
-            );
-          });
-        }
+        });
       } else {
         console.log(
           `Article ${article.id} was already processed by another instance or status changed`,
@@ -448,10 +430,6 @@ async function publishScheduledArticles(): Promise<
       console.error(
         `Error publishing article ${article.id} (${article.title}):`,
         error,
-      );
-      // Log additional context for debugging
-      console.error(
-        `Article details - Status: ${article.status}, ProjectId: ${article.projectId}, HasDraft: ${!!article.draft}, HasContent: ${!!article.content}`,
       );
     }
   }
@@ -469,13 +447,16 @@ async function publishScheduledArticles(): Promise<
 // GET /api/cron/publish-articles - Vercel Cron calls this with GET
 export async function GET() {
   try {
-    console.log("Cron publish articles started at", new Date().toISOString());
+    console.log("🚀 CRON JOB STARTED - Publish Articles:", new Date().toISOString());
+    console.log("🔍 Environment check - Node env:", process.env.NODE_ENV);
+    console.log("📊 Starting to look for scheduled articles...");
 
     const result = await publishScheduledArticles();
 
     console.log(
-      `Cron publish completed: ${result.publishedCount} articles published`,
+      `✅ CRON JOB COMPLETED: ${result.publishedCount} articles published`,
     );
+    console.log("🏁 Cron job finished successfully at:", new Date().toISOString());
 
     return NextResponse.json({
       success: true,
@@ -483,39 +464,8 @@ export async function GET() {
       message: `Published ${result.publishedCount} scheduled articles`,
     } as CronPublishResponse);
   } catch (error) {
-    console.error("Cron publish articles error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        data: { publishedCount: 0, publishedArticles: [] },
-        message: "Failed to publish scheduled articles",
-      } as CronPublishResponse,
-      { status: 500 },
-    );
-  }
-}
-
-// POST /api/cron/publish-articles - Optional manual trigger for testing
-export async function POST() {
-  try {
-    console.log(
-      "Manual publish articles trigger started at",
-      new Date().toISOString(),
-    );
-
-    const result = await publishScheduledArticles();
-
-    console.log(
-      `Manual publish completed: ${result.publishedCount} articles published`,
-    );
-
-    return NextResponse.json({
-      success: true,
-      data: result,
-      message: `Published ${result.publishedCount} scheduled articles`,
-    } as CronPublishResponse);
-  } catch (error) {
-    console.error("Manual publish articles error:", error);
+    console.error("❌ CRON JOB ERROR - Publish Articles:", error);
+    console.error("🚨 Error details:", JSON.stringify(error, null, 2));
     return NextResponse.json(
       {
         success: false,

@@ -44,7 +44,7 @@ export const PRICING_PLANS = {
 // API URL constant for internal API calls
 export const API_BASE_URL =
   process.env.NODE_ENV === "development"
-    ? "http://localhost:3000"
+    ? "https://tunnel.roomsdecor.com"
     : `https://www.topicowl.com`;
 
 // Session Management Utilities

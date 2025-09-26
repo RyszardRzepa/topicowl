@@ -195,32 +195,41 @@ export function ArticleCard({
     }
   };
 
+  const generationComplete =
+    (typeof article.generationProgress === "number" &&
+      article.generationProgress >= 100) ||
+    Boolean(article.content);
+
+  const isReadyToPublish =
+    article.status === "scheduled" &&
+    generationComplete &&
+    !article.generationPhase &&
+    !article.generationError;
+
   // Determine what actions are available based on mode and status
   const canEdit =
     mode === "planning" &&
-    (article.status === "idea" || article.status === "scheduled");
+    article.status === "idea"; // Only allow editing for ideas, not scheduled articles
   const canDelete =
     (mode === "planning" && article.status === "idea") ||
-    (mode === "publishing" && article.status === "wait_for_publish");
+    (mode === "publishing" && isReadyToPublish);
   const canGenerate =
     mode === "planning" &&
     (article.status === "idea" ||
-      article.status === "scheduled" ||
-      (article.status === "generating" && article.generationError));
+      (article.status === "generating" && article.generationError)); // Remove scheduled from generate options
   const canRetry =
     mode === "planning" &&
     article.status === "generating" &&
     article.generationError;
   const canReschedule =
-    mode === "generations" &&
     article.status === "scheduled" &&
-    article.generationScheduledAt;
+    (mode === "planning" || (mode === "generations" && article.generationScheduledAt)); // Allow reschedule in planning mode or generations mode with scheduled date
   const canRemoveSchedule =
     mode === "generations" &&
     article.status === "scheduled" &&
     article.generationScheduledAt;
   const canPublish =
-    mode === "publishing" && article.status === "wait_for_publish";
+    mode === "publishing" && isReadyToPublish;
   const isGenerating = article.status === "generating";
   const isPublished = article.status === "published";
 
@@ -594,6 +603,77 @@ export function ArticleCard({
                     </div>
                   )}
                 </>
+              )}
+            </>
+          )}
+
+          {/* Planning mode reschedule actions - for scheduled articles */}
+          {mode === "planning" && canReschedule && (
+            <>
+              {/* Rescheduling UI */}
+              {isScheduling ? (
+                <div className="w-full space-y-3">
+                  <DateTimePicker
+                    value={selectedScheduleTime}
+                    onChange={setSelectedScheduleTime}
+                    placeholder="Select new date and time"
+                    minDate={new Date(Date.now() + 60000)} // 1 minute from now
+                    className="w-full"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setIsScheduling(false);
+                        setSelectedScheduleTime(undefined);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleConfirmSchedule}
+                      size="sm"
+                      disabled={!selectedScheduleTime}
+                      className="flex-1"
+                    >
+                      Reschedule
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex w-full gap-2">
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleGenerate();
+                    }}
+                    size="sm"
+                    className="flex-1"
+                    disabled={isButtonLoading}
+                  >
+                    {isButtonLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-4 w-4" />
+                    )}
+                    {isButtonLoading ? "Generating..." : "Generate Now"}
+                  </Button>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsScheduling(true);
+                    }}
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    disabled={isButtonLoading}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Reschedule
+                  </Button>
+                </div>
               )}
             </>
           )}

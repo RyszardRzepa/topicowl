@@ -12,6 +12,12 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { jsonb, pgSchema } from "drizzle-orm/pg-core";
+import {
+  ARTICLE_STATUSES,
+  ARTICLE_GENERATION_STATUSES,
+} from "@/types";
+import type { ArticleGenerationArtifacts, ArticleStatus, ArticleGenerationStatus } from "@/types";
+import type { GenerationTaskStatus } from "@/lib/services/topic-discovery/types";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -20,9 +26,9 @@ import { jsonb, pgSchema } from "drizzle-orm/pg-core";
  * @see https://orm.drizzle.team/docs/goodies#multi-project-schema
  */
 
-export const contentbotSchema = pgSchema("topicowl");
+export const topicowlSchema = pgSchema("topicowl");
 
-export const users = contentbotSchema.table("users", {
+export const users = topicowlSchema.table("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   firstName: text("first_name"),
@@ -50,7 +56,7 @@ export const users = contentbotSchema.table("users", {
 });
 
 // Projects table for multi-project support
-export const projects = contentbotSchema.table(
+export const projects = topicowlSchema.table(
   "projects",
   {
     id: serial("id").primaryKey(),
@@ -117,7 +123,7 @@ export const projects = contentbotSchema.table(
 );
 
 // User credits table for tracking article generation credits
-export const userCredits = contentbotSchema.table("user_credits", {
+export const userCredits = topicowlSchema.table("user_credits", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().unique(),
   amount: integer("amount").default(0).notNull(),
@@ -129,19 +135,8 @@ export const userCredits = contentbotSchema.table("user_credits", {
     .notNull(),
 });
 
-// Article status enum - simplified workflow
-export const articleStatusEnum = contentbotSchema.enum("article_status", [
-  "idea",
-  "scheduled", // replaces "queued" and "to_generate" 
-  "generating",
-  "wait_for_publish",
-  "published",
-  "failed",
-  "deleted",
-]);
-
 // Articles table for kanban-based workflow
-export const articles = contentbotSchema.table(
+export const articles = topicowlSchema.table(
   "articles",
   {
     id: serial("id").primaryKey(),
@@ -153,7 +148,10 @@ export const articles = contentbotSchema.table(
     description: text("description"),
     keywords: jsonb("keywords").default([]).notNull(),
     targetAudience: varchar("target_audience", { length: 255 }),
-    status: articleStatusEnum("status").default("idea").notNull(),
+    status: text("status", { enum: ARTICLE_STATUSES })
+      .$type<ArticleStatus>()
+      .default("idea")
+      .notNull(),
 
     // Publishing scheduling (separate from generation scheduling)
     publishScheduledAt: timestamp("publish_scheduled_at", {
@@ -169,13 +167,8 @@ export const articles = contentbotSchema.table(
     metaDescription: varchar("meta_description", { length: 255 }),
     introParagraph: text("intro_paragraph"),
     metaKeywords: jsonb("meta_keywords").default([]).notNull(),
-    draft: text("draft"),
-    content: text("content"), // Final published content
+    content: text("content"), // Current working article content
     videos: jsonb("videos").default([]).notNull(), // YouTube video embeds
-    factCheckReport: jsonb("fact_check_report").default({}).notNull(),
-    seoScore: integer("seo_score"),
-    internalLinks: jsonb("internal_links").default([]).notNull(),
-    sources: jsonb("sources").default([]).notNull(),
 
     // Image fields
     coverImageUrl: text("cover_image_url"),
@@ -199,51 +192,11 @@ export const articles = contentbotSchema.table(
   }),
 );
 
-// Generation queue table for tracking articles scheduled for generation
-export const generationQueue = contentbotSchema.table(
-  "generation_queue",
-  {
-    id: serial("id").primaryKey(),
-    articleId: integer("article_id")
-      .references(() => articles.id)
-      .notNull(),
-    userId: text("user_id")
-      .references(() => users.id)
-      .notNull(),
-    projectId: integer("project_id")
-      .references(() => projects.id)
-      .notNull(),
-    addedToQueueAt: timestamp("added_to_queue_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    scheduledForDate: timestamp("scheduled_for_date", { withTimezone: true }), // The date this article was scheduled for
-    queuePosition: integer("queue_position"), // Order in queue (FIFO)
-    schedulingType: varchar("scheduling_type", { length: 20 }).default(
-      "manual",
-    ), // 'manual', 'automatic'
-    status: varchar("status", { length: 20 }).default("queued"), // 'queued', 'processing', 'completed', 'failed'
-    attempts: integer("attempts").default(0),
-    maxAttempts: integer("max_attempts").default(3),
-    errorMessage: text("error_message"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull()
-      .$onUpdate(() => new Date()),
-    processedAt: timestamp("processed_at", { withTimezone: true }),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
-  },
-  (table) => ({
-    // Index on project_id for efficient querying of project's generation queue
-    projectIdIdx: index("generation_queue_project_id_idx").on(table.projectId),
-  }),
-);
+// Generation queue table removed - scheduling fields moved to articles table directly
 
 // Article Generation tracking table for separation of concerns
-export const articleGeneration = contentbotSchema.table(
-  "article_generation",
+export const articleGenerations = topicowlSchema.table(
+  "article_generations",
   {
     id: serial("id").primaryKey(),
     articleId: integer("article_id")
@@ -256,65 +209,23 @@ export const articleGeneration = contentbotSchema.table(
       .references(() => projects.id)
       .notNull(),
 
-    // Generation process tracking
     taskId: varchar("task_id"),
-    status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, researching, writing, quality-control, validating, updating, completed, failed
-    progress: integer("progress").default(0).notNull(), // 0-100 percentage
+    status: text("status", { enum: ARTICLE_GENERATION_STATUSES })
+      .$type<ArticleGenerationStatus>()
+      .default("scheduled")
+      .notNull(),
+    progress: integer("progress").default(0).notNull(),
+    artifacts: jsonb("artifacts")
+      .$type<ArticleGenerationArtifacts>()
+      .default({})
+      .notNull(),
 
-    // Agent progress tracking
-    currentPhase: text("current_phase"), // initializing, research, writing, seo-audit, validation, updating, image-selection, schema-generation, finalizing, completed
-    lastUpdated: timestamp("last_updated", { withTimezone: true }),
-
-    outline: jsonb("outline"),
-    artifacts: jsonb("artifacts").default({}).notNull(),
-
-    // Phase timestamps
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
 
-    // Phase results
-    researchData: jsonb("research_data").default({}).notNull(),
-    draftContent: text("draft_content"),
-    validationReport: jsonb("validation_report").default({}),
-    qualityControlReport: text("quality_control_report"), // Store markdown-formatted quality issues or null
-    seoReport: jsonb("seo_report").default({}).notNull(),
-    checklist: jsonb("checklist"),
-    writePrompt: text("write_prompt"), // Store the AI prompt used for writing
-
-    // Agent-specific fields for meta optimization
-    metaVariants: jsonb("meta_variants"), // Array of title/description variants with CTR scores
-    externalLinksUsed: text("external_links_used").array(), // Array of external links used in content
-    headingsOutline: jsonb("headings_outline"), // Structured heading outline with keywords
-
-    // Agent validation and quality control
-    linkIssues: jsonb("link_issues"), // Link validation issues and fixes
-    schemaJson: text("schema_json"), // Generated JSON-LD schema markup
-
-    // Agent image selection
-    // Removed duplicate image fields (migration 0055)
-
-    // Related articles
-    relatedArticles: jsonb("related_articles")
-      .default([])
-      .notNull()
-      .$type<string[]>(),
-
-    // Image selection tracking
-    selectedImageId: text("selected_image_id"),
-    imageAttribution: jsonb("image_attribution").$type<{
-      photographer: string;
-      unsplashUrl: string;
-      downloadUrl: string;
-    }>(),
-    imageQuery: text("image_query"),
-    imageKeywords: jsonb("image_keywords").default([]).notNull(),
-
-    // Error handling
     error: text("error"),
     errorDetails: jsonb("error_details"),
-
-    // introParagraph removed - use articles.introParagraph as single source of truth
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -325,8 +236,7 @@ export const articleGeneration = contentbotSchema.table(
       .$onUpdate(() => new Date()),
   },
   (table) => ({
-    // Index on project_id for efficient querying of project's article generation
-    projectIdIdx: index("article_generation_project_id_idx").on(
+    projectIdIdx: index("article_generations_project_id_idx").on(
       table.projectId,
     ),
   }),
@@ -336,7 +246,7 @@ export const articleGeneration = contentbotSchema.table(
 // This eliminates duplication and provides a single source of truth for project settings
 
 // Reddit posts table for scheduling Reddit posts
-export const redditPosts = contentbotSchema.table(
+export const redditPosts = topicowlSchema.table(
   "reddit_posts",
   {
     id: serial("id").primaryKey(),
@@ -351,7 +261,10 @@ export const redditPosts = contentbotSchema.table(
     text: text("text").notNull(),
 
     // Reusing the existing enum for consistency with article scheduling
-    status: articleStatusEnum("status").default("scheduled").notNull(),
+    status: text("status", { enum: ARTICLE_STATUSES })
+      .$type<ArticleStatus>()
+      .default("scheduled")
+      .notNull(),
 
     // Scheduling fields
     publishScheduledAt: timestamp("publish_scheduled_at", {
@@ -376,8 +289,29 @@ export const redditPosts = contentbotSchema.table(
   }),
 );
 
+export const topicGenerationTasks = topicowlSchema.table(
+  "topic_generation_tasks",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .references(() => projects.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    taskId: text("task_id").notNull().unique(),
+    status: text("status").$type<GenerationTaskStatus>().default("running").notNull(),
+    topicsGenerated: integer("topics_generated").default(0),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  }
+);
+
 // Reddit automation workflows table
-export const redditAutomations = contentbotSchema.table(
+export const redditAutomations = topicowlSchema.table(
   "reddit_automations",
   {
     id: serial("id").primaryKey(),
@@ -401,7 +335,7 @@ export const redditAutomations = contentbotSchema.table(
 );
 
 // Reddit automation execution runs table
-export const redditAutomationRuns = contentbotSchema.table(
+export const redditAutomationRuns = topicowlSchema.table(
   "reddit_automation_runs",
   {
     id: serial("id").primaryKey(),
@@ -419,7 +353,7 @@ export const redditAutomationRuns = contentbotSchema.table(
   (_table) => ({}),
 );
 
-export const redditProcessedPosts = contentbotSchema.table(
+export const redditProcessedPosts = topicowlSchema.table(
   "reddit_processed_posts",
   {
     id: serial("id").primaryKey(),
@@ -462,7 +396,7 @@ export const redditProcessedPosts = contentbotSchema.table(
 );
 
 // Webhook delivery tracking table
-export const webhookDeliveries = contentbotSchema.table(
+export const webhookDeliveries = topicowlSchema.table(
   "webhook_deliveries",
   {
     id: serial("id").primaryKey(),
@@ -512,7 +446,7 @@ export const webhookDeliveries = contentbotSchema.table(
 );
 
 // API Keys table for external access (one key per project)
-export const apiKeys = contentbotSchema.table(
+export const apiKeys = topicowlSchema.table(
   "api_keys",
   {
     id: serial("id").primaryKey(),
@@ -534,45 +468,8 @@ export const apiKeys = contentbotSchema.table(
   }),
 );
 
-// Unified Social posts table for scheduling across providers
-export const socialPosts = contentbotSchema.table(
-  "social_posts",
-  {
-    id: serial("id").primaryKey(),
-    projectId: integer("project_id")
-      .references(() => projects.id)
-      .notNull(),
-    userId: text("user_id")
-      .references(() => users.id)
-      .notNull(),
-
-    provider: text("provider").notNull(), // 'reddit' | 'x' | future
-    // Normalized payload with base + per-provider overrides
-    payload: jsonb("payload").notNull(),
-
-    status: articleStatusEnum("status").default("scheduled").notNull(),
-    publishScheduledAt: timestamp("publish_scheduled_at", {
-      withTimezone: true,
-    }),
-    publishedAt: timestamp("published_at", { withTimezone: true }),
-
-    errorMessage: text("error_message"),
-
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    projectIdIdx: index("social_posts_project_id_idx").on(table.projectId),
-  }),
-);
-
 // Reddit tasks - the core of everything for weekly Reddit engagement
-export const redditTasks = contentbotSchema.table(
+export const redditTasks = topicowlSchema.table(
   "reddit_tasks",
   {
     id: serial("id").primaryKey(),
@@ -621,7 +518,7 @@ export const redditTasks = contentbotSchema.table(
 );
 
 // User preferences for generating Reddit tasks
-export const redditSettings = contentbotSchema.table(
+export const redditSettings = topicowlSchema.table(
   "reddit_settings",
   {
     id: serial("id").primaryKey(),

@@ -1,70 +1,78 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { db } from "@/server/db";
-import { articles, generationQueue, users, projects } from "@/server/db/schema";
-import { eq, and, max } from "drizzle-orm";
-import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
+import { db } from "@/server/db";
+import { articles, articleGenerations, projects, users } from "@/server/db/schema";
+import type { ArticleStatus, ArticleGenerationStatus } from "@/types";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 
-// Types colocated with this API route
-export interface AddToQueueRequest {
+const IN_PROGRESS_STATUSES = new Set<ArticleGenerationStatus>([
+  "research",
+  "image",
+  "writing",
+  "quality-control",
+  "validating",
+  "updating",
+]);
+
+type QueueStatus = "queued" | "processing" | "completed" | "failed";
+
+type QueueItemResponse = {
+  id: number;
   articleId: number;
-  scheduledForDate?: string; // Optional date for tracking (defaults to today)
+  title: string;
+  addedToQueueAt: string;
+  scheduledForDate: string;
+  queuePosition: number;
+  schedulingType: "manual" | "automatic";
+  status: QueueStatus;
+  attempts: number;
+  errorMessage?: string;
+};
+
+function deriveQueueStatus(
+  articleStatus: ArticleStatus,
+  generationStatus: ArticleGenerationStatus | null | undefined,
+): QueueStatus {
+  if (
+    generationStatus &&
+    IN_PROGRESS_STATUSES.has(generationStatus)
+  ) {
+    return "processing";
+  }
+
+  if (
+    generationStatus === "failed" ||
+    articleStatus === "failed"
+  ) {
+    return "failed";
+  }
+
+  if (articleStatus === "published" || generationStatus === "completed") {
+    return "completed";
+  }
+
+  return "queued";
 }
 
-export interface GenerationQueueResponse {
-  success: boolean;
-  data: {
-    articles: Array<{
-      id: number; // queue item id
-      articleId: number;
-      title: string;
-      addedToQueueAt: string;
-      scheduledForDate: string;
-      queuePosition: number;
-      schedulingType: "manual" | "automatic";
-      status: "queued" | "processing" | "completed" | "failed";
-      attempts: number;
-      errorMessage?: string;
-    }>;
-    totalCount: number;
-    currentlyProcessing?: number; // article id currently being processed
-  };
-}
-
-export interface RemoveFromQueueRequest {
-  queueItemId: number;
-}
-
-const addToQueueSchema = z.object({
-  articleId: z.number(),
-  scheduledForDate: z.string().datetime().optional(),
-});
-
-// Helper function to get next queue position
-async function getNextQueuePosition(userId: string): Promise<number> {
-  const maxPositionResult = await db
-    .select({ maxPosition: max(generationQueue.queuePosition) })
-    .from(generationQueue)
-    .where(
-      and(
-        eq(generationQueue.userId, userId),
-        eq(generationQueue.status, "queued"),
-      ),
-    );
-
-  return (maxPositionResult[0]?.maxPosition ?? -1) + 1;
-}
-
-// GET /api/articles/generation-queue - Get user's generation queue
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    // Get current user from Clerk
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      );
     }
 
-    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
@@ -72,78 +80,183 @@ export async function GET(_req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 },
+      );
     }
 
-    // Get generation queue items for this user with article details
-    const queueItems = await db
+    const { searchParams } = new URL(req.url);
+    const projectIdParam = searchParams.get("projectId");
+
+    let projectIdFilter: number | undefined;
+    if (projectIdParam) {
+      const parsed = Number(projectIdParam);
+      if (!Number.isInteger(parsed)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid project ID" },
+          { status: 400 },
+        );
+      }
+
+      const [projectRecord] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.id, parsed), eq(projects.userId, userRecord.id)))
+        .limit(1);
+
+      if (!projectRecord) {
+        return NextResponse.json(
+          { success: false, error: "Project not found or access denied" },
+          { status: 404 },
+        );
+      }
+
+      projectIdFilter = parsed;
+    }
+
+    let whereClause = and(
+      eq(projects.userId, userRecord.id),
+      isNotNull(articles.publishScheduledAt),
+    );
+    whereClause = and(whereClause, isNull(articles.publishedAt));
+    if (projectIdFilter !== undefined) {
+      whereClause = and(whereClause, eq(articles.projectId, projectIdFilter));
+    }
+
+    const scheduledArticles = await db
       .select({
-        id: generationQueue.id,
-        articleId: generationQueue.articleId,
+        id: articles.id,
+        projectId: articles.projectId,
         title: articles.title,
-        addedToQueueAt: generationQueue.addedToQueueAt,
-        scheduledForDate: generationQueue.scheduledForDate,
-        queuePosition: generationQueue.queuePosition,
-        schedulingType: generationQueue.schedulingType,
-        status: generationQueue.status,
-        attempts: generationQueue.attempts,
-        errorMessage: generationQueue.errorMessage,
+        publishScheduledAt: articles.publishScheduledAt,
+        createdAt: articles.createdAt,
+        status: articles.status,
       })
-      .from(generationQueue)
-      .innerJoin(articles, eq(generationQueue.articleId, articles.id))
-      .where(eq(generationQueue.userId, userRecord.id))
-      .orderBy(generationQueue.queuePosition, generationQueue.createdAt);
+      .from(articles)
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(whereClause)
+      .orderBy(articles.publishScheduledAt, articles.createdAt);
 
-    // Find currently processing item
-    const currentlyProcessing = queueItems.find(
-      (item) => item.status === "processing",
-    )?.articleId;
+    const articleIds = scheduledArticles.map((article) => article.id);
 
-    const response: GenerationQueueResponse = {
+    if (articleIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: { articles: [] },
+      });
+    }
+
+    const generationRows = await db
+      .select({
+        articleId: articleGenerations.articleId,
+        status: articleGenerations.status,
+        error: articleGenerations.error,
+        createdAt: articleGenerations.createdAt,
+        scheduledAt: articleGenerations.scheduledAt,
+      })
+      .from(articleGenerations)
+      .where(inArray(articleGenerations.articleId, articleIds))
+      .orderBy(desc(articleGenerations.createdAt));
+
+    const latestGenerationByArticle = new Map<
+      number,
+      {
+        status: ArticleGenerationStatus;
+        error: string | null;
+        createdAt: Date;
+        scheduledAt: Date | null;
+      }
+    >();
+
+    for (const row of generationRows) {
+      if (!latestGenerationByArticle.has(row.articleId)) {
+        latestGenerationByArticle.set(row.articleId, {
+          status: row.status,
+          error: row.error,
+          createdAt: row.createdAt,
+          scheduledAt: row.scheduledAt ?? null,
+        });
+      }
+    }
+
+    const attemptRows = await db
+      .select({
+        articleId: articleGenerations.articleId,
+        count: sql<number>`count(*)`,
+      })
+      .from(articleGenerations)
+      .where(inArray(articleGenerations.articleId, articleIds))
+      .groupBy(articleGenerations.articleId);
+
+    const attemptsByArticle = new Map<number, number>();
+    for (const row of attemptRows) {
+      attemptsByArticle.set(row.articleId, Number(row.count));
+    }
+
+    const queueItems: QueueItemResponse[] = scheduledArticles
+      .filter((article) => article.publishScheduledAt !== null)
+      .map((article, index) => {
+        const scheduledDate = article.publishScheduledAt!;
+        const generation = latestGenerationByArticle.get(article.id);
+        const status = deriveQueueStatus(
+          article.status,
+          generation?.status ?? null,
+        );
+        const addedSource = generation?.scheduledAt
+          ?? generation?.createdAt
+          ?? scheduledDate
+          ?? article.createdAt;
+
+        return {
+          id: article.id,
+          articleId: article.id,
+          title: article.title,
+          addedToQueueAt: addedSource.toISOString(),
+          scheduledForDate: scheduledDate.toISOString(),
+          queuePosition: index + 1,
+          schedulingType: "manual",
+          status,
+          attempts: attemptsByArticle.get(article.id) ?? 0,
+          errorMessage: generation?.error ?? undefined,
+        } satisfies QueueItemResponse;
+      });
+
+    return NextResponse.json({
       success: true,
-      data: {
-        articles: queueItems.map((item) => ({
-          id: item.id,
-          articleId: item.articleId,
-          title: item.title,
-          addedToQueueAt: item.addedToQueueAt.toISOString(),
-          scheduledForDate:
-            item.scheduledForDate?.toISOString() ?? new Date().toISOString(),
-          queuePosition: item.queuePosition ?? 0,
-          schedulingType: item.schedulingType as "manual" | "automatic",
-          status: item.status as
-            | "queued"
-            | "processing"
-            | "completed"
-            | "failed",
-          attempts: item.attempts ?? 0,
-          errorMessage: item.errorMessage ?? undefined,
-        })),
-        totalCount: queueItems.length,
-        currentlyProcessing,
-      },
-    };
-
-    return NextResponse.json(response);
+      data: { articles: queueItems },
+    });
   } catch (error) {
-    console.error("Get generation queue error:", error);
+    console.error("Generation queue fetch error", error);
     return NextResponse.json(
-      { error: "Failed to fetch generation queue" },
+      { success: false, error: "Failed to load generation queue" },
       { status: 500 },
     );
   }
 }
 
-// POST /api/articles/generation-queue - Add article to generation queue
+const schedulePayloadSchema = z.object({
+  articleId: z.union([z.number(), z.string()]).transform((value) => {
+    if (typeof value === "number") return value;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) {
+      throw new Error("Invalid article ID");
+    }
+    return parsed;
+  }),
+  scheduledForDate: z.string().datetime(),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    // Get current user from Clerk
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      );
     }
 
-    // Verify user exists in database
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
@@ -151,147 +264,130 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 },
+      );
     }
 
-    const body = (await req.json()) as unknown;
-    const validatedData = addToQueueSchema.parse(body);
-    const { articleId, scheduledForDate } = validatedData;
+    const payload = schedulePayloadSchema.parse(await req.json());
 
-    // Check if article exists and belongs to current user's project using JOIN
-    const [result] = await db
+    const [articleRecord] = await db
       .select({
         id: articles.id,
-        userId: articles.userId,
         projectId: articles.projectId,
-        title: articles.title,
-        keywords: articles.keywords,
         status: articles.status,
       })
       .from(articles)
       .innerJoin(projects, eq(articles.projectId, projects.id))
       .where(
-        and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)),
+        and(eq(articles.id, payload.articleId), eq(projects.userId, userRecord.id)),
       )
       .limit(1);
 
-    if (!result) {
+    if (!articleRecord) {
       return NextResponse.json(
-        { error: "Article not found or access denied" },
+        { success: false, error: "Article not found or access denied" },
         { status: 404 },
       );
     }
 
-    const existingArticle = result;
-
-    // Validate the article has required fields
-    if (!existingArticle.title && !existingArticle.keywords) {
+    const scheduleDate = new Date(payload.scheduledForDate);
+    if (Number.isNaN(scheduleDate.getTime())) {
       return NextResponse.json(
-        { error: "Article must have title and keywords before being queued" },
+        { success: false, error: "Invalid schedule date" },
         { status: 400 },
       );
     }
 
-    // Check if already in queue
-    const [existingQueueItem] = await db
-      .select()
-      .from(generationQueue)
-      .where(
-        and(
-          eq(generationQueue.articleId, articleId),
-          eq(generationQueue.userId, userRecord.id),
-          eq(generationQueue.status, "queued"),
-        ),
-      )
-      .limit(1);
-
-    if (existingQueueItem) {
-      return NextResponse.json(
-        { error: "Article is already in the generation queue" },
-        { status: 400 },
-      );
-    }
-
-    // Get next queue position
-    const queuePosition = await getNextQueuePosition(userRecord.id);
-
-    // Add to generation queue
-    const [queueItem] = await db
-      .insert(generationQueue)
-      .values({
-        articleId: articleId,
-        userId: userRecord.id,
-        projectId: existingArticle.projectId,
-        scheduledForDate: scheduledForDate
-          ? new Date(scheduledForDate)
-          : new Date(),
-        queuePosition: queuePosition,
-        schedulingType: "manual", // Manual addition to queue
-        status: "queued",
-      })
-      .returning();
-
-    if (!queueItem) {
-      return NextResponse.json(
-        { error: "Failed to add item to queue" },
-        { status: 500 },
-      );
-    }
-
-    // Update article status to scheduled (replaces "queued")
-    const [updatedArticle] = await db
+    await db
       .update(articles)
       .set({
-        status: "scheduled",
+        publishScheduledAt: scheduleDate,
+        status: articleRecord.status === "published" ? articleRecord.status : "scheduled",
         updatedAt: new Date(),
       })
-      .where(eq(articles.id, articleId))
-      .returning();
+      .where(eq(articles.id, payload.articleId));
 
-    if (!updatedArticle) {
-      return NextResponse.json(
-        { error: "Failed to update article status" },
-        { status: 500 },
-      );
+    const [latestGeneration] = await db
+      .select({
+        id: articleGenerations.id,
+      })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, payload.articleId))
+      .orderBy(desc(articleGenerations.createdAt))
+      .limit(1);
+
+    if (latestGeneration) {
+      await db
+        .update(articleGenerations)
+        .set({
+          status: "scheduled",
+          progress: 0,
+          scheduledAt: scheduleDate,
+          startedAt: null,
+          completedAt: null,
+          error: null,
+          errorDetails: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(articleGenerations.id, latestGeneration.id));
+    } else {
+      await db.insert(articleGenerations).values({
+        articleId: payload.articleId,
+        userId: userRecord.id,
+        projectId: articleRecord.projectId,
+        status: "scheduled",
+        progress: 0,
+        scheduledAt: scheduleDate,
+        artifacts: {},
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        queueId: queueItem.id,
-        articleId: updatedArticle.id,
-        title: updatedArticle.title,
-        status: updatedArticle.status,
-        queuePosition: queueItem.queuePosition,
-        addedAt: queueItem.addedToQueueAt.toISOString(),
-      },
-      message: "Article added to generation queue",
-    });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Add to queue error:", error);
+    console.error("Generation queue schedule error", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input data", details: error.errors },
+        { success: false, error: "Invalid input data", details: error.errors },
         { status: 400 },
       );
     }
     return NextResponse.json(
-      { error: "Failed to add article to queue" },
+      { success: false, error: "Failed to schedule article" },
       { status: 500 },
     );
   }
 }
 
-// DELETE /api/articles/generation-queue - Remove article from generation queue
 export async function DELETE(req: NextRequest) {
   try {
-    // Get current user from Clerk
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { searchParams } = new URL(req.url);
+    const queueItemParam = searchParams.get("queueItemId");
+
+    if (!queueItemParam) {
+      return NextResponse.json(
+        { success: false, error: "queueItemId is required" },
+        { status: 400 },
+      );
     }
 
-    // Verify user exists in database
+    const articleId = Number(queueItemParam);
+    if (!Number.isInteger(articleId)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid queue item ID" },
+        { status: 400 },
+      );
+    }
+
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
     const [userRecord] = await db
       .select({ id: users.id })
       .from(users)
@@ -299,113 +395,65 @@ export async function DELETE(req: NextRequest) {
       .limit(1);
 
     if (!userRecord) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const queueItemIdParam = searchParams.get("queueItemId");
-
-    if (!queueItemIdParam) {
       return NextResponse.json(
-        { error: "Queue item ID is required" },
-        { status: 400 },
-      );
-    }
-
-    const queueItemId = parseInt(queueItemIdParam);
-
-    // Check if queue item exists and belongs to current user's project using JOIN
-    const [result] = await db
-      .select({
-        id: generationQueue.id,
-        articleId: generationQueue.articleId,
-        userId: generationQueue.userId,
-        projectId: generationQueue.projectId,
-        status: generationQueue.status,
-        queuePosition: generationQueue.queuePosition,
-      })
-      .from(generationQueue)
-      .innerJoin(projects, eq(generationQueue.projectId, projects.id))
-      .where(
-        and(
-          eq(generationQueue.id, queueItemId),
-          eq(projects.userId, userRecord.id),
-        ),
-      )
-      .limit(1);
-
-    if (!result) {
-      return NextResponse.json(
-        { error: "Queue item not found or access denied" },
+        { success: false, error: "User not found" },
         { status: 404 },
       );
     }
 
-    const existingQueueItem = result;
-
-    // Don't allow removing if currently processing
-    if (existingQueueItem.status === "processing") {
-      return NextResponse.json(
-        { error: "Cannot remove article while it is being processed" },
-        { status: 400 },
-      );
-    }
-
-    // Remove from queue
-    await db.delete(generationQueue).where(eq(generationQueue.id, queueItemId));
-
-    // Update article status back to scheduled or idea
-    const [article] = await db
+    const [articleRecord] = await db
       .select({
         id: articles.id,
-        title: articles.title,
         status: articles.status,
       })
       .from(articles)
-      .where(eq(articles.id, existingQueueItem.articleId))
+      .innerJoin(projects, eq(articles.projectId, projects.id))
+      .where(and(eq(articles.id, articleId), eq(projects.userId, userRecord.id)))
       .limit(1);
 
-    if (article) {
-      // Put article back to idea status since generation was cancelled
+    if (!articleRecord) {
+      return NextResponse.json(
+        { success: false, error: "Article not found or access denied" },
+        { status: 404 },
+      );
+    }
+
+    await db
+      .update(articles)
+      .set({
+        status: articleRecord.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, articleId));
+
+    const [latestGeneration] = await db
+      .select({ id: articleGenerations.id })
+      .from(articleGenerations)
+      .where(eq(articleGenerations.articleId, articleId))
+      .orderBy(desc(articleGenerations.createdAt))
+      .limit(1);
+
+    if (latestGeneration) {
       await db
-        .update(articles)
+        .update(articleGenerations)
         .set({
-          status: "idea",
+          status: "scheduled",
+          progress: 0,
+          scheduledAt: null,
+          startedAt: null,
+          completedAt: null,
+          error: null,
+          errorDetails: null,
           updatedAt: new Date(),
         })
-        .where(eq(articles.id, article.id));
+        .where(eq(articleGenerations.id, latestGeneration.id));
     }
 
-    // Reorder remaining queue items to fill the gap
-    const remainingItems = await db
-      .select()
-      .from(generationQueue)
-      .where(
-        and(
-          eq(generationQueue.userId, userRecord.id),
-          eq(generationQueue.status, "queued"),
-        ),
-      )
-      .orderBy(generationQueue.queuePosition);
-
-    // Update positions to be sequential
-    for (let i = 0; i < remainingItems.length; i++) {
-      if (remainingItems[i]) {
-        await db
-          .update(generationQueue)
-          .set({ queuePosition: i })
-          .where(eq(generationQueue.id, remainingItems[i]!.id));
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Article removed from generation queue",
-    });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Remove from queue error:", error);
+    console.error("Generation queue delete error", error);
     return NextResponse.json(
-      { error: "Failed to remove article from queue" },
+      { success: false, error: "Failed to update queue" },
       { status: 500 },
     );
   }

@@ -3,7 +3,30 @@
 
 import { z } from "zod";
 import type { projects } from "@/server/db/schema";
-import type { articleStatusEnum } from "@/server/db/schema";
+export const ARTICLE_STATUSES = [
+  "idea",
+  "scheduled",
+  "generating",
+  "published",
+  "failed",
+] as const;
+
+export type ArticleStatus = (typeof ARTICLE_STATUSES)[number];
+
+export const ARTICLE_GENERATION_STATUSES = [
+  "scheduled",
+  "research",
+  "image",
+  "writing",
+  "quality-control",
+  "validating",
+  "updating",
+  "completed",
+  "failed",
+] as const;
+
+export type ArticleGenerationStatus =
+  (typeof ARTICLE_GENERATION_STATUSES)[number];
 
 // OpenGraph metadata schema
 export const ogMetadataSchema = z.object({
@@ -72,6 +95,96 @@ export const videoEmbedSchema = z.object({
 });
 
 export type VideoEmbed = z.infer<typeof videoEmbedSchema>;
+
+export interface ResearchArtifact {
+  researchData?: string;
+  sources?: Array<{ url: string; title?: string }>;
+  videos?: Array<{ title: string; url: string; reason?: string }>;
+  internalLinks?: string[];
+}
+
+export interface ValidationArtifact {
+  isValid?: boolean;
+  issues?: Array<{ fact: string; issue: string; correction: string }>;
+  rawValidationText?: string;
+  seoScore?: number;
+  runLabel?: "initial" | "post-update";
+}
+
+export interface WriteArtifact {
+  prompt?: string;
+  content?: string;
+  relatedPosts?: string[];
+  tags?: string[];
+  slug?: string;
+  metaDescription?: string;
+  introParagraph?: string;
+  factCheckReport?: string;
+  internalLinks?: string[];
+}
+
+export interface CoverImageArtifact {
+  imageId?: string;
+  imageUrl?: string;
+  altText?: string;
+  attribution?: {
+    photographer?: string;
+    sourceUrl?: string;
+    downloadUrl?: string;
+    [key: string]: string | undefined;
+  };
+  query?: string;
+  keywords?: string[];
+}
+
+export interface GenerationArtifactErrors {
+  research_error?: { error: string; timestamp: string; details?: string };
+  write_error?: { error: string; timestamp: string; details?: string };
+  validation_error?: { error: string; timestamp: string; details?: string };
+  [key: string]: unknown;
+}
+
+export type QualityControlCategory =
+  | "seo"
+  | "writing"
+  | "structure"
+  | "requirements";
+
+export type QualityControlSeverity = "critical" | "high" | "medium" | "low";
+
+export interface QualityControlIssue {
+  id: string;
+  category: QualityControlCategory;
+  severity: QualityControlSeverity;
+  summary: string;
+  location?: string;
+  requiredFix: string;
+}
+
+export interface QualityControlCategoryResult {
+  category: QualityControlCategory;
+  status: "pass" | "fail";
+  issues: QualityControlIssue[];
+}
+
+export interface ArticleGenerationArtifacts extends GenerationArtifactErrors {
+  research_run_id?: string;
+  research?: ResearchArtifact;
+  validation?: ValidationArtifact;
+  write?: WriteArtifact;
+  coverImage?: CoverImageArtifact;
+  qualityControl?: {
+    report?: string;
+    issues?: QualityControlIssue[];
+    categories?: QualityControlCategoryResult[];
+    isValid?: boolean;
+    completedAt?: string;
+    runLabel?: "initial" | "post-update";
+    runCount?: number;
+  };
+  errors?: GenerationArtifactErrors;
+  [key: string]: unknown;
+}
 
 export type SectionType =
   | "title"
@@ -182,9 +295,6 @@ export const enhancedBlogPostSchema = blogPostSchema.extend({
     .describe("Indicates if article includes video content"),
 });
 
-// Article status type - imported from database schema
-export type ArticleStatus = (typeof articleStatusEnum.enumValues)[number];
-
 // Workflow phases for new UI
 export type WorkflowPhase = "planning" | "generations" | "publishing";
 
@@ -218,7 +328,12 @@ export interface Article {
 
   // Enhanced fields for new workflow
   generationProgress?: number; // 0-100 percentage
-  generationPhase?: "research" | "writing" | "validation" | "optimization";
+  generationPhase?:
+    | "research"
+    | "writing"
+    | "quality-control"
+    | "validation"
+    | "optimization";
   generationError?: string;
   estimatedReadTime?: number; // in minutes
   views?: number;

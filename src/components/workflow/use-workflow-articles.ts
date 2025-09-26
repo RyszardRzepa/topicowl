@@ -9,28 +9,49 @@ import type {
   DatabaseArticle,
   KanbanColumn,
 } from "@/app/api/articles/board/route";
+
+function mapGenerationStatusToPhase(
+  status: DatabaseArticle["generationStatus"],
+): Article["generationPhase"] {
+  switch (status) {
+    case "research":
+      return "research";
+    case "writing":
+      return "writing";
+    case "quality-control":
+      return "quality-control";
+    case "validating":
+      return "validation";
+    case "updating":
+    case "image":
+      return "optimization";
+    default:
+      return undefined;
+  }
+}
 import type { SchedulePublishingResponse } from "@/app/api/articles/schedule-publishing/route";
 
 export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
-  let correctedStatus = dbArticle.status;
-  if (
-    dbArticle.generationStatus === "completed" &&
-    dbArticle.generationProgress === 100 &&
-    (dbArticle.status === "scheduled" || dbArticle.status === "generating")
-  ) {
-    correctedStatus = "wait_for_publish";
-    console.log(
-      `Auto-correcting article ${dbArticle.id} status from ${dbArticle.status} to wait_for_publish`,
-    );
-  }
+  const projectIdValue = (() => {
+    const articleWithProject = dbArticle as unknown as {
+      projectId?: number;
+      project_id?: number;
+    };
+    if (typeof articleWithProject.projectId === "number") {
+      return articleWithProject.projectId;
+    }
+    if (typeof articleWithProject.project_id === "number") {
+      return articleWithProject.project_id;
+    }
+    return 0;
+  })();
 
   return {
     id: dbArticle.id.toString(),
     title: dbArticle.title,
-    content: dbArticle.content ?? dbArticle.draft ?? undefined,
-    status: correctedStatus,
-    // DatabaseArticle doesn't expose projectId in imported type; fallback to 0 to satisfy required field
-    projectId: (dbArticle as unknown as { projectId?: number }).projectId ?? 0,
+    content: dbArticle.content ?? undefined,
+    status: dbArticle.status,
+    projectId: projectIdValue,
     // Include slug if present in the board payload
     slug: (dbArticle as unknown as { slug?: string | null }).slug ?? undefined,
     keywords: Array.isArray(dbArticle.keywords)
@@ -49,16 +70,7 @@ export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
       typeof dbArticle.generationProgress === "number"
         ? dbArticle.generationProgress
         : 0,
-    generationPhase:
-      dbArticle.generationStatus === "researching"
-        ? "research"
-        : dbArticle.generationStatus === "writing"
-          ? "writing"
-          : dbArticle.generationStatus === "validating"
-            ? "validation"
-            : dbArticle.generationStatus === "updating"
-              ? "optimization"
-              : undefined,
+    generationPhase: mapGenerationStatusToPhase(dbArticle.generationStatus),
     generationError: dbArticle.generationError ?? undefined,
     estimatedReadTime: dbArticle.estimatedReadTime ?? undefined,
     generationScheduledAt:
@@ -70,10 +82,10 @@ export function transformDatabaseArticle(dbArticle: DatabaseArticle): Article {
     generationStartedAt: undefined,
     generationCompletedAt: undefined,
     publishScheduledAt:
-      dbArticle.scheduledAt instanceof Date
-        ? dbArticle.scheduledAt.toISOString()
-        : typeof dbArticle.scheduledAt === "string"
-          ? dbArticle.scheduledAt
+      dbArticle.publishScheduledAt instanceof Date
+        ? dbArticle.publishScheduledAt.toISOString()
+        : typeof dbArticle.publishScheduledAt === "string"
+          ? dbArticle.publishScheduledAt
           : undefined,
     publishedAt:
       dbArticle.publishedAt instanceof Date
@@ -114,10 +126,14 @@ export function useWorkflowArticles() {
       const raw: unknown = await response.json();
       if (!Array.isArray(raw)) throw new Error("Invalid response format");
       const data = raw as KanbanColumn[];
+      
       const all: Article[] = [];
-      data.forEach((col) =>
-        col.articles.forEach((a) => all.push(transformDatabaseArticle(a))),
-      );
+      data.forEach((col) => {
+        col.articles.forEach((a) => {
+          const transformed = transformDatabaseArticle(a);
+          all.push(transformed);
+        });
+      });
       setArticles(all);
       setError(null);
     } catch (err) {
@@ -134,11 +150,19 @@ export function useWorkflowArticles() {
 
   const planningArticles = useMemo(
     () =>
-      articles.filter(
-        (a) =>
-          a.status === "idea" ||
-          (a.status === "scheduled" && !a.generationScheduledAt),
-      ),
+      articles.filter((a) => {
+        if (a.status === "idea") return true;
+        if (a.status !== "scheduled" || a.generationScheduledAt) return false;
+
+        const generationComplete =
+          (typeof a.generationProgress === "number" &&
+            a.generationProgress >= 100) ||
+          Boolean(a.content);
+        const readyToPublish =
+          generationComplete && !a.generationPhase && !a.generationError;
+
+        return !readyToPublish;
+      }),
     [articles],
   );
 
@@ -153,18 +177,20 @@ export function useWorkflowArticles() {
     [articles],
   );
 
-  const publishingArticles = useMemo(
-    () =>
-      articles.filter(
-        (a) =>
-          a.status === "wait_for_publish" ||
-          a.status === "published" ||
-          (a.generationProgress === 100 &&
-            a.generationPhase === undefined &&
-            !a.generationError),
-      ),
-    [articles],
-  );
+  const publishingArticles = useMemo(() => {
+    return articles.filter((a) => {
+      const generationComplete =
+        (typeof a.generationProgress === "number" &&
+          a.generationProgress >= 100) ||
+        Boolean(a.content);
+      const readyToPublish =
+        a.status === "scheduled" &&
+        generationComplete &&
+        !a.generationPhase &&
+        !a.generationError;
+      return readyToPublish || a.status === "published";
+    });
+  }, [articles]);
 
   const generatingArticles = useMemo(
     () => articles.filter((a) => a.status === "generating"),
@@ -311,7 +337,7 @@ export function useWorkflowArticles() {
     if (!project) return;
     try {
       const article = articles.find((a) => a.id === articleId);
-      const response = await fetch("/api/articles/publish", {
+      const response = await fetch(`/api/articles/${articleId}/publish`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -429,7 +455,7 @@ export function useWorkflowArticles() {
             ? {
                 ...a,
                 publishScheduledAt: undefined,
-                status: "wait_for_publish",
+                status: "scheduled",
               }
             : a,
         ),

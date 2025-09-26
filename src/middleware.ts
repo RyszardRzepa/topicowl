@@ -9,9 +9,10 @@ const isPublicRoute = createRouteMatcher([
 
 // Define public API routes (external/webhook routes that should remain open)
 const isPublicApiRoute = createRouteMatcher([
-  "/api/webhooks/clerk",
+  "/api/webhooks/(.*)",
   "/api/external(.*)",
   "/api/tools/seo-cluster-map/analyze",
+  "/api/topics-finder",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

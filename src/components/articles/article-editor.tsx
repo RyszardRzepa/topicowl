@@ -10,7 +10,15 @@ import { X, Plus, Save, XCircle, Link, Search } from "lucide-react";
 import Image from "next/image";
 import { ImagePicker } from "./image-picker";
 import type { ArticleDetailResponse } from "@/app/api/articles/[id]/route";
-import type { CombinedImage } from "@/lib/services/image-selection-service";
+import type { ImageSummary } from "@/lib/services/image-selection";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ArticleEditorProps {
   article: ArticleDetailResponse["data"];
@@ -33,7 +41,7 @@ export function ArticleEditor({
     metaKeywords: Array.isArray(article.metaKeywords)
       ? (article.metaKeywords as string[])
       : [],
-    optimizedContent: article.draft ?? "",
+    content: article.content ?? "",
     coverImageUrl: article.coverImageUrl ?? "",
     coverImageAlt: article.coverImageAlt ?? "",
   });
@@ -41,7 +49,11 @@ export function ArticleEditor({
   const [newKeyword, setNewKeyword] = useState("");
   const [imageInputMode, setImageInputMode] = useState<"url" | "search">("url");
   const [selectedUnsplashImage, setSelectedUnsplashImage] =
-    useState<CombinedImage | null>(null);
+    useState<ImageSummary | null>(null);
+  const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [dialogSelection, setDialogSelection] = useState<ImageSummary | null>(
+    null,
+  );
 
   const handleAddKeyword = () => {
     if (
@@ -65,21 +77,41 @@ export function ArticleEditor({
     }));
   };
 
-  const handleUnsplashImageSelect = (image: CombinedImage) => {
+  const applyImageSelection = (image: ImageSummary) => {
     setSelectedUnsplashImage(image);
     setFormData((prev) => ({
       ...prev,
-      coverImageUrl: image.urls.regular,
-      coverImageAlt:
-        image.altDescription ??
-        image.description ??
-        `Photo by ${image.user.name}`,
+      coverImageUrl: image.url,
+      coverImageAlt: image.alt,
     }));
+  };
+
+  const closeSearchDialog = (open: boolean) => {
+    setIsSearchDialogOpen(open);
+    if (!open) {
+      setDialogSelection(selectedUnsplashImage);
+    }
+  };
+
+  const handleDialogSelect = () => {
+    if (!dialogSelection) return;
+    applyImageSelection(dialogSelection);
+    setIsSearchDialogOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onSave(formData);
+  };
+
+  const openUrlMode = () => {
+    setImageInputMode("url");
+  };
+
+  const openSearchMode = () => {
+    setImageInputMode("search");
+    setDialogSelection(selectedUnsplashImage);
+    setIsSearchDialogOpen(true);
   };
 
   return (
@@ -190,7 +222,7 @@ export function ArticleEditor({
                 type="button"
                 variant={imageInputMode === "url" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setImageInputMode("url")}
+                onClick={openUrlMode}
               >
                 <Link className="mr-1 h-4 w-4" />
                 URL
@@ -199,7 +231,7 @@ export function ArticleEditor({
                 type="button"
                 variant={imageInputMode === "search" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setImageInputMode("search")}
+                onClick={openSearchMode}
               >
                 <Search className="mr-1 h-4 w-4" />
                 Search
@@ -256,10 +288,40 @@ export function ArticleEditor({
               <label className="mb-3 block text-sm font-medium text-gray-700">
                 Search Images
               </label>
-              <ImagePicker
-                onImageSelect={handleUnsplashImageSelect}
-                selectedImageId={selectedUnsplashImage?.id}
-              />
+              <Dialog open={isSearchDialogOpen} onOpenChange={closeSearchDialog}>
+                <DialogContent className="flex w-[92vw] max-w-5xl max-h-[90vh] flex-col gap-4 overflow-hidden">
+                  <div className="shrink-0">
+                    <DialogHeader>
+                      <DialogTitle>Select a cover image</DialogTitle>
+                      <DialogDescription>
+                        Search across providers and pick the image that best fits this article.
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <ImagePicker
+                      onImageSelect={setDialogSelection}
+                      selectedImageUrl={dialogSelection?.url}
+                    />
+                  </div>
+                  <DialogFooter className="justify-end border-t pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsSearchDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleDialogSelect}
+                      disabled={!dialogSelection}
+                    >
+                      Select
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Show alt text input for selected image */}
               {selectedUnsplashImage && (
@@ -315,18 +377,18 @@ export function ArticleEditor({
         <CardContent className="space-y-4">
           <div>
             <label
-              htmlFor="optimizedContent"
+              htmlFor="content"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
               Article Content
             </label>
             <Textarea
-              id="optimizedContent"
-              value={formData.optimizedContent}
+              id="content"
+              value={formData.content}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
-                  optimizedContent: e.target.value,
+                  content: e.target.value,
                 }))
               }
               placeholder="Enter article content"

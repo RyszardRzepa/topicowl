@@ -195,6 +195,23 @@ export async function POST(request: Request): Promise<Response> {
       maxAge: 60 * 60 * 24 * 365, // 1 year
     });
 
+    // Trigger automatic topic generation for new users
+    let taskId: string | undefined;
+    try {
+      // Import the topic discovery service directly
+      const { createTopicDiscoveryTask } = await import("@/lib/services/topic-discovery");
+      
+      // Call the service directly instead of making HTTP request
+      const topicTask = await createTopicDiscoveryTask(newProject);
+      
+      if (topicTask?.run_id) {
+        taskId = topicTask.run_id;
+      }
+    } catch (error) {
+      // Don't fail onboarding if topic generation fails
+      console.error('Failed to trigger topic generation during onboarding:', error);
+    }
+
     return Response.json({
       success: true,
       message: "Onboarding completed successfully",

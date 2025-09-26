@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
 import { CreditProvider } from "@/components/dashboard/credit-context";
 import { ProjectProvider } from "@/contexts/project-context";
+import { QueryProvider } from "@/components/query-client-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
@@ -45,11 +46,13 @@ export default async function DashboardLayout({
   // Don't fetch projects server-side - let client handle it
   return (
     <>
-      <ProjectProvider>
-        <CreditProvider>
-          <DashboardLayoutClient>{children}</DashboardLayoutClient>
-        </CreditProvider>
-      </ProjectProvider>
+      <QueryProvider>
+        <ProjectProvider>
+          <CreditProvider>
+            <DashboardLayoutClient>{children}</DashboardLayoutClient>
+          </CreditProvider>
+        </ProjectProvider>
+      </QueryProvider>
       <Toaster />
     </>
   );

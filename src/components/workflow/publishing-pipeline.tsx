@@ -33,9 +33,18 @@ export function PublishingPipeline({
   onNavigateToArticle,
 }: PublishingPipelineProps) {
   // Group articles by status for publishing phase
-  const readyToPublish = articles.filter(
-    (a) => a.status === "wait_for_publish",
-  );
+  const readyToPublish = articles.filter((a) => {
+    const generationComplete =
+      (typeof a.generationProgress === "number" &&
+        a.generationProgress >= 100) ||
+      Boolean(a.content);
+    return (
+      a.status === "scheduled" &&
+      generationComplete &&
+      !a.generationPhase &&
+      !a.generationError
+    );
+  });
   const publishedArticles = articles.filter((a) => a.status === "published");
   // Separate scheduled from unscheduled in ready to publish
   const readyNow = readyToPublish.filter((a) => !a.publishScheduledAt);

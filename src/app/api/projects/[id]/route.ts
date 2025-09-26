@@ -4,8 +4,7 @@ import { db } from "@/server/db";
 import {
   projects,
   articles,
-  generationQueue,
-  articleGeneration,
+  articleGenerations,
   webhookDeliveries,
 } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -243,13 +242,10 @@ export async function DELETE(
 
       // Delete article generation records
       await db
-        .delete(articleGeneration)
-        .where(eq(articleGeneration.projectId, projectId));
+        .delete(articleGenerations)
+        .where(eq(articleGenerations.projectId, projectId));
 
-      // Delete generation queue entries
-      await db
-        .delete(generationQueue)
-        .where(eq(generationQueue.projectId, projectId));
+      // Note: No generation queue to clean up since we removed that table
 
       // Delete articles
       await db.delete(articles).where(eq(articles.projectId, projectId));
