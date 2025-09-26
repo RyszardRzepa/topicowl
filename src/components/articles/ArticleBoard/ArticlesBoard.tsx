@@ -40,12 +40,7 @@ function getWeekDays(baseDate: Date) {
   );
 }
 
-function isWithinWeek(dateIso: string, weekStart: Date) {
-  const d = new Date(dateIso);
-  const start = startOfWeek(weekStart, { weekStartsOn: 1 });
-  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-  return d >= start && d < end;
-}
+
 
 function deriveGenerationPhase(status?: string): Article["generationPhase"] {
   switch (status) {
@@ -172,36 +167,34 @@ export function ArticlesBoard() {
       if (q.status !== "queued") {
         return false;
       }
-
-      if (!q.scheduledForDate) {
-        return false;
-      }
-
-      const withinWeek = isWithinWeek(q.scheduledForDate, weekDays[0]!);
-      if (!withinWeek) {
-        return false;
-      }
-
-      if (a.status === "generating") {
-        console.log(`  - FILTERED OUT: Article status is generating`);
-        return false;
-      }
-
-      console.log(`  - INCLUDED: Queue item passes all filters`);
       return true;
     });
 
     return filtered;
-  }, [queueItems, articleById, projectId, weekDays]);
+  }, [queueItems, articleById, projectId]);
 
   const overdueQueueItemIds = useMemo(() => {
     const now = Date.now();
-    return new Set(
-      scheduledItems
-        .filter((q) => new Date(q.scheduledForDate).getTime() < now)
-        .map((q) => q.id),
-    );
-  }, [scheduledItems]);
+    const overdue = new Set<number>();
+    for (const item of scheduledItems) {
+      const article = articleById.get(item.articleId);
+      if (!article) {
+        continue;
+      }
+      const columnDate =
+        article.publishScheduledAt ??
+        article.publishedAt ??
+        item.scheduledForDate ??
+        article.createdAt;
+      if (!columnDate) {
+        continue;
+      }
+      if (new Date(columnDate).getTime() < now) {
+        overdue.add(item.id);
+      }
+    }
+    return overdue;
+  }, [scheduledItems, articleById]);
 
   const generatingArticles = useMemo(() => {
     return articles.filter(
@@ -246,98 +239,35 @@ export function ArticlesBoard() {
         continue;
       }
 
-      const generationComplete =
-        (typeof article.generationProgress === "number" &&
-          article.generationProgress >= 100) ||
-        Boolean(article.content);
-      const readyToPublish =
-        article.status === STATUSES.SCHEDULED &&
-        generationComplete &&
-        !article.generationPhase &&
-        !article.generationError;
-
       const eventConfig = getBoardEventConfig(
         article.status,
         !!article.publishScheduledAt,
       );
 
-      // Determine the display date based on article status and scheduling
-      let displayDate: string | null = null;
+      // Determine the display date:
+      // Priority 1: publish_scheduled_at
+      // Priority 2: published_at
+      // Fallback: queue scheduled date, then creation date, so every article renders
+      const displayDate =
+        article.publishScheduledAt ??
+        article.publishedAt ??
+        queueItem?.scheduledForDate ??
+        article.createdAt;
 
-      switch (article.status) {
-        case STATUSES.GENERATING:
-          // For generating articles, prefer the original queue scheduled date if available
-          displayDate =
-            queueItem?.scheduledForDate ??
-            article.publishScheduledAt ??
-            article.generationStartedAt ??
-            null;
-          break;
-
-        case STATUSES.SCHEDULED:
-          if (readyToPublish) {
-            displayDate =
-              article.publishScheduledAt ??
-              article.generationCompletedAt ??
-              new Date().toISOString();
-          } else {
-            displayDate =
-              article.publishScheduledAt ??
-              article.generationScheduledAt ??
-              queueItem?.scheduledForDate ??
-              null;
-          }
-          break;
-
-        case STATUSES.PUBLISHED:
-          // Show published articles today so they're always visible in the current week
-          displayDate = new Date().toISOString();
-          break;
-
-        case STATUSES.FAILED:
-          // For failed articles, try to show on originally scheduled date
-          // If no date is available, use today as fallback so failed articles are always visible
-          displayDate =
-            queueItem?.scheduledForDate ??
-            article.publishScheduledAt ??
-            article.generationCompletedAt ??
-            article.generationStartedAt ??
-            new Date().toISOString(); // Show failed articles today so they're visible and actionable
-          break;
-
-        default:
-          // For ideas, show them on their creation date.
-          // If the creation date is before the current week, show them on the first day of the week.
-          if (article.status === STATUSES.IDEA) {
-            const creationDate = new Date(article.createdAt);
-            if (creationDate < weekDays[0]!) {
-              displayDate = weekDays[0]!.toISOString();
-            } else {
-              displayDate = article.createdAt;
-            }
-          } else {
-            displayDate =
-              article.publishScheduledAt ??
-              article.generationScheduledAt ??
-              null;
-          }
-          break;
+      if (!displayDate) {
+        continue;
       }
 
-      // Only show articles with a valid display date that falls within the current week
-      if (displayDate && isWithinWeek(displayDate, weekDays[0]!)) {
-        events.push({
-          id: article.id,
-          dateIso: displayDate,
-          title: article.title,
-          article,
-          eventConfig,
-        });
-      } else {
-      }
+      events.push({
+        id: article.id,
+        dateIso: displayDate,
+        title: article.title,
+        article,
+        eventConfig,
+      });
     }
     return events;
-  }, [allBoardArticles, weekDays, queueItems]);
+  }, [allBoardArticles, queueItems]);
 
   // Removed unused publishScheduledEvents and readyToPublishEvents
   // Now using getBoardEventConfig for comprehensive board event generation
@@ -829,46 +759,6 @@ export function ArticlesBoard() {
       setIsUpdating(false);
     }
   };
-  const handleRescheduleOverdue = useCallback(async () => {
-    const overdueItems = scheduledItems.filter((item) =>
-      overdueQueueItemIds.has(item.id),
-    );
-    if (overdueItems.length === 0) return;
-    setIsUpdating(true);
-    try {
-      for (const item of overdueItems) {
-        const currentDate = new Date(item.scheduledForDate);
-        const nextDate = new Date(currentDate);
-        nextDate.setDate(currentDate.getDate() + 1);
-        if (nextDate.getTime() < Date.now()) {
-          const now = new Date();
-          nextDate.setFullYear(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate() + 1,
-          );
-        }
-        await fetch(`/api/articles/generation-queue?queueItemId=${item.id}`, {
-          method: "DELETE",
-        });
-        await fetch("/api/articles/generation-queue", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            articleId: item.articleId,
-            scheduledForDate: nextDate.toISOString(),
-          }),
-        });
-      }
-      toast.success("Rescheduled overdue items to tomorrow");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to reschedule overdue items");
-    } finally {
-      setIsUpdating(false);
-      await fetchQueue();
-    }
-  }, [scheduledItems, overdueQueueItemIds, fetchQueue]);
 
   const weekStart = weekDays[0] ?? new Date();
   const isBusy = loadingQueue || isUpdating;
@@ -880,12 +770,10 @@ export function ArticlesBoard() {
           weekStart={weekStart}
           isBusy={isBusy}
           isGeneratingIdeas={isGeneratingTopics}
-          overdueCount={overdueQueueItemIds.size}
           onToday={goToToday}
           onPrevWeek={() => navigateWeek("prev")}
           onNextWeek={() => navigateWeek("next")}
           onGenerateIdeas={startTopicGeneration}
-          onRescheduleOverdue={handleRescheduleOverdue}
         />
         <WeekGrid
           weekDays={weekDays}

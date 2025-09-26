@@ -6,24 +6,20 @@ interface BoardHeaderProps {
   readonly weekStart: Date;
   readonly isBusy: boolean;
   readonly isGeneratingIdeas: boolean;
-  readonly overdueCount: number;
   readonly onToday: () => void;
   readonly onPrevWeek: () => void;
   readonly onNextWeek: () => void;
   readonly onGenerateIdeas: () => Promise<void>;
-  readonly onRescheduleOverdue: () => Promise<void>;
 }
 
 export function BoardHeader({
   weekStart,
   isBusy,
   isGeneratingIdeas,
-  overdueCount,
   onToday,
   onPrevWeek,
   onNextWeek,
   onGenerateIdeas,
-  onRescheduleOverdue,
 }: BoardHeaderProps) {
   return (
     <header className="border-border bg-card flex items-center justify-between rounded-t-lg border-b p-4">
@@ -84,17 +80,6 @@ export function BoardHeader({
             <SettingsIcon className="h-4 w-4" />
           </a>
         </Button>
-
-        {overdueCount > 0 ? (
-          <div className="flex items-center gap-2">
-            <div className="text-destructive text-sm font-medium">
-              Overdue: {overdueCount}
-            </div>
-            <Button size="sm" variant="outline" onClick={() => { void onRescheduleOverdue(); }}>
-              Reschedule All Overdue
-            </Button>
-          </div>
-        ) : null}
       </div>
     </header>
   );

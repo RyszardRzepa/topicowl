@@ -82,24 +82,44 @@ export function WeekGrid({
           );
 
           // Also include queued items (they have a different data structure)
-          const queuedForDay = scheduledItems.filter((s) =>
-            isSameDay(new Date(s.scheduledForDate), day),
-          );
+          const queuedForDay = scheduledItems.flatMap((item) => {
+            const article = articleById.get(item.articleId);
+            if (!article) {
+              return [];
+            }
+            const columnDate =
+              article.publishScheduledAt ??
+              article.publishedAt ??
+              item.scheduledForDate ??
+              article.createdAt;
+            if (!columnDate) {
+              return [];
+            }
+            return isSameDay(new Date(columnDate), day)
+              ? [
+                  {
+                    item,
+                    dateIso: columnDate,
+                    article,
+                  },
+                ]
+              : [];
+          });
 
           // Combine all events with proper typing
           const allEventsForDay: Array<
             BoardEvent & { priority: number; articleId: string }
           > = [
             // Queue items (ideas, scheduled items not yet in generation)
-            ...queuedForDay.map((q) => ({
+            ...queuedForDay.map(({ item, dateIso, article }) => ({
               kind: "queued" as const,
-              key: `q-${q.id}`,
-              dateIso: q.scheduledForDate,
-              item: q,
-              title: articleById.get(q.articleId)?.title ?? q.title,
-              overdue: overdueQueueItemIds.has(q.id),
+              key: `q-${item.id}`,
+              dateIso,
+              item,
+              title: article.title,
+              overdue: overdueQueueItemIds.has(item.id),
               priority: 1,
-              articleId: String(q.articleId),
+              articleId: article.id,
             })),
             // All other article statuses
             ...dayEvents.map((e) => ({
@@ -272,10 +292,49 @@ export function WeekGrid({
                                       article.status ===
                                         STATUSES.SCHEDULED)) ||
                                     // Show for failed articles regardless of time
-                                    article.status === STATUSES.FAILED);
+                                    article.status === STATUSES.FAILED ||
+                                    // Show for overdue scheduled articles (they need rescheduling)
+                                    (isInPast && article.status === STATUSES.SCHEDULED));
 
                                 if (!shouldShowActions) return null;
 
+                                // For overdue scheduled articles, show only reschedule button
+                                if (isInPast && article.status === STATUSES.SCHEDULED) {
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            className="hover:bg-accent/40 text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void handleRescheduleArticle(article);
+                                            }}
+                                            disabled={isOperationLoading(
+                                              parseInt(article.id),
+                                              "edit",
+                                            )}
+                                            aria-label="Reschedule date"
+                                          >
+                                            {isOperationLoading(
+                                              parseInt(article.id),
+                                              "edit",
+                                            ) ? (
+                                              <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <Calendar className="h-4 w-4" />
+                                            )}
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">
+                                          Reschedule date
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                  );
+                                }
+
+                                // For non-overdue articles, show full action buttons
                                 return (
                                   <div className="flex items-center gap-1">
                                     <Tooltip>
@@ -738,8 +797,8 @@ export function WeekGrid({
 
                                 return (
                                   <div className="flex items-center gap-1">
-                                    {/* For idea and scheduled articles, show full edit, generate, and delete buttons */}
-                                    {(article.status === STATUSES.IDEA || article.status === STATUSES.SCHEDULED) && (
+                                    {/* For idea articles, show full edit, generate, and delete buttons */}
+                                    {article.status === STATUSES.IDEA && (
                                       <>
                                         <Tooltip>
                                           <TooltipTrigger asChild>
@@ -836,10 +895,8 @@ export function WeekGrid({
                                       </>
                                     )}
                                     
-                                    {/* For articles already scheduled or published, show only reschedule button */}
-                                    {(article.status === STATUSES.PUBLISHED ||
-                                      (article.status === STATUSES.SCHEDULED &&
-                                        article.publishScheduledAt)) && (
+                                    {/* For scheduled articles, show only reschedule button */}
+                                    {article.status === STATUSES.SCHEDULED && (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <button
